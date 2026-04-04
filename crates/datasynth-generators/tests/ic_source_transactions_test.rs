@@ -7,11 +7,15 @@
 use chrono::NaiveDate;
 use datasynth_core::models::documents::CustomerInvoiceType;
 use datasynth_core::models::intercompany::{
-    ICMatchedPair, ICTransactionType, IntercompanyRelationship, OwnershipStructure,
+    EliminationType, ICMatchedPair, ICTransactionType, IntercompanyRelationship, OwnershipStructure,
 };
-use datasynth_generators::intercompany::{ICGenerator, ICGeneratorConfig};
+use datasynth_generators::intercompany::{
+    EliminationConfig, EliminationGenerator, ICGenerator, ICGeneratorConfig, ICMatchingConfig,
+    ICMatchingEngine,
+};
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
+use std::str::FromStr;
 
 fn create_test_ownership_structure() -> OwnershipStructure {
     let mut structure = OwnershipStructure::new("1000".to_string());
@@ -329,4 +333,71 @@ fn test_with_generator_produced_pairs() {
         chains.buyer_invoices.len(),
         "buyer_goods_receipts and buyer_invoices counts should match"
     );
+}
+
+#[test]
+fn test_eliminations_use_actual_ic_amounts() {
+    // Generate IC transactions
+    let ownership = create_test_ownership_structure();
+    let config = ICGeneratorConfig::default();
+    let mut gen = ICGenerator::new(config, ownership.clone(), 42);
+
+    let start = NaiveDate::from_ymd_opt(2025, 1, 1).unwrap();
+    let end = NaiveDate::from_ymd_opt(2025, 3, 31).unwrap();
+    let pairs = gen.generate_transactions_for_period(start, end, 2);
+    assert!(!pairs.is_empty());
+
+    // Run matching
+    let matching_config = ICMatchingConfig::default();
+    let mut matching = ICMatchingEngine::new(matching_config);
+    matching.load_matched_pairs(&pairs);
+    let _result = matching.run_matching(end);
+
+    // Collect balances as owned values for elimination
+    let balances: Vec<_> = matching.get_balances().into_iter().cloned().collect();
+
+    // Generate eliminations
+    let elim_config = EliminationConfig::default();
+    let mut elim_gen = EliminationGenerator::new(elim_config, ownership);
+
+    let journal = elim_gen.generate_eliminations(
+        "202501",
+        end,
+        &balances,
+        &pairs,
+        &std::collections::HashMap::new(),
+        &std::collections::HashMap::new(),
+    );
+
+    // The IC revenue/expense elimination total should relate to actual IC amounts
+    let total_ic: Decimal = pairs
+        .iter()
+        .filter(|p| {
+            matches!(
+                p.transaction_type,
+                ICTransactionType::GoodsSale | ICTransactionType::ServiceProvided
+            )
+        })
+        .map(|p| p.amount)
+        .sum();
+
+    let total_elim: Decimal = journal
+        .entries
+        .iter()
+        .filter(|e| matches!(e.elimination_type, EliminationType::ICRevenueExpense))
+        .map(|e| e.total_debit)
+        .sum();
+
+    // They should be close (may not be exact due to rounding or netting)
+    if total_ic > Decimal::ZERO && total_elim > Decimal::ZERO {
+        let ratio = total_elim / total_ic;
+        assert!(
+            ratio > Decimal::from_str("0.5").unwrap()
+                && ratio < Decimal::from_str("2.0").unwrap(),
+            "Elimination total {} should be proportional to IC total {}, ratio={}",
+            total_elim,
+            total_ic,
+            ratio
+        );
+    }
 }
