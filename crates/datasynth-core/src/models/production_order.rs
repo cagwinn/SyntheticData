@@ -88,6 +88,10 @@ pub struct ProductionOrder {
     /// Actual cost incurred
     #[serde(with = "rust_decimal::serde::str")]
     pub actual_cost: Decimal,
+    /// Detailed cost breakdown by component (material, labor, overhead).
+    /// When present, `actual_cost` equals `cost_breakdown.total_actual()`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cost_breakdown: Option<CostBreakdown>,
     /// Total labor hours consumed
     pub labor_hours: f64,
     /// Total machine hours consumed
@@ -125,6 +129,51 @@ pub struct RoutingOperation {
     pub started_at: Option<NaiveDate>,
     /// Date the operation completed
     pub completed_at: Option<NaiveDate>,
+}
+
+/// Breakdown of production order costs into constituent components.
+///
+/// Enables variance analysis: actual vs standard for each component.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct CostBreakdown {
+    /// Material cost (raw materials consumed)
+    #[serde(with = "rust_decimal::serde::str")]
+    pub material_cost: Decimal,
+    /// Direct labor cost (hours × rate)
+    #[serde(with = "rust_decimal::serde::str")]
+    pub labor_cost: Decimal,
+    /// Applied overhead (labor cost × overhead rate)
+    #[serde(with = "rust_decimal::serde::str")]
+    pub overhead_cost: Decimal,
+    /// Standard material cost for variance calculation
+    #[serde(with = "rust_decimal::serde::str")]
+    pub standard_material_cost: Decimal,
+    /// Standard labor cost for variance calculation
+    #[serde(with = "rust_decimal::serde::str")]
+    pub standard_labor_cost: Decimal,
+    /// Standard overhead cost for variance calculation
+    #[serde(with = "rust_decimal::serde::str")]
+    pub standard_overhead_cost: Decimal,
+    /// Standard cost per unit of output
+    #[serde(with = "rust_decimal::serde::str")]
+    pub standard_unit_cost: Decimal,
+}
+
+impl CostBreakdown {
+    /// Total actual cost (sum of material + labor + overhead).
+    pub fn total_actual(&self) -> Decimal {
+        self.material_cost + self.labor_cost + self.overhead_cost
+    }
+
+    /// Total standard cost.
+    pub fn total_standard(&self) -> Decimal {
+        self.standard_material_cost + self.standard_labor_cost + self.standard_overhead_cost
+    }
+
+    /// Total variance (actual - standard).
+    pub fn total_variance(&self) -> Decimal {
+        self.total_actual() - self.total_standard()
+    }
 }
 
 impl ToNodeProperties for ProductionOrder {

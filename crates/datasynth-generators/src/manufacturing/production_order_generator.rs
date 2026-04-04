@@ -239,6 +239,7 @@ impl ProductionOrderGenerator {
             routing_id,
             planned_cost,
             actual_cost,
+            cost_breakdown: None,
             labor_hours,
             machine_hours,
             yield_rate: effective_yield,
