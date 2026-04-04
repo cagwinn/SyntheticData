@@ -148,6 +148,45 @@ pub mod expense_accounts {
     pub const FX_GAIN_LOSS: &str = "7500";
 }
 
+/// Manufacturing cost flow accounts.
+pub mod manufacturing_accounts {
+    /// Work-in-Process control account
+    pub const WIP: &str = "1420";
+
+    /// Finished Goods inventory account
+    pub const FINISHED_GOODS: &str = "1410";
+
+    /// Scrap expense account
+    pub const SCRAP_EXPENSE: &str = "5210";
+
+    /// Labor accrual liability account
+    pub const LABOR_ACCRUAL: &str = "2150";
+
+    /// Overhead applied clearing account
+    pub const OVERHEAD_APPLIED: &str = "5310";
+
+    /// Material price variance account
+    pub const MATERIAL_PRICE_VARIANCE: &str = "5110";
+
+    /// Material usage variance account
+    pub const MATERIAL_USAGE_VARIANCE: &str = "5120";
+
+    /// Labor rate variance account
+    pub const LABOR_RATE_VARIANCE: &str = "5130";
+
+    /// Labor efficiency variance account
+    pub const LABOR_EFFICIENCY_VARIANCE: &str = "5140";
+
+    /// Overhead volume variance account
+    pub const OVERHEAD_VOLUME_VARIANCE: &str = "5150";
+
+    /// Warranty provision liability account
+    pub const WARRANTY_PROVISION: &str = "2410";
+
+    /// Warranty expense account
+    pub const WARRANTY_EXPENSE: &str = "5400";
+}
+
 /// Tax accounts.
 pub mod tax_accounts {
     /// Sales tax payable account
