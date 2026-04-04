@@ -1,5 +1,6 @@
 use datasynth_config::schema::{ManufacturingCostingConfig, ProductionOrderConfig, RoutingConfig};
-use datasynth_generators::manufacturing::ProductionOrderGenerator;
+use datasynth_core::models::ProductionOrderStatus;
+use datasynth_generators::manufacturing::{ManufacturingCostAccounting, ProductionOrderGenerator};
 use rust_decimal::Decimal;
 
 #[test]
@@ -72,5 +73,78 @@ fn test_cost_breakdown_labor_from_hours_and_rate() {
             "Overhead/labor ratio {} should be reasonable at 100% overhead rate",
             ratio
         );
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Helper
+// ---------------------------------------------------------------------------
+
+fn make_test_orders(
+    status: ProductionOrderStatus,
+) -> Vec<datasynth_core::models::ProductionOrder> {
+    let mut gen = ProductionOrderGenerator::new(42);
+    let config = ProductionOrderConfig::default();
+    let costing = ManufacturingCostingConfig::default();
+    let routing = RoutingConfig::default();
+    let materials = vec![("MAT-001".to_string(), "Widget".to_string())];
+    let start = chrono::NaiveDate::from_ymd_opt(2025, 1, 1).unwrap();
+    let end = chrono::NaiveDate::from_ymd_opt(2025, 1, 31).unwrap();
+    let mut orders = gen.generate("C001", &materials, start, end, &config, &costing, &routing);
+    for o in &mut orders {
+        o.status = status;
+        if matches!(
+            status,
+            ProductionOrderStatus::Completed | ProductionOrderStatus::Closed
+        ) {
+            o.actual_end = Some(end);
+        }
+    }
+    orders
+}
+
+// ---------------------------------------------------------------------------
+// New tests (Task 4)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_wip_entry_on_order_start() {
+    let orders = make_test_orders(ProductionOrderStatus::InProcess);
+    let jes = ManufacturingCostAccounting::generate_all_jes(&orders, &[], "USD");
+    let wip_jes: Vec<_> = jes
+        .iter()
+        .filter(|je| je.description().map_or(false, |d| d.contains("material")))
+        .collect();
+    assert!(!wip_jes.is_empty());
+    for je in &wip_jes {
+        assert!(je.is_balanced());
+    }
+}
+
+#[test]
+fn test_fg_transfer_on_completion() {
+    let orders = make_test_orders(ProductionOrderStatus::Completed);
+    let jes = ManufacturingCostAccounting::generate_all_jes(&orders, &[], "USD");
+    let fg_jes: Vec<_> = jes
+        .iter()
+        .filter(|je| je.description().map_or(false, |d| d.contains("FG transfer")))
+        .collect();
+    assert!(!fg_jes.is_empty());
+    for je in &fg_jes {
+        assert!(je.is_balanced());
+    }
+}
+
+#[test]
+fn test_variance_jes_generated() {
+    let orders = make_test_orders(ProductionOrderStatus::Completed);
+    let jes = ManufacturingCostAccounting::generate_all_jes(&orders, &[], "USD");
+    let var_jes: Vec<_> = jes
+        .iter()
+        .filter(|je| je.description().map_or(false, |d| d.contains("variance")))
+        .collect();
+    assert!(!var_jes.is_empty());
+    for je in &var_jes {
+        assert!(je.is_balanced());
     }
 }
