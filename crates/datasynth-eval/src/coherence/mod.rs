@@ -3,6 +3,7 @@
 //! Validates that generated data maintains accounting coherence including
 //! balance sheet equations, subledger reconciliation, and document chain integrity.
 
+pub mod inventory_cogs;
 pub mod je_risk_scoring;
 pub mod ratio_analysis;
 pub mod sampling_validation;
@@ -122,6 +123,10 @@ pub use treasury::{
     TreasuryEvaluator, TreasuryThresholds,
 };
 pub use trend_analysis::{analyze_trends, TrendConsistencyCheck, TrendPlausibilityResult};
+pub use inventory_cogs::{
+    ICEliminationData, ICEliminationEvaluation, ICEliminationEvaluator,
+    InventoryCOGSData, InventoryCOGSEvaluation, InventoryCOGSEvaluator,
+};
 
 use serde::{Deserialize, Serialize};
 
@@ -186,6 +191,12 @@ pub struct CoherenceEvaluation {
     /// Multi-period coherence evaluation results.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub multi_period: Option<MultiPeriodAnalysis>,
+    /// COGS and WIP inventory reconciliation results.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub inventory_cogs: Option<inventory_cogs::InventoryCOGSEvaluation>,
+    /// Intercompany elimination completeness results.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ic_elimination: Option<inventory_cogs::ICEliminationEvaluation>,
     /// Overall pass/fail status.
     pub passes: bool,
     /// Summary of failed checks.
@@ -218,6 +229,8 @@ impl CoherenceEvaluation {
             sales_quotes: None,
             country_packs: None,
             multi_period: None,
+            inventory_cogs: None,
+            ic_elimination: None,
             passes: true,
             failures: Vec::new(),
         }
@@ -370,6 +383,16 @@ impl CoherenceEvaluation {
         if let Some(ref eval) = self.multi_period {
             if !eval.passes {
                 self.failures.extend(eval.issues.clone());
+            }
+        }
+        if let Some(ref eval) = self.inventory_cogs {
+            if !eval.passes {
+                self.failures.extend(eval.failures.clone());
+            }
+        }
+        if let Some(ref eval) = self.ic_elimination {
+            if !eval.passes {
+                self.failures.extend(eval.failures.clone());
             }
         }
 
