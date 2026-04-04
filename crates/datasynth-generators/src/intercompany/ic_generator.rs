@@ -13,6 +13,10 @@ use rust_decimal_macros::dec;
 use std::collections::HashMap;
 use tracing::debug;
 
+use datasynth_core::models::documents::{
+    CustomerInvoice, CustomerInvoiceItem, CustomerInvoiceType, GoodsReceipt, GoodsReceiptItem,
+    PurchaseOrder, PurchaseOrderItem, VendorInvoice, VendorInvoiceItem,
+};
 use datasynth_core::models::intercompany::{
     ICLoan, ICMatchedPair, ICTransactionType, OwnershipStructure, RecurringFrequency,
     TransferPricingMethod, TransferPricingPolicy,
@@ -618,6 +622,198 @@ impl ICGenerator {
         self.doc_counter = 0;
         self.matched_pairs.clear();
     }
+
+    /// Generate P2P/O2C source documents from IC matched pairs.
+    ///
+    /// For each eligible pair (GoodsSale, ServiceProvided, ManagementFee,
+    /// Royalty, or ExpenseRecharge) this creates:
+    ///
+    /// - **Seller side**: a [`CustomerInvoice`] billed to the buyer company
+    /// - **Buyer side**: a [`PurchaseOrder`], [`GoodsReceipt`], and
+    ///   [`VendorInvoice`] referencing the seller company
+    ///
+    /// All documents carry the IC reference in `header.reference` so
+    /// downstream processes can trace them back to the originating
+    /// [`ICMatchedPair`].
+    pub fn generate_ic_document_chains(
+        &mut self,
+        pairs: &[ICMatchedPair],
+    ) -> ICDocumentChains {
+        let eligible_types = [
+            ICTransactionType::GoodsSale,
+            ICTransactionType::ServiceProvided,
+            ICTransactionType::ManagementFee,
+            ICTransactionType::Royalty,
+            ICTransactionType::ExpenseRecharge,
+        ];
+
+        let mut chains = ICDocumentChains {
+            seller_invoices: Vec::new(),
+            buyer_orders: Vec::new(),
+            buyer_goods_receipts: Vec::new(),
+            buyer_invoices: Vec::new(),
+        };
+
+        for pair in pairs {
+            if !eligible_types.contains(&pair.transaction_type) {
+                continue;
+            }
+
+            let date = pair.posting_date;
+            let fiscal_year = date.year() as u16;
+            let fiscal_period = date.month() as u8;
+
+            // --- Seller side: CustomerInvoice ---
+            let ci_doc_id = self.generate_doc_number("IC-CI");
+            let due_date = date + chrono::Duration::days(30);
+
+            let mut ci = CustomerInvoice::new(
+                &ci_doc_id,
+                &pair.seller_company,
+                &pair.buyer_company,
+                fiscal_year,
+                fiscal_period,
+                date,
+                due_date,
+                "IC_GENERATOR",
+            );
+            ci.invoice_type = CustomerInvoiceType::Intercompany;
+            ci.is_intercompany = true;
+            ci.ic_partner = Some(pair.buyer_company.clone());
+            ci.header.reference = Some(pair.ic_reference.clone());
+            ci.header.currency = pair.currency.clone();
+            ci.header.posting_date = Some(date);
+
+            let description = format!(
+                "IC {:?} to {}",
+                pair.transaction_type, pair.buyer_company
+            );
+            ci.add_item(CustomerInvoiceItem::new(
+                1,
+                &description,
+                Decimal::ONE,
+                pair.amount,
+            ));
+
+            chains.seller_invoices.push(ci);
+
+            // --- Buyer side: PurchaseOrder ---
+            let po_doc_id = self.generate_doc_number("IC-PO");
+
+            let mut po = PurchaseOrder::new(
+                &po_doc_id,
+                &pair.buyer_company,
+                &pair.seller_company,
+                fiscal_year,
+                fiscal_period,
+                date,
+                "IC_GENERATOR",
+            );
+            po.header.reference = Some(pair.ic_reference.clone());
+            po.header.currency = pair.currency.clone();
+
+            let po_desc = format!(
+                "IC {:?} from {}",
+                pair.transaction_type, pair.seller_company
+            );
+            po.add_item(PurchaseOrderItem::new(
+                1,
+                &po_desc,
+                Decimal::ONE,
+                pair.amount,
+            ));
+
+            chains.buyer_orders.push(po);
+
+            // --- Buyer side: GoodsReceipt ---
+            let gr_doc_id = self.generate_doc_number("IC-GR");
+
+            let mut gr = GoodsReceipt::from_purchase_order(
+                &gr_doc_id,
+                &pair.buyer_company,
+                &po_doc_id,
+                &pair.seller_company,
+                "1000",  // default plant
+                "0001",  // default storage location
+                fiscal_year,
+                fiscal_period,
+                date,
+                "IC_GENERATOR",
+            );
+            gr.header.reference = Some(pair.ic_reference.clone());
+            gr.header.currency = pair.currency.clone();
+
+            let gr_desc = format!(
+                "IC {:?} receipt from {}",
+                pair.transaction_type, pair.seller_company
+            );
+            gr.add_item(GoodsReceiptItem::from_po(
+                1,
+                &gr_desc,
+                Decimal::ONE,
+                pair.amount,
+                &po_doc_id,
+                1,
+            ));
+
+            chains.buyer_goods_receipts.push(gr);
+
+            // --- Buyer side: VendorInvoice ---
+            let vi_doc_id = self.generate_doc_number("IC-VI");
+            let vendor_inv_number = format!("EXT-{}", pair.ic_reference);
+
+            let mut vi = VendorInvoice::from_po_gr(
+                &vi_doc_id,
+                &pair.buyer_company,
+                &pair.seller_company,
+                &vendor_inv_number,
+                &po_doc_id,
+                &gr_doc_id,
+                fiscal_year,
+                fiscal_period,
+                date,
+                "IC_GENERATOR",
+            );
+            vi.header.reference = Some(pair.ic_reference.clone());
+            vi.header.currency = pair.currency.clone();
+
+            let vi_desc = format!(
+                "IC {:?} invoice from {}",
+                pair.transaction_type, pair.seller_company
+            );
+            vi.add_item(VendorInvoiceItem::from_po_gr(
+                1,
+                &vi_desc,
+                Decimal::ONE,
+                pair.amount,
+                &po_doc_id,
+                1,
+                Some(gr_doc_id.clone()),
+                Some(1),
+            ));
+
+            chains.buyer_invoices.push(vi);
+        }
+
+        chains
+    }
+}
+
+/// Source documents generated from IC matched pairs.
+///
+/// Each eligible [`ICMatchedPair`] produces a full set of P2P/O2C
+/// documents linking the seller and buyer sides of the intercompany
+/// transaction.
+#[derive(Debug, Clone)]
+pub struct ICDocumentChains {
+    /// Customer invoices issued by the seller company.
+    pub seller_invoices: Vec<CustomerInvoice>,
+    /// Purchase orders created by the buyer company.
+    pub buyer_orders: Vec<PurchaseOrder>,
+    /// Goods receipts posted by the buyer company.
+    pub buyer_goods_receipts: Vec<GoodsReceipt>,
+    /// Vendor invoices received by the buyer company.
+    pub buyer_invoices: Vec<VendorInvoice>,
 }
 
 #[cfg(test)]
