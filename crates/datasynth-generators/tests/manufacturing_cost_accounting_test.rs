@@ -1,5 +1,6 @@
 use datasynth_config::schema::{ManufacturingCostingConfig, ProductionOrderConfig, RoutingConfig};
-use datasynth_core::models::ProductionOrderStatus;
+use datasynth_core::models::documents::{Delivery, DeliveryItem};
+use datasynth_core::models::{ProductionOrder, ProductionOrderStatus};
 use datasynth_generators::manufacturing::{ManufacturingCostAccounting, ProductionOrderGenerator};
 use rust_decimal::Decimal;
 
@@ -77,7 +78,7 @@ fn test_cost_breakdown_labor_from_hours_and_rate() {
 }
 
 // ---------------------------------------------------------------------------
-// Helper
+// Helpers
 // ---------------------------------------------------------------------------
 
 fn make_test_orders(
@@ -146,5 +147,76 @@ fn test_variance_jes_generated() {
     assert!(!var_jes.is_empty());
     for je in &var_jes {
         assert!(je.is_balanced());
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Task 11: COGS JE on Sale (Delivery → COGS)
+// ---------------------------------------------------------------------------
+
+/// Build minimal Delivery documents whose line items reference the materials
+/// from the given production orders.
+fn make_test_deliveries(orders: &[ProductionOrder]) -> Vec<Delivery> {
+    use chrono::NaiveDate;
+
+    // Collect unique material IDs and a representative quantity from the orders.
+    let mut mat_qtys: std::collections::HashMap<String, Decimal> = std::collections::HashMap::new();
+    for o in orders {
+        let entry = mat_qtys.entry(o.material_id.clone()).or_insert(Decimal::ZERO);
+        *entry += o.actual_quantity;
+    }
+
+    let posting_date = NaiveDate::from_ymd_opt(2025, 2, 1).unwrap();
+    let mut deliveries = Vec::new();
+
+    for (idx, (mat_id, qty)) in mat_qtys.iter().enumerate() {
+        let mut dlv = Delivery::new(
+            format!("DLV-C001-{:010}", idx + 1),
+            "C001",
+            "CUST-001",
+            "SP01",
+            2025,
+            2,
+            posting_date,
+            "SYSTEM",
+        );
+
+        // Post goods issue so posting_date is set on the header.
+        dlv.header.posting_date = Some(posting_date);
+
+        let item = DeliveryItem::new(1, mat_id.as_str(), *qty, Decimal::from(100))
+            .with_material(mat_id.as_str());
+
+        dlv.add_item(item);
+        deliveries.push(dlv);
+    }
+
+    deliveries
+}
+
+#[test]
+fn test_cogs_je_on_delivery() {
+    // Create completed production orders so average unit cost can be derived.
+    let orders = make_test_orders(ProductionOrderStatus::Completed);
+
+    // Create mock deliveries matching the orders' materials.
+    let deliveries = make_test_deliveries(&orders);
+
+    let jes = ManufacturingCostAccounting::generate_cogs_on_sale(&deliveries, &orders);
+
+    assert!(!jes.is_empty(), "Should generate COGS JEs for deliveries");
+    for je in &jes {
+        assert!(je.is_balanced(), "JE '{}' is unbalanced", je.description().unwrap_or(""));
+        // Should have COGS debit and FG credit.
+        let has_cogs = je
+            .lines
+            .iter()
+            .any(|l| l.gl_account == "5000" && l.debit_amount > Decimal::ZERO);
+        let has_fg = je
+            .lines
+            .iter()
+            .any(|l| l.gl_account == "1410" && l.credit_amount > Decimal::ZERO);
+        assert!(has_cogs, "Should debit COGS (5000)");
+        assert!(has_fg, "Should credit Finished Goods (1410)");
     }
 }

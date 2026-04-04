@@ -5,7 +5,8 @@
 //! scrap recognition, and standard cost variance entries.
 
 use chrono::NaiveDate;
-use datasynth_core::accounts::{control_accounts, manufacturing_accounts};
+use datasynth_core::accounts::{control_accounts, expense_accounts, manufacturing_accounts};
+use datasynth_core::models::documents::Delivery;
 use datasynth_core::models::{
     InspectionResult, JournalEntry, JournalEntryLine, ProductionOrder, ProductionOrderStatus,
     QualityInspection,
@@ -344,6 +345,147 @@ impl ManufacturingCostAccounting {
                     jes.push(je);
                 }
             }
+        }
+
+        jes
+    }
+
+    /// Generate COGS journal entries when goods are delivered/sold.
+    ///
+    /// For each delivered line item, looks up the average unit cost of the material
+    /// from completed/closed production orders and posts:
+    ///   DR COGS ("5000"), CR Finished Goods ("1410")
+    ///
+    /// # Arguments
+    ///
+    /// * `deliveries` - Outbound delivery documents from the O2C flow.
+    /// * `production_orders` - Production orders used to derive average unit cost.
+    ///
+    /// # Returns
+    ///
+    /// One balanced `JournalEntry` per delivery that has at least one costed line item.
+    pub fn generate_cogs_on_sale(
+        deliveries: &[Delivery],
+        production_orders: &[ProductionOrder],
+    ) -> Vec<JournalEntry> {
+        // ------------------------------------------------------------------
+        // Build average-unit-cost map: material_id → avg_unit_cost
+        // Only Completed / Closed orders with a cost breakdown contribute.
+        // ------------------------------------------------------------------
+        use std::collections::HashMap;
+
+        // Accumulate (total_cost, total_qty) per material.
+        let mut material_cost: HashMap<&str, (Decimal, Decimal)> = HashMap::new();
+        for order in production_orders {
+            if !matches!(
+                order.status,
+                ProductionOrderStatus::Completed | ProductionOrderStatus::Closed
+            ) {
+                continue;
+            }
+            if order.actual_quantity <= Decimal::ZERO {
+                continue;
+            }
+            let total = match &order.cost_breakdown {
+                Some(c) => c.total_actual(),
+                None => order.actual_cost,
+            };
+            if total <= Decimal::ZERO {
+                continue;
+            }
+            let entry = material_cost
+                .entry(order.material_id.as_str())
+                .or_insert((Decimal::ZERO, Decimal::ZERO));
+            entry.0 += total;
+            entry.1 += order.actual_quantity;
+        }
+
+        // Derive per-material average unit cost.
+        let avg_unit_cost: HashMap<&str, Decimal> = material_cost
+            .into_iter()
+            .filter(|(_, (_, qty))| *qty > Decimal::ZERO)
+            .map(|(mat, (cost, qty))| (mat, (cost / qty).round_dp(4)))
+            .collect();
+
+        // ------------------------------------------------------------------
+        // Generate one JE per delivery (skip if no costed items).
+        // ------------------------------------------------------------------
+        let mut jes = Vec::new();
+
+        for delivery in deliveries {
+            let posting_date = delivery
+                .header
+                .posting_date
+                .unwrap_or(delivery.header.document_date);
+
+            // Accumulate COGS amount across all line items in this delivery.
+            let mut cogs_total = Decimal::ZERO;
+            let mut total_qty = Decimal::ZERO;
+
+            for item in &delivery.items {
+                let Some(ref mat_id) = item.base.material_id else {
+                    continue;
+                };
+                let Some(&unit_cost) = avg_unit_cost.get(mat_id.as_str()) else {
+                    continue;
+                };
+                let qty = item.base.quantity;
+                if qty <= Decimal::ZERO || unit_cost <= Decimal::ZERO {
+                    continue;
+                }
+                cogs_total += (unit_cost * qty).round_dp(2);
+                total_qty += qty;
+            }
+
+            if cogs_total <= Decimal::ZERO {
+                continue;
+            }
+
+            let mut je = JournalEntry::new_simple(
+                format!("JE-COGS-{}", delivery.header.document_id),
+                delivery.header.company_code.clone(),
+                posting_date,
+                format!("COGS on delivery {}", delivery.header.document_id),
+            );
+            let doc_id = je.header.document_id;
+
+            // DR COGS
+            je.add_line(JournalEntryLine {
+                document_id: doc_id,
+                line_number: 1,
+                gl_account: expense_accounts::COGS.to_string(),
+                account_code: expense_accounts::COGS.to_string(),
+                debit_amount: cogs_total,
+                local_amount: cogs_total,
+                reference: Some(delivery.header.document_id.clone()),
+                text: Some(format!(
+                    "COGS - delivery {}",
+                    delivery.header.document_id
+                )),
+                quantity: Some(total_qty),
+                unit: Some("EA".to_string()),
+                ..Default::default()
+            });
+
+            // CR Finished Goods
+            je.add_line(JournalEntryLine {
+                document_id: doc_id,
+                line_number: 2,
+                gl_account: manufacturing_accounts::FINISHED_GOODS.to_string(),
+                account_code: manufacturing_accounts::FINISHED_GOODS.to_string(),
+                credit_amount: cogs_total,
+                local_amount: -cogs_total,
+                reference: Some(delivery.header.document_id.clone()),
+                text: Some(format!(
+                    "FG relief - delivery {}",
+                    delivery.header.document_id
+                )),
+                quantity: Some(total_qty),
+                unit: Some("EA".to_string()),
+                ..Default::default()
+            });
+
+            jes.push(je);
         }
 
         jes
