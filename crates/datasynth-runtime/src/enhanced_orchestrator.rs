@@ -113,6 +113,8 @@ use datasynth_generators::{
     JournalEntryGenerator,
     JudgmentGenerator,
     LatePaymentDistribution,
+    // Manufacturing cost accounting + warranty provisions
+    ManufacturingCostAccounting,
     MaterialGenerator,
     O2CDocumentChain,
     O2CGenerator,
@@ -140,6 +142,7 @@ use datasynth_generators::{
     ValidationError,
     // Master data generators
     VendorGenerator,
+    WarrantyProvisionGenerator,
     WorkpaperGenerator,
 };
 use datasynth_graph::{
@@ -986,6 +989,9 @@ pub struct IntercompanySnapshot {
     pub elimination_entries: Vec<datasynth_core::models::intercompany::EliminationEntry>,
     /// NCI measurements derived from group structure ownership percentages.
     pub nci_measurements: Vec<datasynth_core::models::intercompany::NciMeasurement>,
+    /// IC source document chains (seller invoices, buyer POs/GRs/VIs).
+    #[serde(skip)]
+    pub ic_document_chains: Option<datasynth_generators::ICDocumentChains>,
     /// IC matched pair count.
     pub matched_pair_count: usize,
     /// IC elimination entry count.
@@ -2045,6 +2051,31 @@ impl EnhancedOrchestrator {
             }
         }
 
+        // Phase 5e: Wire IC source documents into document flow snapshot
+        if let Some(ic_docs) = intercompany.ic_document_chains.as_ref() {
+            if !ic_docs.seller_invoices.is_empty() || !ic_docs.buyer_orders.is_empty() {
+                document_flows
+                    .customer_invoices
+                    .extend(ic_docs.seller_invoices.iter().cloned());
+                document_flows
+                    .purchase_orders
+                    .extend(ic_docs.buyer_orders.iter().cloned());
+                document_flows
+                    .goods_receipts
+                    .extend(ic_docs.buyer_goods_receipts.iter().cloned());
+                document_flows
+                    .vendor_invoices
+                    .extend(ic_docs.buyer_invoices.iter().cloned());
+                debug!(
+                    "Appended IC source documents to document flows: {} CIs, {} POs, {} GRs, {} VIs",
+                    ic_docs.seller_invoices.len(),
+                    ic_docs.buyer_orders.len(),
+                    ic_docs.buyer_goods_receipts.len(),
+                    ic_docs.buyer_invoices.len(),
+                );
+            }
+        }
+
         // Phase 6: HR Data (Payroll, Time Entries, Expenses)
         let hr = self.phase_hr_data(&mut stats)?;
 
@@ -2076,11 +2107,70 @@ impl EnhancedOrchestrator {
         // Phase 7: Manufacturing (Production Orders, Quality Inspections, Cycle Counts)
         let manufacturing_snap = self.phase_manufacturing(&mut stats)?;
 
-        // Phase 7a: Generate JEs from production orders
+        // Phase 7a: Generate manufacturing cost flow JEs (WIP, overhead, FG, scrap, rework, QC hold)
         if !manufacturing_snap.production_orders.is_empty() {
-            let mfg_jes = Self::generate_manufacturing_jes(&manufacturing_snap.production_orders);
-            debug!("Generated {} JEs from production orders", mfg_jes.len());
+            let currency = self
+                .config
+                .companies
+                .first()
+                .map(|c| c.currency.as_str())
+                .unwrap_or("USD");
+            let mfg_jes = ManufacturingCostAccounting::generate_all_jes(
+                &manufacturing_snap.production_orders,
+                &manufacturing_snap.quality_inspections,
+                currency,
+            );
+            debug!("Generated {} manufacturing cost flow JEs", mfg_jes.len());
             entries.extend(mfg_jes);
+        }
+
+        // Phase 7a-warranty: Generate warranty provisions from quality inspection failures
+        if !manufacturing_snap.quality_inspections.is_empty() {
+            let company_code = self
+                .config
+                .companies
+                .first()
+                .map(|c| c.code.as_str())
+                .unwrap_or("1000");
+            let currency = self
+                .config
+                .companies
+                .first()
+                .map(|c| c.currency.as_str())
+                .unwrap_or("USD");
+            let framework = match self.config.accounting_standards.framework {
+                Some(datasynth_config::schema::AccountingFrameworkConfig::Ifrs) => "IFRS",
+                _ => "US_GAAP",
+            };
+            let mut warranty_gen = WarrantyProvisionGenerator::new(self.seed + 55);
+            let warranty_result = warranty_gen.generate(
+                company_code,
+                &manufacturing_snap.production_orders,
+                &manufacturing_snap.quality_inspections,
+                currency,
+                framework,
+            );
+            if !warranty_result.journal_entries.is_empty() {
+                debug!(
+                    "Generated {} warranty provision JEs",
+                    warranty_result.journal_entries.len()
+                );
+                entries.extend(warranty_result.journal_entries);
+            }
+        }
+
+        // Phase 7a-cogs: Generate COGS JEs from deliveries x production orders
+        if !manufacturing_snap.production_orders.is_empty()
+            && !document_flows.deliveries.is_empty()
+        {
+            let cogs_jes = ManufacturingCostAccounting::generate_cogs_on_sale(
+                &document_flows.deliveries,
+                &manufacturing_snap.production_orders,
+            );
+            if !cogs_jes.is_empty() {
+                debug!("Generated {} COGS JEs from deliveries", cogs_jes.len());
+                entries.extend(cogs_jes);
+            }
         }
 
         // Phase 7a-inv: Apply manufacturing inventory movements to subledger positions (B.3).
@@ -4169,6 +4259,14 @@ impl EnhancedOrchestrator {
             transactions_per_day,
         );
 
+        // Generate IC source P2P/O2C documents
+        let ic_doc_chains = ic_generator.generate_ic_document_chains(&matched_pairs);
+        debug!(
+            "Generated {} IC seller invoices, {} IC buyer POs",
+            ic_doc_chains.seller_invoices.len(),
+            ic_doc_chains.buyer_orders.len()
+        );
+
         // Generate journal entries from matched pairs
         let mut seller_entries = Vec::new();
         let mut buyer_entries = Vec::new();
@@ -4357,6 +4455,7 @@ impl EnhancedOrchestrator {
             buyer_journal_entries: buyer_entries,
             elimination_entries,
             nci_measurements,
+            ic_document_chains: Some(ic_doc_chains),
             matched_pair_count,
             elimination_entry_count,
             match_rate,
@@ -8957,6 +9056,7 @@ impl EnhancedOrchestrator {
     /// Creates one JE per completed production order:
     /// - DR Raw Materials (5100) for material consumption (actual_cost)
     /// - CR Inventory (1200) for material consumption
+    #[allow(dead_code)] // Kept as backward-compatible fallback
     fn generate_manufacturing_jes(production_orders: &[ProductionOrder]) -> Vec<JournalEntry> {
         use datasynth_core::accounts::{control_accounts, expense_accounts};
         use datasynth_core::models::ProductionOrderStatus;
