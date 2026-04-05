@@ -254,6 +254,136 @@ fn test_zero_fair_value_no_je() {
 }
 
 // ---------------------------------------------------------------------------
+// Covenant evaluator tests
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod covenant_evaluator_tests {
+    use chrono::NaiveDate;
+    use datasynth_core::models::{CovenantType, DebtCovenant, Frequency};
+    use datasynth_generators::treasury::CovenantEvaluator;
+    use rust_decimal::Decimal;
+    use rust_decimal_macros::dec;
+    use std::collections::HashMap;
+
+    /// Build a covenant with a zero initial actual_value (it will be overwritten
+    /// by `evaluate_covenants`).
+    fn make_covenant(id: &str, ctype: CovenantType, threshold: Decimal) -> DebtCovenant {
+        DebtCovenant::new(
+            id,
+            ctype,
+            threshold,
+            Frequency::Quarterly,
+            Decimal::ZERO,
+            NaiveDate::from_ymd_opt(2024, 12, 31).unwrap(),
+        )
+    }
+
+    #[test]
+    fn test_covenant_compliant() {
+        let mut covenants = [make_covenant("COV-001", CovenantType::DebtToEquity, dec!(2.0))];
+        let ratios = HashMap::from([(CovenantType::DebtToEquity, dec!(1.5))]);
+        let result = CovenantEvaluator::evaluate_covenants(
+            &mut covenants,
+            &ratios,
+            NaiveDate::from_ymd_opt(2025, 3, 31).unwrap(),
+        );
+        assert!(result.all_compliant);
+        assert!(result.breached_covenants.is_empty());
+        assert!(result.breach_jes.is_empty());
+    }
+
+    #[test]
+    fn test_covenant_breach() {
+        let mut covenants = [make_covenant("COV-001", CovenantType::DebtToEquity, dec!(2.0))];
+        let ratios = HashMap::from([(CovenantType::DebtToEquity, dec!(2.5))]);
+        let result = CovenantEvaluator::evaluate_covenants(
+            &mut covenants,
+            &ratios,
+            NaiveDate::from_ymd_opt(2025, 3, 31).unwrap(),
+        );
+        assert!(!result.all_compliant);
+        assert_eq!(result.breached_covenants.len(), 1);
+        assert_eq!(result.breached_covenants[0], "COV-001");
+        // Reclassification JEs are deferred to the orchestrator
+        assert!(result.breach_jes.is_empty());
+    }
+
+    #[test]
+    fn test_min_covenant_compliant() {
+        // InterestCoverage is a min covenant: actual >= threshold
+        let mut covenants =
+            [make_covenant("COV-002", CovenantType::InterestCoverage, dec!(3.0))];
+        let ratios = HashMap::from([(CovenantType::InterestCoverage, dec!(4.0))]);
+        let result = CovenantEvaluator::evaluate_covenants(
+            &mut covenants,
+            &ratios,
+            NaiveDate::from_ymd_opt(2025, 3, 31).unwrap(),
+        );
+        assert!(result.all_compliant);
+        assert!(result.breached_covenants.is_empty());
+    }
+
+    #[test]
+    fn test_min_covenant_breach() {
+        // InterestCoverage breach: actual < threshold
+        let mut covenants =
+            [make_covenant("COV-003", CovenantType::InterestCoverage, dec!(3.0))];
+        let ratios = HashMap::from([(CovenantType::InterestCoverage, dec!(2.1))]);
+        let result = CovenantEvaluator::evaluate_covenants(
+            &mut covenants,
+            &ratios,
+            NaiveDate::from_ymd_opt(2025, 3, 31).unwrap(),
+        );
+        assert!(!result.all_compliant);
+        assert_eq!(result.breached_covenants[0], "COV-003");
+    }
+
+    #[test]
+    fn test_missing_ratio_leaves_covenant_unchanged() {
+        // No ratio provided for the covenant type → covenant keeps its
+        // initial state (zero actual_value → not compliant for a max covenant
+        // at threshold=2.0 because 0 <= 2.0 → compliant, in fact).
+        let initial_date = NaiveDate::from_ymd_opt(2024, 12, 31).unwrap();
+        let mut covenants =
+            [make_covenant("COV-004", CovenantType::DebtToEbitda, dec!(4.0))];
+        // Provide an unrelated ratio only
+        let ratios = HashMap::from([(CovenantType::NetWorth, dec!(1_000_000.0))]);
+        let result = CovenantEvaluator::evaluate_covenants(
+            &mut covenants,
+            &ratios,
+            NaiveDate::from_ymd_opt(2025, 3, 31).unwrap(),
+        );
+        // measurement_date must NOT have been updated
+        assert_eq!(covenants[0].measurement_date, initial_date);
+        // With actual_value=0 and threshold=4 this is a max covenant → 0<=4 → compliant
+        assert!(result.all_compliant);
+    }
+
+    #[test]
+    fn test_multiple_covenants_mixed() {
+        let mut covenants = [
+            make_covenant("COV-A", CovenantType::DebtToEquity, dec!(2.0)),
+            make_covenant("COV-B", CovenantType::InterestCoverage, dec!(3.0)),
+            make_covenant("COV-C", CovenantType::CurrentRatio, dec!(1.5)),
+        ];
+        let ratios = HashMap::from([
+            (CovenantType::DebtToEquity, dec!(1.8)),   // compliant (1.8 <= 2.0)
+            (CovenantType::InterestCoverage, dec!(2.5)), // breach (2.5 < 3.0)
+            (CovenantType::CurrentRatio, dec!(1.6)),   // compliant (1.6 >= 1.5)
+        ]);
+        let result = CovenantEvaluator::evaluate_covenants(
+            &mut covenants,
+            &ratios,
+            NaiveDate::from_ymd_opt(2025, 3, 31).unwrap(),
+        );
+        assert!(!result.all_compliant);
+        assert_eq!(result.breached_covenants.len(), 1);
+        assert_eq!(result.breached_covenants[0], "COV-B");
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Cash pool sweep tests
 // ---------------------------------------------------------------------------
 
