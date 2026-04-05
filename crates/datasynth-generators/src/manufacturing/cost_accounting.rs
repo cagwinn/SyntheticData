@@ -40,9 +40,12 @@ impl ManufacturingCostAccounting {
 
         for order in orders {
             // Skip orders that have no meaningful activity yet.
+            // Released orders haven't started production; InProcess and beyond are costed.
             if matches!(
                 order.status,
-                ProductionOrderStatus::Planned | ProductionOrderStatus::Cancelled
+                ProductionOrderStatus::Planned
+                    | ProductionOrderStatus::Cancelled
+                    | ProductionOrderStatus::Released
             ) {
                 continue;
             }
@@ -190,7 +193,11 @@ impl ManufacturingCostAccounting {
             );
             let total_actual = cost.total_actual();
 
-            if is_complete && total_actual > Decimal::ZERO {
+            // FG transfer uses standard cost so WIP retains the actual-vs-standard
+            // residual, which is then cleared by the variance JEs below.
+            let total_standard = cost.total_standard();
+
+            if is_complete && total_standard > Decimal::ZERO {
                 let mut je = JournalEntry::new_simple(
                     format!("JE-MFG-FG-{}", order.order_id),
                     order.company_code.clone(),
@@ -205,8 +212,8 @@ impl ManufacturingCostAccounting {
                     line_number: 1,
                     gl_account: manufacturing_accounts::FINISHED_GOODS.to_string(),
                     account_code: manufacturing_accounts::FINISHED_GOODS.to_string(),
-                    debit_amount: total_actual,
-                    local_amount: total_actual,
+                    debit_amount: total_standard,
+                    local_amount: total_standard,
                     reference: Some(order.order_id.clone()),
                     text: Some(format!("FG receipt: {}", order.material_description)),
                     quantity: Some(order.actual_quantity),
@@ -218,10 +225,10 @@ impl ManufacturingCostAccounting {
                     line_number: 2,
                     gl_account: manufacturing_accounts::WIP.to_string(),
                     account_code: manufacturing_accounts::WIP.to_string(),
-                    credit_amount: total_actual,
-                    local_amount: -total_actual,
+                    credit_amount: total_standard,
+                    local_amount: -total_standard,
                     reference: Some(order.order_id.clone()),
-                    text: Some("WIP clearance to FG".to_string()),
+                    text: Some("WIP clearance to FG at standard cost".to_string()),
                     quantity: Some(order.actual_quantity),
                     unit: Some("EA".to_string()),
                     ..Default::default()
@@ -230,73 +237,71 @@ impl ManufacturingCostAccounting {
             }
 
             // ------------------------------------------------------------------
-            // 5. Scrap JEs (Rejected inspections linked to this order)
+            // 5. Scrap JE (at most ONE per order, regardless of how many
+            //    rejected inspections exist for it)
             // ------------------------------------------------------------------
-            let rejected_inspections: Vec<&QualityInspection> = inspections
+            let first_rejected: Option<&QualityInspection> = inspections
                 .iter()
-                .filter(|insp| {
+                .find(|insp| {
                     insp.reference_id == order.order_id
                         && matches!(insp.result, InspectionResult::Rejected)
-                })
-                .collect();
+                });
 
-            for insp in rejected_inspections {
+            if let Some(insp) = first_rejected {
                 let scrap_value = Self::compute_scrap_value(order, total_actual);
-                if scrap_value <= Decimal::ZERO {
-                    continue;
+                if scrap_value > Decimal::ZERO {
+                    let scrap_posting_date = Self::scrap_posting_date(order, posting_date);
+
+                    let mut je = JournalEntry::new_simple(
+                        format!("JE-MFG-SCRAP-{}", order.order_id),
+                        order.company_code.clone(),
+                        scrap_posting_date,
+                        format!(
+                            "scrap recognition for order {} inspection {}",
+                            order.order_id, insp.inspection_id
+                        ),
+                    );
+                    je.header.currency = currency.to_string();
+                    let doc_id = je.header.document_id;
+
+                    // Credit WIP for in-process orders, FG for completed/closed.
+                    let credit_account = if is_complete {
+                        manufacturing_accounts::FINISHED_GOODS
+                    } else {
+                        manufacturing_accounts::WIP
+                    };
+
+                    je.add_line(JournalEntryLine {
+                        document_id: doc_id,
+                        line_number: 1,
+                        gl_account: manufacturing_accounts::SCRAP_EXPENSE.to_string(),
+                        account_code: manufacturing_accounts::SCRAP_EXPENSE.to_string(),
+                        debit_amount: scrap_value,
+                        local_amount: scrap_value,
+                        reference: Some(order.order_id.clone()),
+                        text: Some(format!(
+                            "Scrap expense: {}",
+                            insp.disposition.as_deref().unwrap_or("scrap")
+                        )),
+                        quantity: Some(order.scrap_quantity),
+                        unit: Some("EA".to_string()),
+                        ..Default::default()
+                    });
+                    je.add_line(JournalEntryLine {
+                        document_id: doc_id,
+                        line_number: 2,
+                        gl_account: credit_account.to_string(),
+                        account_code: credit_account.to_string(),
+                        credit_amount: scrap_value,
+                        local_amount: -scrap_value,
+                        reference: Some(order.order_id.clone()),
+                        text: Some(format!("Scrap relief from {}", credit_account)),
+                        quantity: Some(order.scrap_quantity),
+                        unit: Some("EA".to_string()),
+                        ..Default::default()
+                    });
+                    jes.push(je);
                 }
-
-                let scrap_posting_date = Self::scrap_posting_date(order, posting_date);
-
-                let mut je = JournalEntry::new_simple(
-                    format!("JE-MFG-SCRAP-{}", insp.inspection_id),
-                    order.company_code.clone(),
-                    scrap_posting_date,
-                    format!(
-                        "scrap recognition for order {} inspection {}",
-                        order.order_id, insp.inspection_id
-                    ),
-                );
-                je.header.currency = currency.to_string();
-                let doc_id = je.header.document_id;
-
-                // Credit WIP for in-process orders, FG for completed/closed.
-                let credit_account = if is_complete {
-                    manufacturing_accounts::FINISHED_GOODS
-                } else {
-                    manufacturing_accounts::WIP
-                };
-
-                je.add_line(JournalEntryLine {
-                    document_id: doc_id,
-                    line_number: 1,
-                    gl_account: manufacturing_accounts::SCRAP_EXPENSE.to_string(),
-                    account_code: manufacturing_accounts::SCRAP_EXPENSE.to_string(),
-                    debit_amount: scrap_value,
-                    local_amount: scrap_value,
-                    reference: Some(order.order_id.clone()),
-                    text: Some(format!(
-                        "Scrap expense: {}",
-                        insp.disposition.as_deref().unwrap_or("scrap")
-                    )),
-                    quantity: Some(order.scrap_quantity),
-                    unit: Some("EA".to_string()),
-                    ..Default::default()
-                });
-                je.add_line(JournalEntryLine {
-                    document_id: doc_id,
-                    line_number: 2,
-                    gl_account: credit_account.to_string(),
-                    account_code: credit_account.to_string(),
-                    credit_amount: scrap_value,
-                    local_amount: -scrap_value,
-                    reference: Some(order.order_id.clone()),
-                    text: Some(format!("Scrap relief from {}", credit_account)),
-                    quantity: Some(order.scrap_quantity),
-                    unit: Some("EA".to_string()),
-                    ..Default::default()
-                });
-                jes.push(je);
             }
 
             // ------------------------------------------------------------------
