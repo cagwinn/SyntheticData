@@ -7,8 +7,8 @@ pub mod inventory_cogs;
 pub mod je_risk_scoring;
 pub mod ratio_analysis;
 pub mod sampling_validation;
-pub mod trend_analysis;
 pub mod treasury_tax;
+pub mod trend_analysis;
 
 mod audit;
 mod balance;

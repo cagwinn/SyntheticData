@@ -95,9 +95,8 @@ fn test_mid_period_salary_change_prorated() {
 
     // Expected prorated annual: (60000×15 + 72000×16) / 31 ≈ 66_967.74
     // Monthly = prorated_annual / 12 ≈ 5_580.65
-    let expected_monthly = (dec!(60_000) * dec!(15) + dec!(72_000) * dec!(16))
-        / dec!(31)
-        / dec!(12);
+    let expected_monthly =
+        (dec!(60_000) * dec!(15) + dec!(72_000) * dec!(16)) / dec!(31) / dec!(12);
 
     assert!(
         (emp_item.base_salary - expected_monthly).abs() < dec!(100),

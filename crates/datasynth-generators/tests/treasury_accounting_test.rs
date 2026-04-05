@@ -41,7 +41,11 @@ fn fx_forward(id: &str, fair_value: Decimal) -> HedgingInstrument {
     .with_fair_value(fair_value)
 }
 
-fn cash_flow_hedge_rel(instrument_id: &str, effective: bool, ineff_amt: Decimal) -> HedgeRelationship {
+fn cash_flow_hedge_rel(
+    instrument_id: &str,
+    effective: bool,
+    ineff_amt: Decimal,
+) -> HedgeRelationship {
     let ratio = if effective {
         Decimal::new(95, 2) // 0.95 — within 80-125%
     } else {
@@ -281,7 +285,11 @@ mod covenant_evaluator_tests {
 
     #[test]
     fn test_covenant_compliant() {
-        let mut covenants = [make_covenant("COV-001", CovenantType::DebtToEquity, dec!(2.0))];
+        let mut covenants = [make_covenant(
+            "COV-001",
+            CovenantType::DebtToEquity,
+            dec!(2.0),
+        )];
         let ratios = HashMap::from([(CovenantType::DebtToEquity, dec!(1.5))]);
         let result = CovenantEvaluator::evaluate_covenants(
             &mut covenants,
@@ -295,7 +303,11 @@ mod covenant_evaluator_tests {
 
     #[test]
     fn test_covenant_breach() {
-        let mut covenants = [make_covenant("COV-001", CovenantType::DebtToEquity, dec!(2.0))];
+        let mut covenants = [make_covenant(
+            "COV-001",
+            CovenantType::DebtToEquity,
+            dec!(2.0),
+        )];
         let ratios = HashMap::from([(CovenantType::DebtToEquity, dec!(2.5))]);
         let result = CovenantEvaluator::evaluate_covenants(
             &mut covenants,
@@ -312,8 +324,11 @@ mod covenant_evaluator_tests {
     #[test]
     fn test_min_covenant_compliant() {
         // InterestCoverage is a min covenant: actual >= threshold
-        let mut covenants =
-            [make_covenant("COV-002", CovenantType::InterestCoverage, dec!(3.0))];
+        let mut covenants = [make_covenant(
+            "COV-002",
+            CovenantType::InterestCoverage,
+            dec!(3.0),
+        )];
         let ratios = HashMap::from([(CovenantType::InterestCoverage, dec!(4.0))]);
         let result = CovenantEvaluator::evaluate_covenants(
             &mut covenants,
@@ -327,8 +342,11 @@ mod covenant_evaluator_tests {
     #[test]
     fn test_min_covenant_breach() {
         // InterestCoverage breach: actual < threshold
-        let mut covenants =
-            [make_covenant("COV-003", CovenantType::InterestCoverage, dec!(3.0))];
+        let mut covenants = [make_covenant(
+            "COV-003",
+            CovenantType::InterestCoverage,
+            dec!(3.0),
+        )];
         let ratios = HashMap::from([(CovenantType::InterestCoverage, dec!(2.1))]);
         let result = CovenantEvaluator::evaluate_covenants(
             &mut covenants,
@@ -345,8 +363,11 @@ mod covenant_evaluator_tests {
         // initial state (zero actual_value → not compliant for a max covenant
         // at threshold=2.0 because 0 <= 2.0 → compliant, in fact).
         let initial_date = NaiveDate::from_ymd_opt(2024, 12, 31).unwrap();
-        let mut covenants =
-            [make_covenant("COV-004", CovenantType::DebtToEbitda, dec!(4.0))];
+        let mut covenants = [make_covenant(
+            "COV-004",
+            CovenantType::DebtToEbitda,
+            dec!(4.0),
+        )];
         // Provide an unrelated ratio only
         let ratios = HashMap::from([(CovenantType::NetWorth, dec!(1_000_000.0))]);
         let result = CovenantEvaluator::evaluate_covenants(
@@ -368,9 +389,9 @@ mod covenant_evaluator_tests {
             make_covenant("COV-C", CovenantType::CurrentRatio, dec!(1.5)),
         ];
         let ratios = HashMap::from([
-            (CovenantType::DebtToEquity, dec!(1.8)),   // compliant (1.8 <= 2.0)
+            (CovenantType::DebtToEquity, dec!(1.8)), // compliant (1.8 <= 2.0)
             (CovenantType::InterestCoverage, dec!(2.5)), // breach (2.5 < 3.0)
-            (CovenantType::CurrentRatio, dec!(1.6)),   // compliant (1.6 >= 1.5)
+            (CovenantType::CurrentRatio, dec!(1.6)), // compliant (1.6 >= 1.5)
         ]);
         let result = CovenantEvaluator::evaluate_covenants(
             &mut covenants,

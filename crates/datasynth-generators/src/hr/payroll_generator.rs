@@ -736,7 +736,11 @@ impl PayrollGenerator {
             .expect("non-empty slice always has a max");
 
         // Parse the new annual salary from new_value.
-        let new_salary = match latest.new_value.as_deref().and_then(|v| v.parse::<Decimal>().ok()) {
+        let new_salary = match latest
+            .new_value
+            .as_deref()
+            .and_then(|v| v.parse::<Decimal>().ok())
+        {
             Some(s) => s,
             None => return base_annual_salary,
         };

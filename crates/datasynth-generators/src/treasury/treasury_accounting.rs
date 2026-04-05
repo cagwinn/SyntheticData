@@ -56,10 +56,7 @@ impl TreasuryAccounting {
                 format!("JE-TREAS-INT-{}", debt.id),
                 debt.entity_id.clone(),
                 period_end,
-                format!(
-                    "Interest accrual on {} from {}",
-                    debt.id, debt.lender
-                ),
+                format!("Interest accrual on {} from {}", debt.id, debt.lender),
             );
             je.header.currency = debt.currency.clone();
             je.header.business_process = Some(BusinessProcess::Treasury);
@@ -318,7 +315,10 @@ impl TreasuryAccounting {
                 debit_amount: abs_amount,
                 local_amount: abs_amount,
                 reference: Some(sweep.id.clone()),
-                text: Some(format!("IC receivable — sweep from {}", sweep.from_account_id)),
+                text: Some(format!(
+                    "IC receivable — sweep from {}",
+                    sweep.from_account_id
+                )),
                 ..Default::default()
             });
             je.add_line(JournalEntryLine {

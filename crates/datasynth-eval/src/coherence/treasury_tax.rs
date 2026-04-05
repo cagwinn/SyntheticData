@@ -46,8 +46,7 @@ impl InterestExpenseProofEvaluator {
 
     /// Run the interest expense proof check against `data`.
     pub fn evaluate(&self, data: &InterestExpenseProofData) -> InterestExpenseProofEvaluation {
-        let difference =
-            (data.total_interest_expense_gl - data.sum_instrument_interest).abs();
+        let difference = (data.total_interest_expense_gl - data.sum_instrument_interest).abs();
         let reconciled = difference <= self.tolerance;
         let mut failures = Vec::new();
         if !reconciled {
@@ -114,8 +113,7 @@ impl ETRReconciliationEvaluator {
 
     /// Run the ETR reconciliation check against `data`.
     pub fn evaluate(&self, data: &ETRReconciliationData) -> ETRReconciliationEvaluation {
-        let expected_tax =
-            data.pre_tax_income * data.statutory_rate + data.sum_reconciling_items;
+        let expected_tax = data.pre_tax_income * data.statutory_rate + data.sum_reconciling_items;
         let difference = (expected_tax - data.actual_tax_expense).abs();
         let reconciled = difference <= self.tolerance;
         let mut failures = Vec::new();
