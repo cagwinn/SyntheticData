@@ -8,6 +8,7 @@ pub mod je_risk_scoring;
 pub mod ratio_analysis;
 pub mod sampling_validation;
 pub mod trend_analysis;
+pub mod treasury_tax;
 
 mod audit;
 mod balance;
@@ -197,6 +198,18 @@ pub struct CoherenceEvaluation {
     /// Intercompany elimination completeness results.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ic_elimination: Option<inventory_cogs::ICEliminationEvaluation>,
+    /// Interest expense GL vs instrument-level reconciliation results.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub interest_expense_proof: Option<treasury_tax::InterestExpenseProofEvaluation>,
+    /// Effective tax rate reconciliation results.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub etr_reconciliation: Option<treasury_tax::ETRReconciliationEvaluation>,
+    /// Hedge effectiveness corridor compliance results.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hedge_effectiveness: Option<treasury_tax::HedgeEffectivenessEvaluation>,
+    /// Payroll/HR salary change traceability results.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub payroll_hr: Option<treasury_tax::PayrollHRReconciliationEvaluation>,
     /// Overall pass/fail status.
     pub passes: bool,
     /// Summary of failed checks.
@@ -231,6 +244,10 @@ impl CoherenceEvaluation {
             multi_period: None,
             inventory_cogs: None,
             ic_elimination: None,
+            interest_expense_proof: None,
+            etr_reconciliation: None,
+            hedge_effectiveness: None,
+            payroll_hr: None,
             passes: true,
             failures: Vec::new(),
         }
@@ -391,6 +408,26 @@ impl CoherenceEvaluation {
             }
         }
         if let Some(ref eval) = self.ic_elimination {
+            if !eval.passes {
+                self.failures.extend(eval.failures.clone());
+            }
+        }
+        if let Some(ref eval) = self.interest_expense_proof {
+            if !eval.passes {
+                self.failures.extend(eval.failures.clone());
+            }
+        }
+        if let Some(ref eval) = self.etr_reconciliation {
+            if !eval.passes {
+                self.failures.extend(eval.failures.clone());
+            }
+        }
+        if let Some(ref eval) = self.hedge_effectiveness {
+            if !eval.passes {
+                self.failures.extend(eval.failures.clone());
+            }
+        }
+        if let Some(ref eval) = self.payroll_hr {
             if !eval.passes {
                 self.failures.extend(eval.failures.clone());
             }
