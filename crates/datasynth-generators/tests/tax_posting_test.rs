@@ -5,7 +5,9 @@
 
 #![allow(clippy::unwrap_used)]
 
-use datasynth_generators::tax::TaxProvisionGenerator;
+use datasynth_core::models::{TaxLine, TaxableDocumentType};
+use datasynth_generators::tax::{TaxPostingGenerator, TaxProvisionGenerator};
+use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 
 #[test]
@@ -83,4 +85,89 @@ fn test_tax_provision_scales_with_pti() {
         "expense ratio {} is not ~2× when PTI doubles",
         ratio
     );
+}
+
+// ---------------------------------------------------------------------------
+// TaxPostingGenerator tests
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_output_vat_posting() {
+    // Customer invoice → output VAT
+    let tax_lines = vec![make_tax_line(
+        "TL-001",
+        TaxableDocumentType::CustomerInvoice,
+        dec!(2000),
+        false,
+    )];
+    let jes = TaxPostingGenerator::generate_tax_posting_jes(
+        &tax_lines,
+        "C001",
+        chrono::NaiveDate::from_ymd_opt(2025, 3, 31).unwrap(),
+    );
+    assert_eq!(jes.len(), 1);
+    assert!(jes[0].is_balanced());
+    let has_vat_payable = jes[0].lines.iter().any(|l| l.gl_account == "2110");
+    assert!(has_vat_payable, "Should credit VAT Payable");
+}
+
+#[test]
+fn test_input_vat_posting() {
+    // Vendor invoice (deductible) → input VAT
+    let tax_lines = vec![make_tax_line(
+        "TL-002",
+        TaxableDocumentType::VendorInvoice,
+        dec!(1000),
+        true,
+    )];
+    let jes = TaxPostingGenerator::generate_tax_posting_jes(
+        &tax_lines,
+        "C001",
+        chrono::NaiveDate::from_ymd_opt(2025, 3, 31).unwrap(),
+    );
+    assert_eq!(jes.len(), 1);
+    assert!(jes[0].is_balanced());
+    let has_input_vat = jes[0].lines.iter().any(|l| l.gl_account == "1160");
+    assert!(has_input_vat, "Should debit Input VAT");
+}
+
+#[test]
+fn test_non_deductible_skipped() {
+    // Vendor invoice (non-deductible) → no separate posting
+    let tax_lines = vec![make_tax_line(
+        "TL-003",
+        TaxableDocumentType::VendorInvoice,
+        dec!(500),
+        false,
+    )];
+    let jes = TaxPostingGenerator::generate_tax_posting_jes(
+        &tax_lines,
+        "C001",
+        chrono::NaiveDate::from_ymd_opt(2025, 3, 31).unwrap(),
+    );
+    assert!(
+        jes.is_empty(),
+        "Non-deductible vendor tax should not generate JE"
+    );
+}
+
+fn make_tax_line(
+    id: &str,
+    doc_type: TaxableDocumentType,
+    amount: Decimal,
+    deductible: bool,
+) -> TaxLine {
+    TaxLine {
+        id: id.to_string(),
+        document_type: doc_type,
+        document_id: format!("DOC-{}", id),
+        line_number: 1,
+        tax_code_id: "VAT-STD-20".to_string(),
+        jurisdiction_id: "DE-FED".to_string(),
+        taxable_amount: amount * dec!(5), // taxable base
+        tax_amount: amount,
+        is_deductible: deductible,
+        is_reverse_charge: false,
+        is_self_assessed: false,
+    }
 }
