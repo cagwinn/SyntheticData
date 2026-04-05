@@ -100,15 +100,26 @@ fn test_output_vat_posting() {
         dec!(2000),
         false,
     )];
+    let doc_date = chrono::NaiveDate::from_ymd_opt(2025, 1, 15).unwrap();
+    let fallback = chrono::NaiveDate::from_ymd_opt(2025, 3, 31).unwrap();
+    let mut doc_dates = std::collections::HashMap::new();
+    doc_dates.insert("DOC-TL-001".to_string(), doc_date);
+
     let jes = TaxPostingGenerator::generate_tax_posting_jes(
         &tax_lines,
         "C001",
-        chrono::NaiveDate::from_ymd_opt(2025, 3, 31).unwrap(),
+        &doc_dates,
+        fallback,
     );
     assert_eq!(jes.len(), 1);
     assert!(jes[0].is_balanced());
     let has_vat_payable = jes[0].lines.iter().any(|l| l.gl_account == "2110");
     assert!(has_vat_payable, "Should credit VAT Payable");
+    // The JE date should come from the doc_dates map, not the fallback.
+    assert_eq!(
+        jes[0].header.posting_date, doc_date,
+        "JE date should match document date, not fallback period-end"
+    );
 }
 
 #[test]
@@ -120,15 +131,25 @@ fn test_input_vat_posting() {
         dec!(1000),
         true,
     )];
+    let doc_date = chrono::NaiveDate::from_ymd_opt(2025, 2, 20).unwrap();
+    let fallback = chrono::NaiveDate::from_ymd_opt(2025, 3, 31).unwrap();
+    let mut doc_dates = std::collections::HashMap::new();
+    doc_dates.insert("DOC-TL-002".to_string(), doc_date);
+
     let jes = TaxPostingGenerator::generate_tax_posting_jes(
         &tax_lines,
         "C001",
-        chrono::NaiveDate::from_ymd_opt(2025, 3, 31).unwrap(),
+        &doc_dates,
+        fallback,
     );
     assert_eq!(jes.len(), 1);
     assert!(jes[0].is_balanced());
     let has_input_vat = jes[0].lines.iter().any(|l| l.gl_account == "1160");
     assert!(has_input_vat, "Should debit Input VAT");
+    assert_eq!(
+        jes[0].header.posting_date, doc_date,
+        "JE date should match document date, not fallback period-end"
+    );
 }
 
 #[test]
@@ -140,14 +161,40 @@ fn test_non_deductible_skipped() {
         dec!(500),
         false,
     )];
+    let fallback = chrono::NaiveDate::from_ymd_opt(2025, 3, 31).unwrap();
     let jes = TaxPostingGenerator::generate_tax_posting_jes(
         &tax_lines,
         "C001",
-        chrono::NaiveDate::from_ymd_opt(2025, 3, 31).unwrap(),
+        &std::collections::HashMap::new(),
+        fallback,
     );
     assert!(
         jes.is_empty(),
         "Non-deductible vendor tax should not generate JE"
+    );
+}
+
+#[test]
+fn test_fallback_date_used_when_doc_not_in_map() {
+    // When document_id is not in doc_dates, the fallback date is used.
+    let tax_lines = vec![make_tax_line(
+        "TL-004",
+        TaxableDocumentType::CustomerInvoice,
+        dec!(750),
+        false,
+    )];
+    let fallback = chrono::NaiveDate::from_ymd_opt(2025, 3, 31).unwrap();
+    // Empty map — no matching entry.
+    let jes = TaxPostingGenerator::generate_tax_posting_jes(
+        &tax_lines,
+        "C001",
+        &std::collections::HashMap::new(),
+        fallback,
+    );
+    assert_eq!(jes.len(), 1);
+    assert_eq!(
+        jes[0].header.posting_date, fallback,
+        "Should use fallback date when document not found in map"
     );
 }
 

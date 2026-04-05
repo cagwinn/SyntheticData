@@ -6,6 +6,8 @@
 //! - Non-deductible vendor invoices → skipped (expense already absorbs tax)
 //! - Other document types (JournalEntry, Payment, PayrollRun) → skipped
 
+use std::collections::HashMap;
+
 use chrono::NaiveDate;
 
 use datasynth_core::accounts::{control_accounts, tax_accounts};
@@ -34,10 +36,17 @@ impl TaxPostingGenerator {
     /// | JournalEntry        | any        | Skipped                                   |
     /// | Payment             | any        | Skipped                                   |
     /// | PayrollRun          | any        | Skipped                                   |
+    /// Generate GL journal entries for each eligible TaxLine.
+    ///
+    /// Each JE is dated using the source document's date from `doc_dates`
+    /// (keyed by `TaxLine::document_id`), falling back to `fallback_date`
+    /// when no mapping is found. This prevents all tax JEs from clustering
+    /// at period-end when a single blanket posting date was previously used.
     pub fn generate_tax_posting_jes(
         tax_lines: &[TaxLine],
         company_code: &str,
-        posting_date: NaiveDate,
+        doc_dates: &HashMap<String, NaiveDate>,
+        fallback_date: NaiveDate,
     ) -> Vec<JournalEntry> {
         let mut jes = Vec::new();
 
@@ -46,6 +55,11 @@ impl TaxPostingGenerator {
             if tax_line.tax_amount.is_zero() {
                 continue;
             }
+
+            let posting_date = doc_dates
+                .get(&tax_line.document_id)
+                .copied()
+                .unwrap_or(fallback_date);
 
             match tax_line.document_type {
                 TaxableDocumentType::CustomerInvoice => {

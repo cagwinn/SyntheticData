@@ -2129,38 +2129,44 @@ impl EnhancedOrchestrator {
             entries.extend(mfg_jes);
         }
 
-        // Phase 7a-warranty: Generate warranty provisions from quality inspection failures
+        // Phase 7a-warranty: Generate warranty provisions per company
         if !manufacturing_snap.quality_inspections.is_empty() {
-            let company_code = self
-                .config
-                .companies
-                .first()
-                .map(|c| c.code.as_str())
-                .unwrap_or("1000");
-            let currency = self
-                .config
-                .companies
-                .first()
-                .map(|c| c.currency.as_str())
-                .unwrap_or("USD");
             let framework = match self.config.accounting_standards.framework {
                 Some(datasynth_config::schema::AccountingFrameworkConfig::Ifrs) => "IFRS",
                 _ => "US_GAAP",
             };
-            let mut warranty_gen = WarrantyProvisionGenerator::new(self.seed + 355);
-            let warranty_result = warranty_gen.generate(
-                company_code,
-                &manufacturing_snap.production_orders,
-                &manufacturing_snap.quality_inspections,
-                currency,
-                framework,
-            );
-            if !warranty_result.journal_entries.is_empty() {
-                debug!(
-                    "Generated {} warranty provision JEs",
-                    warranty_result.journal_entries.len()
+            for company in &self.config.companies {
+                let company_orders: Vec<_> = manufacturing_snap
+                    .production_orders
+                    .iter()
+                    .filter(|o| o.company_code == company.code)
+                    .cloned()
+                    .collect();
+                let company_inspections: Vec<_> = manufacturing_snap
+                    .quality_inspections
+                    .iter()
+                    .filter(|i| company_orders.iter().any(|o| o.order_id == i.reference_id))
+                    .cloned()
+                    .collect();
+                if company_inspections.is_empty() {
+                    continue;
+                }
+                let mut warranty_gen = WarrantyProvisionGenerator::new(self.seed + 355);
+                let warranty_result = warranty_gen.generate(
+                    &company.code,
+                    &company_orders,
+                    &company_inspections,
+                    &company.currency,
+                    framework,
                 );
-                entries.extend(warranty_result.journal_entries);
+                if !warranty_result.journal_entries.is_empty() {
+                    debug!(
+                        "Generated {} warranty provision JEs for {}",
+                        warranty_result.journal_entries.len(),
+                        company.code
+                    );
+                    entries.extend(warranty_result.journal_entries);
+                }
             }
         }
 
@@ -6872,12 +6878,30 @@ impl EnhancedOrchestrator {
             deferred_gen.generate(&companies, start_date, journal_entries)
         };
 
+        // Build a document_id → posting_date map so each tax JE uses its
+        // source document's date rather than a blanket period-end date.
+        let mut doc_dates: std::collections::HashMap<String, NaiveDate> =
+            std::collections::HashMap::new();
+        for vi in &document_flows.vendor_invoices {
+            doc_dates.insert(
+                vi.header.document_id.clone(),
+                vi.header.document_date,
+            );
+        }
+        for ci in &document_flows.customer_invoices {
+            doc_dates.insert(
+                ci.header.document_id.clone(),
+                ci.header.document_date,
+            );
+        }
+
         // Generate tax posting JEs (tax payable/receivable) from computed tax lines
         let end_date = start_date + chrono::Months::new(self.config.global.period_months);
         let tax_posting_journal_entries = if !tax_lines.is_empty() {
             let jes = datasynth_generators::TaxPostingGenerator::generate_tax_posting_jes(
                 &tax_lines,
                 company_code,
+                &doc_dates,
                 end_date,
             );
             debug!("Generated {} tax posting JEs", jes.len());
