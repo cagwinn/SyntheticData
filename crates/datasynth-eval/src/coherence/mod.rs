@@ -69,6 +69,10 @@ pub use hr_payroll::{
 pub use intercompany::{
     ICMatchingData, ICMatchingEvaluation, ICMatchingEvaluator, UnmatchedICItem,
 };
+pub use inventory_cogs::{
+    ICEliminationData, ICEliminationEvaluation, ICEliminationEvaluator, InventoryCOGSData,
+    InventoryCOGSEvaluation, InventoryCOGSEvaluator,
+};
 pub use je_risk_scoring::{JeRiskScoringResult, RiskAttributeStats, RiskDistribution};
 pub use manufacturing::{
     CycleCountData, ManufacturingEvaluation, ManufacturingEvaluator, ManufacturingThresholds,
@@ -123,10 +127,6 @@ pub use treasury::{
     TreasuryEvaluator, TreasuryThresholds,
 };
 pub use trend_analysis::{analyze_trends, TrendConsistencyCheck, TrendPlausibilityResult};
-pub use inventory_cogs::{
-    ICEliminationData, ICEliminationEvaluation, ICEliminationEvaluator,
-    InventoryCOGSData, InventoryCOGSEvaluation, InventoryCOGSEvaluator,
-};
 
 use serde::{Deserialize, Serialize};
 

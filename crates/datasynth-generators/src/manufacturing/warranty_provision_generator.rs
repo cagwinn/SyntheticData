@@ -115,8 +115,7 @@ impl WarrantyProvisionGenerator {
         if defect_rate < DEFECT_RATE_THRESHOLD {
             debug!(
                 company_code,
-                defect_rate,
-                "Defect rate below 1% threshold — no warranty provision recognised"
+                defect_rate, "Defect rate below 1% threshold — no warranty provision recognised"
             );
             return WarrantyProvisionResult::default();
         }
@@ -136,7 +135,10 @@ impl WarrantyProvisionGenerator {
             .sum();
 
         if total_production_value <= Decimal::ZERO {
-            debug!(company_code, "No completed orders with cost — no warranty provision");
+            debug!(
+                company_code,
+                "No completed orders with cost — no warranty provision"
+            );
             return WarrantyProvisionResult::default();
         }
 
@@ -145,10 +147,8 @@ impl WarrantyProvisionGenerator {
         // ------------------------------------------------------------------
         let warranty_cost_factor: f64 = self.rng.random_range(1.2_f64..=2.0_f64);
 
-        let defect_rate_dec =
-            Decimal::from_f64_retain(defect_rate).unwrap_or(Decimal::ZERO);
-        let factor_dec =
-            Decimal::from_f64_retain(warranty_cost_factor).unwrap_or(Decimal::from(2));
+        let defect_rate_dec = Decimal::from_f64_retain(defect_rate).unwrap_or(Decimal::ZERO);
+        let factor_dec = Decimal::from_f64_retain(warranty_cost_factor).unwrap_or(Decimal::from(2));
 
         let best_estimate = (total_production_value * defect_rate_dec * factor_dec)
             .round_dp(2)
@@ -361,7 +361,10 @@ mod tests {
         let mut gen = WarrantyProvisionGenerator::new(42);
         let result = gen.generate("C001", &orders, &inspections, "USD", "IFRS");
 
-        assert!(!result.provisions.is_empty(), "Should create provision above threshold");
+        assert!(
+            !result.provisions.is_empty(),
+            "Should create provision above threshold"
+        );
         let prov = &result.provisions[0];
         assert_eq!(prov.provision_type, ProvisionType::Warranty);
         assert!(prov.best_estimate > Decimal::ZERO);
@@ -380,7 +383,10 @@ mod tests {
         let mut gen = WarrantyProvisionGenerator::new(42);
         let result = gen.generate("C001", &orders, &inspections, "USD", "US_GAAP");
 
-        assert!(result.provisions.is_empty(), "All-passed inspections → no provision");
+        assert!(
+            result.provisions.is_empty(),
+            "All-passed inspections → no provision"
+        );
         assert!(result.journal_entries.is_empty());
         assert!(result.movements.is_empty());
     }
@@ -417,11 +423,12 @@ mod tests {
         assert!(!result.movements.is_empty());
         for mvmt in &result.movements {
             // opening + additions - utilizations - reversals + unwinding = closing
-            let computed = mvmt.opening + mvmt.additions
-                - mvmt.utilizations
-                - mvmt.reversals
+            let computed = mvmt.opening + mvmt.additions - mvmt.utilizations - mvmt.reversals
                 + mvmt.unwinding_of_discount;
-            assert_eq!(computed, mvmt.closing, "ProvisionMovement identity must hold");
+            assert_eq!(
+                computed, mvmt.closing,
+                "ProvisionMovement identity must hold"
+            );
         }
     }
 
@@ -439,9 +446,23 @@ mod tests {
 
         assert!(!result.journal_entries.is_empty());
         let je = &result.journal_entries[0];
-        let debit_line = je.lines.iter().find(|l| l.debit_amount > Decimal::ZERO).unwrap();
-        let credit_line = je.lines.iter().find(|l| l.credit_amount > Decimal::ZERO).unwrap();
-        assert_eq!(debit_line.gl_account, manufacturing_accounts::WARRANTY_EXPENSE);
-        assert_eq!(credit_line.gl_account, manufacturing_accounts::WARRANTY_PROVISION);
+        let debit_line = je
+            .lines
+            .iter()
+            .find(|l| l.debit_amount > Decimal::ZERO)
+            .unwrap();
+        let credit_line = je
+            .lines
+            .iter()
+            .find(|l| l.credit_amount > Decimal::ZERO)
+            .unwrap();
+        assert_eq!(
+            debit_line.gl_account,
+            manufacturing_accounts::WARRANTY_EXPENSE
+        );
+        assert_eq!(
+            credit_line.gl_account,
+            manufacturing_accounts::WARRANTY_PROVISION
+        );
     }
 }

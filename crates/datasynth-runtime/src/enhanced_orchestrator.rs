@@ -2160,8 +2160,7 @@ impl EnhancedOrchestrator {
         }
 
         // Phase 7a-cogs: Generate COGS JEs from deliveries x production orders
-        if !manufacturing_snap.production_orders.is_empty()
-            && !document_flows.deliveries.is_empty()
+        if !manufacturing_snap.production_orders.is_empty() && !document_flows.deliveries.is_empty()
         {
             let cogs_jes = ManufacturingCostAccounting::generate_cogs_on_sale(
                 &document_flows.deliveries,

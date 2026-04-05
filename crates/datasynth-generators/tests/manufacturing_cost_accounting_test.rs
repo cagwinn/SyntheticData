@@ -81,9 +81,7 @@ fn test_cost_breakdown_labor_from_hours_and_rate() {
 // Helpers
 // ---------------------------------------------------------------------------
 
-fn make_test_orders(
-    status: ProductionOrderStatus,
-) -> Vec<datasynth_core::models::ProductionOrder> {
+fn make_test_orders(status: ProductionOrderStatus) -> Vec<datasynth_core::models::ProductionOrder> {
     let mut gen = ProductionOrderGenerator::new(42);
     let config = ProductionOrderConfig::default();
     let costing = ManufacturingCostingConfig::default();
@@ -128,7 +126,10 @@ fn test_fg_transfer_on_completion() {
     let jes = ManufacturingCostAccounting::generate_all_jes(&orders, &[], "USD");
     let fg_jes: Vec<_> = jes
         .iter()
-        .filter(|je| je.description().map_or(false, |d| d.contains("FG transfer")))
+        .filter(|je| {
+            je.description()
+                .map_or(false, |d| d.contains("FG transfer"))
+        })
         .collect();
     assert!(!fg_jes.is_empty());
     for je in &fg_jes {
@@ -162,7 +163,9 @@ fn make_test_deliveries(orders: &[ProductionOrder]) -> Vec<Delivery> {
     // Collect unique material IDs and a representative quantity from the orders.
     let mut mat_qtys: std::collections::HashMap<String, Decimal> = std::collections::HashMap::new();
     for o in orders {
-        let entry = mat_qtys.entry(o.material_id.clone()).or_insert(Decimal::ZERO);
+        let entry = mat_qtys
+            .entry(o.material_id.clone())
+            .or_insert(Decimal::ZERO);
         *entry += o.actual_quantity;
     }
 
@@ -206,7 +209,11 @@ fn test_cogs_je_on_delivery() {
 
     assert!(!jes.is_empty(), "Should generate COGS JEs for deliveries");
     for je in &jes {
-        assert!(je.is_balanced(), "JE '{}' is unbalanced", je.description().unwrap_or(""));
+        assert!(
+            je.is_balanced(),
+            "JE '{}' is unbalanced",
+            je.description().unwrap_or("")
+        );
         // Should have COGS debit and FG credit.
         let has_cogs = je
             .lines

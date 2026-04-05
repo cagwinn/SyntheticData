@@ -63,10 +63,7 @@ impl ManufacturingCostAccounting {
                     format!("JE-MFG-MAT-{}", order.order_id),
                     order.company_code.clone(),
                     posting_date,
-                    format!(
-                        "material issue to WIP for order {}",
-                        order.order_id
-                    ),
+                    format!("material issue to WIP for order {}", order.order_id),
                 );
                 je.header.currency = currency.to_string();
                 let doc_id = je.header.document_id;
@@ -458,10 +455,7 @@ impl ManufacturingCostAccounting {
                 debit_amount: cogs_total,
                 local_amount: cogs_total,
                 reference: Some(delivery.header.document_id.clone()),
-                text: Some(format!(
-                    "COGS - delivery {}",
-                    delivery.header.document_id
-                )),
+                text: Some(format!("COGS - delivery {}", delivery.header.document_id)),
                 quantity: Some(total_qty),
                 unit: Some("EA".to_string()),
                 ..Default::default()
@@ -577,7 +571,9 @@ impl ManufacturingCostAccounting {
 #[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
-    use datasynth_config::schema::{ManufacturingCostingConfig, ProductionOrderConfig, RoutingConfig};
+    use datasynth_config::schema::{
+        ManufacturingCostingConfig, ProductionOrderConfig, RoutingConfig,
+    };
     use datasynth_core::models::ProductionOrderStatus;
 
     use crate::manufacturing::ProductionOrderGenerator;
@@ -593,7 +589,10 @@ mod tests {
         let mut orders = gen.generate("C001", &materials, start, end, &config, &costing, &routing);
         for o in &mut orders {
             o.status = status;
-            if matches!(status, ProductionOrderStatus::Completed | ProductionOrderStatus::Closed) {
+            if matches!(
+                status,
+                ProductionOrderStatus::Completed | ProductionOrderStatus::Closed
+            ) {
                 o.actual_end = Some(end);
             }
         }
@@ -606,7 +605,11 @@ mod tests {
         let jes = ManufacturingCostAccounting::generate_all_jes(&orders, &[], "USD");
         assert!(!jes.is_empty());
         for je in &jes {
-            assert!(je.is_balanced(), "JE '{}' is unbalanced", je.description().unwrap_or(""));
+            assert!(
+                je.is_balanced(),
+                "JE '{}' is unbalanced",
+                je.description().unwrap_or("")
+            );
         }
     }
 
@@ -617,7 +620,10 @@ mod tests {
 
         let fg: Vec<_> = jes
             .iter()
-            .filter(|je| je.description().map_or(false, |d| d.contains("FG transfer")))
+            .filter(|je| {
+                je.description()
+                    .map_or(false, |d| d.contains("FG transfer"))
+            })
             .collect();
         assert!(!fg.is_empty(), "Should generate FG transfer JEs");
 
@@ -628,7 +634,11 @@ mod tests {
         assert!(!var.is_empty(), "Should generate variance JEs");
 
         for je in &jes {
-            assert!(je.is_balanced(), "JE '{}' is unbalanced", je.description().unwrap_or(""));
+            assert!(
+                je.is_balanced(),
+                "JE '{}' is unbalanced",
+                je.description().unwrap_or("")
+            );
         }
     }
 

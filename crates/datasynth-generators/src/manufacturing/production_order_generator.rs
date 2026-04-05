@@ -221,8 +221,11 @@ impl ProductionOrderGenerator {
 
         let actual_overhead_f64 = actual_labor_cost_f64 * costing.overhead_rate;
 
-        let to_dec =
-            |v: f64| Decimal::from_f64_retain(v).unwrap_or(Decimal::ZERO).round_dp(2);
+        let to_dec = |v: f64| {
+            Decimal::from_f64_retain(v)
+                .unwrap_or(Decimal::ZERO)
+                .round_dp(2)
+        };
 
         let cost_breakdown = CostBreakdown {
             material_cost: to_dec(actual_material_cost_f64),

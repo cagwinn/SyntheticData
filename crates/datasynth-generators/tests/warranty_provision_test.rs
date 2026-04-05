@@ -6,11 +6,11 @@
 
 #![allow(clippy::unwrap_used)]
 
+use datasynth_config::schema::{ManufacturingCostingConfig, ProductionOrderConfig, RoutingConfig};
+use datasynth_core::models::{InspectionResult, ProductionOrderStatus, ProvisionType};
 use datasynth_generators::manufacturing::{
     ProductionOrderGenerator, QualityInspectionGenerator, WarrantyProvisionGenerator,
 };
-use datasynth_config::schema::{ProductionOrderConfig, ManufacturingCostingConfig, RoutingConfig};
-use datasynth_core::models::{ProductionOrderStatus, InspectionResult, ProvisionType};
 use rust_decimal::Decimal;
 
 // ---------------------------------------------------------------------------
@@ -39,7 +39,13 @@ fn make_inspections(
     let mut gen = QualityInspectionGenerator::new(42);
     let tuples: Vec<_> = orders
         .iter()
-        .map(|o| (o.order_id.clone(), o.material_id.clone(), o.material_description.clone()))
+        .map(|o| {
+            (
+                o.order_id.clone(),
+                o.material_id.clone(),
+                o.material_description.clone(),
+            )
+        })
         .collect();
     let date = chrono::NaiveDate::from_ymd_opt(2025, 3, 31).unwrap();
     gen.generate("C001", &tuples, date)
@@ -63,10 +69,16 @@ fn test_warranty_provisions_from_quality_failures() {
     let mut gen = WarrantyProvisionGenerator::new(42);
     let result = gen.generate("C001", &orders, &inspections, "USD", "IFRS");
 
-    assert!(!result.provisions.is_empty(), "Provisions should be created when defect rate ≥ 1%");
+    assert!(
+        !result.provisions.is_empty(),
+        "Provisions should be created when defect rate ≥ 1%"
+    );
     for prov in &result.provisions {
         assert_eq!(prov.provision_type, ProvisionType::Warranty);
-        assert!(prov.best_estimate > Decimal::ZERO, "best_estimate must be positive");
+        assert!(
+            prov.best_estimate > Decimal::ZERO,
+            "best_estimate must be positive"
+        );
         assert!(
             prov.range_low <= prov.best_estimate,
             "range_low ({}) must be ≤ best_estimate ({})",
@@ -81,7 +93,10 @@ fn test_warranty_provisions_from_quality_failures() {
         );
     }
 
-    assert!(!result.journal_entries.is_empty(), "JEs should be created with provisions");
+    assert!(
+        !result.journal_entries.is_empty(),
+        "JEs should be created with provisions"
+    );
     for je in &result.journal_entries {
         assert!(je.is_balanced(), "JE must be balanced (debits = credits)");
     }
@@ -92,11 +107,12 @@ fn test_warranty_provisions_from_quality_failures() {
         "One movement per provision"
     );
     for mvmt in &result.movements {
-        let computed = mvmt.opening + mvmt.additions
-            - mvmt.utilizations
-            - mvmt.reversals
+        let computed = mvmt.opening + mvmt.additions - mvmt.utilizations - mvmt.reversals
             + mvmt.unwinding_of_discount;
-        assert_eq!(computed, mvmt.closing, "ProvisionMovement identity must hold");
+        assert_eq!(
+            computed, mvmt.closing,
+            "ProvisionMovement identity must hold"
+        );
     }
 }
 
@@ -117,8 +133,14 @@ fn test_no_provisions_below_threshold() {
         result.provisions.is_empty(),
         "No provisions when all inspections pass (defect rate = 0%)"
     );
-    assert!(result.journal_entries.is_empty(), "No JEs when no provisions");
-    assert!(result.movements.is_empty(), "No movements when no provisions");
+    assert!(
+        result.journal_entries.is_empty(),
+        "No JEs when no provisions"
+    );
+    assert!(
+        result.movements.is_empty(),
+        "No movements when no provisions"
+    );
 }
 
 #[test]
@@ -136,7 +158,10 @@ fn test_provision_provision_id_in_movement() {
     assert!(!result.movements.is_empty());
     let prov_id = &result.provisions[0].id;
     let mvmt_prov_id = &result.movements[0].provision_id;
-    assert_eq!(prov_id, mvmt_prov_id, "Movement.provision_id must match Provision.id");
+    assert_eq!(
+        prov_id, mvmt_prov_id,
+        "Movement.provision_id must match Provision.id"
+    );
 }
 
 #[test]
@@ -178,7 +203,10 @@ fn test_deterministic_with_same_seed() {
 
     assert_eq!(result1.provisions.len(), result2.provisions.len());
     if !result1.provisions.is_empty() {
-        assert_eq!(result1.provisions[0].best_estimate, result2.provisions[0].best_estimate);
+        assert_eq!(
+            result1.provisions[0].best_estimate,
+            result2.provisions[0].best_estimate
+        );
         assert_eq!(result1.provisions[0].id, result2.provisions[0].id);
     }
 }

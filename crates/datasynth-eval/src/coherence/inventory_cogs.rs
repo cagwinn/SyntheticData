@@ -104,12 +104,10 @@ impl InventoryCOGSEvaluator {
 
         // 2. WIP Reconciliation
         //    Opening WIP + Materials + Labor + Overhead - Completions - Scrap = Closing WIP
-        let wip_expected_closing = data.opening_wip
-            + data.material_issues
-            + data.labor_absorbed
-            + data.overhead_applied
-            - data.completions_out_of_wip
-            - data.wip_scrap;
+        let wip_expected_closing =
+            data.opening_wip + data.material_issues + data.labor_absorbed + data.overhead_applied
+                - data.completions_out_of_wip
+                - data.wip_scrap;
         let wip_imbalance = (wip_expected_closing - data.closing_wip).abs();
         let wip_reconciled = wip_imbalance <= self.tolerance;
         if !wip_reconciled {
@@ -121,8 +119,7 @@ impl InventoryCOGSEvaluator {
 
         // 3. Variance Reconciliation
         //    Total variance = Sum of component variances
-        let variance_difference =
-            (data.total_variance - data.sum_of_component_variances).abs();
+        let variance_difference = (data.total_variance - data.sum_of_component_variances).abs();
         let variances_reconciled = variance_difference <= self.tolerance;
         if !variances_reconciled {
             failures.push(format!(
@@ -220,8 +217,7 @@ impl ICEliminationEvaluator {
         }
 
         // Amount reconciliation: elimination amount must equal IC amount.
-        let amount_difference =
-            (data.total_ic_amount - data.total_elimination_amount).abs();
+        let amount_difference = (data.total_ic_amount - data.total_elimination_amount).abs();
         let amount_reconciled = amount_difference <= self.tolerance;
         if !amount_reconciled {
             failures.push(format!(

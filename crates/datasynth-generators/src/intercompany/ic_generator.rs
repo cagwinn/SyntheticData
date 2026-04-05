@@ -635,10 +635,7 @@ impl ICGenerator {
     /// All documents carry the IC reference in `header.reference` so
     /// downstream processes can trace them back to the originating
     /// [`ICMatchedPair`].
-    pub fn generate_ic_document_chains(
-        &mut self,
-        pairs: &[ICMatchedPair],
-    ) -> ICDocumentChains {
+    pub fn generate_ic_document_chains(&mut self, pairs: &[ICMatchedPair]) -> ICDocumentChains {
         let eligible_types = [
             ICTransactionType::GoodsSale,
             ICTransactionType::ServiceProvided,
@@ -684,10 +681,7 @@ impl ICGenerator {
             ci.header.currency = pair.currency.clone();
             ci.header.posting_date = Some(date);
 
-            let description = format!(
-                "IC {:?} to {}",
-                pair.transaction_type, pair.buyer_company
-            );
+            let description = format!("IC {:?} to {}", pair.transaction_type, pair.buyer_company);
             ci.add_item(CustomerInvoiceItem::new(
                 1,
                 &description,
@@ -733,8 +727,8 @@ impl ICGenerator {
                 &pair.buyer_company,
                 &po_doc_id,
                 &pair.seller_company,
-                "1000",  // default plant
-                "0001",  // default storage location
+                "1000", // default plant
+                "0001", // default storage location
                 fiscal_year,
                 fiscal_period,
                 date,

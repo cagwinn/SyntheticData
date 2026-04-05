@@ -392,8 +392,7 @@ fn test_eliminations_use_actual_ic_amounts() {
     if total_ic > Decimal::ZERO && total_elim > Decimal::ZERO {
         let ratio = total_elim / total_ic;
         assert!(
-            ratio > Decimal::from_str("0.5").unwrap()
-                && ratio < Decimal::from_str("2.0").unwrap(),
+            ratio > Decimal::from_str("0.5").unwrap() && ratio < Decimal::from_str("2.0").unwrap(),
             "Elimination total {} should be proportional to IC total {}, ratio={}",
             total_elim,
             total_ic,
