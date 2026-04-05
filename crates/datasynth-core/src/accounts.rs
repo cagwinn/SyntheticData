@@ -202,7 +202,7 @@ pub mod treasury_accounts {
     pub const DERIVATIVE_ASSET: &str = "1450";
 
     /// Derivative liability (negative fair value of hedging instruments)
-    /// Note: "2450" is already used as PROVISION_LIABILITY in provision_generator.rs; using "2460".
+    /// Note: "2450" is used as PROVISION_LIABILITY in provision_accounts; using "2460".
     pub const DERIVATIVE_LIABILITY: &str = "2460";
 
     /// OCI — Cash flow hedge reserve (equity section)
@@ -216,6 +216,14 @@ pub mod treasury_accounts {
 
     /// IC payable from cash pool (physical pooling)
     pub const CASH_POOL_IC_PAYABLE: &str = "2055";
+}
+
+/// Provision accounts (IAS 37 / ASC 450).
+pub mod provision_accounts {
+    /// Provision liability account
+    pub const PROVISION_LIABILITY: &str = "2450";
+    /// Provision expense account
+    pub const PROVISION_EXPENSE: &str = "6850";
 }
 
 /// Tax accounts.
@@ -236,7 +244,7 @@ pub mod tax_accounts {
     pub const INPUT_VAT: &str = "1160";
 
     /// Tax receivable account (AP input tax)
-    pub const TAX_RECEIVABLE: &str = "1400";
+    pub const TAX_RECEIVABLE: &str = "1460";
 
     /// Tax expense account
     pub const TAX_EXPENSE: &str = "8000";
