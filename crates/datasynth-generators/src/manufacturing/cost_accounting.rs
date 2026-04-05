@@ -240,12 +240,10 @@ impl ManufacturingCostAccounting {
             // 5. Scrap JE (at most ONE per order, regardless of how many
             //    rejected inspections exist for it)
             // ------------------------------------------------------------------
-            let first_rejected: Option<&QualityInspection> = inspections
-                .iter()
-                .find(|insp| {
-                    insp.reference_id == order.order_id
-                        && matches!(insp.result, InspectionResult::Rejected)
-                });
+            let first_rejected: Option<&QualityInspection> = inspections.iter().find(|insp| {
+                insp.reference_id == order.order_id
+                    && matches!(insp.result, InspectionResult::Rejected)
+            });
 
             if let Some(insp) = first_rejected {
                 let scrap_value = Self::compute_scrap_value(order, total_actual);
