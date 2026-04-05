@@ -2147,7 +2147,7 @@ impl EnhancedOrchestrator {
                 Some(datasynth_config::schema::AccountingFrameworkConfig::Ifrs) => "IFRS",
                 _ => "US_GAAP",
             };
-            let mut warranty_gen = WarrantyProvisionGenerator::new(self.seed + 55);
+            let mut warranty_gen = WarrantyProvisionGenerator::new(self.seed + 355);
             let warranty_result = warranty_gen.generate(
                 company_code,
                 &manufacturing_snap.production_orders,
@@ -2252,7 +2252,7 @@ impl EnhancedOrchestrator {
                 .unwrap_or_else(|| rust_decimal::Decimal::from(10000)),
                 ..Default::default()
             };
-            let mut control_gen = ControlGenerator::with_config(self.seed + 99, control_config);
+            let mut control_gen = ControlGenerator::with_config(self.seed + 399, control_config);
             for entry in &mut entries {
                 control_gen.apply_controls(entry, &coa);
             }
@@ -2801,7 +2801,7 @@ impl EnhancedOrchestrator {
                 debug!("Phase 3b-dunning: Executing dunning runs for overdue AR invoices");
                 {
                     use datasynth_generators::DunningGenerator;
-                    let mut dunning_gen = DunningGenerator::new(self.seed + 2000);
+                    let mut dunning_gen = DunningGenerator::new(self.seed + 2500);
                     for company in &self.config.companies {
                         let currency = company.currency.as_str();
                         // Collect mutable references to AR invoices for this company
@@ -5745,7 +5745,7 @@ impl EnhancedOrchestrator {
 
         // Generate payroll runs (one per month)
         if self.config.hr.payroll.enabled {
-            let mut payroll_gen = datasynth_generators::PayrollGenerator::new(seed + 30)
+            let mut payroll_gen = datasynth_generators::PayrollGenerator::new(seed + 330)
                 .with_pools(employee_ids.clone(), cost_center_ids.clone());
 
             // Look up country pack for payroll deductions and labels
@@ -6397,7 +6397,7 @@ impl EnhancedOrchestrator {
         let mut snapshot = ManufacturingSnapshot::default();
 
         // Generate production orders
-        let mut prod_gen = datasynth_generators::ProductionOrderGenerator::new(seed + 50);
+        let mut prod_gen = datasynth_generators::ProductionOrderGenerator::new(seed + 350);
         let production_orders = prod_gen.generate(
             company_code,
             &material_data,
@@ -6424,7 +6424,7 @@ impl EnhancedOrchestrator {
         snapshot.production_orders = production_orders;
 
         if !inspection_data.is_empty() {
-            let mut qi_gen = datasynth_generators::QualityInspectionGenerator::new(seed + 51);
+            let mut qi_gen = datasynth_generators::QualityInspectionGenerator::new(seed + 351);
             let inspections = qi_gen.generate(company_code, &inspection_data, end_date);
             snapshot.quality_inspection_count = inspections.len();
             snapshot.quality_inspections = inspections;
@@ -6443,7 +6443,7 @@ impl EnhancedOrchestrator {
             .iter()
             .map(|e| e.employee_id.clone())
             .collect();
-        let mut cc_gen = datasynth_generators::CycleCountGenerator::new(seed + 52)
+        let mut cc_gen = datasynth_generators::CycleCountGenerator::new(seed + 352)
             .with_employee_pool(employee_ids);
         let mut cycle_count_total = 0usize;
         for month in 0..self.config.global.period_months {
@@ -6461,7 +6461,7 @@ impl EnhancedOrchestrator {
         snapshot.cycle_count_count = cycle_count_total;
 
         // Generate BOM components
-        let mut bom_gen = datasynth_generators::BomGenerator::new(seed + 53);
+        let mut bom_gen = datasynth_generators::BomGenerator::new(seed + 353);
         let bom_components = bom_gen.generate(company_code, &material_data);
         snapshot.bom_component_count = bom_components.len();
         snapshot.bom_components = bom_components;
@@ -6478,7 +6478,7 @@ impl EnhancedOrchestrator {
             .iter()
             .map(|po| po.order_id.clone())
             .collect();
-        let mut inv_mov_gen = datasynth_generators::InventoryMovementGenerator::new(seed + 54);
+        let mut inv_mov_gen = datasynth_generators::InventoryMovementGenerator::new(seed + 354);
         let inventory_movements = inv_mov_gen.generate_with_production_orders(
             company_code,
             &material_data,
@@ -6789,7 +6789,7 @@ impl EnhancedOrchestrator {
             .unwrap_or("1000");
 
         let mut gen =
-            datasynth_generators::TaxCodeGenerator::with_config(seed + 70, self.config.tax.clone());
+            datasynth_generators::TaxCodeGenerator::with_config(seed + 370, self.config.tax.clone());
 
         let pack = self.primary_pack().clone();
         let (jurisdictions, codes) =
@@ -6798,7 +6798,7 @@ impl EnhancedOrchestrator {
         // Generate tax provisions for each company
         let mut provisions = Vec::new();
         if self.config.tax.provisions.enabled {
-            let mut provision_gen = datasynth_generators::TaxProvisionGenerator::new(seed + 71);
+            let mut provision_gen = datasynth_generators::TaxProvisionGenerator::new(seed + 371);
             for company in &self.config.companies {
                 let pre_tax_income = Self::compute_pre_tax_income(&company.code, journal_entries);
                 let statutory_rate = rust_decimal::Decimal::new(
@@ -6821,7 +6821,7 @@ impl EnhancedOrchestrator {
             let mut tax_line_gen = datasynth_generators::TaxLineGenerator::new(
                 datasynth_generators::TaxLineGeneratorConfig::default(),
                 codes.clone(),
-                seed + 72,
+                seed + 372,
             );
 
             // Tax lines from vendor invoices (input tax)
@@ -6868,7 +6868,7 @@ impl EnhancedOrchestrator {
                 .iter()
                 .map(|c| (c.code.as_str(), c.country.as_str()))
                 .collect();
-            let mut deferred_gen = datasynth_generators::DeferredTaxGenerator::new(seed + 73);
+            let mut deferred_gen = datasynth_generators::DeferredTaxGenerator::new(seed + 373);
             deferred_gen.generate(&companies, start_date, journal_entries)
         };
 
