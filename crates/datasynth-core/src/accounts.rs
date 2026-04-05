@@ -307,6 +307,14 @@ pub mod equity_accounts {
     pub const DIVIDENDS_PAID: &str = "3700";
 }
 
+/// Dividend accounts.
+pub mod dividend_accounts {
+    /// Dividends payable (liability — declared but not yet paid)
+    pub const DIVIDENDS_PAYABLE: &str = "2170";
+    /// Dividends declared (contra-equity, reduces retained earnings)
+    pub const DIVIDENDS_DECLARED: &str = "3710";
+}
+
 /// Suspense and clearing accounts.
 pub mod suspense_accounts {
     /// General suspense account

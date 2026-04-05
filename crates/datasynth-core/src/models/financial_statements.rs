@@ -322,6 +322,33 @@ pub struct ManagementReport {
     pub commentary: String,
 }
 
+// ============================================================================
+// Dividends
+// ============================================================================
+
+/// A dividend declaration with lifecycle dates and amounts.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DividendDeclaration {
+    /// Unique identifier
+    pub id: String,
+    /// Company declaring the dividend
+    pub entity_code: String,
+    /// Date the board declared the dividend
+    pub declaration_date: NaiveDate,
+    /// Record date (shareholders of record entitled to dividend)
+    pub record_date: NaiveDate,
+    /// Payment date (cash disbursement)
+    pub payment_date: NaiveDate,
+    /// Dividend per share
+    #[serde(with = "rust_decimal::serde::str")]
+    pub per_share_amount: Decimal,
+    /// Total dividend amount
+    #[serde(with = "rust_decimal::serde::str")]
+    pub total_amount: Decimal,
+    /// Currency
+    pub currency: String,
+}
+
 // ---------------------------------------------------------------------------
 // Tests — WI-8: FinancialStatementLineItem comparative fields
 // ---------------------------------------------------------------------------
