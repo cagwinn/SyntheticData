@@ -972,6 +972,8 @@ pub struct TaxSnapshot {
     pub code_count: usize,
     /// Deferred tax engine output (temporary differences, ETR reconciliation, rollforwards, JEs).
     pub deferred_tax: datasynth_generators::DeferredTaxSnapshot,
+    /// Journal entries posting tax payable/receivable from computed tax lines.
+    pub tax_posting_journal_entries: Vec<JournalEntry>,
 }
 
 /// Intercompany data snapshot (IC transactions, matched pairs, eliminations).
@@ -1060,6 +1062,9 @@ pub struct TreasurySnapshot {
     pub netting_runs: Vec<NettingRun>,
     /// Treasury anomaly labels.
     pub treasury_anomaly_labels: Vec<datasynth_generators::treasury::TreasuryAnomalyLabel>,
+    /// Journal entries generated from treasury instruments (debt interest accruals,
+    /// hedge MTM, cash pool sweeps).
+    pub journal_entries: Vec<JournalEntry>,
 }
 
 /// Project accounting data snapshot (projects, costs, revenue, milestones, EVM).
@@ -2442,6 +2447,15 @@ impl EnhancedOrchestrator {
         // Phase 20: Tax Generation
         let tax = self.phase_tax_generation(&document_flows, &entries, &mut stats)?;
 
+        // Phase 20 JEs: Merge tax posting journal entries into main GL
+        if !tax.tax_posting_journal_entries.is_empty() {
+            debug!(
+                "Merging {} tax posting JEs into GL",
+                tax.tax_posting_journal_entries.len()
+            );
+            entries.extend(tax.tax_posting_journal_entries.iter().cloned());
+        }
+
         // Phase 20a: Notes to Financial Statements (IAS 1 / ASC 235)
         // Runs here so deferred-tax (Phase 20) and provision data (Phase 18) are available.
         self.generate_notes_to_financial_statements(
@@ -2458,6 +2472,15 @@ impl EnhancedOrchestrator {
         // Phase 22: Treasury Data Generation
         let treasury =
             self.phase_treasury_data(&document_flows, &subledger, &intercompany, &mut stats)?;
+
+        // Phase 22 JEs: Merge treasury journal entries into main GL
+        if !treasury.journal_entries.is_empty() {
+            debug!(
+                "Merging {} treasury JEs (debt interest, hedge MTM, sweeps) into GL",
+                treasury.journal_entries.len()
+            );
+            entries.extend(treasury.journal_entries.iter().cloned());
+        }
 
         // Phase 23: Project Accounting Data Generation
         let project_accounting = self.phase_project_accounting(&document_flows, &hr, &mut stats)?;
@@ -5749,16 +5772,38 @@ impl EnhancedOrchestrator {
                 })
                 .collect();
 
+            // Use generate_with_changes when employee change history is available
+            // so that salary adjustments, transfers, etc. are reflected in payroll.
+            let change_history = &self.master_data.employee_change_history;
+            let has_changes = !change_history.is_empty();
+            if has_changes {
+                debug!(
+                    "Payroll will incorporate {} employee change events",
+                    change_history.len()
+                );
+            }
+
             for month in 0..self.config.global.period_months {
                 let period_start = start_date + chrono::Months::new(month);
                 let period_end = start_date + chrono::Months::new(month + 1) - chrono::Days::new(1);
-                let (run, items) = payroll_gen.generate(
-                    company_code,
-                    &employees_with_salary,
-                    period_start,
-                    period_end,
-                    currency,
-                );
+                let (run, items) = if has_changes {
+                    payroll_gen.generate_with_changes(
+                        company_code,
+                        &employees_with_salary,
+                        period_start,
+                        period_end,
+                        currency,
+                        change_history,
+                    )
+                } else {
+                    payroll_gen.generate(
+                        company_code,
+                        &employees_with_salary,
+                        period_start,
+                        period_end,
+                        currency,
+                    )
+                };
                 snapshot.payroll_runs.push(run);
                 snapshot.payroll_run_count += 1;
                 snapshot.payroll_line_item_count += items.len();
@@ -6746,8 +6791,7 @@ impl EnhancedOrchestrator {
         if self.config.tax.provisions.enabled {
             let mut provision_gen = datasynth_generators::TaxProvisionGenerator::new(seed + 71);
             for company in &self.config.companies {
-                let pre_tax_income =
-                    Self::compute_pre_tax_income(&company.code, journal_entries);
+                let pre_tax_income = Self::compute_pre_tax_income(&company.code, journal_entries);
                 let statutory_rate = rust_decimal::Decimal::new(
                     (self.config.tax.provisions.statutory_rate.clamp(0.0, 1.0) * 100.0) as i64,
                     2,
@@ -6819,6 +6863,20 @@ impl EnhancedOrchestrator {
             deferred_gen.generate(&companies, start_date, journal_entries)
         };
 
+        // Generate tax posting JEs (tax payable/receivable) from computed tax lines
+        let end_date = start_date + chrono::Months::new(self.config.global.period_months);
+        let tax_posting_journal_entries = if !tax_lines.is_empty() {
+            let jes = datasynth_generators::TaxPostingGenerator::generate_tax_posting_jes(
+                &tax_lines,
+                company_code,
+                end_date,
+            );
+            debug!("Generated {} tax posting JEs", jes.len());
+            jes
+        } else {
+            Vec::new()
+        };
+
         let snapshot = TaxSnapshot {
             jurisdiction_count: jurisdictions.len(),
             code_count: codes.len(),
@@ -6830,6 +6888,7 @@ impl EnhancedOrchestrator {
             withholding_records: Vec::new(),
             tax_anomaly_labels: Vec::new(),
             deferred_tax,
+            tax_posting_journal_entries,
         };
 
         stats.tax_jurisdiction_count = snapshot.jurisdiction_count;
@@ -6838,12 +6897,13 @@ impl EnhancedOrchestrator {
         stats.tax_line_count = snapshot.tax_lines.len();
 
         info!(
-            "Tax data generated: {} jurisdictions, {} codes, {} provisions, {} temp diffs, {} deferred JEs",
+            "Tax data generated: {} jurisdictions, {} codes, {} provisions, {} temp diffs, {} deferred JEs, {} tax posting JEs",
             snapshot.jurisdiction_count,
             snapshot.code_count,
             snapshot.tax_provisions.len(),
             snapshot.deferred_tax.temporary_differences.len(),
             snapshot.deferred_tax.journal_entries.len(),
+            snapshot.tax_posting_journal_entries.len(),
         );
         self.check_resources_with_log("post-tax")?;
 
@@ -7395,6 +7455,48 @@ impl EnhancedOrchestrator {
             }
         }
 
+        // Generate treasury journal entries from the instruments we just created.
+        {
+            use datasynth_generators::treasury::TreasuryAccounting;
+
+            let end_date = start_date + chrono::Months::new(self.config.global.period_months);
+            let mut treasury_jes = Vec::new();
+
+            // Debt interest accrual JEs
+            if !snapshot.debt_instruments.is_empty() {
+                let debt_jes =
+                    TreasuryAccounting::generate_debt_jes(&snapshot.debt_instruments, end_date);
+                debug!("Generated {} debt interest accrual JEs", debt_jes.len());
+                treasury_jes.extend(debt_jes);
+            }
+
+            // Hedge mark-to-market JEs
+            if !snapshot.hedging_instruments.is_empty() {
+                let hedge_jes = TreasuryAccounting::generate_hedge_jes(
+                    &snapshot.hedging_instruments,
+                    &snapshot.hedge_relationships,
+                    end_date,
+                );
+                debug!("Generated {} hedge MTM JEs", hedge_jes.len());
+                treasury_jes.extend(hedge_jes);
+            }
+
+            // Cash pool sweep JEs
+            if !snapshot.cash_pool_sweeps.is_empty() {
+                let sweep_jes = TreasuryAccounting::generate_cash_pool_sweep_jes(
+                    &snapshot.cash_pool_sweeps,
+                    entity_id,
+                );
+                debug!("Generated {} cash pool sweep JEs", sweep_jes.len());
+                treasury_jes.extend(sweep_jes);
+            }
+
+            if !treasury_jes.is_empty() {
+                debug!("Total treasury journal entries: {}", treasury_jes.len());
+            }
+            snapshot.journal_entries = treasury_jes;
+        }
+
         stats.treasury_debt_instrument_count = snapshot.debt_instruments.len();
         stats.treasury_hedging_instrument_count = snapshot.hedging_instruments.len();
         stats.cash_position_count = snapshot.cash_positions.len();
@@ -7402,7 +7504,7 @@ impl EnhancedOrchestrator {
         stats.cash_pool_count = snapshot.cash_pools.len();
 
         info!(
-            "Treasury data generated: {} debt instruments, {} hedging instruments, {} cash positions, {} forecasts, {} pools, {} guarantees, {} netting runs",
+            "Treasury data generated: {} debt instruments, {} hedging instruments, {} cash positions, {} forecasts, {} pools, {} guarantees, {} netting runs, {} JEs",
             snapshot.debt_instruments.len(),
             snapshot.hedging_instruments.len(),
             snapshot.cash_positions.len(),
@@ -7410,6 +7512,7 @@ impl EnhancedOrchestrator {
             snapshot.cash_pools.len(),
             snapshot.bank_guarantees.len(),
             snapshot.netting_runs.len(),
+            snapshot.journal_entries.len(),
         );
         self.check_resources_with_log("post-treasury")?;
 
