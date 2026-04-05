@@ -369,6 +369,7 @@ impl ManufacturingCostAccounting {
     pub fn generate_cogs_on_sale(
         deliveries: &[Delivery],
         production_orders: &[ProductionOrder],
+        currency: &str,
     ) -> Vec<JournalEntry> {
         // ------------------------------------------------------------------
         // Build average-unit-cost map: material_id → avg_unit_cost
@@ -449,6 +450,7 @@ impl ManufacturingCostAccounting {
                 posting_date,
                 format!("COGS on delivery {}", delivery.header.document_id),
             );
+            je.header.currency = currency.to_string();
             let doc_id = je.header.document_id;
 
             // DR COGS

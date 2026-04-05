@@ -205,7 +205,7 @@ fn test_cogs_je_on_delivery() {
     // Create mock deliveries matching the orders' materials.
     let deliveries = make_test_deliveries(&orders);
 
-    let jes = ManufacturingCostAccounting::generate_cogs_on_sale(&deliveries, &orders);
+    let jes = ManufacturingCostAccounting::generate_cogs_on_sale(&deliveries, &orders, "USD");
 
     assert!(!jes.is_empty(), "Should generate COGS JEs for deliveries");
     for je in &jes {

@@ -189,7 +189,7 @@ fn test_cash_flow_hedge_asset() {
     let inst = fx_forward("HEDGE-001", Decimal::from(50_000)); // positive = asset
     let rel = cash_flow_hedge_rel("HEDGE-001", true, Decimal::ZERO);
 
-    let jes = TreasuryAccounting::generate_hedge_jes(&[inst], &[rel], period_end);
+    let jes = TreasuryAccounting::generate_hedge_jes(&[inst], &[rel], period_end, "C001");
     assert_eq!(jes.len(), 1);
     let je = &jes[0];
     assert!(je.is_balanced());
@@ -210,7 +210,7 @@ fn test_fair_value_hedge_liability() {
     let inst = fx_forward("HEDGE-002", Decimal::from(-30_000)); // negative = liability
     let rel = fair_value_hedge_rel("HEDGE-002");
 
-    let jes = TreasuryAccounting::generate_hedge_jes(&[inst], &[rel], period_end);
+    let jes = TreasuryAccounting::generate_hedge_jes(&[inst], &[rel], period_end, "C001");
     assert_eq!(jes.len(), 1);
     let je = &jes[0];
     assert!(je.is_balanced());
@@ -231,7 +231,7 @@ fn test_hedge_ineffectiveness_je() {
     let inst = fx_forward("HEDGE-003", Decimal::from(40_000));
     let rel = cash_flow_hedge_rel("HEDGE-003", false, Decimal::from(5_000));
 
-    let jes = TreasuryAccounting::generate_hedge_jes(&[inst], &[rel], period_end);
+    let jes = TreasuryAccounting::generate_hedge_jes(&[inst], &[rel], period_end, "C001");
     // Should produce 2 JEs: main hedge + ineffectiveness
     assert_eq!(jes.len(), 2);
 
@@ -253,7 +253,7 @@ fn test_hedge_ineffectiveness_je() {
 fn test_zero_fair_value_no_je() {
     let period_end = NaiveDate::from_ymd_opt(2024, 6, 30).unwrap();
     let inst = fx_forward("HEDGE-ZERO", Decimal::ZERO);
-    let jes = TreasuryAccounting::generate_hedge_jes(&[inst], &[], period_end);
+    let jes = TreasuryAccounting::generate_hedge_jes(&[inst], &[], period_end, "C001");
     assert!(jes.is_empty(), "Zero fair value should produce no JE");
 }
 

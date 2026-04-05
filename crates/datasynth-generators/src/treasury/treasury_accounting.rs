@@ -108,6 +108,7 @@ impl TreasuryAccounting {
         instruments: &[HedgingInstrument],
         relationships: &[HedgeRelationship],
         period_end: NaiveDate,
+        entity_id: &str,
     ) -> Vec<JournalEntry> {
         let mut jes = Vec::new();
 
@@ -141,7 +142,7 @@ impl TreasuryAccounting {
 
             let mut je = JournalEntry::new_simple(
                 format!("JE-TREAS-HEDGE-{}", instrument.id),
-                String::new(), // entity not available on HedgingInstrument; caller patches
+                entity_id.to_string(),
                 period_end,
                 format!(
                     "Hedge accounting — {} ({})",
@@ -231,7 +232,7 @@ impl TreasuryAccounting {
 
                     let mut je_ineff = JournalEntry::new_simple(
                         format!("JE-TREAS-INEFF-{}", instrument.id),
-                        String::new(),
+                        entity_id.to_string(),
                         period_end,
                         format!("Hedge ineffectiveness — {}", instrument.id),
                     );

@@ -2167,9 +2167,16 @@ impl EnhancedOrchestrator {
         // Phase 7a-cogs: Generate COGS JEs from deliveries x production orders
         if !manufacturing_snap.production_orders.is_empty() && !document_flows.deliveries.is_empty()
         {
+            let cogs_currency = self
+                .config
+                .companies
+                .first()
+                .map(|c| c.currency.as_str())
+                .unwrap_or("USD");
             let cogs_jes = ManufacturingCostAccounting::generate_cogs_on_sale(
                 &document_flows.deliveries,
                 &manufacturing_snap.production_orders,
+                cogs_currency,
             );
             if !cogs_jes.is_empty() {
                 debug!("Generated {} COGS JEs from deliveries", cogs_jes.len());
@@ -2444,6 +2451,21 @@ impl EnhancedOrchestrator {
         let sales_kpi_budgets =
             self.phase_sales_kpi_budgets(&coa, &financial_reporting, &mut stats)?;
 
+        // Phase 22: Treasury Data Generation
+        // Must run BEFORE tax so that interest expense (7100) and hedge ineffectiveness (7510)
+        // are included in the pre-tax income used by phase_tax_generation.
+        let treasury =
+            self.phase_treasury_data(&document_flows, &subledger, &intercompany, &mut stats)?;
+
+        // Phase 22 JEs: Merge treasury journal entries into main GL (before tax phase)
+        if !treasury.journal_entries.is_empty() {
+            debug!(
+                "Merging {} treasury JEs (debt interest, hedge MTM, sweeps) into GL",
+                treasury.journal_entries.len()
+            );
+            entries.extend(treasury.journal_entries.iter().cloned());
+        }
+
         // Phase 20: Tax Generation
         let tax = self.phase_tax_generation(&document_flows, &entries, &mut stats)?;
 
@@ -2468,19 +2490,6 @@ impl EnhancedOrchestrator {
 
         // Phase 21: ESG Data Generation
         let esg_snap = self.phase_esg_generation(&document_flows, &mut stats)?;
-
-        // Phase 22: Treasury Data Generation
-        let treasury =
-            self.phase_treasury_data(&document_flows, &subledger, &intercompany, &mut stats)?;
-
-        // Phase 22 JEs: Merge treasury journal entries into main GL
-        if !treasury.journal_entries.is_empty() {
-            debug!(
-                "Merging {} treasury JEs (debt interest, hedge MTM, sweeps) into GL",
-                treasury.journal_entries.len()
-            );
-            entries.extend(treasury.journal_entries.iter().cloned());
-        }
 
         // Phase 23: Project Accounting Data Generation
         let project_accounting = self.phase_project_accounting(&document_flows, &hr, &mut stats)?;
@@ -7476,6 +7485,7 @@ impl EnhancedOrchestrator {
                     &snapshot.hedging_instruments,
                     &snapshot.hedge_relationships,
                     end_date,
+                    entity_id,
                 );
                 debug!("Generated {} hedge MTM JEs", hedge_jes.len());
                 treasury_jes.extend(hedge_jes);
