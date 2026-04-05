@@ -8,6 +8,7 @@
 //! - IFRS 8 / ASC 280 segment reporting
 
 mod accruals;
+mod cash_flow_enhancer;
 mod close_engine;
 mod consolidation_generator;
 mod depreciation;
@@ -18,6 +19,7 @@ mod segment_generator;
 mod year_end;
 
 pub use accruals::*;
+pub use cash_flow_enhancer::*;
 pub use close_engine::*;
 pub use consolidation_generator::*;
 pub use depreciation::*;
