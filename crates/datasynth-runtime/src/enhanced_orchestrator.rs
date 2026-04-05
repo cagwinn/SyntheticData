@@ -6664,6 +6664,52 @@ impl EnhancedOrchestrator {
         Ok(snapshot)
     }
 
+    /// Compute pre-tax income for a single company from actual journal entries.
+    ///
+    /// Pre-tax income = Σ revenue account net credits − Σ expense account net debits.
+    /// Revenue accounts (4xxx) are credit-normal; expense accounts (5xxx, 6xxx, 7xxx) are
+    /// debit-normal.  The calculation mirrors `DeferredTaxGenerator::estimate_pre_tax_income`
+    /// and the period-close engine so that all three use a consistent definition.
+    fn compute_pre_tax_income(
+        company_code: &str,
+        journal_entries: &[JournalEntry],
+    ) -> rust_decimal::Decimal {
+        use datasynth_core::accounts::AccountCategory;
+        use rust_decimal::Decimal;
+
+        let mut total_revenue = Decimal::ZERO;
+        let mut total_expenses = Decimal::ZERO;
+
+        for je in journal_entries {
+            if je.header.company_code != company_code {
+                continue;
+            }
+            for line in &je.lines {
+                let cat = AccountCategory::from_account(&line.gl_account);
+                match cat {
+                    AccountCategory::Revenue => {
+                        total_revenue += line.credit_amount - line.debit_amount;
+                    }
+                    AccountCategory::Cogs
+                    | AccountCategory::OperatingExpense
+                    | AccountCategory::OtherIncomeExpense => {
+                        total_expenses += line.debit_amount - line.credit_amount;
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        let pti = (total_revenue - total_expenses).round_dp(2);
+        if pti == rust_decimal::Decimal::ZERO {
+            // No income statement activity yet — fall back to a synthetic value so the
+            // tax provision generator can still produce meaningful output.
+            rust_decimal::Decimal::from(1_000_000u32)
+        } else {
+            pti
+        }
+    }
+
     /// Phase 20: Generate tax jurisdictions, tax codes, and tax lines from invoices.
     fn phase_tax_generation(
         &mut self,
@@ -6700,7 +6746,8 @@ impl EnhancedOrchestrator {
         if self.config.tax.provisions.enabled {
             let mut provision_gen = datasynth_generators::TaxProvisionGenerator::new(seed + 71);
             for company in &self.config.companies {
-                let pre_tax_income = rust_decimal::Decimal::from(1_000_000);
+                let pre_tax_income =
+                    Self::compute_pre_tax_income(&company.code, journal_entries);
                 let statutory_rate = rust_decimal::Decimal::new(
                     (self.config.tax.provisions.statutory_rate.clamp(0.0, 1.0) * 100.0) as i64,
                     2,
