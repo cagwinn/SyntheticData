@@ -16,6 +16,7 @@ mod cash_position_generator;
 mod debt_generator;
 mod hedging_generator;
 mod netting_run_generator;
+mod treasury_accounting;
 mod treasury_anomaly;
 
 pub use bank_guarantee_generator::*;
@@ -25,4 +26,5 @@ pub use cash_position_generator::*;
 pub use debt_generator::*;
 pub use hedging_generator::*;
 pub use netting_run_generator::*;
+pub use treasury_accounting::*;
 pub use treasury_anomaly::*;
