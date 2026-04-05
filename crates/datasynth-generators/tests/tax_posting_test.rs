@@ -105,12 +105,8 @@ fn test_output_vat_posting() {
     let mut doc_dates = std::collections::HashMap::new();
     doc_dates.insert("DOC-TL-001".to_string(), doc_date);
 
-    let jes = TaxPostingGenerator::generate_tax_posting_jes(
-        &tax_lines,
-        "C001",
-        &doc_dates,
-        fallback,
-    );
+    let jes =
+        TaxPostingGenerator::generate_tax_posting_jes(&tax_lines, "C001", &doc_dates, fallback);
     assert_eq!(jes.len(), 1);
     assert!(jes[0].is_balanced());
     let has_vat_payable = jes[0].lines.iter().any(|l| l.gl_account == "2110");
@@ -136,12 +132,8 @@ fn test_input_vat_posting() {
     let mut doc_dates = std::collections::HashMap::new();
     doc_dates.insert("DOC-TL-002".to_string(), doc_date);
 
-    let jes = TaxPostingGenerator::generate_tax_posting_jes(
-        &tax_lines,
-        "C001",
-        &doc_dates,
-        fallback,
-    );
+    let jes =
+        TaxPostingGenerator::generate_tax_posting_jes(&tax_lines, "C001", &doc_dates, fallback);
     assert_eq!(jes.len(), 1);
     assert!(jes[0].is_balanced());
     let has_input_vat = jes[0].lines.iter().any(|l| l.gl_account == "1160");

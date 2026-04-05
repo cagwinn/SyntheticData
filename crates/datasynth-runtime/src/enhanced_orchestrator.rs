@@ -6794,8 +6794,10 @@ impl EnhancedOrchestrator {
             .map(|c| c.code.as_str())
             .unwrap_or("1000");
 
-        let mut gen =
-            datasynth_generators::TaxCodeGenerator::with_config(seed + 370, self.config.tax.clone());
+        let mut gen = datasynth_generators::TaxCodeGenerator::with_config(
+            seed + 370,
+            self.config.tax.clone(),
+        );
 
         let pack = self.primary_pack().clone();
         let (jurisdictions, codes) =
@@ -6883,16 +6885,10 @@ impl EnhancedOrchestrator {
         let mut doc_dates: std::collections::HashMap<String, NaiveDate> =
             std::collections::HashMap::new();
         for vi in &document_flows.vendor_invoices {
-            doc_dates.insert(
-                vi.header.document_id.clone(),
-                vi.header.document_date,
-            );
+            doc_dates.insert(vi.header.document_id.clone(), vi.header.document_date);
         }
         for ci in &document_flows.customer_invoices {
-            doc_dates.insert(
-                ci.header.document_id.clone(),
-                ci.header.document_date,
-            );
+            doc_dates.insert(ci.header.document_id.clone(), ci.header.document_date);
         }
 
         // Generate tax posting JEs (tax payable/receivable) from computed tax lines
