@@ -187,6 +187,37 @@ pub mod manufacturing_accounts {
     pub const WARRANTY_EXPENSE: &str = "5400";
 }
 
+/// Treasury accounting accounts for debt, hedging, and derivatives.
+pub mod treasury_accounts {
+    /// Interest payable (accrued interest on debt)
+    pub const INTEREST_PAYABLE: &str = "2160";
+
+    /// Debt premium account (above-par issuance)
+    pub const DEBT_PREMIUM: &str = "2610";
+
+    /// Debt discount account (below-par issuance, contra-liability)
+    pub const DEBT_DISCOUNT: &str = "2620";
+
+    /// Derivative asset (positive fair value of hedging instruments)
+    pub const DERIVATIVE_ASSET: &str = "1450";
+
+    /// Derivative liability (negative fair value of hedging instruments)
+    /// Note: "2450" is already used as PROVISION_LIABILITY in provision_generator.rs; using "2460".
+    pub const DERIVATIVE_LIABILITY: &str = "2460";
+
+    /// OCI — Cash flow hedge reserve (equity section)
+    pub const OCI_CASH_FLOW_HEDGE: &str = "3510";
+
+    /// Hedge ineffectiveness expense (P&L)
+    pub const HEDGE_INEFFECTIVENESS: &str = "7510";
+
+    /// IC receivable from cash pool (physical pooling)
+    pub const CASH_POOL_IC_RECEIVABLE: &str = "1155";
+
+    /// IC payable from cash pool (physical pooling)
+    pub const CASH_POOL_IC_PAYABLE: &str = "2055";
+}
+
 /// Tax accounts.
 pub mod tax_accounts {
     /// Sales tax payable account
