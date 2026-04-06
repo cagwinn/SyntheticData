@@ -3,6 +3,7 @@
 //! Validates that generated data maintains accounting coherence including
 //! balance sheet equations, subledger reconciliation, and document chain integrity.
 
+pub mod financial_package;
 pub mod inventory_cogs;
 pub mod je_risk_scoring;
 pub mod ratio_analysis;
@@ -210,6 +211,18 @@ pub struct CoherenceEvaluation {
     /// Payroll/HR salary change traceability results.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub payroll_hr: Option<treasury_tax::PayrollHRReconciliationEvaluation>,
+    /// Cash flow statement reconciliation results.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cash_flow_reconciliation: Option<financial_package::CashFlowReconciliationEvaluation>,
+    /// Statement of changes in equity roll-forward results.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub equity_rollforward: Option<financial_package::EquityRollforwardEvaluation>,
+    /// Segment revenue reconciliation results.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub segment_reconciliation: Option<financial_package::SegmentReconciliationEvaluation>,
+    /// Trial balance master proof results (capstone GL completeness check).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tb_master_proof: Option<financial_package::TrialBalanceMasterProofEvaluation>,
     /// Overall pass/fail status.
     pub passes: bool,
     /// Summary of failed checks.
@@ -248,6 +261,10 @@ impl CoherenceEvaluation {
             etr_reconciliation: None,
             hedge_effectiveness: None,
             payroll_hr: None,
+            cash_flow_reconciliation: None,
+            equity_rollforward: None,
+            segment_reconciliation: None,
+            tb_master_proof: None,
             passes: true,
             failures: Vec::new(),
         }
@@ -428,6 +445,26 @@ impl CoherenceEvaluation {
             }
         }
         if let Some(ref eval) = self.payroll_hr {
+            if !eval.passes {
+                self.failures.extend(eval.failures.clone());
+            }
+        }
+        if let Some(ref eval) = self.cash_flow_reconciliation {
+            if !eval.passes {
+                self.failures.extend(eval.failures.clone());
+            }
+        }
+        if let Some(ref eval) = self.equity_rollforward {
+            if !eval.passes {
+                self.failures.extend(eval.failures.clone());
+            }
+        }
+        if let Some(ref eval) = self.segment_reconciliation {
+            if !eval.passes {
+                self.failures.extend(eval.failures.clone());
+            }
+        }
+        if let Some(ref eval) = self.tb_master_proof {
             if !eval.passes {
                 self.failures.extend(eval.failures.clone());
             }
