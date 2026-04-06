@@ -2484,6 +2484,110 @@ impl EnhancedOrchestrator {
             entries.extend(tax.tax_posting_journal_entries.iter().cloned());
         }
 
+        // Phase 20a-cf: Enhanced Cash Flow (v2.4)
+        // Build supplementary cash flow items from upstream JE data (depreciation,
+        // interest, tax, dividends, working-capital deltas) and merge into CF statements.
+        {
+            use datasynth_generators::{CashFlowEnhancer, CashFlowSourceData};
+
+            let framework_str = {
+                use datasynth_config::schema::AccountingFrameworkConfig;
+                match self
+                    .config
+                    .accounting_standards
+                    .framework
+                    .unwrap_or_default()
+                {
+                    AccountingFrameworkConfig::Ifrs | AccountingFrameworkConfig::DualReporting => {
+                        "IFRS"
+                    }
+                    _ => "US_GAAP",
+                }
+            };
+
+            // Sum depreciation debits (account 6000) from close JEs
+            let depreciation_total: rust_decimal::Decimal = entries
+                .iter()
+                .filter(|je| je.header.document_type == "CL")
+                .flat_map(|je| je.lines.iter())
+                .filter(|l| l.gl_account.starts_with("6000"))
+                .map(|l| l.debit_amount)
+                .fold(rust_decimal::Decimal::ZERO, |a, v| a + v);
+
+            // Sum interest expense debits (account 7100)
+            let interest_paid: rust_decimal::Decimal = entries
+                .iter()
+                .flat_map(|je| je.lines.iter())
+                .filter(|l| l.gl_account.starts_with("7100"))
+                .map(|l| l.debit_amount)
+                .fold(rust_decimal::Decimal::ZERO, |a, v| a + v);
+
+            // Sum tax expense debits (account 8000)
+            let tax_paid: rust_decimal::Decimal = entries
+                .iter()
+                .flat_map(|je| je.lines.iter())
+                .filter(|l| l.gl_account.starts_with("8000"))
+                .map(|l| l.debit_amount)
+                .fold(rust_decimal::Decimal::ZERO, |a, v| a + v);
+
+            // Sum capex debits on fixed assets (account 1500)
+            let capex: rust_decimal::Decimal = entries
+                .iter()
+                .flat_map(|je| je.lines.iter())
+                .filter(|l| l.gl_account.starts_with("1500"))
+                .map(|l| l.debit_amount)
+                .fold(rust_decimal::Decimal::ZERO, |a, v| a + v);
+
+            // Dividends paid: sum debits on dividends payable (account 2170) from payment JEs
+            let dividends_paid: rust_decimal::Decimal = entries
+                .iter()
+                .flat_map(|je| je.lines.iter())
+                .filter(|l| l.gl_account == "2170")
+                .map(|l| l.debit_amount)
+                .fold(rust_decimal::Decimal::ZERO, |a, v| a + v);
+
+            let cf_data = CashFlowSourceData {
+                depreciation_total,
+                provision_movements_net: rust_decimal::Decimal::ZERO, // best-effort: zero
+                delta_ar: rust_decimal::Decimal::ZERO,
+                delta_ap: rust_decimal::Decimal::ZERO,
+                delta_inventory: rust_decimal::Decimal::ZERO,
+                capex,
+                debt_issuance: rust_decimal::Decimal::ZERO,
+                debt_repayment: rust_decimal::Decimal::ZERO,
+                interest_paid,
+                tax_paid,
+                dividends_paid,
+                framework: framework_str.to_string(),
+            };
+
+            let enhanced_cf_items = CashFlowEnhancer::generate(&cf_data);
+            if !enhanced_cf_items.is_empty() {
+                // Merge into ALL cash flow statements (standalone + consolidated)
+                use datasynth_core::models::StatementType;
+                let merge_count = enhanced_cf_items.len();
+                for stmt in financial_reporting
+                    .financial_statements
+                    .iter_mut()
+                    .chain(financial_reporting.consolidated_statements.iter_mut())
+                    .chain(
+                        financial_reporting
+                            .standalone_statements
+                            .values_mut()
+                            .flat_map(|v| v.iter_mut()),
+                    )
+                {
+                    if stmt.statement_type == StatementType::CashFlowStatement {
+                        stmt.cash_flow_items.extend(enhanced_cf_items.clone());
+                    }
+                }
+                info!(
+                    "Enhanced cash flow: {} supplementary items merged into CF statements",
+                    merge_count
+                );
+            }
+        }
+
         // Phase 20a: Notes to Financial Statements (IAS 1 / ASC 235)
         // Runs here so deferred-tax (Phase 20) and provision data (Phase 18) are available.
         self.generate_notes_to_financial_statements(
@@ -2492,10 +2596,57 @@ impl EnhancedOrchestrator {
             &tax,
             &hr,
             &audit,
+            &treasury,
         );
 
+        // Phase 20b: Supplement segment reports from real JEs (v2.4)
+        // When we have 2+ companies, derive segment data from actual journal entries
+        // to complement or replace the FS-generator-based segments.
+        if self.config.companies.len() >= 2 && !entries.is_empty() {
+            let companies: Vec<(String, String)> = self
+                .config
+                .companies
+                .iter()
+                .map(|c| (c.code.clone(), c.name.clone()))
+                .collect();
+            let ic_elim: rust_decimal::Decimal = intercompany
+                .matched_pairs
+                .iter()
+                .map(|p| p.amount)
+                .sum();
+            let start_date =
+                NaiveDate::parse_from_str(&self.config.global.start_date, "%Y-%m-%d")
+                    .unwrap_or(NaiveDate::MIN);
+            let end_date = start_date + chrono::Months::new(self.config.global.period_months);
+            let period_label = format!(
+                "{}-{:02}",
+                end_date.year(),
+                (end_date - chrono::Days::new(1)).month()
+            );
+
+            let mut seg_gen = SegmentGenerator::new(self.seed + 31);
+            let (je_segments, je_recon) =
+                seg_gen.generate_from_journal_entries(&entries, &companies, &period_label, ic_elim);
+            if !je_segments.is_empty() {
+                info!(
+                    "Segment reports (v2.4): {} JE-derived segments with IC elimination {}",
+                    je_segments.len(),
+                    ic_elim,
+                );
+                // Replace if existing segment_reports were empty; otherwise supplement
+                if financial_reporting.segment_reports.is_empty() {
+                    financial_reporting.segment_reports = je_segments;
+                    financial_reporting.segment_reconciliations = vec![je_recon];
+                } else {
+                    financial_reporting.segment_reports.extend(je_segments);
+                    financial_reporting.segment_reconciliations.push(je_recon);
+                }
+            }
+        }
+
         // Phase 21: ESG Data Generation
-        let esg_snap = self.phase_esg_generation(&document_flows, &mut stats)?;
+        let esg_snap =
+            self.phase_esg_generation(&document_flows, &manufacturing_snap, &mut stats)?;
 
         // Phase 23: Project Accounting Data Generation
         let project_accounting = self.phase_project_accounting(&document_flows, &hr, &mut stats)?;
@@ -3456,10 +3607,11 @@ impl EnhancedOrchestrator {
                 }
             }
 
-            // --- Income statement closing JE ---
-            // Net income after tax (profit years) or net loss before DTA benefit (loss years).
-            // For a loss year the DTA JE above already recognises the deferred benefit; here we
-            // close the pre-tax loss into Retained Earnings as-is.
+            // --- Dividend JEs (v2.4) ---
+            // If the entity is profitable after tax, declare a 10% dividend payout.
+            // This runs AFTER tax provision so the dividend is based on post-tax income
+            // but BEFORE the retained earnings close so the RE transfer reflects the
+            // reduced balance.
             let tax_provision = if pre_tax_income > Decimal::ZERO {
                 (pre_tax_income * tax_rate).round_dp(2)
             } else {
@@ -3467,6 +3619,36 @@ impl EnhancedOrchestrator {
             };
             let net_income = pre_tax_income - tax_provision;
 
+            if net_income > Decimal::ZERO {
+                use datasynth_generators::DividendGenerator;
+                let dividend_amount = (net_income * Decimal::new(10, 2)).round_dp(2); // 10% payout
+                let mut div_gen = DividendGenerator::new(self.seed + 460);
+                let currency_str = self
+                    .config
+                    .companies
+                    .iter()
+                    .find(|c| c.code == *company_code)
+                    .map(|c| c.currency.as_str())
+                    .unwrap_or("USD");
+                let div_result = div_gen.generate(
+                    company_code,
+                    close_date,
+                    Decimal::new(1, 0), // $1 per share placeholder
+                    dividend_amount,
+                    currency_str,
+                );
+                let div_je_count = div_result.journal_entries.len();
+                close_jes.extend(div_result.journal_entries);
+                debug!(
+                    "Company {}: declared dividend of {} ({} JEs)",
+                    company_code, dividend_amount, div_je_count
+                );
+            }
+
+            // --- Income statement closing JE ---
+            // Net income after tax (profit years) or net loss before DTA benefit (loss years).
+            // For a loss year the DTA JE above already recognises the deferred benefit; here we
+            // close the pre-tax loss into Retained Earnings as-is.
             if net_income != Decimal::ZERO {
                 let mut close_header = JournalEntryHeader::new(company_code.clone(), close_date);
                 close_header.document_type = "CL".to_string();
@@ -5025,11 +5207,12 @@ impl EnhancedOrchestrator {
         tax: &TaxSnapshot,
         hr: &HrSnapshot,
         audit: &AuditSnapshot,
+        treasury: &TreasurySnapshot,
     ) {
         use datasynth_config::schema::AccountingFrameworkConfig;
         use datasynth_core::models::StatementType;
         use datasynth_generators::period_close::notes_generator::{
-            NotesGenerator, NotesGeneratorContext,
+            EnhancedNotesContext, NotesGenerator, NotesGeneratorContext,
         };
 
         let seed = self.seed;
@@ -5219,10 +5402,11 @@ impl EnhancedOrchestrator {
             };
 
             let entity_notes = notes_gen.generate(&ctx);
+            let standard_note_count = entity_notes.len() as u32;
             info!(
                 "Notes to FS for {}: {} notes generated (DTA={:?}, DTL={:?}, provisions={})",
                 company.code,
-                entity_notes.len(),
+                standard_note_count,
                 entity_dta,
                 entity_dtl,
                 provision_count,
@@ -5230,6 +5414,96 @@ impl EnhancedOrchestrator {
             financial_reporting
                 .notes_to_financial_statements
                 .extend(entity_notes);
+
+            // v2.4: Enhanced notes backed by treasury, manufacturing, and provision data
+            let debt_instruments: Vec<(String, rust_decimal::Decimal, String)> = treasury
+                .debt_instruments
+                .iter()
+                .filter(|d| d.entity_id == company.code)
+                .map(|d| {
+                    (
+                        format!("{:?}", d.instrument_type),
+                        d.principal,
+                        d.maturity_date.to_string(),
+                    )
+                })
+                .collect();
+
+            let hedge_count = treasury.hedge_relationships.len();
+            let effective_hedges = treasury
+                .hedge_relationships
+                .iter()
+                .filter(|h| h.is_effective)
+                .count();
+            let total_notional: rust_decimal::Decimal = treasury
+                .hedging_instruments
+                .iter()
+                .map(|h| h.notional_amount)
+                .sum();
+            let total_fair_value: rust_decimal::Decimal = treasury
+                .hedging_instruments
+                .iter()
+                .map(|h| h.fair_value)
+                .sum();
+
+            // Join provision_movements with provisions to get entity/type info
+            let entity_provision_ids: std::collections::HashSet<&str> = accounting_standards
+                .provisions
+                .iter()
+                .filter(|p| p.entity_code == company.code)
+                .map(|p| p.id.as_str())
+                .collect();
+            let provision_movements: Vec<(
+                String,
+                rust_decimal::Decimal,
+                rust_decimal::Decimal,
+                rust_decimal::Decimal,
+            )> = accounting_standards
+                .provision_movements
+                .iter()
+                .filter(|m| entity_provision_ids.contains(m.provision_id.as_str()))
+                .map(|m| {
+                    let prov_type = accounting_standards
+                        .provisions
+                        .iter()
+                        .find(|p| p.id == m.provision_id)
+                        .map(|p| format!("{:?}", p.provision_type))
+                        .unwrap_or_else(|| "Unknown".to_string());
+                    (prov_type, m.opening, m.additions, m.closing)
+                })
+                .collect();
+
+            let enhanced_ctx = EnhancedNotesContext {
+                entity_code: company.code.clone(),
+                period: format!("FY{}", fiscal_year),
+                currency: company.currency.clone(),
+                // Inventory breakdown: best-effort using zero (would need balance tracker)
+                finished_goods_value: rust_decimal::Decimal::ZERO,
+                wip_value: rust_decimal::Decimal::ZERO,
+                raw_materials_value: rust_decimal::Decimal::ZERO,
+                debt_instruments,
+                hedge_count,
+                effective_hedges,
+                total_notional,
+                total_fair_value,
+                provision_movements,
+            };
+
+            let enhanced_notes =
+                notes_gen.generate_enhanced_notes(&enhanced_ctx, standard_note_count + 1);
+            if !enhanced_notes.is_empty() {
+                info!(
+                    "Enhanced notes for {}: {} supplementary notes (debt={}, hedges={}, provisions={})",
+                    company.code,
+                    enhanced_notes.len(),
+                    enhanced_ctx.debt_instruments.len(),
+                    hedge_count,
+                    enhanced_ctx.provision_movements.len(),
+                );
+                financial_reporting
+                    .notes_to_financial_statements
+                    .extend(enhanced_notes);
+            }
         }
     }
 
@@ -6943,6 +7217,7 @@ impl EnhancedOrchestrator {
     fn phase_esg_generation(
         &mut self,
         document_flows: &DocumentFlowSnapshot,
+        manufacturing: &ManufacturingSnapshot,
         stats: &mut EnhancedGenerationStatistics,
     ) -> SynthResult<EsgSnapshot> {
         if !self.phase_config.generate_esg {
@@ -6998,7 +7273,7 @@ impl EnhancedOrchestrator {
             datasynth_generators::EmissionGenerator::new(esg_cfg.environmental.clone(), seed + 83);
 
         // Build EnergyInput from energy_records
-        let energy_inputs: Vec<datasynth_generators::EnergyInput> = energy_records
+        let mut energy_inputs: Vec<datasynth_generators::EnergyInput> = energy_records
             .iter()
             .map(|e| datasynth_generators::EnergyInput {
                 facility_id: e.facility_id.clone(),
@@ -7014,6 +7289,23 @@ impl EnhancedOrchestrator {
                 period: e.period,
             })
             .collect();
+
+        // v2.4: Bridge manufacturing production data → energy inputs for Scope 1/2
+        if !manufacturing.production_orders.is_empty() {
+            let mfg_energy = datasynth_generators::EmissionGenerator::energy_from_production(
+                &manufacturing.production_orders,
+                rust_decimal::Decimal::new(50, 0), // 50 kWh per machine hour
+                rust_decimal::Decimal::new(2, 0),  // 2 kWh natural gas per unit
+            );
+            if !mfg_energy.is_empty() {
+                info!(
+                    "ESG: {} energy inputs derived from {} production orders",
+                    mfg_energy.len(),
+                    manufacturing.production_orders.len(),
+                );
+                energy_inputs.extend(mfg_energy);
+            }
+        }
 
         let mut emissions = Vec::new();
         emissions.extend(emission_gen.generate_scope1(entity_id, &energy_inputs));
@@ -7081,6 +7373,24 @@ impl EnhancedOrchestrator {
         snapshot.diversity =
             workforce_gen.generate_diversity(entity_id, total_headcount, start_date);
         snapshot.pay_equity = workforce_gen.generate_pay_equity(entity_id, start_date);
+
+        // v2.4: Derive additional workforce diversity metrics from actual employee data
+        if !self.master_data.employees.is_empty() {
+            let hr_diversity = workforce_gen.generate_diversity_from_employees(
+                entity_id,
+                &self.master_data.employees,
+                end_date,
+            );
+            if !hr_diversity.is_empty() {
+                info!(
+                    "ESG: {} diversity metrics derived from {} actual employees",
+                    hr_diversity.len(),
+                    self.master_data.employees.len(),
+                );
+                snapshot.diversity.extend(hr_diversity);
+            }
+        }
+
         snapshot.safety_incidents = workforce_gen.generate_safety_incidents(
             entity_id,
             facility_count,
