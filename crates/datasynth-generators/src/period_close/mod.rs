@@ -25,6 +25,6 @@ pub use consolidation_generator::*;
 pub use depreciation::*;
 pub use dividend_generator::*;
 pub use financial_statement_generator::*;
-pub use notes_generator::{NotesGenerator, NotesGeneratorContext};
+pub use notes_generator::{EnhancedNotesContext, NotesGenerator, NotesGeneratorContext};
 pub use segment_generator::*;
 pub use year_end::*;
