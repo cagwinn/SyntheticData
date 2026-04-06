@@ -821,8 +821,11 @@ impl JournalEntry {
     }
 
     /// Add a line item to the journal entry.
+    ///
+    /// Automatically sets the line's `document_id` to match the header's `document_id`.
     #[inline]
-    pub fn add_line(&mut self, line: JournalEntryLine) {
+    pub fn add_line(&mut self, mut line: JournalEntryLine) {
+        line.document_id = self.header.document_id;
         self.lines.push(line);
     }
 
