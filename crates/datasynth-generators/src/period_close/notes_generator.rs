@@ -668,12 +668,12 @@ impl NotesGenerator {
         context: &EnhancedNotesContext,
         starting_note_number: u32,
     ) -> Vec<FinancialStatementNote> {
-        let mut notes: Vec<FinancialStatementNote> = Vec::new();
-
-        notes.push(self.note_inventories(context));
-        notes.push(self.note_borrowings(context));
-        notes.push(self.note_hedge_accounting(context));
-        notes.push(self.note_provisions_rollforward(context));
+        let mut notes = vec![
+            self.note_inventories(context),
+            self.note_borrowings(context),
+            self.note_hedge_accounting(context),
+            self.note_provisions_rollforward(context),
+        ];
 
         // Assign sequential note numbers starting from the given offset
         for (i, note) in notes.iter_mut().enumerate() {
