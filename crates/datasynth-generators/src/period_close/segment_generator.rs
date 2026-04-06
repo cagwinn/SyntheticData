@@ -22,7 +22,7 @@
 //! consolidated_assets   = segment_assets_total  + unallocated_assets
 //! ```
 
-use datasynth_core::models::{OperatingSegment, SegmentReconciliation, SegmentType};
+use datasynth_core::models::{JournalEntry, OperatingSegment, SegmentReconciliation, SegmentType};
 use datasynth_core::utils::seeded_rng;
 use datasynth_core::uuid_factory::{DeterministicUuidFactory, GeneratorType};
 use rand::prelude::*;
@@ -243,6 +243,116 @@ impl SegmentGenerator {
             segment_revenue_total,
             intersegment_eliminations,
             consolidated_revenue,
+            segment_profit_total,
+            corporate_overhead,
+            consolidated_profit: segment_profit_total + corporate_overhead,
+            segment_assets_total,
+            unallocated_assets,
+            consolidated_assets: segment_assets_total + unallocated_assets,
+        };
+
+        (segments, reconciliation)
+    }
+
+    /// Generate operating segments from actual journal entry data per entity.
+    ///
+    /// For each company, aggregates JEs by GL account prefix:
+    /// - Revenue (4xxx): net credits
+    /// - COGS (5xxx): net debits
+    /// - OpEx (6xxx + 7xxx): net debits
+    /// - Assets (1xxx): debit balances (snapshot from all entries)
+    /// - Liabilities (2xxx): credit balances
+    ///
+    /// # Arguments
+    /// * `journal_entries` – slice of all journal entries to aggregate
+    /// * `companies` – `(code, name)` tuples identifying each segment entity
+    /// * `period` – fiscal period label (e.g. `"2025-Q1"`)
+    /// * `ic_elimination_amount` – known intercompany elimination to embed in the reconciliation
+    ///
+    /// # Returns
+    /// `(segments, reconciliation)` where each segment corresponds to one company
+    /// and the reconciliation ties all segment totals to the consolidated figures.
+    pub fn generate_from_journal_entries(
+        &mut self,
+        journal_entries: &[JournalEntry],
+        companies: &[(String, String)],
+        period: &str,
+        ic_elimination_amount: Decimal,
+    ) -> (Vec<OperatingSegment>, SegmentReconciliation) {
+        let mut segments: Vec<OperatingSegment> = Vec::with_capacity(companies.len());
+
+        for (code, name) in companies {
+            // Aggregate amounts for this company across all its JE lines.
+            let mut revenue = Decimal::ZERO;
+            let mut cogs = Decimal::ZERO;
+            let mut opex = Decimal::ZERO;
+            let mut assets = Decimal::ZERO;
+            let mut liabilities = Decimal::ZERO;
+
+            for je in journal_entries.iter().filter(|je| je.company_code() == code) {
+                for line in &je.lines {
+                    let prefix = line.gl_account.chars().next().unwrap_or('0');
+                    match prefix {
+                        '4' => {
+                            // Revenue: net credits (credits - debits)
+                            revenue += line.credit_amount - line.debit_amount;
+                        }
+                        '5' => {
+                            // COGS: net debits (debits - credits)
+                            cogs += line.debit_amount - line.credit_amount;
+                        }
+                        '6' | '7' => {
+                            // OpEx: net debits (debits - credits)
+                            opex += line.debit_amount - line.credit_amount;
+                        }
+                        '1' => {
+                            // Assets: debit balances (debits - credits)
+                            assets += line.debit_amount - line.credit_amount;
+                        }
+                        '2' => {
+                            // Liabilities: credit balances (credits - debits)
+                            liabilities += line.credit_amount - line.debit_amount;
+                        }
+                        _ => {}
+                    }
+                }
+            }
+
+            let operating_profit = revenue - cogs - opex;
+
+            segments.push(OperatingSegment {
+                segment_id: self.uuid_factory.next().to_string(),
+                name: name.clone(),
+                segment_type: SegmentType::LegalEntity,
+                revenue_external: revenue,
+                revenue_intersegment: Decimal::ZERO,
+                operating_profit,
+                total_assets: assets,
+                total_liabilities: liabilities,
+                capital_expenditure: Decimal::ZERO,
+                depreciation_amortization: Decimal::ZERO,
+                period: period.to_string(),
+                company_code: code.clone(),
+            });
+        }
+
+        // Build reconciliation
+        let segment_revenue_total: Decimal = segments.iter().map(|s| s.revenue_external).sum();
+        let segment_profit_total: Decimal = segments.iter().map(|s| s.operating_profit).sum();
+        let segment_assets_total: Decimal = segments.iter().map(|s| s.total_assets).sum();
+        let corporate_overhead = Decimal::ZERO;
+        let unallocated_assets = Decimal::ZERO;
+
+        let reconciliation = SegmentReconciliation {
+            period: period.to_string(),
+            // Use the first company code as group code, or empty string if none
+            company_code: companies
+                .first()
+                .map(|(c, _)| c.clone())
+                .unwrap_or_default(),
+            segment_revenue_total,
+            intersegment_eliminations: ic_elimination_amount,
+            consolidated_revenue: segment_revenue_total - ic_elimination_amount,
             segment_profit_total,
             corporate_overhead,
             consolidated_profit: segment_profit_total + corporate_overhead,
