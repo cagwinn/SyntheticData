@@ -289,7 +289,10 @@ impl SegmentGenerator {
             let mut assets = Decimal::ZERO;
             let mut liabilities = Decimal::ZERO;
 
-            for je in journal_entries.iter().filter(|je| je.company_code() == code) {
+            for je in journal_entries
+                .iter()
+                .filter(|je| je.company_code() == code)
+            {
                 for line in &je.lines {
                     let prefix = line.gl_account.chars().next().unwrap_or('0');
                     match prefix {

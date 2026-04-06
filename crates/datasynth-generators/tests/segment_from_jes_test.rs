@@ -215,7 +215,8 @@ fn test_empty_jes_produces_zero_segments() {
     let mut gen = SegmentGenerator::new(6);
     let companies = vec![("C001".to_string(), "One".to_string())];
 
-    let (segments, recon) = gen.generate_from_journal_entries(&[], &companies, "2025-Q1", Decimal::ZERO);
+    let (segments, recon) =
+        gen.generate_from_journal_entries(&[], &companies, "2025-Q1", Decimal::ZERO);
 
     assert_eq!(segments.len(), 1);
     assert_eq!(segments[0].revenue_external, Decimal::ZERO);

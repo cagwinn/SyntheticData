@@ -327,7 +327,11 @@ fn test_all_enhanced_notes_have_titles_and_content() {
     let ctx = default_enhanced_context();
     let notes = gen.generate_enhanced_notes(&ctx, 9);
     for note in &notes {
-        assert!(!note.title.is_empty(), "Note {} has empty title", note.note_number);
+        assert!(
+            !note.title.is_empty(),
+            "Note {} has empty title",
+            note.note_number
+        );
         assert!(
             !note.content_sections.is_empty(),
             "Note '{}' has no content sections",
@@ -355,8 +359,8 @@ fn test_enhanced_notes_deterministic() {
 
 #[test]
 fn test_enhanced_notes_integrate_with_existing_notes() {
-    use datasynth_generators::period_close::notes_generator::NotesGeneratorContext;
     use chrono::NaiveDate;
+    use datasynth_generators::period_close::notes_generator::NotesGeneratorContext;
 
     let mut gen = NotesGenerator::new(42);
 

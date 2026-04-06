@@ -87,7 +87,11 @@ fn test_electricity_kwh_from_machine_hours() {
         .filter(|i| i.energy_type == EnergyInputType::Electricity)
         .collect();
 
-    assert_eq!(electricity.len(), 1, "Should produce exactly one electricity input");
+    assert_eq!(
+        electricity.len(),
+        1,
+        "Should produce exactly one electricity input"
+    );
     assert_eq!(
         electricity[0].consumption_kwh,
         dec!(500),
@@ -312,11 +316,7 @@ fn test_multiple_orders_produce_correct_totals() {
         .filter(|i| i.energy_type == EnergyInputType::NaturalGas)
         .map(|i| i.consumption_kwh)
         .sum();
-    assert_eq!(
-        total_gas,
-        dec!(600),
-        "Total gas: (200+100)×2 = 600 kWh"
-    );
+    assert_eq!(total_gas, dec!(600), "Total gas: (200+100)×2 = 600 kWh");
 }
 
 // ---------------------------------------------------------------------------
@@ -375,8 +375,14 @@ fn test_production_derived_inputs_produce_scope1_and_scope2_emissions() {
     let scope1 = gen.generate_scope1("C001", &inputs);
     let scope2 = gen.generate_scope2("C001", &inputs);
 
-    assert!(!scope1.is_empty(), "Should produce Scope 1 records from natural gas");
-    assert!(!scope2.is_empty(), "Should produce Scope 2 records from electricity");
+    assert!(
+        !scope1.is_empty(),
+        "Should produce Scope 1 records from natural gas"
+    );
+    assert!(
+        !scope2.is_empty(),
+        "Should produce Scope 2 records from electricity"
+    );
     assert!(
         scope1.iter().all(|r| r.scope == EmissionScope::Scope1),
         "All Scope 1 records should have correct scope"
@@ -388,6 +394,9 @@ fn test_production_derived_inputs_produce_scope1_and_scope2_emissions() {
 
     // Verify co2e_tonnes are non-zero
     for r in scope1.iter().chain(scope2.iter()) {
-        assert!(r.co2e_tonnes > Decimal::ZERO, "All emission records should be positive");
+        assert!(
+            r.co2e_tonnes > Decimal::ZERO,
+            "All emission records should be positive"
+        );
     }
 }

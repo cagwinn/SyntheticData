@@ -32,10 +32,16 @@ fn test_declaration_je_accounts() {
         "USD",
     );
     let decl_je = &result.journal_entries[0];
-    assert!(decl_je.lines.iter().any(|l| l.gl_account == equity_accounts::RETAINED_EARNINGS
-        && l.debit_amount > Decimal::ZERO));
-    assert!(decl_je.lines.iter().any(|l| l.gl_account == dividend_accounts::DIVIDENDS_PAYABLE
-        && l.credit_amount > Decimal::ZERO));
+    assert!(decl_je
+        .lines
+        .iter()
+        .any(|l| l.gl_account == equity_accounts::RETAINED_EARNINGS
+            && l.debit_amount > Decimal::ZERO));
+    assert!(decl_je
+        .lines
+        .iter()
+        .any(|l| l.gl_account == dividend_accounts::DIVIDENDS_PAYABLE
+            && l.credit_amount > Decimal::ZERO));
 }
 
 #[test]
@@ -49,10 +55,15 @@ fn test_payment_je_accounts() {
         "USD",
     );
     let pay_je = &result.journal_entries[1];
-    assert!(pay_je.lines.iter().any(|l| l.gl_account == dividend_accounts::DIVIDENDS_PAYABLE
-        && l.debit_amount > Decimal::ZERO));
-    assert!(pay_je.lines.iter().any(|l| l.gl_account == cash_accounts::OPERATING_CASH
-        && l.credit_amount > Decimal::ZERO));
+    assert!(pay_je
+        .lines
+        .iter()
+        .any(|l| l.gl_account == dividend_accounts::DIVIDENDS_PAYABLE
+            && l.debit_amount > Decimal::ZERO));
+    assert!(pay_je
+        .lines
+        .iter()
+        .any(|l| l.gl_account == cash_accounts::OPERATING_CASH && l.credit_amount > Decimal::ZERO));
 }
 
 #[test]

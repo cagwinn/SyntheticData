@@ -436,9 +436,7 @@ impl WorkforceGenerator {
             .collect();
 
         // Sort deterministically and pick highest-average group as reference
-        averages.sort_by(|a, b| {
-            b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0))
-        });
+        averages.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
 
         let (ref_group, ref_avg, ref_count) = averages[0].clone();
 

@@ -8,8 +8,8 @@ fn test_operating_activities() {
     let data = CashFlowSourceData {
         depreciation_total: dec!(50_000),
         provision_movements_net: dec!(10_000),
-        delta_ar: dec!(20_000), // AR increased → cash outflow
-        delta_ap: dec!(15_000), // AP increased → cash inflow
+        delta_ar: dec!(20_000),       // AR increased → cash outflow
+        delta_ap: dec!(15_000),       // AP increased → cash inflow
         delta_inventory: dec!(5_000), // Inventory increased → cash outflow
         capex: Decimal::ZERO,
         debt_issuance: Decimal::ZERO,

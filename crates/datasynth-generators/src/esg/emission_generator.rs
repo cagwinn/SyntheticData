@@ -11,8 +11,8 @@ use datasynth_core::models::{
 use datasynth_core::utils::seeded_rng;
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
-use rust_decimal::Decimal;
 use rust_decimal::prelude::FromPrimitive;
+use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 
 // ---------------------------------------------------------------------------
@@ -354,8 +354,7 @@ impl EmissionGenerator {
             let period = order.actual_end.unwrap_or(order.planned_end);
 
             // --- Scope 2: Electricity from machine hours ---
-            let machine_hours_dec =
-                Decimal::from_f64(order.machine_hours).unwrap_or(Decimal::ZERO);
+            let machine_hours_dec = Decimal::from_f64(order.machine_hours).unwrap_or(Decimal::ZERO);
             let electricity_kwh = machine_hours_dec * kwh_per_machine_hour;
             if electricity_kwh > Decimal::ZERO {
                 inputs.push(EnergyInput {

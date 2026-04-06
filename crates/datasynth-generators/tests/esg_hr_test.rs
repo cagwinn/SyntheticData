@@ -279,5 +279,8 @@ fn test_pay_equity_single_group_returns_empty() {
 fn test_pay_equity_empty_items_returns_empty() {
     let mut g = gen();
     let metrics = g.generate_pay_equity_from_payroll("C001", &[], date(2025, 1, 31));
-    assert!(metrics.is_empty(), "Empty payroll items should produce no metrics");
+    assert!(
+        metrics.is_empty(),
+        "Empty payroll items should produce no metrics"
+    );
 }

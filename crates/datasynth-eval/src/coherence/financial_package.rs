@@ -128,9 +128,7 @@ impl EquityRollforwardEvaluator {
 
     /// Run the equity roll-forward check against `data`.
     pub fn evaluate(&self, data: &EquityRollforwardData) -> EquityRollforwardEvaluation {
-        let expected_closing = data.opening_equity
-            + data.net_income
-            + data.oci_movements
+        let expected_closing = data.opening_equity + data.net_income + data.oci_movements
             - data.dividends_declared
             + data.stock_comp;
         let difference = (expected_closing - data.closing_equity).abs();
@@ -488,7 +486,7 @@ mod tests {
             sum_opening_credits: dec!(500_000),
             sum_je_debits: dec!(100_000),
             sum_je_credits: dec!(100_000),
-            closing_tb_debits: dec!(400_000), // Wrong
+            closing_tb_debits: dec!(400_000),  // Wrong
             closing_tb_credits: dec!(700_000), // Wrong
         };
         let result = TrialBalanceMasterProofEvaluator::new(dec!(1)).evaluate(&data);

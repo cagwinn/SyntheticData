@@ -699,11 +699,7 @@ impl NotesGenerator {
              of {} the carrying amounts were: finished goods {} {fg:.0}, \
              work in progress {} {wip:.0}, and raw materials {} {rm:.0}, \
              giving a total of {} {total:.0}.",
-            ctx.period,
-            ctx.currency,
-            ctx.currency,
-            ctx.currency,
-            ctx.currency,
+            ctx.period, ctx.currency, ctx.currency, ctx.currency, ctx.currency,
         );
 
         let rows = vec![
@@ -733,11 +729,11 @@ impl NotesGenerator {
                 heading: "Inventory Breakdown by Category".to_string(),
                 narrative,
                 tables: vec![NoteTable {
-                    caption: format!("Inventory Carrying Amounts — {} ({})", ctx.period, ctx.currency),
-                    headers: vec![
-                        "Category".to_string(),
-                        format!("Amount ({})", ctx.currency),
-                    ],
+                    caption: format!(
+                        "Inventory Carrying Amounts — {} ({})",
+                        ctx.period, ctx.currency
+                    ),
+                    headers: vec!["Category".to_string(), format!("Amount ({})", ctx.currency)],
                     rows,
                 }],
             }],
@@ -782,7 +778,10 @@ impl NotesGenerator {
                 heading: "Debt Maturity Schedule".to_string(),
                 narrative,
                 tables: vec![NoteTable {
-                    caption: format!("Debt Instruments Outstanding — {} ({})", ctx.period, ctx.currency),
+                    caption: format!(
+                        "Debt Instruments Outstanding — {} ({})",
+                        ctx.period, ctx.currency
+                    ),
                     headers: vec![
                         "Type".to_string(),
                         format!("Principal ({})", ctx.currency),
@@ -797,8 +796,7 @@ impl NotesGenerator {
 
     fn note_hedge_accounting(&mut self, ctx: &EnhancedNotesContext) -> FinancialStatementNote {
         let effectiveness_rate = if ctx.hedge_count > 0 {
-            Decimal::new(ctx.effective_hedges as i64, 0)
-                / Decimal::new(ctx.hedge_count as i64, 0)
+            Decimal::new(ctx.effective_hedges as i64, 0) / Decimal::new(ctx.hedge_count as i64, 0)
         } else {
             Decimal::ZERO
         };
@@ -845,12 +843,7 @@ impl NotesGenerator {
 
         let rows: Vec<Vec<NoteTableValue>> = kv_pairs
             .into_iter()
-            .map(|(k, v)| {
-                vec![
-                    NoteTableValue::Text(k),
-                    NoteTableValue::Text(v),
-                ]
-            })
+            .map(|(k, v)| vec![NoteTableValue::Text(k), NoteTableValue::Text(v)])
             .collect();
 
         FinancialStatementNote {
@@ -870,7 +863,10 @@ impl NotesGenerator {
         }
     }
 
-    fn note_provisions_rollforward(&mut self, ctx: &EnhancedNotesContext) -> FinancialStatementNote {
+    fn note_provisions_rollforward(
+        &mut self,
+        ctx: &EnhancedNotesContext,
+    ) -> FinancialStatementNote {
         let total_opening: Decimal = ctx
             .provision_movements
             .iter()
@@ -893,10 +889,7 @@ impl NotesGenerator {
              resources will be required.  Opening balances totalled {} {total_opening:.0}, \
              additions during the period were {} {total_additions:.0}, and closing \
              balances stood at {} {total_closing:.0}.",
-            ctx.period,
-            ctx.currency,
-            ctx.currency,
-            ctx.currency,
+            ctx.period, ctx.currency, ctx.currency, ctx.currency,
         );
 
         let mut rows: Vec<Vec<NoteTableValue>> = ctx

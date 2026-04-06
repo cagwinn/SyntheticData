@@ -2609,14 +2609,10 @@ impl EnhancedOrchestrator {
                 .iter()
                 .map(|c| (c.code.clone(), c.name.clone()))
                 .collect();
-            let ic_elim: rust_decimal::Decimal = intercompany
-                .matched_pairs
-                .iter()
-                .map(|p| p.amount)
-                .sum();
-            let start_date =
-                NaiveDate::parse_from_str(&self.config.global.start_date, "%Y-%m-%d")
-                    .unwrap_or(NaiveDate::MIN);
+            let ic_elim: rust_decimal::Decimal =
+                intercompany.matched_pairs.iter().map(|p| p.amount).sum();
+            let start_date = NaiveDate::parse_from_str(&self.config.global.start_date, "%Y-%m-%d")
+                .unwrap_or(NaiveDate::MIN);
             let end_date = start_date + chrono::Months::new(self.config.global.period_months);
             let period_label = format!(
                 "{}-{:02}",
@@ -5405,11 +5401,7 @@ impl EnhancedOrchestrator {
             let standard_note_count = entity_notes.len() as u32;
             info!(
                 "Notes to FS for {}: {} notes generated (DTA={:?}, DTL={:?}, provisions={})",
-                company.code,
-                standard_note_count,
-                entity_dta,
-                entity_dtl,
-                provision_count,
+                company.code, standard_note_count, entity_dta, entity_dtl, provision_count,
             );
             financial_reporting
                 .notes_to_financial_statements

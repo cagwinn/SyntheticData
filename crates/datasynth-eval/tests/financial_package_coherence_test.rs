@@ -301,7 +301,7 @@ fn test_tb_master_proof_both_fail() {
         sum_opening_credits: dec!(500_000),
         sum_je_debits: dec!(100_000),
         sum_je_credits: dec!(100_000),
-        closing_tb_debits: dec!(400_000), // off
+        closing_tb_debits: dec!(400_000),  // off
         closing_tb_credits: dec!(700_000), // off
     };
     let eval = TrialBalanceMasterProofEvaluator::new(dec!(0.01));
