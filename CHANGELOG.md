@@ -5,6 +5,62 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.0] - 2026-04-07
+
+### Added
+
+#### v2.2: Manufacturing Cost Flow (WIP → FG → COGS)
+- **Multi-stage cost accounting JE pipeline**: material issue to WIP, labor absorption, overhead application, FG transfer at standard cost, scrap write-off, and standard cost variance JEs (material price, labor rate, overhead volume)
+- **CostBreakdown on ProductionOrder**: component-level cost detail (material/labor/overhead, actual vs standard) replacing the flat random-multiplier approach
+- **Warranty provision generator (IAS 37 / ASC 450)**: generates Provision + ProvisionMovement + balanced JEs from quality inspection failure rates, with 1% materiality threshold
+- **IC source document generation**: `generate_ic_document_chains()` creates real P2P/O2C documents (PO, GR, VI, CI) from intercompany matched pairs, with `CustomerInvoiceType::Intercompany` tagging
+- **COGS on sale**: delivery-triggered COGS JEs matching production order unit costs to delivered quantities
+- **Manufacturing GL accounts**: WIP (1420), Finished Goods (1410), Scrap Expense (5210), Labor Accrual (2150), Overhead Applied (5310), 5 variance accounts, Warranty Provision (2410), Warranty Expense (5400)
+- **COGS/WIP coherence validators**: FG roll-forward (opening + completions - COGS - scrap = closing), WIP roll-forward, variance reconciliation, IC elimination completeness
+- **Manufacturing cost accounting config**: toggles for multi-stage cost flow, variance accounts, warranty provisions
+
+#### v2.3: Treasury, Debt & Tax JE Pipeline
+- **Debt interest accrual JEs**: quarterly interest = principal × rate/4, DR Interest Expense (7100) / CR Interest Payable (2160)
+- **Hedge mark-to-market JEs**: cash flow hedge → OCI (3510), fair value hedge → P&L (7500), ineffectiveness → P&L (7510), with 80-125% effectiveness corridor
+- **Cash pool physical sweep JEs**: IC receivable/payable entries for zero-balance and physical pooling
+- **Covenant compliance evaluator**: evaluates DebtCovenant ratios against real trial balance data (debt-to-equity, interest coverage, current ratio), with breach tracking
+- **Tax provision from actual pre-tax income**: replaced hardcoded 1,000,000 with `compute_pre_tax_income()` that sums revenue (4xxx) minus expenses (5xxx/6xxx/7xxx) from actual JEs
+- **Tax GL posting JEs**: input VAT (DR 1160 / CR AP) and output VAT (DR AR / CR 2110) from TaxLine records, using document dates instead of period-end
+- **Payroll ← EmployeeChangeHistory**: `generate_with_changes()` applies salary adjustments with mid-period proration from EmployeeChangeEvent records
+- **Treasury GL accounts**: Interest Payable (2160), Debt Premium/Discount (2610/2620), Derivative Asset/Liability (1450/2460), OCI Cash Flow Hedge (3510), Hedge Ineffectiveness (7510), Cash Pool IC accounts (1155/2055)
+- **Treasury/tax coherence validators**: interest expense proof, ETR reconciliation, hedge effectiveness check, payroll-HR reconciliation
+
+#### v2.4: Full Financial Statement Package
+- **Dividend generator**: DividendDeclaration model with declaration + payment JEs (DR Retained Earnings / CR Dividends Payable, then DR Dividends Payable / CR Cash)
+- **Cash flow enhancer**: supplementary CashFlowItem entries from manufacturing (ΔInventory), treasury (interest/debt), tax (tax paid), and dividends, with IFRS/US GAAP interest classification
+- **ESG ← Manufacturing**: `energy_from_production()` converts production order machine_hours → electricity (Scope 2) and production quantity → natural gas (Scope 1)
+- **ESG ← HR**: `generate_diversity_from_employees()` and `generate_pay_equity_from_payroll()` derive real workforce metrics from actual employee/payroll data
+- **Segment reporting from real JEs**: `generate_from_journal_entries()` aggregates actual GL data by entity (4xxx=revenue, 5xxx=COGS, 6xxx/7xxx=OpEx) with exact reconciliation
+- **Enhanced financial statement notes**: 4 new data-backed notes (inventory breakdown, debt maturity, hedge accounting, provisions rollforward) with source data references
+- **XBRL 2.1 instance document export**: maps 16+ line codes to US GAAP and IFRS taxonomy elements, with instant/duration context selection and proper namespace declarations
+- **Capstone coherence validators**: cash flow reconciliation (opening + flows = closing), equity rollforward, segment-to-consolidated reconciliation, trial balance master proof
+- **Dividend GL accounts**: Dividends Payable (2170), Dividends Declared (3710)
+
+### Fixed
+- **Scrap JE deduplication**: scrap posted once per production order (was per rejected inspection, causing duplicates)
+- **Released orders skip WIP**: Released orders no longer generate WIP JEs (no production activity yet)
+- **FG transfer at standard cost**: proper standard costing — FG receives standard cost, WIP retains actual-vs-standard residual cleared by variance JEs
+- **Hedge JE entity_id**: hedge MTM JEs now receive proper company_code (was empty string)
+- **Treasury before tax ordering**: treasury JEs (interest expense, hedge P&L) now generated before tax phase, ensuring pre-tax income includes treasury costs
+- **COGS JE currency**: `generate_cogs_on_sale` now accepts and sets currency parameter
+- **Seed offset collisions**: resolved 13 duplicate seed offsets across generators (manufacturing → 350-355, tax → 370-373, controls → 399, dunning → 2500)
+- **Tax provision from real PTI**: replaced hardcoded `Decimal::from(1_000_000)` with actual GL computation
+- **Tax posting document dates**: tax JEs now use source document dates via HashMap lookup instead of clustering at period-end
+- **Warranty provisions per company**: iterate companies instead of only processing first company
+- **GL account collision**: moved `TAX_RECEIVABLE` from "1400" to "1460" to avoid collision with industry module WIP accounts
+- **Centralized provision accounts**: moved `PROVISION_LIABILITY` (2450) and `PROVISION_EXPENSE` (6850) from local constants to `accounts::provision_accounts` module
+- **JournalEntry::new_simple preserves document_number**: stored in `header.reference` instead of being discarded (was `_document_number`)
+- **JournalEntry::add_line auto-sets document_id**: line items now automatically receive the header's document_id, fixing zero-UUID on new generators
+- **Segment reconciliation identity**: `consolidated_profit` now uses the input parameter exactly, with `corporate_overhead` derived as the balancing amount
+- **Graph-export test compilation**: added missing `quality_issues` field to `EnhancedGenerationResult` test initializers
+- **Unused import cleanup**: removed dead `FindingType` import in audit_opinion_generator tests
+- **Build stability**: limited cargo parallel jobs to 8 via `.cargo/config.toml` to prevent OOM during compilation on 22-core systems
+
 ## [2.1.0] - 2026-04-04
 
 ### Added
