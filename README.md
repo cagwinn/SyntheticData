@@ -22,7 +22,6 @@ Generated data respects accounting identities (debits = credits, Assets = Liabil
 - [Output Structure](#output-structure)
 - [Python SDK](#python-sdk)
 - [Server & Deployment](#server--deployment)
-- [Desktop UI](#desktop-ui)
 - [Privacy-Preserving Fingerprinting](#privacy-preserving-fingerprinting)
 - [Use Cases](#use-cases)
 - [Performance](#performance)
@@ -328,7 +327,6 @@ DataSynth is a Rust workspace with 18 crates:
 ```
 datasynth-cli              CLI binary (generate, validate, init, info, fingerprint, scenario)
 datasynth-server           REST / gRPC / WebSocket server with auth and rate limiting
-datasynth-ui               Tauri + SvelteKit desktop application
                   |
 datasynth-runtime          Generation orchestrator (parallel execution, resource guards, streaming)
                   |
@@ -369,7 +367,6 @@ The binary is available at `target/release/datasynth-data`.
 ### Requirements
 
 - **Rust 1.88+**
-- **Desktop UI**: Node.js 18+ and platform-specific [Tauri prerequisites](https://tauri.app/start/prerequisites/)
 
 ---
 
@@ -686,18 +683,6 @@ docker compose up -d
 ```
 
 See the [Deployment Guide](deploy/README.md) for Docker, Kubernetes Helm chart, systemd, and reverse proxy configuration.
-
----
-
-## Desktop UI
-
-```bash
-cd crates/datasynth-ui
-npm install
-npm run tauri dev
-```
-
-Cross-platform Tauri + SvelteKit application with 40+ configuration pages, real-time streaming visualization, and preset management.
 
 ---
 

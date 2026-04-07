@@ -61,6 +61,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Unused import cleanup**: removed dead `FindingType` import in audit_opinion_generator tests
 - **Build stability**: limited cargo parallel jobs to 8 via `.cargo/config.toml` to prevent OOM during compilation on 22-core systems
 
+### Removed
+- **Desktop UI crate** (`datasynth-ui`): Deprecated Tauri/SvelteKit application removed (5,882 files, 180MB). Will be replaced with a lighter config management UI if needed.
+- **GitHub Pages documentation site**: Removed mdbook site (`docs/src/`, `docs/book/`) and deployment workflow (`docs.yml`). CLAUDE.md is the authoritative reference; design specs and plans retained in `docs/superpowers/`.
+- **Dead `generate_manufacturing_jes` fallback**: Removed unused legacy function from orchestrator, replaced by `ManufacturingCostAccounting` pipeline.
+
+### Changed
+- **CI**: Removed `--exclude datasynth-ui` flags from build and coverage steps; bumped `codecov/codecov-action` from v5 to v6
+- **Paper**: Updated 6 sections (abstract, generation pipeline, evaluation, experiments, conclusion, appendix) to cover v2.2 financial coherence features
+- **Executive overview**: Updated to v2.2.0 with new Financial Coherence Engine section, XBRL in output formats, deprecated UI in architecture diagram
+
 ## [2.1.0] - 2026-04-04
 
 ### Added
