@@ -51,7 +51,7 @@
 \fancyhf{}
 \renewcommand{\headrulewidth}{0.4pt}
 \fancyhead[L]{\small\textcolor{midgray}{DataSynth --- Executive Overview}}
-\fancyhead[R]{\small\textcolor{midgray}{v2.0.0}}
+\fancyhead[R]{\small\textcolor{midgray}{v2.2.0}}
 \fancyfoot[C]{\small\textcolor{midgray}{\thepage}}
 
 % ── Custom boxes ──────────────────────────────────────────────────────────────
@@ -105,14 +105,14 @@
   {\fontsize{38}{44}\selectfont\bfseries\textcolor{white}{DataSynth}}\\[0.5em]
   {\fontsize{16}{20}\selectfont\textcolor{white!85}{Enterprise Synthetic Data Platform}}\\[0.3em]
   {\large\textcolor{white!65}{High-Performance Generation for Accounting, Audit \& ML}}\\[0.3em]
-  {\normalsize\textcolor{white!50}{Rust core \textbullet{} Python 1.10 \textbullet{} REST/gRPC API \textbullet{} Desktop UI \textbullet{} Audit FSM Engine}}
+  {\normalsize\textcolor{white!50}{Rust core \textbullet{} Python 1.10 \textbullet{} REST/gRPC API \textbullet{} Audit FSM Engine}}
 \end{flushleft}
 
 \vspace{5.5cm}
 
 \begin{flushleft}
   \textcolor{midgray}{\large Executive Overview}\\[0.8em]
-  {\Large\textcolor{brand}{\textbf{Version 2.0.0}}}\\[1.5em]
+  {\Large\textcolor{brand}{\textbf{Version 2.2.0}}}\\[1.5em]
   \textcolor{midgray}{%
     Deterministic, privacy-preserving synthetic data generation\\
     for enterprise finance, compliance testing, and machine learning.%
@@ -122,7 +122,7 @@
 \vfill
 \begin{flushleft}
   \textcolor{midgray}{\small
-    Built with Rust \& Python \textbullet{} 19 modular crates \textbullet{} 200\,K+ entries/sec\\[4pt]
+    Built with Rust \& Python \textbullet{} 20 modular crates \textbullet{} 200\,K+ entries/sec\\[4pt]
     Open-source (Apache-2.0) \textbullet{} Commercial license available\\[4pt]
     \textbf{GitHub:} \url{https://github.com/mivertowski/SyntheticData}
   }
@@ -191,7 +191,7 @@ real-world enterprise resource planning (ERP) systems.
 % Row 2
 \begin{tcolorbox}[statbox, width=4.8cm]
   \centering
-  {\fontsize{26}{30}\selectfont\bfseries\textcolor{accent}{19}}\\[3pt]
+  {\fontsize{26}{30}\selectfont\bfseries\textcolor{accent}{20}}\\[3pt]
   {\small modular Rust crates}
 \end{tcolorbox} &
 \begin{tcolorbox}[statbox, width=4.8cm]
@@ -219,6 +219,22 @@ real-world enterprise resource planning (ERP) systems.
   \centering
   {\fontsize{26}{30}\selectfont\bfseries\textcolor{accent}{3}}\\[3pt]
   {\small judgment levels per step}
+\end{tcolorbox} \\[0.8em]
+% Row 4
+\begin{tcolorbox}[statbox, width=4.8cm]
+  \centering
+  {\fontsize{26}{30}\selectfont\bfseries\textcolor{accent}{30+}}\\[3pt]
+  {\small GL account modules}
+\end{tcolorbox} &
+\begin{tcolorbox}[statbox, width=4.8cm]
+  \centering
+  {\fontsize{26}{30}\selectfont\bfseries\textcolor{accent}{6}}\\[3pt]
+  {\small coherence validators}
+\end{tcolorbox} &
+\begin{tcolorbox}[statbox, width=4.8cm]
+  \centering
+  {\fontsize{26}{30}\selectfont\bfseries\textcolor{accent}{XBRL}}\\[3pt]
+  {\small 2.1 instance export}
 \end{tcolorbox}
 \end{tabular}
 \end{center}
@@ -268,6 +284,97 @@ Period Close &
 \renewcommand{\arraystretch}{1.0}
 
 \needspace{12\baselineskip}
+\subsection{Financial Coherence Engine}
+
+\textit{New in v2.2.0} --- a cross-module coherence layer that connects
+manufacturing, treasury, tax, HR, and reporting generators into a unified
+financial data fabric. Every journal entry traces back to an originating
+business event, and every financial statement line item reconciles to the
+underlying GL.
+
+\subsubsection{Manufacturing Cost Flow}
+
+\begin{itemize}[leftmargin=1.2em, itemsep=3pt]
+  \item \textbf{WIP\,$\to$\,FG\,$\to$\,COGS cycle} --- multi-stage cost
+        accumulation with standard cost variance journal entries for material
+        price, labor rate, and overhead volume variances.
+  \item \textbf{Warranty provisions} --- IAS\,37/ASC\,450 provisions derived
+        from quality inspection failure rates, with automated accrual and
+        release entries.
+  \item \textbf{COGS on delivery} --- cost of goods sold recognized at shipment,
+        linked to production unit costs for full cost traceability.
+\end{itemize}
+
+\subsubsection{Treasury \& Debt Accounting}
+
+\begin{itemize}[leftmargin=1.2em, itemsep=3pt]
+  \item \textbf{Effective interest method} --- debt interest accrual journal
+        entries computed from amortized cost and contractual terms.
+  \item \textbf{Hedge mark-to-market} --- ASC\,815/IFRS\,9 routing with cash
+        flow hedge gains/losses posted to OCI and fair value hedge adjustments
+        posted to P\&L.
+  \item \textbf{Covenant compliance} --- real-time evaluation against trial
+        balance ratios (debt/equity, interest coverage, current ratio).
+  \item \textbf{Cash pool sweeps} --- physical sweep intercompany entries with
+        proper elimination on consolidation.
+\end{itemize}
+
+\subsubsection{Tax Integration}
+
+\begin{itemize}[leftmargin=1.2em, itemsep=3pt]
+  \item \textbf{Income tax provisions} --- derived from actual pre-tax income
+        by netting revenue and expense GL accounts, ensuring provision-to-GL
+        reconciliation.
+  \item \textbf{Transaction-level VAT/GST} --- input and output tax journal
+        entries generated from source documents (vendor invoices, customer
+        invoices, payments).
+  \item \textbf{Document-date-aware posting} --- tax entries posted on the
+        source document date, avoiding artificial period-end clustering.
+\end{itemize}
+
+\subsubsection{Payroll $\leftarrow$ HR Events}
+
+\begin{itemize}[leftmargin=1.2em, itemsep=3pt]
+  \item \textbf{Change-history-driven payroll} --- salary adjustments consume
+        \texttt{EmployeeChangeHistory} records with mid-period proration for
+        hires, promotions, and terminations.
+  \item \textbf{Variance traceability} --- payroll period-over-period variances
+        are traceable to specific HR events, supporting audit walkthroughs of
+        compensation changes.
+\end{itemize}
+
+\subsubsection{Full Financial Statement Package}
+
+\begin{itemize}[leftmargin=1.2em, itemsep=3pt]
+  \item \textbf{Enhanced cash flow statement} --- operating, investing, and
+        financing items sourced from all active modules (treasury, tax,
+        payroll, manufacturing, project accounting).
+  \item \textbf{IFRS vs US GAAP classification} --- interest paid/received
+        classified per framework requirements (operating vs.\ financing).
+  \item \textbf{Segment reporting} --- operating segments derived from actual
+        entity-level GL data with segment-to-consolidated reconciliation.
+  \item \textbf{Data-backed notes} --- financial statement notes for inventory,
+        debt maturities, hedge positions, and provisions with traceable source
+        references to underlying records.
+  \item \textbf{Dividend lifecycle} --- declaration, accrual, and payment
+        journal entries with proper equity and cash flow classification.
+  \item \textbf{XBRL 2.1 export} --- instance document generation with
+        US GAAP and IFRS taxonomy mapping for regulatory filing.
+\end{itemize}
+
+\subsubsection{Capstone Coherence Validators}
+
+\begin{itemize}[leftmargin=1.2em, itemsep=3pt]
+  \item \textbf{Cash flow reconciliation} --- validates that opening cash plus
+        net operating/investing/financing flows equals the closing GL cash balance.
+  \item \textbf{Equity rollforward} --- confirms opening equity plus net income
+        plus OCI minus dividends equals closing equity.
+  \item \textbf{Segment reconciliation} --- verifies that segment totals
+        reconcile to consolidated financial statement figures.
+  \item \textbf{Trial balance master proof} --- asserts that the sum of all
+        posted journal entries equals the closing trial balance for every account.
+\end{itemize}
+
 \subsection{Enterprise Process Chains}
 
 \textit{Updated in v0.7.0} --- eleven end-to-end process chains with full
@@ -903,7 +1010,7 @@ Pareto, PointMass, and Mixture distributions.
   % Top layer
   \node[layer, minimum width=3.5cm] (cli) {datasynth-cli};
   \node[layer, minimum width=3.5cm, right=0.6cm of cli] (server) {datasynth-server};
-  \node[layer, minimum width=3.5cm, right=0.6cm of server] (ui) {datasynth-ui};
+  \node[layer, minimum width=3.5cm, right=0.6cm of server, draw=midgray, text=midgray, fill=white] (ui) {datasynth-ui\,\scriptsize(deprecated)};
 
   % Runtime
   \node[layer, minimum width=11.6cm, below=0.8cm of server] (runtime) {datasynth-runtime};
@@ -988,8 +1095,9 @@ Collision-Free IDs &
   FNV-1a hash-based UUID factory with generator-type discriminators prevents
   document ID collisions across parallel generators. \\
 Streaming Output &
-  CSV, JSON, NDJSON, and Apache Parquet (15-column Arrow schema, Zstd
-  compression) streaming sinks with backpressure strategies
+  CSV, JSON, NDJSON, Apache Parquet (15-column Arrow schema, Zstd
+  compression), and XBRL\,2.1 instance documents (US GAAP \& IFRS taxonomies).
+  Streaming sinks with backpressure strategies
   (Block, DropOldest, DropNewest, Buffer). \\
 API Layer &
   REST + gRPC + WebSocket with Argon2id API-key auth, JWT/OIDC bearer tokens
@@ -997,8 +1105,8 @@ API Layer &
   sliding-window rate limiting (in-memory or Redis), TLS (rustls),
   async job queue, security headers, and structured audit logging. \\
 Desktop UI &
-  Tauri + SvelteKit cross-platform application with 15+ configuration pages
-  and real-time streaming viewer. \\
+  \textit{Deprecated in v2.2.0.} Previously a Tauri + SvelteKit application;
+  superseded by REST/gRPC API and Python wrapper workflows. \\
 Plugin SDK &
   \texttt{GeneratorPlugin}, \texttt{SinkPlugin}, and \texttt{TransformPlugin}
   traits with thread-safe registry for custom extensions. \\
@@ -1377,7 +1485,7 @@ cargo run -p datasynth-server -- --port 3000 --worker-threads 4
 \begin{center}
 \textcolor{midgray}{\rule{0.5\textwidth}{0.4pt}}\\[0.8em]
 {\small\textcolor{midgray}{%
-  DataSynth v2.0.0 \textbullet{}
+  DataSynth v2.2.0 \textbullet{}
   Open-source (Apache-2.0) \textbullet{}
   Commercial license available%
 }}\\[4pt]
