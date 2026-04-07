@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-#### v2.2: Manufacturing Cost Flow (WIP → FG → COGS)
+#### Manufacturing Cost Flow (WIP → FG → COGS)
 - **Multi-stage cost accounting JE pipeline**: material issue to WIP, labor absorption, overhead application, FG transfer at standard cost, scrap write-off, and standard cost variance JEs (material price, labor rate, overhead volume)
 - **CostBreakdown on ProductionOrder**: component-level cost detail (material/labor/overhead, actual vs standard) replacing the flat random-multiplier approach
 - **Warranty provision generator (IAS 37 / ASC 450)**: generates Provision + ProvisionMovement + balanced JEs from quality inspection failure rates, with 1% materiality threshold
@@ -19,7 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **COGS/WIP coherence validators**: FG roll-forward (opening + completions - COGS - scrap = closing), WIP roll-forward, variance reconciliation, IC elimination completeness
 - **Manufacturing cost accounting config**: toggles for multi-stage cost flow, variance accounts, warranty provisions
 
-#### v2.3: Treasury, Debt & Tax JE Pipeline
+#### Treasury, Debt & Tax JE Pipeline
 - **Debt interest accrual JEs**: quarterly interest = principal × rate/4, DR Interest Expense (7100) / CR Interest Payable (2160)
 - **Hedge mark-to-market JEs**: cash flow hedge → OCI (3510), fair value hedge → P&L (7500), ineffectiveness → P&L (7510), with 80-125% effectiveness corridor
 - **Cash pool physical sweep JEs**: IC receivable/payable entries for zero-balance and physical pooling
@@ -30,7 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Treasury GL accounts**: Interest Payable (2160), Debt Premium/Discount (2610/2620), Derivative Asset/Liability (1450/2460), OCI Cash Flow Hedge (3510), Hedge Ineffectiveness (7510), Cash Pool IC accounts (1155/2055)
 - **Treasury/tax coherence validators**: interest expense proof, ETR reconciliation, hedge effectiveness check, payroll-HR reconciliation
 
-#### v2.4: Full Financial Statement Package
+#### Full Financial Statement Package
 - **Dividend generator**: DividendDeclaration model with declaration + payment JEs (DR Retained Earnings / CR Dividends Payable, then DR Dividends Payable / CR Cash)
 - **Cash flow enhancer**: supplementary CashFlowItem entries from manufacturing (ΔInventory), treasury (interest/debt), tax (tax paid), and dividends, with IFRS/US GAAP interest classification
 - **ESG ← Manufacturing**: `energy_from_production()` converts production order machine_hours → electricity (Scope 2) and production quantity → natural gas (Scope 1)
