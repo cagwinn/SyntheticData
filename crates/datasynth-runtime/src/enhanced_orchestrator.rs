@@ -113,6 +113,8 @@ use datasynth_generators::{
     JournalEntryGenerator,
     JudgmentGenerator,
     LatePaymentDistribution,
+    // Manufacturing cost accounting + warranty provisions
+    ManufacturingCostAccounting,
     MaterialGenerator,
     O2CDocumentChain,
     O2CGenerator,
@@ -140,6 +142,7 @@ use datasynth_generators::{
     ValidationError,
     // Master data generators
     VendorGenerator,
+    WarrantyProvisionGenerator,
     WorkpaperGenerator,
 };
 use datasynth_graph::{
@@ -969,6 +972,8 @@ pub struct TaxSnapshot {
     pub code_count: usize,
     /// Deferred tax engine output (temporary differences, ETR reconciliation, rollforwards, JEs).
     pub deferred_tax: datasynth_generators::DeferredTaxSnapshot,
+    /// Journal entries posting tax payable/receivable from computed tax lines.
+    pub tax_posting_journal_entries: Vec<JournalEntry>,
 }
 
 /// Intercompany data snapshot (IC transactions, matched pairs, eliminations).
@@ -986,6 +991,9 @@ pub struct IntercompanySnapshot {
     pub elimination_entries: Vec<datasynth_core::models::intercompany::EliminationEntry>,
     /// NCI measurements derived from group structure ownership percentages.
     pub nci_measurements: Vec<datasynth_core::models::intercompany::NciMeasurement>,
+    /// IC source document chains (seller invoices, buyer POs/GRs/VIs).
+    #[serde(skip)]
+    pub ic_document_chains: Option<datasynth_generators::ICDocumentChains>,
     /// IC matched pair count.
     pub matched_pair_count: usize,
     /// IC elimination entry count.
@@ -1054,6 +1062,9 @@ pub struct TreasurySnapshot {
     pub netting_runs: Vec<NettingRun>,
     /// Treasury anomaly labels.
     pub treasury_anomaly_labels: Vec<datasynth_generators::treasury::TreasuryAnomalyLabel>,
+    /// Journal entries generated from treasury instruments (debt interest accruals,
+    /// hedge MTM, cash pool sweeps).
+    pub journal_entries: Vec<JournalEntry>,
 }
 
 /// Project accounting data snapshot (projects, costs, revenue, milestones, EVM).
@@ -2045,6 +2056,31 @@ impl EnhancedOrchestrator {
             }
         }
 
+        // Phase 5e: Wire IC source documents into document flow snapshot
+        if let Some(ic_docs) = intercompany.ic_document_chains.as_ref() {
+            if !ic_docs.seller_invoices.is_empty() || !ic_docs.buyer_orders.is_empty() {
+                document_flows
+                    .customer_invoices
+                    .extend(ic_docs.seller_invoices.iter().cloned());
+                document_flows
+                    .purchase_orders
+                    .extend(ic_docs.buyer_orders.iter().cloned());
+                document_flows
+                    .goods_receipts
+                    .extend(ic_docs.buyer_goods_receipts.iter().cloned());
+                document_flows
+                    .vendor_invoices
+                    .extend(ic_docs.buyer_invoices.iter().cloned());
+                debug!(
+                    "Appended IC source documents to document flows: {} CIs, {} POs, {} GRs, {} VIs",
+                    ic_docs.seller_invoices.len(),
+                    ic_docs.buyer_orders.len(),
+                    ic_docs.buyer_goods_receipts.len(),
+                    ic_docs.buyer_invoices.len(),
+                );
+            }
+        }
+
         // Phase 6: HR Data (Payroll, Time Entries, Expenses)
         let hr = self.phase_hr_data(&mut stats)?;
 
@@ -2076,11 +2112,82 @@ impl EnhancedOrchestrator {
         // Phase 7: Manufacturing (Production Orders, Quality Inspections, Cycle Counts)
         let manufacturing_snap = self.phase_manufacturing(&mut stats)?;
 
-        // Phase 7a: Generate JEs from production orders
+        // Phase 7a: Generate manufacturing cost flow JEs (WIP, overhead, FG, scrap, rework, QC hold)
         if !manufacturing_snap.production_orders.is_empty() {
-            let mfg_jes = Self::generate_manufacturing_jes(&manufacturing_snap.production_orders);
-            debug!("Generated {} JEs from production orders", mfg_jes.len());
+            let currency = self
+                .config
+                .companies
+                .first()
+                .map(|c| c.currency.as_str())
+                .unwrap_or("USD");
+            let mfg_jes = ManufacturingCostAccounting::generate_all_jes(
+                &manufacturing_snap.production_orders,
+                &manufacturing_snap.quality_inspections,
+                currency,
+            );
+            debug!("Generated {} manufacturing cost flow JEs", mfg_jes.len());
             entries.extend(mfg_jes);
+        }
+
+        // Phase 7a-warranty: Generate warranty provisions per company
+        if !manufacturing_snap.quality_inspections.is_empty() {
+            let framework = match self.config.accounting_standards.framework {
+                Some(datasynth_config::schema::AccountingFrameworkConfig::Ifrs) => "IFRS",
+                _ => "US_GAAP",
+            };
+            for company in &self.config.companies {
+                let company_orders: Vec<_> = manufacturing_snap
+                    .production_orders
+                    .iter()
+                    .filter(|o| o.company_code == company.code)
+                    .cloned()
+                    .collect();
+                let company_inspections: Vec<_> = manufacturing_snap
+                    .quality_inspections
+                    .iter()
+                    .filter(|i| company_orders.iter().any(|o| o.order_id == i.reference_id))
+                    .cloned()
+                    .collect();
+                if company_inspections.is_empty() {
+                    continue;
+                }
+                let mut warranty_gen = WarrantyProvisionGenerator::new(self.seed + 355);
+                let warranty_result = warranty_gen.generate(
+                    &company.code,
+                    &company_orders,
+                    &company_inspections,
+                    &company.currency,
+                    framework,
+                );
+                if !warranty_result.journal_entries.is_empty() {
+                    debug!(
+                        "Generated {} warranty provision JEs for {}",
+                        warranty_result.journal_entries.len(),
+                        company.code
+                    );
+                    entries.extend(warranty_result.journal_entries);
+                }
+            }
+        }
+
+        // Phase 7a-cogs: Generate COGS JEs from deliveries x production orders
+        if !manufacturing_snap.production_orders.is_empty() && !document_flows.deliveries.is_empty()
+        {
+            let cogs_currency = self
+                .config
+                .companies
+                .first()
+                .map(|c| c.currency.as_str())
+                .unwrap_or("USD");
+            let cogs_jes = ManufacturingCostAccounting::generate_cogs_on_sale(
+                &document_flows.deliveries,
+                &manufacturing_snap.production_orders,
+                cogs_currency,
+            );
+            if !cogs_jes.is_empty() {
+                debug!("Generated {} COGS JEs from deliveries", cogs_jes.len());
+                entries.extend(cogs_jes);
+            }
         }
 
         // Phase 7a-inv: Apply manufacturing inventory movements to subledger positions (B.3).
@@ -2151,7 +2258,7 @@ impl EnhancedOrchestrator {
                 .unwrap_or_else(|| rust_decimal::Decimal::from(10000)),
                 ..Default::default()
             };
-            let mut control_gen = ControlGenerator::with_config(self.seed + 99, control_config);
+            let mut control_gen = ControlGenerator::with_config(self.seed + 399, control_config);
             for entry in &mut entries {
                 control_gen.apply_controls(entry, &coa);
             }
@@ -2350,8 +2457,136 @@ impl EnhancedOrchestrator {
         let sales_kpi_budgets =
             self.phase_sales_kpi_budgets(&coa, &financial_reporting, &mut stats)?;
 
+        // Phase 22: Treasury Data Generation
+        // Must run BEFORE tax so that interest expense (7100) and hedge ineffectiveness (7510)
+        // are included in the pre-tax income used by phase_tax_generation.
+        let treasury =
+            self.phase_treasury_data(&document_flows, &subledger, &intercompany, &mut stats)?;
+
+        // Phase 22 JEs: Merge treasury journal entries into main GL (before tax phase)
+        if !treasury.journal_entries.is_empty() {
+            debug!(
+                "Merging {} treasury JEs (debt interest, hedge MTM, sweeps) into GL",
+                treasury.journal_entries.len()
+            );
+            entries.extend(treasury.journal_entries.iter().cloned());
+        }
+
         // Phase 20: Tax Generation
         let tax = self.phase_tax_generation(&document_flows, &entries, &mut stats)?;
+
+        // Phase 20 JEs: Merge tax posting journal entries into main GL
+        if !tax.tax_posting_journal_entries.is_empty() {
+            debug!(
+                "Merging {} tax posting JEs into GL",
+                tax.tax_posting_journal_entries.len()
+            );
+            entries.extend(tax.tax_posting_journal_entries.iter().cloned());
+        }
+
+        // Phase 20a-cf: Enhanced Cash Flow (v2.4)
+        // Build supplementary cash flow items from upstream JE data (depreciation,
+        // interest, tax, dividends, working-capital deltas) and merge into CF statements.
+        {
+            use datasynth_generators::{CashFlowEnhancer, CashFlowSourceData};
+
+            let framework_str = {
+                use datasynth_config::schema::AccountingFrameworkConfig;
+                match self
+                    .config
+                    .accounting_standards
+                    .framework
+                    .unwrap_or_default()
+                {
+                    AccountingFrameworkConfig::Ifrs | AccountingFrameworkConfig::DualReporting => {
+                        "IFRS"
+                    }
+                    _ => "US_GAAP",
+                }
+            };
+
+            // Sum depreciation debits (account 6000) from close JEs
+            let depreciation_total: rust_decimal::Decimal = entries
+                .iter()
+                .filter(|je| je.header.document_type == "CL")
+                .flat_map(|je| je.lines.iter())
+                .filter(|l| l.gl_account.starts_with("6000"))
+                .map(|l| l.debit_amount)
+                .fold(rust_decimal::Decimal::ZERO, |a, v| a + v);
+
+            // Sum interest expense debits (account 7100)
+            let interest_paid: rust_decimal::Decimal = entries
+                .iter()
+                .flat_map(|je| je.lines.iter())
+                .filter(|l| l.gl_account.starts_with("7100"))
+                .map(|l| l.debit_amount)
+                .fold(rust_decimal::Decimal::ZERO, |a, v| a + v);
+
+            // Sum tax expense debits (account 8000)
+            let tax_paid: rust_decimal::Decimal = entries
+                .iter()
+                .flat_map(|je| je.lines.iter())
+                .filter(|l| l.gl_account.starts_with("8000"))
+                .map(|l| l.debit_amount)
+                .fold(rust_decimal::Decimal::ZERO, |a, v| a + v);
+
+            // Sum capex debits on fixed assets (account 1500)
+            let capex: rust_decimal::Decimal = entries
+                .iter()
+                .flat_map(|je| je.lines.iter())
+                .filter(|l| l.gl_account.starts_with("1500"))
+                .map(|l| l.debit_amount)
+                .fold(rust_decimal::Decimal::ZERO, |a, v| a + v);
+
+            // Dividends paid: sum debits on dividends payable (account 2170) from payment JEs
+            let dividends_paid: rust_decimal::Decimal = entries
+                .iter()
+                .flat_map(|je| je.lines.iter())
+                .filter(|l| l.gl_account == "2170")
+                .map(|l| l.debit_amount)
+                .fold(rust_decimal::Decimal::ZERO, |a, v| a + v);
+
+            let cf_data = CashFlowSourceData {
+                depreciation_total,
+                provision_movements_net: rust_decimal::Decimal::ZERO, // best-effort: zero
+                delta_ar: rust_decimal::Decimal::ZERO,
+                delta_ap: rust_decimal::Decimal::ZERO,
+                delta_inventory: rust_decimal::Decimal::ZERO,
+                capex,
+                debt_issuance: rust_decimal::Decimal::ZERO,
+                debt_repayment: rust_decimal::Decimal::ZERO,
+                interest_paid,
+                tax_paid,
+                dividends_paid,
+                framework: framework_str.to_string(),
+            };
+
+            let enhanced_cf_items = CashFlowEnhancer::generate(&cf_data);
+            if !enhanced_cf_items.is_empty() {
+                // Merge into ALL cash flow statements (standalone + consolidated)
+                use datasynth_core::models::StatementType;
+                let merge_count = enhanced_cf_items.len();
+                for stmt in financial_reporting
+                    .financial_statements
+                    .iter_mut()
+                    .chain(financial_reporting.consolidated_statements.iter_mut())
+                    .chain(
+                        financial_reporting
+                            .standalone_statements
+                            .values_mut()
+                            .flat_map(|v| v.iter_mut()),
+                    )
+                {
+                    if stmt.statement_type == StatementType::CashFlowStatement {
+                        stmt.cash_flow_items.extend(enhanced_cf_items.clone());
+                    }
+                }
+                info!(
+                    "Enhanced cash flow: {} supplementary items merged into CF statements",
+                    merge_count
+                );
+            }
+        }
 
         // Phase 20a: Notes to Financial Statements (IAS 1 / ASC 235)
         // Runs here so deferred-tax (Phase 20) and provision data (Phase 18) are available.
@@ -2361,14 +2596,53 @@ impl EnhancedOrchestrator {
             &tax,
             &hr,
             &audit,
+            &treasury,
         );
 
-        // Phase 21: ESG Data Generation
-        let esg_snap = self.phase_esg_generation(&document_flows, &mut stats)?;
+        // Phase 20b: Supplement segment reports from real JEs (v2.4)
+        // When we have 2+ companies, derive segment data from actual journal entries
+        // to complement or replace the FS-generator-based segments.
+        if self.config.companies.len() >= 2 && !entries.is_empty() {
+            let companies: Vec<(String, String)> = self
+                .config
+                .companies
+                .iter()
+                .map(|c| (c.code.clone(), c.name.clone()))
+                .collect();
+            let ic_elim: rust_decimal::Decimal =
+                intercompany.matched_pairs.iter().map(|p| p.amount).sum();
+            let start_date = NaiveDate::parse_from_str(&self.config.global.start_date, "%Y-%m-%d")
+                .unwrap_or(NaiveDate::MIN);
+            let end_date = start_date + chrono::Months::new(self.config.global.period_months);
+            let period_label = format!(
+                "{}-{:02}",
+                end_date.year(),
+                (end_date - chrono::Days::new(1)).month()
+            );
 
-        // Phase 22: Treasury Data Generation
-        let treasury =
-            self.phase_treasury_data(&document_flows, &subledger, &intercompany, &mut stats)?;
+            let mut seg_gen = SegmentGenerator::new(self.seed + 31);
+            let (je_segments, je_recon) =
+                seg_gen.generate_from_journal_entries(&entries, &companies, &period_label, ic_elim);
+            if !je_segments.is_empty() {
+                info!(
+                    "Segment reports (v2.4): {} JE-derived segments with IC elimination {}",
+                    je_segments.len(),
+                    ic_elim,
+                );
+                // Replace if existing segment_reports were empty; otherwise supplement
+                if financial_reporting.segment_reports.is_empty() {
+                    financial_reporting.segment_reports = je_segments;
+                    financial_reporting.segment_reconciliations = vec![je_recon];
+                } else {
+                    financial_reporting.segment_reports.extend(je_segments);
+                    financial_reporting.segment_reconciliations.push(je_recon);
+                }
+            }
+        }
+
+        // Phase 21: ESG Data Generation
+        let esg_snap =
+            self.phase_esg_generation(&document_flows, &manufacturing_snap, &mut stats)?;
 
         // Phase 23: Project Accounting Data Generation
         let project_accounting = self.phase_project_accounting(&document_flows, &hr, &mut stats)?;
@@ -2680,7 +2954,7 @@ impl EnhancedOrchestrator {
                 debug!("Phase 3b-dunning: Executing dunning runs for overdue AR invoices");
                 {
                     use datasynth_generators::DunningGenerator;
-                    let mut dunning_gen = DunningGenerator::new(self.seed + 2000);
+                    let mut dunning_gen = DunningGenerator::new(self.seed + 2500);
                     for company in &self.config.companies {
                         let currency = company.currency.as_str();
                         // Collect mutable references to AR invoices for this company
@@ -3329,10 +3603,11 @@ impl EnhancedOrchestrator {
                 }
             }
 
-            // --- Income statement closing JE ---
-            // Net income after tax (profit years) or net loss before DTA benefit (loss years).
-            // For a loss year the DTA JE above already recognises the deferred benefit; here we
-            // close the pre-tax loss into Retained Earnings as-is.
+            // --- Dividend JEs (v2.4) ---
+            // If the entity is profitable after tax, declare a 10% dividend payout.
+            // This runs AFTER tax provision so the dividend is based on post-tax income
+            // but BEFORE the retained earnings close so the RE transfer reflects the
+            // reduced balance.
             let tax_provision = if pre_tax_income > Decimal::ZERO {
                 (pre_tax_income * tax_rate).round_dp(2)
             } else {
@@ -3340,6 +3615,36 @@ impl EnhancedOrchestrator {
             };
             let net_income = pre_tax_income - tax_provision;
 
+            if net_income > Decimal::ZERO {
+                use datasynth_generators::DividendGenerator;
+                let dividend_amount = (net_income * Decimal::new(10, 2)).round_dp(2); // 10% payout
+                let mut div_gen = DividendGenerator::new(self.seed + 460);
+                let currency_str = self
+                    .config
+                    .companies
+                    .iter()
+                    .find(|c| c.code == *company_code)
+                    .map(|c| c.currency.as_str())
+                    .unwrap_or("USD");
+                let div_result = div_gen.generate(
+                    company_code,
+                    close_date,
+                    Decimal::new(1, 0), // $1 per share placeholder
+                    dividend_amount,
+                    currency_str,
+                );
+                let div_je_count = div_result.journal_entries.len();
+                close_jes.extend(div_result.journal_entries);
+                debug!(
+                    "Company {}: declared dividend of {} ({} JEs)",
+                    company_code, dividend_amount, div_je_count
+                );
+            }
+
+            // --- Income statement closing JE ---
+            // Net income after tax (profit years) or net loss before DTA benefit (loss years).
+            // For a loss year the DTA JE above already recognises the deferred benefit; here we
+            // close the pre-tax loss into Retained Earnings as-is.
             if net_income != Decimal::ZERO {
                 let mut close_header = JournalEntryHeader::new(company_code.clone(), close_date);
                 close_header.document_type = "CL".to_string();
@@ -4169,6 +4474,14 @@ impl EnhancedOrchestrator {
             transactions_per_day,
         );
 
+        // Generate IC source P2P/O2C documents
+        let ic_doc_chains = ic_generator.generate_ic_document_chains(&matched_pairs);
+        debug!(
+            "Generated {} IC seller invoices, {} IC buyer POs",
+            ic_doc_chains.seller_invoices.len(),
+            ic_doc_chains.buyer_orders.len()
+        );
+
         // Generate journal entries from matched pairs
         let mut seller_entries = Vec::new();
         let mut buyer_entries = Vec::new();
@@ -4357,6 +4670,7 @@ impl EnhancedOrchestrator {
             buyer_journal_entries: buyer_entries,
             elimination_entries,
             nci_measurements,
+            ic_document_chains: Some(ic_doc_chains),
             matched_pair_count,
             elimination_entry_count,
             match_rate,
@@ -4889,11 +5203,12 @@ impl EnhancedOrchestrator {
         tax: &TaxSnapshot,
         hr: &HrSnapshot,
         audit: &AuditSnapshot,
+        treasury: &TreasurySnapshot,
     ) {
         use datasynth_config::schema::AccountingFrameworkConfig;
         use datasynth_core::models::StatementType;
         use datasynth_generators::period_close::notes_generator::{
-            NotesGenerator, NotesGeneratorContext,
+            EnhancedNotesContext, NotesGenerator, NotesGeneratorContext,
         };
 
         let seed = self.seed;
@@ -5083,17 +5398,104 @@ impl EnhancedOrchestrator {
             };
 
             let entity_notes = notes_gen.generate(&ctx);
+            let standard_note_count = entity_notes.len() as u32;
             info!(
                 "Notes to FS for {}: {} notes generated (DTA={:?}, DTL={:?}, provisions={})",
-                company.code,
-                entity_notes.len(),
-                entity_dta,
-                entity_dtl,
-                provision_count,
+                company.code, standard_note_count, entity_dta, entity_dtl, provision_count,
             );
             financial_reporting
                 .notes_to_financial_statements
                 .extend(entity_notes);
+
+            // v2.4: Enhanced notes backed by treasury, manufacturing, and provision data
+            let debt_instruments: Vec<(String, rust_decimal::Decimal, String)> = treasury
+                .debt_instruments
+                .iter()
+                .filter(|d| d.entity_id == company.code)
+                .map(|d| {
+                    (
+                        format!("{:?}", d.instrument_type),
+                        d.principal,
+                        d.maturity_date.to_string(),
+                    )
+                })
+                .collect();
+
+            let hedge_count = treasury.hedge_relationships.len();
+            let effective_hedges = treasury
+                .hedge_relationships
+                .iter()
+                .filter(|h| h.is_effective)
+                .count();
+            let total_notional: rust_decimal::Decimal = treasury
+                .hedging_instruments
+                .iter()
+                .map(|h| h.notional_amount)
+                .sum();
+            let total_fair_value: rust_decimal::Decimal = treasury
+                .hedging_instruments
+                .iter()
+                .map(|h| h.fair_value)
+                .sum();
+
+            // Join provision_movements with provisions to get entity/type info
+            let entity_provision_ids: std::collections::HashSet<&str> = accounting_standards
+                .provisions
+                .iter()
+                .filter(|p| p.entity_code == company.code)
+                .map(|p| p.id.as_str())
+                .collect();
+            let provision_movements: Vec<(
+                String,
+                rust_decimal::Decimal,
+                rust_decimal::Decimal,
+                rust_decimal::Decimal,
+            )> = accounting_standards
+                .provision_movements
+                .iter()
+                .filter(|m| entity_provision_ids.contains(m.provision_id.as_str()))
+                .map(|m| {
+                    let prov_type = accounting_standards
+                        .provisions
+                        .iter()
+                        .find(|p| p.id == m.provision_id)
+                        .map(|p| format!("{:?}", p.provision_type))
+                        .unwrap_or_else(|| "Unknown".to_string());
+                    (prov_type, m.opening, m.additions, m.closing)
+                })
+                .collect();
+
+            let enhanced_ctx = EnhancedNotesContext {
+                entity_code: company.code.clone(),
+                period: format!("FY{}", fiscal_year),
+                currency: company.currency.clone(),
+                // Inventory breakdown: best-effort using zero (would need balance tracker)
+                finished_goods_value: rust_decimal::Decimal::ZERO,
+                wip_value: rust_decimal::Decimal::ZERO,
+                raw_materials_value: rust_decimal::Decimal::ZERO,
+                debt_instruments,
+                hedge_count,
+                effective_hedges,
+                total_notional,
+                total_fair_value,
+                provision_movements,
+            };
+
+            let enhanced_notes =
+                notes_gen.generate_enhanced_notes(&enhanced_ctx, standard_note_count + 1);
+            if !enhanced_notes.is_empty() {
+                info!(
+                    "Enhanced notes for {}: {} supplementary notes (debt={}, hedges={}, provisions={})",
+                    company.code,
+                    enhanced_notes.len(),
+                    enhanced_ctx.debt_instruments.len(),
+                    hedge_count,
+                    enhanced_ctx.provision_movements.len(),
+                );
+                financial_reporting
+                    .notes_to_financial_statements
+                    .extend(enhanced_notes);
+            }
         }
     }
 
@@ -5615,7 +6017,7 @@ impl EnhancedOrchestrator {
 
         // Generate payroll runs (one per month)
         if self.config.hr.payroll.enabled {
-            let mut payroll_gen = datasynth_generators::PayrollGenerator::new(seed + 30)
+            let mut payroll_gen = datasynth_generators::PayrollGenerator::new(seed + 330)
                 .with_pools(employee_ids.clone(), cost_center_ids.clone());
 
             // Look up country pack for payroll deductions and labels
@@ -5651,16 +6053,38 @@ impl EnhancedOrchestrator {
                 })
                 .collect();
 
+            // Use generate_with_changes when employee change history is available
+            // so that salary adjustments, transfers, etc. are reflected in payroll.
+            let change_history = &self.master_data.employee_change_history;
+            let has_changes = !change_history.is_empty();
+            if has_changes {
+                debug!(
+                    "Payroll will incorporate {} employee change events",
+                    change_history.len()
+                );
+            }
+
             for month in 0..self.config.global.period_months {
                 let period_start = start_date + chrono::Months::new(month);
                 let period_end = start_date + chrono::Months::new(month + 1) - chrono::Days::new(1);
-                let (run, items) = payroll_gen.generate(
-                    company_code,
-                    &employees_with_salary,
-                    period_start,
-                    period_end,
-                    currency,
-                );
+                let (run, items) = if has_changes {
+                    payroll_gen.generate_with_changes(
+                        company_code,
+                        &employees_with_salary,
+                        period_start,
+                        period_end,
+                        currency,
+                        change_history,
+                    )
+                } else {
+                    payroll_gen.generate(
+                        company_code,
+                        &employees_with_salary,
+                        period_start,
+                        period_end,
+                        currency,
+                    )
+                };
                 snapshot.payroll_runs.push(run);
                 snapshot.payroll_run_count += 1;
                 snapshot.payroll_line_item_count += items.len();
@@ -6245,7 +6669,7 @@ impl EnhancedOrchestrator {
         let mut snapshot = ManufacturingSnapshot::default();
 
         // Generate production orders
-        let mut prod_gen = datasynth_generators::ProductionOrderGenerator::new(seed + 50);
+        let mut prod_gen = datasynth_generators::ProductionOrderGenerator::new(seed + 350);
         let production_orders = prod_gen.generate(
             company_code,
             &material_data,
@@ -6272,7 +6696,7 @@ impl EnhancedOrchestrator {
         snapshot.production_orders = production_orders;
 
         if !inspection_data.is_empty() {
-            let mut qi_gen = datasynth_generators::QualityInspectionGenerator::new(seed + 51);
+            let mut qi_gen = datasynth_generators::QualityInspectionGenerator::new(seed + 351);
             let inspections = qi_gen.generate(company_code, &inspection_data, end_date);
             snapshot.quality_inspection_count = inspections.len();
             snapshot.quality_inspections = inspections;
@@ -6291,7 +6715,7 @@ impl EnhancedOrchestrator {
             .iter()
             .map(|e| e.employee_id.clone())
             .collect();
-        let mut cc_gen = datasynth_generators::CycleCountGenerator::new(seed + 52)
+        let mut cc_gen = datasynth_generators::CycleCountGenerator::new(seed + 352)
             .with_employee_pool(employee_ids);
         let mut cycle_count_total = 0usize;
         for month in 0..self.config.global.period_months {
@@ -6309,7 +6733,7 @@ impl EnhancedOrchestrator {
         snapshot.cycle_count_count = cycle_count_total;
 
         // Generate BOM components
-        let mut bom_gen = datasynth_generators::BomGenerator::new(seed + 53);
+        let mut bom_gen = datasynth_generators::BomGenerator::new(seed + 353);
         let bom_components = bom_gen.generate(company_code, &material_data);
         snapshot.bom_component_count = bom_components.len();
         snapshot.bom_components = bom_components;
@@ -6326,7 +6750,7 @@ impl EnhancedOrchestrator {
             .iter()
             .map(|po| po.order_id.clone())
             .collect();
-        let mut inv_mov_gen = datasynth_generators::InventoryMovementGenerator::new(seed + 54);
+        let mut inv_mov_gen = datasynth_generators::InventoryMovementGenerator::new(seed + 354);
         let inventory_movements = inv_mov_gen.generate_with_production_orders(
             company_code,
             &material_data,
@@ -6566,6 +6990,52 @@ impl EnhancedOrchestrator {
         Ok(snapshot)
     }
 
+    /// Compute pre-tax income for a single company from actual journal entries.
+    ///
+    /// Pre-tax income = Σ revenue account net credits − Σ expense account net debits.
+    /// Revenue accounts (4xxx) are credit-normal; expense accounts (5xxx, 6xxx, 7xxx) are
+    /// debit-normal.  The calculation mirrors `DeferredTaxGenerator::estimate_pre_tax_income`
+    /// and the period-close engine so that all three use a consistent definition.
+    fn compute_pre_tax_income(
+        company_code: &str,
+        journal_entries: &[JournalEntry],
+    ) -> rust_decimal::Decimal {
+        use datasynth_core::accounts::AccountCategory;
+        use rust_decimal::Decimal;
+
+        let mut total_revenue = Decimal::ZERO;
+        let mut total_expenses = Decimal::ZERO;
+
+        for je in journal_entries {
+            if je.header.company_code != company_code {
+                continue;
+            }
+            for line in &je.lines {
+                let cat = AccountCategory::from_account(&line.gl_account);
+                match cat {
+                    AccountCategory::Revenue => {
+                        total_revenue += line.credit_amount - line.debit_amount;
+                    }
+                    AccountCategory::Cogs
+                    | AccountCategory::OperatingExpense
+                    | AccountCategory::OtherIncomeExpense => {
+                        total_expenses += line.debit_amount - line.credit_amount;
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        let pti = (total_revenue - total_expenses).round_dp(2);
+        if pti == rust_decimal::Decimal::ZERO {
+            // No income statement activity yet — fall back to a synthetic value so the
+            // tax provision generator can still produce meaningful output.
+            rust_decimal::Decimal::from(1_000_000u32)
+        } else {
+            pti
+        }
+    }
+
     /// Phase 20: Generate tax jurisdictions, tax codes, and tax lines from invoices.
     fn phase_tax_generation(
         &mut self,
@@ -6590,8 +7060,10 @@ impl EnhancedOrchestrator {
             .map(|c| c.code.as_str())
             .unwrap_or("1000");
 
-        let mut gen =
-            datasynth_generators::TaxCodeGenerator::with_config(seed + 70, self.config.tax.clone());
+        let mut gen = datasynth_generators::TaxCodeGenerator::with_config(
+            seed + 370,
+            self.config.tax.clone(),
+        );
 
         let pack = self.primary_pack().clone();
         let (jurisdictions, codes) =
@@ -6600,9 +7072,9 @@ impl EnhancedOrchestrator {
         // Generate tax provisions for each company
         let mut provisions = Vec::new();
         if self.config.tax.provisions.enabled {
-            let mut provision_gen = datasynth_generators::TaxProvisionGenerator::new(seed + 71);
+            let mut provision_gen = datasynth_generators::TaxProvisionGenerator::new(seed + 371);
             for company in &self.config.companies {
-                let pre_tax_income = rust_decimal::Decimal::from(1_000_000);
+                let pre_tax_income = Self::compute_pre_tax_income(&company.code, journal_entries);
                 let statutory_rate = rust_decimal::Decimal::new(
                     (self.config.tax.provisions.statutory_rate.clamp(0.0, 1.0) * 100.0) as i64,
                     2,
@@ -6623,7 +7095,7 @@ impl EnhancedOrchestrator {
             let mut tax_line_gen = datasynth_generators::TaxLineGenerator::new(
                 datasynth_generators::TaxLineGeneratorConfig::default(),
                 codes.clone(),
-                seed + 72,
+                seed + 372,
             );
 
             // Tax lines from vendor invoices (input tax)
@@ -6670,8 +7142,34 @@ impl EnhancedOrchestrator {
                 .iter()
                 .map(|c| (c.code.as_str(), c.country.as_str()))
                 .collect();
-            let mut deferred_gen = datasynth_generators::DeferredTaxGenerator::new(seed + 73);
+            let mut deferred_gen = datasynth_generators::DeferredTaxGenerator::new(seed + 373);
             deferred_gen.generate(&companies, start_date, journal_entries)
+        };
+
+        // Build a document_id → posting_date map so each tax JE uses its
+        // source document's date rather than a blanket period-end date.
+        let mut doc_dates: std::collections::HashMap<String, NaiveDate> =
+            std::collections::HashMap::new();
+        for vi in &document_flows.vendor_invoices {
+            doc_dates.insert(vi.header.document_id.clone(), vi.header.document_date);
+        }
+        for ci in &document_flows.customer_invoices {
+            doc_dates.insert(ci.header.document_id.clone(), ci.header.document_date);
+        }
+
+        // Generate tax posting JEs (tax payable/receivable) from computed tax lines
+        let end_date = start_date + chrono::Months::new(self.config.global.period_months);
+        let tax_posting_journal_entries = if !tax_lines.is_empty() {
+            let jes = datasynth_generators::TaxPostingGenerator::generate_tax_posting_jes(
+                &tax_lines,
+                company_code,
+                &doc_dates,
+                end_date,
+            );
+            debug!("Generated {} tax posting JEs", jes.len());
+            jes
+        } else {
+            Vec::new()
         };
 
         let snapshot = TaxSnapshot {
@@ -6685,6 +7183,7 @@ impl EnhancedOrchestrator {
             withholding_records: Vec::new(),
             tax_anomaly_labels: Vec::new(),
             deferred_tax,
+            tax_posting_journal_entries,
         };
 
         stats.tax_jurisdiction_count = snapshot.jurisdiction_count;
@@ -6693,12 +7192,13 @@ impl EnhancedOrchestrator {
         stats.tax_line_count = snapshot.tax_lines.len();
 
         info!(
-            "Tax data generated: {} jurisdictions, {} codes, {} provisions, {} temp diffs, {} deferred JEs",
+            "Tax data generated: {} jurisdictions, {} codes, {} provisions, {} temp diffs, {} deferred JEs, {} tax posting JEs",
             snapshot.jurisdiction_count,
             snapshot.code_count,
             snapshot.tax_provisions.len(),
             snapshot.deferred_tax.temporary_differences.len(),
             snapshot.deferred_tax.journal_entries.len(),
+            snapshot.tax_posting_journal_entries.len(),
         );
         self.check_resources_with_log("post-tax")?;
 
@@ -6709,6 +7209,7 @@ impl EnhancedOrchestrator {
     fn phase_esg_generation(
         &mut self,
         document_flows: &DocumentFlowSnapshot,
+        manufacturing: &ManufacturingSnapshot,
         stats: &mut EnhancedGenerationStatistics,
     ) -> SynthResult<EsgSnapshot> {
         if !self.phase_config.generate_esg {
@@ -6764,7 +7265,7 @@ impl EnhancedOrchestrator {
             datasynth_generators::EmissionGenerator::new(esg_cfg.environmental.clone(), seed + 83);
 
         // Build EnergyInput from energy_records
-        let energy_inputs: Vec<datasynth_generators::EnergyInput> = energy_records
+        let mut energy_inputs: Vec<datasynth_generators::EnergyInput> = energy_records
             .iter()
             .map(|e| datasynth_generators::EnergyInput {
                 facility_id: e.facility_id.clone(),
@@ -6780,6 +7281,23 @@ impl EnhancedOrchestrator {
                 period: e.period,
             })
             .collect();
+
+        // v2.4: Bridge manufacturing production data → energy inputs for Scope 1/2
+        if !manufacturing.production_orders.is_empty() {
+            let mfg_energy = datasynth_generators::EmissionGenerator::energy_from_production(
+                &manufacturing.production_orders,
+                rust_decimal::Decimal::new(50, 0), // 50 kWh per machine hour
+                rust_decimal::Decimal::new(2, 0),  // 2 kWh natural gas per unit
+            );
+            if !mfg_energy.is_empty() {
+                info!(
+                    "ESG: {} energy inputs derived from {} production orders",
+                    mfg_energy.len(),
+                    manufacturing.production_orders.len(),
+                );
+                energy_inputs.extend(mfg_energy);
+            }
+        }
 
         let mut emissions = Vec::new();
         emissions.extend(emission_gen.generate_scope1(entity_id, &energy_inputs));
@@ -6847,6 +7365,24 @@ impl EnhancedOrchestrator {
         snapshot.diversity =
             workforce_gen.generate_diversity(entity_id, total_headcount, start_date);
         snapshot.pay_equity = workforce_gen.generate_pay_equity(entity_id, start_date);
+
+        // v2.4: Derive additional workforce diversity metrics from actual employee data
+        if !self.master_data.employees.is_empty() {
+            let hr_diversity = workforce_gen.generate_diversity_from_employees(
+                entity_id,
+                &self.master_data.employees,
+                end_date,
+            );
+            if !hr_diversity.is_empty() {
+                info!(
+                    "ESG: {} diversity metrics derived from {} actual employees",
+                    hr_diversity.len(),
+                    self.master_data.employees.len(),
+                );
+                snapshot.diversity.extend(hr_diversity);
+            }
+        }
+
         snapshot.safety_incidents = workforce_gen.generate_safety_incidents(
             entity_id,
             facility_count,
@@ -7250,6 +7786,49 @@ impl EnhancedOrchestrator {
             }
         }
 
+        // Generate treasury journal entries from the instruments we just created.
+        {
+            use datasynth_generators::treasury::TreasuryAccounting;
+
+            let end_date = start_date + chrono::Months::new(self.config.global.period_months);
+            let mut treasury_jes = Vec::new();
+
+            // Debt interest accrual JEs
+            if !snapshot.debt_instruments.is_empty() {
+                let debt_jes =
+                    TreasuryAccounting::generate_debt_jes(&snapshot.debt_instruments, end_date);
+                debug!("Generated {} debt interest accrual JEs", debt_jes.len());
+                treasury_jes.extend(debt_jes);
+            }
+
+            // Hedge mark-to-market JEs
+            if !snapshot.hedging_instruments.is_empty() {
+                let hedge_jes = TreasuryAccounting::generate_hedge_jes(
+                    &snapshot.hedging_instruments,
+                    &snapshot.hedge_relationships,
+                    end_date,
+                    entity_id,
+                );
+                debug!("Generated {} hedge MTM JEs", hedge_jes.len());
+                treasury_jes.extend(hedge_jes);
+            }
+
+            // Cash pool sweep JEs
+            if !snapshot.cash_pool_sweeps.is_empty() {
+                let sweep_jes = TreasuryAccounting::generate_cash_pool_sweep_jes(
+                    &snapshot.cash_pool_sweeps,
+                    entity_id,
+                );
+                debug!("Generated {} cash pool sweep JEs", sweep_jes.len());
+                treasury_jes.extend(sweep_jes);
+            }
+
+            if !treasury_jes.is_empty() {
+                debug!("Total treasury journal entries: {}", treasury_jes.len());
+            }
+            snapshot.journal_entries = treasury_jes;
+        }
+
         stats.treasury_debt_instrument_count = snapshot.debt_instruments.len();
         stats.treasury_hedging_instrument_count = snapshot.hedging_instruments.len();
         stats.cash_position_count = snapshot.cash_positions.len();
@@ -7257,7 +7836,7 @@ impl EnhancedOrchestrator {
         stats.cash_pool_count = snapshot.cash_pools.len();
 
         info!(
-            "Treasury data generated: {} debt instruments, {} hedging instruments, {} cash positions, {} forecasts, {} pools, {} guarantees, {} netting runs",
+            "Treasury data generated: {} debt instruments, {} hedging instruments, {} cash positions, {} forecasts, {} pools, {} guarantees, {} netting runs, {} JEs",
             snapshot.debt_instruments.len(),
             snapshot.hedging_instruments.len(),
             snapshot.cash_positions.len(),
@@ -7265,6 +7844,7 @@ impl EnhancedOrchestrator {
             snapshot.cash_pools.len(),
             snapshot.bank_guarantees.len(),
             snapshot.netting_runs.len(),
+            snapshot.journal_entries.len(),
         );
         self.check_resources_with_log("post-treasury")?;
 
@@ -8957,6 +9537,7 @@ impl EnhancedOrchestrator {
     /// Creates one JE per completed production order:
     /// - DR Raw Materials (5100) for material consumption (actual_cost)
     /// - CR Inventory (1200) for material consumption
+    #[allow(dead_code)] // Kept as backward-compatible fallback
     fn generate_manufacturing_jes(production_orders: &[ProductionOrder]) -> Vec<JournalEntry> {
         use datasynth_core::accounts::{control_accounts, expense_accounts};
         use datasynth_core::models::ProductionOrderStatus;

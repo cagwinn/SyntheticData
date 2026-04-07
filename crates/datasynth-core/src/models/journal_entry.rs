@@ -807,13 +807,14 @@ impl JournalEntry {
     /// a journal entry with the specified document number, company code, posting date,
     /// and description.
     pub fn new_simple(
-        _document_number: String,
+        document_number: String,
         company_code: String,
         posting_date: NaiveDate,
         description: String,
     ) -> Self {
         let mut header = JournalEntryHeader::new(company_code, posting_date);
         header.header_text = Some(description);
+        header.reference = Some(document_number);
         Self {
             header,
             lines: SmallVec::new(),
@@ -821,8 +822,11 @@ impl JournalEntry {
     }
 
     /// Add a line item to the journal entry.
+    ///
+    /// Automatically sets the line's `document_id` to match the header's `document_id`.
     #[inline]
-    pub fn add_line(&mut self, line: JournalEntryLine) {
+    pub fn add_line(&mut self, mut line: JournalEntryLine) {
+        line.document_id = self.header.document_id;
         self.lines.push(line);
     }
 

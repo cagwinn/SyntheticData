@@ -3,8 +3,8 @@
 use chrono::NaiveDate;
 use datasynth_config::schema::SocialConfig;
 use datasynth_core::models::{
-    DiversityDimension, GovernanceMetric, IncidentType, OrganizationLevel, PayEquityMetric,
-    SafetyIncident, SafetyMetric, WorkforceDiversityMetric,
+    DiversityDimension, Employee, GovernanceMetric, IncidentType, OrganizationLevel,
+    PayEquityMetric, PayrollLineItem, SafetyIncident, SafetyMetric, WorkforceDiversityMetric,
 };
 use datasynth_core::utils::seeded_rng;
 use rand::prelude::*;
@@ -305,6 +305,165 @@ impl WorkforceGenerator {
             ltir,
             dart_rate,
         }
+    }
+
+    // ----- HR bridge methods -----
+
+    /// Derive workforce diversity metrics from actual `Employee` records.
+    ///
+    /// Groups employees by `department_id` (falling back to `"Unknown"` when
+    /// the field is absent) and produces one [`WorkforceDiversityMetric`] per
+    /// department showing that department's share of the total headcount.
+    ///
+    /// The `Employee` model does not carry an explicit gender field, so
+    /// `DiversityDimension::Gender` is used as the primary dimension while the
+    /// `category` field stores the department identifier — preserving the ESG
+    /// schema while surfacing real organisational distribution data.
+    ///
+    /// An additional "total" record at [`OrganizationLevel::Corporate`] is
+    /// emitted so downstream consumers can verify the headcount roll-up.
+    pub fn generate_diversity_from_employees(
+        &mut self,
+        entity_id: &str,
+        employees: &[Employee],
+        period: NaiveDate,
+    ) -> Vec<WorkforceDiversityMetric> {
+        if employees.is_empty() {
+            return Vec::new();
+        }
+
+        let total_headcount = employees.len() as u32;
+
+        // --- Count employees per department ---
+        let mut dept_counts: std::collections::HashMap<String, u32> =
+            std::collections::HashMap::new();
+        for emp in employees {
+            let dept = emp
+                .department_id
+                .clone()
+                .unwrap_or_else(|| "Unknown".to_string());
+            *dept_counts.entry(dept).or_insert(0) += 1;
+        }
+
+        let mut metrics = Vec::new();
+
+        // One record per department at Department level
+        let mut sorted_depts: Vec<(String, u32)> = dept_counts.into_iter().collect();
+        sorted_depts.sort_by(|a, b| a.0.cmp(&b.0));
+
+        for (dept, count) in &sorted_depts {
+            self.counter += 1;
+            let percentage = (Decimal::from(*count) / Decimal::from(total_headcount)).round_dp(4);
+            metrics.push(WorkforceDiversityMetric {
+                id: format!("DV-HR-{:06}", self.counter),
+                entity_id: entity_id.to_string(),
+                period,
+                dimension: DiversityDimension::Gender,
+                level: OrganizationLevel::Department,
+                category: dept.clone(),
+                headcount: *count,
+                total_headcount,
+                percentage,
+            });
+        }
+
+        // Corporate-level total record (all employees, one bucket)
+        self.counter += 1;
+        metrics.push(WorkforceDiversityMetric {
+            id: format!("DV-HR-{:06}", self.counter),
+            entity_id: entity_id.to_string(),
+            period,
+            dimension: DiversityDimension::Gender,
+            level: OrganizationLevel::Corporate,
+            category: "All".to_string(),
+            headcount: total_headcount,
+            total_headcount,
+            percentage: dec!(1.0000),
+        });
+
+        metrics
+    }
+
+    /// Derive pay equity metrics from actual `PayrollLineItem` records.
+    ///
+    /// Groups line items by `department` (falling back to `cost_center`, then
+    /// `"Unknown"`) and computes the average `gross_pay` for each group.
+    /// Produces one [`PayEquityMetric`] per non-baseline group, comparing its
+    /// average pay against the group with the highest average pay (the
+    /// reference group).
+    ///
+    /// Returns an empty `Vec` when fewer than two distinct groups are found
+    /// (no meaningful comparison is possible).
+    pub fn generate_pay_equity_from_payroll(
+        &mut self,
+        entity_id: &str,
+        payroll_items: &[PayrollLineItem],
+        period: NaiveDate,
+    ) -> Vec<PayEquityMetric> {
+        if payroll_items.is_empty() {
+            return Vec::new();
+        }
+
+        // --- Group gross_pay by department / cost_center ---
+        let mut group_totals: std::collections::HashMap<String, (Decimal, u32)> =
+            std::collections::HashMap::new();
+        for item in payroll_items {
+            let group = item
+                .department
+                .clone()
+                .or_else(|| item.cost_center.clone())
+                .unwrap_or_else(|| "Unknown".to_string());
+            let entry = group_totals.entry(group).or_insert((Decimal::ZERO, 0));
+            entry.0 += item.gross_pay;
+            entry.1 += 1;
+        }
+
+        if group_totals.len() < 2 {
+            return Vec::new();
+        }
+
+        // Compute average gross_pay per group
+        let mut averages: Vec<(String, Decimal, u32)> = group_totals
+            .into_iter()
+            .map(|(g, (total, count))| {
+                let avg = if count > 0 {
+                    (total / Decimal::from(count)).round_dp(2)
+                } else {
+                    Decimal::ZERO
+                };
+                (g, avg, count)
+            })
+            .collect();
+
+        // Sort deterministically and pick highest-average group as reference
+        averages.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+
+        let (ref_group, ref_avg, ref_count) = averages[0].clone();
+
+        let mut metrics = Vec::new();
+        for (cmp_group, cmp_avg, cmp_count) in averages.iter().skip(1) {
+            self.counter += 1;
+            let ratio = if ref_avg.is_zero() {
+                dec!(1.0000)
+            } else {
+                (cmp_avg / ref_avg).round_dp(4)
+            };
+            let sample = ref_count + cmp_count;
+            metrics.push(PayEquityMetric {
+                id: format!("PE-HR-{:06}", self.counter),
+                entity_id: entity_id.to_string(),
+                period,
+                dimension: DiversityDimension::Gender,
+                reference_group: ref_group.clone(),
+                comparison_group: cmp_group.clone(),
+                reference_median_salary: ref_avg,
+                comparison_median_salary: *cmp_avg,
+                pay_gap_ratio: ratio,
+                sample_size: sample,
+            });
+        }
+
+        metrics
     }
 }
 

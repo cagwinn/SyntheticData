@@ -148,6 +148,84 @@ pub mod expense_accounts {
     pub const FX_GAIN_LOSS: &str = "7500";
 }
 
+/// Manufacturing cost flow accounts.
+pub mod manufacturing_accounts {
+    /// Work-in-Process control account
+    pub const WIP: &str = "1420";
+
+    /// Finished Goods inventory account
+    pub const FINISHED_GOODS: &str = "1410";
+
+    /// Scrap expense account
+    pub const SCRAP_EXPENSE: &str = "5210";
+
+    /// Labor accrual liability account
+    pub const LABOR_ACCRUAL: &str = "2150";
+
+    /// Overhead applied clearing account
+    pub const OVERHEAD_APPLIED: &str = "5310";
+
+    /// Material price variance account
+    pub const MATERIAL_PRICE_VARIANCE: &str = "5110";
+
+    /// Material usage variance account
+    pub const MATERIAL_USAGE_VARIANCE: &str = "5120";
+
+    /// Labor rate variance account
+    pub const LABOR_RATE_VARIANCE: &str = "5130";
+
+    /// Labor efficiency variance account
+    pub const LABOR_EFFICIENCY_VARIANCE: &str = "5140";
+
+    /// Overhead volume variance account
+    pub const OVERHEAD_VOLUME_VARIANCE: &str = "5150";
+
+    /// Warranty provision liability account
+    pub const WARRANTY_PROVISION: &str = "2410";
+
+    /// Warranty expense account
+    pub const WARRANTY_EXPENSE: &str = "5400";
+}
+
+/// Treasury accounting accounts for debt, hedging, and derivatives.
+pub mod treasury_accounts {
+    /// Interest payable (accrued interest on debt)
+    pub const INTEREST_PAYABLE: &str = "2160";
+
+    /// Debt premium account (above-par issuance)
+    pub const DEBT_PREMIUM: &str = "2610";
+
+    /// Debt discount account (below-par issuance, contra-liability)
+    pub const DEBT_DISCOUNT: &str = "2620";
+
+    /// Derivative asset (positive fair value of hedging instruments)
+    pub const DERIVATIVE_ASSET: &str = "1450";
+
+    /// Derivative liability (negative fair value of hedging instruments)
+    /// Note: "2450" is used as PROVISION_LIABILITY in provision_accounts; using "2460".
+    pub const DERIVATIVE_LIABILITY: &str = "2460";
+
+    /// OCI — Cash flow hedge reserve (equity section)
+    pub const OCI_CASH_FLOW_HEDGE: &str = "3510";
+
+    /// Hedge ineffectiveness expense (P&L)
+    pub const HEDGE_INEFFECTIVENESS: &str = "7510";
+
+    /// IC receivable from cash pool (physical pooling)
+    pub const CASH_POOL_IC_RECEIVABLE: &str = "1155";
+
+    /// IC payable from cash pool (physical pooling)
+    pub const CASH_POOL_IC_PAYABLE: &str = "2055";
+}
+
+/// Provision accounts (IAS 37 / ASC 450).
+pub mod provision_accounts {
+    /// Provision liability account
+    pub const PROVISION_LIABILITY: &str = "2450";
+    /// Provision expense account
+    pub const PROVISION_EXPENSE: &str = "6850";
+}
+
 /// Tax accounts.
 pub mod tax_accounts {
     /// Sales tax payable account
@@ -166,7 +244,7 @@ pub mod tax_accounts {
     pub const INPUT_VAT: &str = "1160";
 
     /// Tax receivable account (AP input tax)
-    pub const TAX_RECEIVABLE: &str = "1400";
+    pub const TAX_RECEIVABLE: &str = "1460";
 
     /// Tax expense account
     pub const TAX_EXPENSE: &str = "8000";
@@ -227,6 +305,14 @@ pub mod equity_accounts {
 
     /// Dividends paid account
     pub const DIVIDENDS_PAID: &str = "3700";
+}
+
+/// Dividend accounts.
+pub mod dividend_accounts {
+    /// Dividends payable (liability — declared but not yet paid)
+    pub const DIVIDENDS_PAYABLE: &str = "2170";
+    /// Dividends declared (contra-equity, reduces retained earnings)
+    pub const DIVIDENDS_DECLARED: &str = "3710";
 }
 
 /// Suspense and clearing accounts.

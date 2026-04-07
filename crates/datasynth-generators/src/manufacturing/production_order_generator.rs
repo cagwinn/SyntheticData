@@ -6,7 +6,8 @@
 use chrono::{Datelike, NaiveDate};
 use datasynth_config::schema::{ManufacturingCostingConfig, ProductionOrderConfig, RoutingConfig};
 use datasynth_core::models::{
-    OperationStatus, ProductionOrder, ProductionOrderStatus, ProductionOrderType, RoutingOperation,
+    CostBreakdown, OperationStatus, ProductionOrder, ProductionOrderStatus, ProductionOrderType,
+    RoutingOperation,
 };
 use datasynth_core::utils::seeded_rng;
 use datasynth_core::uuid_factory::{DeterministicUuidFactory, GeneratorType};
@@ -196,23 +197,54 @@ impl ProductionOrderGenerator {
             .random_range(-routing.run_time_variation..=routing.run_time_variation);
         let labor_hours = raw_labor_hours * (1.0 + labor_variation);
 
-        // Machine hours: 70% of labor hours
-        let machine_hours = labor_hours * 0.7;
+        // Standard costs (based on config rates and routing operations)
+        let standard_labor_cost_f64 = labor_hours * costing.labor_rate_per_hour;
+        let standard_overhead_f64 = standard_labor_cost_f64 * costing.overhead_rate;
+        let standard_material_cost_f64 = planned_qty_f64 * self.rng.random_range(5.0..50.0);
+        let standard_unit_cost_f64 = if planned_qty_f64 > 0.0 {
+            (standard_material_cost_f64 + standard_labor_cost_f64 + standard_overhead_f64)
+                / planned_qty_f64
+        } else {
+            0.0
+        };
 
-        // Costing
-        let labor_cost = labor_hours * costing.labor_rate_per_hour;
-        let overhead_cost = labor_cost * costing.overhead_rate;
-        let material_cost = planned_qty_f64 * self.rng.random_range(5.0..50.0);
-        let planned_cost_f64 = labor_cost + overhead_cost + material_cost;
-        let planned_cost = Decimal::from_f64_retain(planned_cost_f64)
-            .unwrap_or(Decimal::ZERO)
-            .round_dp(2);
+        // Actual costs (with realistic variance from standard)
+        let material_price_factor: f64 = self.rng.random_range(0.92..=1.10);
+        let material_usage_factor: f64 = self.rng.random_range(0.95..=1.08);
+        let actual_material_cost_f64 =
+            standard_material_cost_f64 * material_price_factor * material_usage_factor;
 
-        // Actual cost: planned * random(0.9 - 1.15)
-        let cost_factor: f64 = self.rng.random_range(0.9..=1.15);
-        let actual_cost = Decimal::from_f64_retain(planned_cost_f64 * cost_factor)
-            .unwrap_or(planned_cost)
-            .round_dp(2);
+        let labor_rate_factor: f64 = self.rng.random_range(0.95..=1.12);
+        let labor_efficiency_factor: f64 = self.rng.random_range(0.90..=1.10);
+        let actual_labor_cost_f64 =
+            standard_labor_cost_f64 * labor_rate_factor * labor_efficiency_factor;
+
+        let actual_overhead_f64 = actual_labor_cost_f64 * costing.overhead_rate;
+
+        let to_dec = |v: f64| {
+            Decimal::from_f64_retain(v)
+                .unwrap_or(Decimal::ZERO)
+                .round_dp(2)
+        };
+
+        let cost_breakdown = CostBreakdown {
+            material_cost: to_dec(actual_material_cost_f64),
+            labor_cost: to_dec(actual_labor_cost_f64),
+            overhead_cost: to_dec(actual_overhead_f64),
+            standard_material_cost: to_dec(standard_material_cost_f64),
+            standard_labor_cost: to_dec(standard_labor_cost_f64),
+            standard_overhead_cost: to_dec(standard_overhead_f64),
+            standard_unit_cost: to_dec(standard_unit_cost_f64),
+        };
+
+        let actual_cost = cost_breakdown.total_actual();
+        let planned_cost = cost_breakdown.total_standard();
+
+        // Actual labor hours factored by efficiency
+        let labor_hours_actual = labor_hours * labor_efficiency_factor;
+
+        // Machine hours: 70% of actual labor hours
+        let machine_hours = labor_hours_actual * 0.7;
 
         let routing_id = Some(format!("RT-{}", order_id.get(..8).unwrap_or("00000000")));
         let batch_number = Some(format!(
@@ -239,7 +271,8 @@ impl ProductionOrderGenerator {
             routing_id,
             planned_cost,
             actual_cost,
-            labor_hours,
+            cost_breakdown: Some(cost_breakdown),
+            labor_hours: labor_hours_actual,
             machine_hours,
             yield_rate: effective_yield,
             batch_number,

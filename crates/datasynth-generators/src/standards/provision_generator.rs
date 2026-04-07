@@ -41,6 +41,7 @@
 
 use chrono::NaiveDate;
 use datasynth_core::accounts::expense_accounts::INTEREST_EXPENSE;
+use datasynth_core::accounts::provision_accounts;
 use datasynth_core::models::journal_entry::{
     JournalEntry, JournalEntryHeader, JournalEntryLine, TransactionSource,
 };
@@ -52,15 +53,6 @@ use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
-
-// ============================================================================
-// GL account constants (provision-specific)
-// ============================================================================
-
-/// Provision / impairment expense (operating).
-const PROVISION_EXPENSE: &str = "6850";
-/// Provision liability — current and non-current (balance-sheet).
-const PROVISION_LIABILITY: &str = "2450";
 
 // ============================================================================
 // IFRS recognition threshold (probability > 50%)
@@ -437,19 +429,16 @@ fn build_recognition_je(
     let doc_id = header.document_id;
     let mut je = JournalEntry::new(header);
 
-    // Suppress unused import warning: INTEREST_EXPENSE used in unwinding JE below.
-    let _ = INTEREST_EXPENSE;
-
     je.add_line(JournalEntryLine::debit(
         doc_id,
         1,
-        PROVISION_EXPENSE.to_string(),
+        provision_accounts::PROVISION_EXPENSE.to_string(),
         amount,
     ));
     je.add_line(JournalEntryLine::credit(
         doc_id,
         2,
-        PROVISION_LIABILITY.to_string(),
+        provision_accounts::PROVISION_LIABILITY.to_string(),
         amount,
     ));
 
@@ -487,7 +476,7 @@ fn build_unwinding_je(
     je.add_line(JournalEntryLine::credit(
         doc_id,
         2,
-        PROVISION_LIABILITY.to_string(),
+        provision_accounts::PROVISION_LIABILITY.to_string(),
         amount,
     ));
 

@@ -4,10 +4,14 @@
 //! Uses EPA/DEFRA-style emission factors to convert activity data to CO2e tonnes.
 use chrono::NaiveDate;
 use datasynth_config::schema::EnvironmentalConfig;
-use datasynth_core::models::{EmissionRecord, EmissionScope, EstimationMethod, Scope3Category};
+use datasynth_core::models::{
+    EmissionRecord, EmissionScope, EstimationMethod, ProductionOrder, ProductionOrderStatus,
+    Scope3Category,
+};
 use datasynth_core::utils::seeded_rng;
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
+use rust_decimal::prelude::FromPrimitive;
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 
@@ -311,6 +315,69 @@ impl EmissionGenerator {
             estimation_method: EstimationMethod::AverageData,
             source: Some("EPA commuting average factors".to_string()),
         }]
+    }
+
+    // ----- Manufacturing → Energy bridge -----
+
+    /// Convert production order routing operations into energy input records.
+    ///
+    /// Each order's machine_hours converted to electricity (Scope 2).
+    /// Each order's production quantity converted to natural gas consumption (Scope 1).
+    ///
+    /// Only `Completed` and `Closed` production orders are included.
+    pub fn energy_from_production(
+        production_orders: &[ProductionOrder],
+        kwh_per_machine_hour: Decimal,
+        gas_kwh_per_unit: Decimal,
+    ) -> Vec<EnergyInput> {
+        let mut inputs = Vec::new();
+
+        for order in production_orders {
+            // Only include completed / closed orders — in-flight orders
+            // have no settled activity data.
+            if !matches!(
+                order.status,
+                ProductionOrderStatus::Completed | ProductionOrderStatus::Closed
+            ) {
+                continue;
+            }
+
+            // Use work_center as the facility identifier; fall back to company_code
+            // when work_center is empty.
+            let facility_id = if order.work_center.is_empty() {
+                order.company_code.clone()
+            } else {
+                order.work_center.clone()
+            };
+
+            // Period: prefer actual_end; fall back to planned_end.
+            let period = order.actual_end.unwrap_or(order.planned_end);
+
+            // --- Scope 2: Electricity from machine hours ---
+            let machine_hours_dec = Decimal::from_f64(order.machine_hours).unwrap_or(Decimal::ZERO);
+            let electricity_kwh = machine_hours_dec * kwh_per_machine_hour;
+            if electricity_kwh > Decimal::ZERO {
+                inputs.push(EnergyInput {
+                    facility_id: facility_id.clone(),
+                    energy_type: EnergyInputType::Electricity,
+                    consumption_kwh: electricity_kwh,
+                    period,
+                });
+            }
+
+            // --- Scope 1: Natural gas from production quantity ---
+            let gas_kwh = order.actual_quantity * gas_kwh_per_unit;
+            if gas_kwh > Decimal::ZERO {
+                inputs.push(EnergyInput {
+                    facility_id,
+                    energy_type: EnergyInputType::NaturalGas,
+                    consumption_kwh: gas_kwh,
+                    period,
+                });
+            }
+        }
+
+        inputs
     }
 
     /// Small random variance ±5% for measurement uncertainty.

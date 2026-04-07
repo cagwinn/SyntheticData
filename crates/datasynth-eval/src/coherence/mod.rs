@@ -3,9 +3,12 @@
 //! Validates that generated data maintains accounting coherence including
 //! balance sheet equations, subledger reconciliation, and document chain integrity.
 
+pub mod financial_package;
+pub mod inventory_cogs;
 pub mod je_risk_scoring;
 pub mod ratio_analysis;
 pub mod sampling_validation;
+pub mod treasury_tax;
 pub mod trend_analysis;
 
 mod audit;
@@ -67,6 +70,10 @@ pub use hr_payroll::{
 };
 pub use intercompany::{
     ICMatchingData, ICMatchingEvaluation, ICMatchingEvaluator, UnmatchedICItem,
+};
+pub use inventory_cogs::{
+    ICEliminationData, ICEliminationEvaluation, ICEliminationEvaluator, InventoryCOGSData,
+    InventoryCOGSEvaluation, InventoryCOGSEvaluator,
 };
 pub use je_risk_scoring::{JeRiskScoringResult, RiskAttributeStats, RiskDistribution};
 pub use manufacturing::{
@@ -186,6 +193,36 @@ pub struct CoherenceEvaluation {
     /// Multi-period coherence evaluation results.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub multi_period: Option<MultiPeriodAnalysis>,
+    /// COGS and WIP inventory reconciliation results.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub inventory_cogs: Option<inventory_cogs::InventoryCOGSEvaluation>,
+    /// Intercompany elimination completeness results.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ic_elimination: Option<inventory_cogs::ICEliminationEvaluation>,
+    /// Interest expense GL vs instrument-level reconciliation results.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub interest_expense_proof: Option<treasury_tax::InterestExpenseProofEvaluation>,
+    /// Effective tax rate reconciliation results.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub etr_reconciliation: Option<treasury_tax::ETRReconciliationEvaluation>,
+    /// Hedge effectiveness corridor compliance results.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hedge_effectiveness: Option<treasury_tax::HedgeEffectivenessEvaluation>,
+    /// Payroll/HR salary change traceability results.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub payroll_hr: Option<treasury_tax::PayrollHRReconciliationEvaluation>,
+    /// Cash flow statement reconciliation results.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cash_flow_reconciliation: Option<financial_package::CashFlowReconciliationEvaluation>,
+    /// Statement of changes in equity roll-forward results.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub equity_rollforward: Option<financial_package::EquityRollforwardEvaluation>,
+    /// Segment revenue reconciliation results.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub segment_reconciliation: Option<financial_package::SegmentReconciliationEvaluation>,
+    /// Trial balance master proof results (capstone GL completeness check).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tb_master_proof: Option<financial_package::TrialBalanceMasterProofEvaluation>,
     /// Overall pass/fail status.
     pub passes: bool,
     /// Summary of failed checks.
@@ -218,6 +255,16 @@ impl CoherenceEvaluation {
             sales_quotes: None,
             country_packs: None,
             multi_period: None,
+            inventory_cogs: None,
+            ic_elimination: None,
+            interest_expense_proof: None,
+            etr_reconciliation: None,
+            hedge_effectiveness: None,
+            payroll_hr: None,
+            cash_flow_reconciliation: None,
+            equity_rollforward: None,
+            segment_reconciliation: None,
+            tb_master_proof: None,
             passes: true,
             failures: Vec::new(),
         }
@@ -370,6 +417,56 @@ impl CoherenceEvaluation {
         if let Some(ref eval) = self.multi_period {
             if !eval.passes {
                 self.failures.extend(eval.issues.clone());
+            }
+        }
+        if let Some(ref eval) = self.inventory_cogs {
+            if !eval.passes {
+                self.failures.extend(eval.failures.clone());
+            }
+        }
+        if let Some(ref eval) = self.ic_elimination {
+            if !eval.passes {
+                self.failures.extend(eval.failures.clone());
+            }
+        }
+        if let Some(ref eval) = self.interest_expense_proof {
+            if !eval.passes {
+                self.failures.extend(eval.failures.clone());
+            }
+        }
+        if let Some(ref eval) = self.etr_reconciliation {
+            if !eval.passes {
+                self.failures.extend(eval.failures.clone());
+            }
+        }
+        if let Some(ref eval) = self.hedge_effectiveness {
+            if !eval.passes {
+                self.failures.extend(eval.failures.clone());
+            }
+        }
+        if let Some(ref eval) = self.payroll_hr {
+            if !eval.passes {
+                self.failures.extend(eval.failures.clone());
+            }
+        }
+        if let Some(ref eval) = self.cash_flow_reconciliation {
+            if !eval.passes {
+                self.failures.extend(eval.failures.clone());
+            }
+        }
+        if let Some(ref eval) = self.equity_rollforward {
+            if !eval.passes {
+                self.failures.extend(eval.failures.clone());
+            }
+        }
+        if let Some(ref eval) = self.segment_reconciliation {
+            if !eval.passes {
+                self.failures.extend(eval.failures.clone());
+            }
+        }
+        if let Some(ref eval) = self.tb_master_proof {
+            if !eval.passes {
+                self.failures.extend(eval.failures.clone());
             }
         }
 

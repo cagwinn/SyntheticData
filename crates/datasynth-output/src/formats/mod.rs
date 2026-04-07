@@ -12,9 +12,11 @@ pub mod gobd;
 pub mod netsuite;
 pub mod oracle;
 pub mod sap;
+pub mod xbrl;
 
 pub use fec::write_fec_csv;
 pub use gobd::{write_gobd_accounts_csv, write_gobd_index_xml, write_gobd_journal_csv};
 pub use netsuite::{NetSuiteExporter, NetSuiteJournalEntry, NetSuiteJournalLine};
 pub use oracle::{OracleExporter, OracleJeHeader, OracleJeLine};
 pub use sap::{SapExportConfig, SapExporter, SapTableType};
+pub use xbrl::XbrlExporter;

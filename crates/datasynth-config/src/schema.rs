@@ -9143,6 +9143,45 @@ pub struct ManufacturingConfig {
     /// Manufacturing anomaly injection rates.
     #[serde(default)]
     pub anomaly_rates: ManufacturingAnomalyRates,
+
+    /// Cost accounting configuration (WIP → FG → COGS pipeline).
+    #[serde(default)]
+    pub cost_accounting: ManufacturingCostAccountingConfig,
+}
+
+/// Configuration for manufacturing cost accounting JE generation.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ManufacturingCostAccountingConfig {
+    /// Enable multi-stage cost flow (WIP → FG → COGS) instead of flat JEs.
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+
+    /// Generate standard cost variance JEs.
+    #[serde(default = "default_true")]
+    pub variance_accounts_enabled: bool,
+
+    /// Generate warranty provisions from quality inspection failures.
+    #[serde(default = "default_true")]
+    pub warranty_provisions_enabled: bool,
+
+    /// Minimum defect rate (0.0-1.0) to trigger warranty provision generation.
+    #[serde(default = "default_warranty_defect_threshold")]
+    pub warranty_defect_threshold: f64,
+}
+
+fn default_warranty_defect_threshold() -> f64 {
+    0.01
+}
+
+impl Default for ManufacturingCostAccountingConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            variance_accounts_enabled: true,
+            warranty_provisions_enabled: true,
+            warranty_defect_threshold: 0.01,
+        }
+    }
 }
 
 fn default_bom_depth() -> u32 {
@@ -9186,6 +9225,7 @@ impl Default for ManufacturingConfig {
             target_yield_rate: default_yield_rate(),
             scrap_alert_threshold: default_scrap_threshold(),
             anomaly_rates: ManufacturingAnomalyRates::default(),
+            cost_accounting: ManufacturingCostAccountingConfig::default(),
         }
     }
 }

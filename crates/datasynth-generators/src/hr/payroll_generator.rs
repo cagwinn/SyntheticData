@@ -662,6 +662,107 @@ impl PayrollGenerator {
 
         (run, line_items)
     }
+
+    /// Generate a payroll run, adjusting each employee's salary based on
+    /// [`EmployeeChangeEvent`] records before delegating to [`generate`].
+    ///
+    /// For each employee, all `SalaryAdjustment` events whose `effective_date`
+    /// falls on or before `period_end` are examined.  The most recent such
+    /// event determines the effective annual salary for the period (prorated
+    /// when the effective date falls mid-period).
+    ///
+    /// # Arguments
+    ///
+    /// * `company_code`  - Company code owning the payroll
+    /// * `employees`     - Slice of (employee_id, base_annual_salary, cost_center, department)
+    /// * `period_start`  - Start of the pay period (inclusive)
+    /// * `period_end`    - End of the pay period (inclusive)
+    /// * `currency`      - ISO 4217 currency code
+    /// * `changes`       - Employee change history to apply
+    pub fn generate_with_changes(
+        &mut self,
+        company_code: &str,
+        employees: &[(String, Decimal, Option<String>, Option<String>)],
+        period_start: NaiveDate,
+        period_end: NaiveDate,
+        currency: &str,
+        changes: &[datasynth_core::models::EmployeeChangeEvent],
+    ) -> (PayrollRun, Vec<PayrollLineItem>) {
+        let adjusted: Vec<(String, Decimal, Option<String>, Option<String>)> = employees
+            .iter()
+            .map(|(id, salary, cc, dept)| {
+                let adjusted_salary =
+                    Self::apply_salary_changes(id, *salary, period_start, period_end, changes);
+                (id.clone(), adjusted_salary, cc.clone(), dept.clone())
+            })
+            .collect();
+        self.generate(company_code, &adjusted, period_start, period_end, currency)
+    }
+
+    /// Compute the effective annual salary for one employee over a pay period,
+    /// taking `SalaryAdjustment` events into account.
+    ///
+    /// If the latest qualifying change became effective before `period_start`,
+    /// the new salary applies for the full period.  If it became effective
+    /// mid-period, the salary is prorated by calendar days.
+    fn apply_salary_changes(
+        employee_id: &str,
+        base_annual_salary: Decimal,
+        period_start: NaiveDate,
+        period_end: NaiveDate,
+        changes: &[datasynth_core::models::EmployeeChangeEvent],
+    ) -> Decimal {
+        use datasynth_core::models::EmployeeEventType;
+
+        // Filter: only SalaryAdjustment events for this employee that are on or
+        // before period_end (i.e. they could affect this payroll period).
+        let relevant: Vec<&datasynth_core::models::EmployeeChangeEvent> = changes
+            .iter()
+            .filter(|c| {
+                c.employee_id == employee_id
+                    && c.event_type == EmployeeEventType::SalaryAdjustment
+                    && c.effective_date <= period_end
+            })
+            .collect();
+
+        if relevant.is_empty() {
+            return base_annual_salary;
+        }
+
+        // Find the latest change by effective_date.
+        let latest = relevant
+            .iter()
+            .max_by_key(|c| c.effective_date)
+            .expect("non-empty slice always has a max");
+
+        // Parse the new annual salary from new_value.
+        let new_salary = match latest
+            .new_value
+            .as_deref()
+            .and_then(|v| v.parse::<Decimal>().ok())
+        {
+            Some(s) => s,
+            None => return base_annual_salary,
+        };
+
+        let effective = latest.effective_date;
+
+        if effective <= period_start {
+            // Change took effect before or on period start → full period at new rate.
+            new_salary
+        } else {
+            // Change is mid-period → prorate.
+            let total_days = (period_end - period_start).num_days() + 1;
+            let days_at_old = (effective - period_start).num_days();
+            let days_at_new = total_days - days_at_old;
+
+            let total = Decimal::from(total_days);
+            let old_fraction = Decimal::from(days_at_old) / total;
+            let new_fraction = Decimal::from(days_at_new) / total;
+
+            (base_annual_salary * old_fraction + new_salary * new_fraction).round_dp(2)
+        }
+    }
 }
 
 #[cfg(test)]

@@ -74,6 +74,7 @@ fn build_ds_result(
         anomaly_labels: AnomalyLabels::default(),
         balance_validation: BalanceValidationResult::default(),
         data_quality_stats: Default::default(),
+        quality_issues: Vec::new(),
         statistics: EnhancedGenerationStatistics::default(),
         lineage: None,
         gate_result: None,

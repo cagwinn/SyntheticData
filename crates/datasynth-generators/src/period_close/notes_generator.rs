@@ -617,6 +617,326 @@ impl NotesGenerator {
 }
 
 // ---------------------------------------------------------------------------
+// Enhanced notes context + method
+// ---------------------------------------------------------------------------
+
+/// Extended context carrying data from v2.2/v2.3 modules (manufacturing,
+/// treasury, provisions) used to populate 4 supplementary notes.
+#[derive(Debug, Clone, Default)]
+pub struct EnhancedNotesContext {
+    /// Entity code (matches the primary `NotesGeneratorContext`).
+    pub entity_code: String,
+    /// Fiscal period descriptor (e.g. "FY2024").
+    pub period: String,
+    /// Reporting currency code (e.g. "USD").
+    pub currency: String,
+
+    // ---- Inventory (v2.2 manufacturing) ----
+    /// Carrying value of finished goods inventory.
+    pub finished_goods_value: Decimal,
+    /// Carrying value of work-in-progress inventory.
+    pub wip_value: Decimal,
+    /// Carrying value of raw materials inventory.
+    pub raw_materials_value: Decimal,
+
+    // ---- Debt (v2.3 treasury) ----
+    /// Debt instruments as `(type, principal, maturity_date_str)` tuples.
+    pub debt_instruments: Vec<(String, Decimal, String)>,
+
+    // ---- Hedge accounting (v2.3 treasury) ----
+    /// Total number of hedging relationships.
+    pub hedge_count: usize,
+    /// Number of relationships assessed as effective.
+    pub effective_hedges: usize,
+    /// Aggregate notional amount across all hedges.
+    pub total_notional: Decimal,
+    /// Aggregate fair value (mark-to-market) across all hedges.
+    pub total_fair_value: Decimal,
+
+    // ---- Provisions rollforward (v2.2 warranty + v2.3 ECL) ----
+    /// Provision movements as `(type, opening, additions, closing)` tuples.
+    pub provision_movements: Vec<(String, Decimal, Decimal, Decimal)>,
+}
+
+impl NotesGenerator {
+    /// Generate 4 supplementary notes backed by v2.2/v2.3 data.
+    ///
+    /// Notes are numbered starting from `starting_note_number` so they do not
+    /// collide with the 8 standard notes produced by [`NotesGenerator::generate`].
+    pub fn generate_enhanced_notes(
+        &mut self,
+        context: &EnhancedNotesContext,
+        starting_note_number: u32,
+    ) -> Vec<FinancialStatementNote> {
+        let mut notes = vec![
+            self.note_inventories(context),
+            self.note_borrowings(context),
+            self.note_hedge_accounting(context),
+            self.note_provisions_rollforward(context),
+        ];
+
+        // Assign sequential note numbers starting from the given offset
+        for (i, note) in notes.iter_mut().enumerate() {
+            note.note_number = starting_note_number + i as u32;
+        }
+
+        notes
+    }
+
+    // -----------------------------------------------------------------------
+    // Enhanced note builders
+    // -----------------------------------------------------------------------
+
+    fn note_inventories(&mut self, ctx: &EnhancedNotesContext) -> FinancialStatementNote {
+        let fg = ctx.finished_goods_value;
+        let wip = ctx.wip_value;
+        let rm = ctx.raw_materials_value;
+        let total = fg + wip + rm;
+
+        let narrative = format!(
+            "Inventories are stated at the lower of cost and net realisable value.  \
+             Cost is determined using the weighted-average cost method.  At the end \
+             of {} the carrying amounts were: finished goods {} {fg:.0}, \
+             work in progress {} {wip:.0}, and raw materials {} {rm:.0}, \
+             giving a total of {} {total:.0}.",
+            ctx.period, ctx.currency, ctx.currency, ctx.currency, ctx.currency,
+        );
+
+        let rows = vec![
+            vec![
+                NoteTableValue::Text("Finished Goods".to_string()),
+                NoteTableValue::Amount(fg),
+            ],
+            vec![
+                NoteTableValue::Text("Work in Progress".to_string()),
+                NoteTableValue::Amount(wip),
+            ],
+            vec![
+                NoteTableValue::Text("Raw Materials".to_string()),
+                NoteTableValue::Amount(rm),
+            ],
+            vec![
+                NoteTableValue::Text("Total".to_string()),
+                NoteTableValue::Amount(total),
+            ],
+        ];
+
+        FinancialStatementNote {
+            note_number: 0,
+            title: "Inventories".to_string(),
+            category: NoteCategory::DetailDisclosure,
+            content_sections: vec![NoteSection {
+                heading: "Inventory Breakdown by Category".to_string(),
+                narrative,
+                tables: vec![NoteTable {
+                    caption: format!(
+                        "Inventory Carrying Amounts — {} ({})",
+                        ctx.period, ctx.currency
+                    ),
+                    headers: vec!["Category".to_string(), format!("Amount ({})", ctx.currency)],
+                    rows,
+                }],
+            }],
+            cross_references: Vec::new(),
+        }
+    }
+
+    fn note_borrowings(&mut self, ctx: &EnhancedNotesContext) -> FinancialStatementNote {
+        let total_principal: Decimal = ctx
+            .debt_instruments
+            .iter()
+            .map(|(_, principal, _)| *principal)
+            .sum();
+
+        let narrative = format!(
+            "Borrowings are initially recognised at fair value less directly attributable \
+             transaction costs and subsequently measured at amortised cost.  At {} the \
+             entity had {} debt instrument(s) outstanding with a combined principal of \
+             {} {total_principal:.0}.",
+            ctx.period,
+            ctx.debt_instruments.len(),
+            ctx.currency,
+        );
+
+        let rows: Vec<Vec<NoteTableValue>> = ctx
+            .debt_instruments
+            .iter()
+            .map(|(debt_type, principal, maturity)| {
+                vec![
+                    NoteTableValue::Text(debt_type.clone()),
+                    NoteTableValue::Amount(*principal),
+                    NoteTableValue::Text(maturity.clone()),
+                ]
+            })
+            .collect();
+
+        FinancialStatementNote {
+            note_number: 0,
+            title: "Borrowings and Debt Instruments".to_string(),
+            category: NoteCategory::DetailDisclosure,
+            content_sections: vec![NoteSection {
+                heading: "Debt Maturity Schedule".to_string(),
+                narrative,
+                tables: vec![NoteTable {
+                    caption: format!(
+                        "Debt Instruments Outstanding — {} ({})",
+                        ctx.period, ctx.currency
+                    ),
+                    headers: vec![
+                        "Type".to_string(),
+                        format!("Principal ({})", ctx.currency),
+                        "Maturity Date".to_string(),
+                    ],
+                    rows,
+                }],
+            }],
+            cross_references: Vec::new(),
+        }
+    }
+
+    fn note_hedge_accounting(&mut self, ctx: &EnhancedNotesContext) -> FinancialStatementNote {
+        let effectiveness_rate = if ctx.hedge_count > 0 {
+            Decimal::new(ctx.effective_hedges as i64, 0) / Decimal::new(ctx.hedge_count as i64, 0)
+        } else {
+            Decimal::ZERO
+        };
+
+        let effectiveness_pct = effectiveness_rate * Decimal::new(100, 0);
+
+        let narrative = format!(
+            "The entity applies hedge accounting in accordance with IFRS 9 / ASC 815 \
+             where the hedging relationship meets the qualifying criteria.  At {} \
+             {} hedging relationship(s) were designated, of which {} were assessed as \
+             effective ({effectiveness_pct:.1}%).  The aggregate notional amount was \
+             {} {:.0} with a net fair value of {} {:.0}.",
+            ctx.period,
+            ctx.hedge_count,
+            ctx.effective_hedges,
+            ctx.currency,
+            ctx.total_notional,
+            ctx.currency,
+            ctx.total_fair_value,
+        );
+
+        let kv_pairs = vec![
+            (
+                "Total hedging relationships".to_string(),
+                ctx.hedge_count.to_string(),
+            ),
+            (
+                "Effective hedges".to_string(),
+                ctx.effective_hedges.to_string(),
+            ),
+            (
+                format!("Total notional ({})", ctx.currency),
+                format!("{:.0}", ctx.total_notional),
+            ),
+            (
+                format!("Total fair value ({})", ctx.currency),
+                format!("{:.0}", ctx.total_fair_value),
+            ),
+            (
+                "Effectiveness rate".to_string(),
+                format!("{effectiveness_pct:.1}%"),
+            ),
+        ];
+
+        let rows: Vec<Vec<NoteTableValue>> = kv_pairs
+            .into_iter()
+            .map(|(k, v)| vec![NoteTableValue::Text(k), NoteTableValue::Text(v)])
+            .collect();
+
+        FinancialStatementNote {
+            note_number: 0,
+            title: "Hedge Accounting".to_string(),
+            category: NoteCategory::DetailDisclosure,
+            content_sections: vec![NoteSection {
+                heading: "Hedge Effectiveness and Notional Amounts".to_string(),
+                narrative,
+                tables: vec![NoteTable {
+                    caption: format!("Hedge Accounting Summary — {}", ctx.period),
+                    headers: vec!["Item".to_string(), "Value".to_string()],
+                    rows,
+                }],
+            }],
+            cross_references: Vec::new(),
+        }
+    }
+
+    fn note_provisions_rollforward(
+        &mut self,
+        ctx: &EnhancedNotesContext,
+    ) -> FinancialStatementNote {
+        let total_opening: Decimal = ctx
+            .provision_movements
+            .iter()
+            .map(|(_, opening, _, _)| *opening)
+            .sum();
+        let total_additions: Decimal = ctx
+            .provision_movements
+            .iter()
+            .map(|(_, _, additions, _)| *additions)
+            .sum();
+        let total_closing: Decimal = ctx
+            .provision_movements
+            .iter()
+            .map(|(_, _, _, closing)| *closing)
+            .sum();
+
+        let narrative = format!(
+            "The following table sets out the movement in provisions during {}.  \
+             Provisions are recognised when it is probable that an outflow of economic \
+             resources will be required.  Opening balances totalled {} {total_opening:.0}, \
+             additions during the period were {} {total_additions:.0}, and closing \
+             balances stood at {} {total_closing:.0}.",
+            ctx.period, ctx.currency, ctx.currency, ctx.currency,
+        );
+
+        let mut rows: Vec<Vec<NoteTableValue>> = ctx
+            .provision_movements
+            .iter()
+            .map(|(prov_type, opening, additions, closing)| {
+                vec![
+                    NoteTableValue::Text(prov_type.clone()),
+                    NoteTableValue::Amount(*opening),
+                    NoteTableValue::Amount(*additions),
+                    NoteTableValue::Amount(*closing),
+                ]
+            })
+            .collect();
+
+        // Totals row
+        rows.push(vec![
+            NoteTableValue::Text("Total".to_string()),
+            NoteTableValue::Amount(total_opening),
+            NoteTableValue::Amount(total_additions),
+            NoteTableValue::Amount(total_closing),
+        ]);
+
+        FinancialStatementNote {
+            note_number: 0,
+            title: "Provisions Rollforward".to_string(),
+            category: NoteCategory::DetailDisclosure,
+            content_sections: vec![NoteSection {
+                heading: "Movement in Provisions".to_string(),
+                narrative,
+                tables: vec![NoteTable {
+                    caption: format!("Provisions Rollforward — {} ({})", ctx.period, ctx.currency),
+                    headers: vec![
+                        "Provision Type".to_string(),
+                        format!("Opening ({})", ctx.currency),
+                        format!("Additions ({})", ctx.currency),
+                        format!("Closing ({})", ctx.currency),
+                    ],
+                    rows,
+                }],
+            }],
+            cross_references: vec!["Note 1 — Accounting Policies".to_string()],
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Unit tests
 // ---------------------------------------------------------------------------
 
