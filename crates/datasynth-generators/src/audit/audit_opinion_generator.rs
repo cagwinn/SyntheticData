@@ -448,7 +448,6 @@ struct KamTemplate {
 #[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
-    use datasynth_core::models::audit::FindingType;
 
     fn make_period_end() -> NaiveDate {
         NaiveDate::from_ymd_opt(2024, 12, 31).unwrap()
