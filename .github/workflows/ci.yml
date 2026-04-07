@@ -77,7 +77,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libfontconfig1-dev
       - name: Exclude graph-export (requires private sibling repo)
         run: sed -i '/"crates\/datasynth-graph-export",/d' Cargo.toml
-      - run: cargo check --workspace --exclude datasynth-ui
+      - run: cargo check --workspace
 
   security:
     name: Security Audit
@@ -116,7 +116,7 @@ jobs:
       - name: Install cargo-llvm-cov
         run: cargo install cargo-llvm-cov --locked
       - name: Generate coverage
-        run: cargo llvm-cov --workspace --exclude datasynth-ui --exclude datasynth-server --lcov --output-path lcov.info
+        run: cargo llvm-cov --workspace --exclude datasynth-server --lcov --output-path lcov.info
         timeout-minutes: 30
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5

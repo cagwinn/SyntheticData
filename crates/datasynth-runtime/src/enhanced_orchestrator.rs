@@ -9532,66 +9532,6 @@ impl EnhancedOrchestrator {
         jes
     }
 
-    /// Generate journal entries from production orders.
-    ///
-    /// Creates one JE per completed production order:
-    /// - DR Raw Materials (5100) for material consumption (actual_cost)
-    /// - CR Inventory (1200) for material consumption
-    #[allow(dead_code)] // Kept as backward-compatible fallback
-    fn generate_manufacturing_jes(production_orders: &[ProductionOrder]) -> Vec<JournalEntry> {
-        use datasynth_core::accounts::{control_accounts, expense_accounts};
-        use datasynth_core::models::ProductionOrderStatus;
-
-        let mut jes = Vec::new();
-
-        for order in production_orders {
-            // Only generate JEs for completed or closed orders
-            if !matches!(
-                order.status,
-                ProductionOrderStatus::Completed | ProductionOrderStatus::Closed
-            ) {
-                continue;
-            }
-
-            let mut je = JournalEntry::new_simple(
-                format!("JE-MFG-{}", order.order_id),
-                order.company_code.clone(),
-                order.actual_end.unwrap_or(order.planned_end),
-                format!(
-                    "Production Order {} - {}",
-                    order.order_id, order.material_description
-                ),
-            );
-
-            // Debit Raw Materials / Manufacturing expense for actual cost
-            je.add_line(JournalEntryLine {
-                line_number: 1,
-                gl_account: expense_accounts::RAW_MATERIALS.to_string(),
-                debit_amount: order.actual_cost,
-                reference: Some(order.order_id.clone()),
-                text: Some(format!(
-                    "Material consumption for {}",
-                    order.material_description
-                )),
-                quantity: Some(order.actual_quantity),
-                unit: Some("EA".to_string()),
-                ..Default::default()
-            });
-
-            // Credit Inventory for material consumption
-            je.add_line(JournalEntryLine {
-                line_number: 2,
-                gl_account: control_accounts::INVENTORY.to_string(),
-                credit_amount: order.actual_cost,
-                reference: Some(order.order_id.clone()),
-                ..Default::default()
-            });
-
-            jes.push(je);
-        }
-
-        jes
-    }
 
     /// Link document flows to subledger records.
     ///

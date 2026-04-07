@@ -9,7 +9,6 @@ members = [
     "crates/datasynth-cli",
     "crates/datasynth-graph",
     "crates/datasynth-server",
-    "crates/datasynth-ui/src-tauri",
     "crates/datasynth-test-utils",
     "crates/datasynth-eval",
     "crates/datasynth-ocpm",

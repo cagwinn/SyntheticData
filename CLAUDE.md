@@ -39,7 +39,6 @@ Rust workspace with 15 crates:
 ```
 datasynth-cli          → Binary (generate, validate, init, info, fingerprint)
 datasynth-server       → REST/gRPC/WebSocket server
-datasynth-ui           → Tauri/SvelteKit desktop UI
 datasynth-runtime      → GenerationOrchestrator coordinates workflow
 datasynth-generators   → Data generators (JE, Document Flows, Subledgers, Anomalies, Audit)
 datasynth-banking      → KYC/AML banking with fraud typologies
@@ -128,10 +127,6 @@ datasynth-test-utils   → Test utilities
 - REST: `/api/config`, `/api/stream/{start|stop|pause|resume}`, `/api/stream/trigger/{pattern}`
 - WebSocket: `/ws/events`
 - Features: API key auth (`X-API-Key`), rate limiting, request timeout
-
-### Desktop UI (datasynth-ui/)
-
-Tauri + SvelteKit + TailwindCSS. Run: `cd crates/datasynth-ui && npm install && npm run tauri dev`
 
 ### Graph Module (datasynth-graph/src/)
 
