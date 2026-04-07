@@ -215,10 +215,6 @@ impl SegmentGenerator {
             });
         }
 
-        // Corporate overhead: 2–5 % of consolidated revenue (negative)
-        let overhead_rate = Decimal::from(self.rng.random_range(2u32..=5)) / Decimal::from(100u32);
-        let corporate_overhead = -(consolidated_revenue.abs() * overhead_rate);
-
         // Unallocated assets: goodwill, deferred tax, etc — 5-12 % of total
         let unalloc_rate = Decimal::from(self.rng.random_range(5u32..=12)) / Decimal::from(100u32);
         let unallocated_assets = consolidated_assets.abs() * unalloc_rate;
@@ -237,6 +233,10 @@ impl SegmentGenerator {
         let segment_profit_total: Decimal = segments.iter().map(|s| s.operating_profit).sum();
         let segment_assets_total: Decimal = segments.iter().map(|s| s.total_assets).sum();
 
+        // Corporate overhead: derived to enforce the identity
+        //   segment_profit_total + corporate_overhead = consolidated_profit
+        let corporate_overhead = consolidated_profit - segment_profit_total;
+
         let reconciliation = SegmentReconciliation {
             period: period.to_string(),
             company_code: company_code.to_string(),
@@ -245,7 +245,7 @@ impl SegmentGenerator {
             consolidated_revenue,
             segment_profit_total,
             corporate_overhead,
-            consolidated_profit: segment_profit_total + corporate_overhead,
+            consolidated_profit,
             segment_assets_total,
             unallocated_assets,
             consolidated_assets: segment_assets_total + unallocated_assets,
@@ -358,7 +358,7 @@ impl SegmentGenerator {
             consolidated_revenue: segment_revenue_total - ic_elimination_amount,
             segment_profit_total,
             corporate_overhead,
-            consolidated_profit: segment_profit_total + corporate_overhead,
+            consolidated_profit: segment_profit_total, // no corporate overhead allocation for JE-derived segments
             segment_assets_total,
             unallocated_assets,
             consolidated_assets: segment_assets_total + unallocated_assets,
