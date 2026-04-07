@@ -137,7 +137,17 @@ vision, retirement) with employer/employee contributions.
 Production orders, routing operations, quality inspections with
 characteristics, cycle counts, multi-level BOMs with phantom assembly
 support, and inventory movement tracking (receipt, issue, transfer,
-return, scrap, adjustment).
+return, scrap, adjustment).  As of v2.2, the manufacturing pipeline
+implements full standard cost accounting with WIP-to-FG-to-COGS flow:
+\[
+\text{FG}_{\text{close}} = \text{FG}_{\text{open}} + \text{completions} - \text{COGS} - \text{scrap}
+\]
+Material price variances, labor rate variances, and overhead volume
+variances are computed against standard costs and posted to designated
+variance accounts.  Quality inspection failure rates feed a warranty
+provision generator that creates provisions per IAS~37/ASC~450,
+ensuring that manufacturing quality data flows through to the financial
+statements.
 
 % ─────────────────────────────────────────────────────────────────────
 \subsection{Tax Accounting}
@@ -154,7 +164,13 @@ jurisdictions:
     periodic tax return preparation with aggregated liabilities.
   \item \textbf{Tax provisions:} Current and deferred tax calculations
     under ASC~740/IAS~12, including temporary differences, deferred tax
-    rollforward, and rate reconciliation.
+    rollforward, and rate reconciliation.  As of v2.2, tax provisions
+    derive from actual GL pre-tax income rather than independent
+    estimates, ensuring that the effective tax rate reconciliation ties
+    to the income statement.
+  \item \textbf{Transaction-level VAT/GST:} Tax postings are generated
+    from source documents (invoices, receipts), producing input and
+    output VAT lines that reconcile to periodic tax returns.
   \item \textbf{Withholding tax:} Source-based withholding records with
     jurisdiction-specific rates and treaty provisions.
   \item \textbf{Uncertain tax positions:} UTP assessment with probability
@@ -177,11 +193,47 @@ The treasury module generates:
     time horizons and confidence intervals.
   \item \textbf{Hedging instruments:} Forward contracts, options, and
     swaps with hedge relationship documentation and effectiveness
-    testing under ASC~815/IFRS~9.
+    testing under ASC~815/IFRS~9.  In v2.2, hedging instruments
+    generate mark-to-market journal entries routed according to hedge
+    designation: cash flow hedges to OCI, fair value hedges to P\&L,
+    with reclassification entries upon hedge settlement or
+    ineffectiveness.
   \item \textbf{Debt instruments:} Term loans, revolving facilities, and
-    bonds with amortization schedules and covenant tracking.
+    bonds with amortization schedules and covenant tracking.  Debt
+    instruments now generate periodic interest accrual journal entries
+    that tie to the interest expense line in the income statement.
   \item \textbf{Debt covenants:} Financial covenant calculations with
-    compliance monitoring and breach detection.
+    compliance monitoring and breach detection.  Covenant ratios
+    (e.g., debt-to-EBITDA, interest coverage) are evaluated against
+    actual financial ratios derived from the generated GL data.
+\end{itemize}
+
+% ─────────────────────────────────────────────────────────────────────
+\subsection{Financial Statement Package}
+\label{sec:gen_finstmt}
+
+Version~2.2 introduces a comprehensive financial statement package that
+transforms raw GL data into publication-ready financial reports:
+
+\begin{itemize}
+  \item \textbf{Cash flow enhancer:} The indirect-method cash flow
+    statement is derived from actual balance sheet movements and income
+    statement data, with non-cash adjustments (depreciation,
+    amortization, unrealized FX gains/losses) automatically identified
+    and reconciled.
+  \item \textbf{Segment reporting:} Operating segments are constructed
+    from real journal entry data using configurable allocation rules.
+    Segment revenue, operating profit, and assets reconcile to the
+    consolidated totals, with inter-segment eliminations tracked
+    separately.
+  \item \textbf{Dividend generation:} Dividend declarations, accruals,
+    and payments are generated based on configurable payout ratios
+    applied to retained earnings, with journal entries flowing through
+    to the statement of changes in equity.
+  \item \textbf{XBRL export:} Financial statements are exported as
+    XBRL~2.1 instance documents with US~GAAP or IFRS taxonomies,
+    enabling automated compliance testing and regulatory submission
+    workflows.
 \end{itemize}
 
 % ─────────────────────────────────────────────────────────────────────

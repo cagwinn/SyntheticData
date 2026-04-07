@@ -30,7 +30,7 @@ CUSUM and EWMA control charts for drift detection.
 \subsection{Coherence Validators}
 \label{sec:eval_coherence}
 
-\system{} implements 15+ domain-specific coherence validators:
+\system{} implements 25+ domain-specific coherence validators:
 
 \begin{table}[H]
 \centering
@@ -71,6 +71,27 @@ Treasury &
   Cash flow consistency; covenant compliance \\
 Project Accounting &
   Budget vs.\ actual variance within thresholds \\
+\midrule
+\multicolumn{2}{l}{\textit{v2.2 capstone validators}} \\
+\midrule
+COGS / WIP Reconciliation &
+  $\text{FG}_{\text{close}} = \text{FG}_{\text{open}} + \text{completions} - \text{COGS} - \text{scrap}$; WIP roll-forward; variance reconciliation \\
+IC Elimination Completeness &
+  All IC transaction pairs have corresponding elimination entries \\
+Interest Expense Proof &
+  GL interest expense $=$ $\sum$ accrued interest from debt instruments \\
+ETR Reconciliation &
+  Effective tax rate $=$ statutory rate $\pm$ permanent differences \\
+Hedge Effectiveness &
+  Hedge ratio within 80--125\% corridor (ASC~815/IFRS~9) \\
+Cash Flow Reconciliation &
+  Net cash $=$ opening cash $+$ operating $+$ investing $+$ financing \\
+Equity Rollforward &
+  Closing equity $=$ opening $+$ net income $-$ dividends $\pm$ OCI $\pm$ other \\
+Segment Reconciliation &
+  $\sum$ segment totals $+$ eliminations $=$ consolidated totals \\
+Trial Balance Master Proof &
+  $\sum$ all JEs from all modules $=$ closing trial balance \\
 \bottomrule
 \end{tabular}
 \end{table}

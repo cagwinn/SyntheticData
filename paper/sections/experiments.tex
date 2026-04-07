@@ -193,6 +193,15 @@ correspond to injected price and quantity variances.  All hard
 invariants achieve 100\% compliance, confirming the normative
 knowledge layer is correctly encoded.
 
+The v2.2 capstone validators achieve 100\% compliance on the trial
+balance master proof---confirming that the sum of all generated journal
+entries from manufacturing, treasury, tax, payroll, and period-close
+modules reconciles exactly to the closing trial balance.  The COGS/WIP
+reconciliation, interest expense proof, ETR reconciliation, hedge
+effectiveness check, cash flow reconciliation, equity rollforward,
+segment-to-consolidated reconciliation, and IC elimination completeness
+validators likewise pass without exception on deterministic runs.
+
 % ─────────────────────────────────────────────────────────────────────
 \subsection{Downstream ML Utility}
 \label{sec:exp_ml}

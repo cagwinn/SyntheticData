@@ -46,8 +46,20 @@ in \Cref{sec:experiments}.
 
 \begin{itemize}
   \item \textbf{Domain coverage.}  While \system{} covers 20+ enterprise
-    processes, specialized domains such as insurance claims, healthcare
-    billing, and government accounting are not yet modeled.
+    processes with end-to-end financial coherence---including
+    manufacturing cost accounting (WIP$\to$FG$\to$COGS with standard
+    cost variances), treasury instruments (interest accruals, hedge
+    accounting per ASC~815/IFRS~9), and tax provisions derived from
+    actual GL pre-tax income---specialized domains such as insurance
+    claims, healthcare billing, and government accounting are not yet
+    modeled.  XBRL export of financial statements enables compliance
+    testing against regulatory taxonomies.  The evaluation suite now
+    includes 25+ coherence validators (up from 15 in v2.0), with
+    10~additional capstone validators covering COGS/WIP reconciliation,
+    interest expense proof, ETR reconciliation, hedge effectiveness,
+    cash flow reconciliation, equity rollforward,
+    segment-to-consolidated reconciliation, IC elimination completeness,
+    and the trial balance master proof.
 
   \item \textbf{Learned distributions.}  The current parametric approach
     (log-normal mixtures, copulas) could be complemented by deep
@@ -71,12 +83,12 @@ in \Cref{sec:experiments}.
 \label{sec:future_work}
 
 Several of the research directions identified in earlier versions of
-this paper have been realized in v2.0.0: the audit FSM engine now
-includes 12 blueprints spanning ISA, IIA-GIAS, PCAOB, AICPA SOC~2,
-and Big~4 firm-style methodologies; the audit-optimizer crate performs
-shortest-path analysis and Monte Carlo simulation over blueprint
-graphs; and conformance metrics are computed across methodology
-variants.  The following directions remain open:
+this paper have been realized: v2.0.0 introduced the audit FSM engine
+with 12 blueprints spanning ISA, IIA-GIAS, PCAOB, AICPA SOC~2,
+and Big~4 firm-style methodologies; v2.2.0 adds end-to-end financial
+coherence across manufacturing cost accounting, treasury instruments,
+and tax provisions, together with XBRL export and 10~additional
+capstone coherence validators.  The following directions remain open:
 
 \begin{enumerate}
   \item \textbf{Temporal graph network export.}  Integrating temporal
