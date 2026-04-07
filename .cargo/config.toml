@@ -7,6 +7,12 @@
 # Use scripts/test-safe.sh for sequential per-crate testing,
 # or set RUST_TEST_THREADS=2 when using cargo test directly.
 
+[build]
+# Limit parallel rustc jobs to prevent OOM during compilation.
+# Each rustc instance can use 1-3 GB in debug mode. With 22 cores
+# and no limit, peak memory can reach 44 GB+ and trigger OOM killer.
+jobs = 8
+
 [env]
 # Default to 2 test threads to prevent OOM when running cargo test
 RUST_TEST_THREADS = { value = "2", force = false }
