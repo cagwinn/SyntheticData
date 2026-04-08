@@ -138,12 +138,13 @@ subgraphs:
 
 \paragraph{Layer 2 (Statistical).}
 Node and edge properties carry distributional metadata: the
-\texttt{ToNodeProperties} trait maps domain models to seven
-property-value types (\texttt{String}, \texttt{Decimal},
-\texttt{Integer}, \texttt{Boolean}, \texttt{Date}, \texttt{DateTime},
-\texttt{List}), ensuring lossless round-tripping through graph
-serialization.  Amount distributions, temporal patterns, and
-correlation structures are recoverable from the graph properties.
+\texttt{ToNode\-Properties} trait maps domain models to seven
+property-value types
+(\texttt{String}, \texttt{Decimal}, \texttt{Integer},
+\texttt{Boolean}, \texttt{Date}, \texttt{Date\-Time}, \texttt{List}),
+ensuring lossless round-tripping through graph serialization.
+Amount distributions, temporal patterns, and correlation structures
+are recoverable from the graph properties.
 
 \paragraph{Layer 3 (Normative).}
 Control nodes encode COSO component/principle mappings, maturity
@@ -198,13 +199,13 @@ machines for \texttt{PurchaseOrder}, \texttt{SalesOrder}, and
 \texttt{VendorInvoice} objects define probabilistic transitions,
 producing realistic variant distributions.
 
-Multi-object correlation events---three-way match, payment allocation,
-and bank reconciliation---link objects across process boundaries.
-Resource pool workload modeling assigns events to users via configurable
-strategies (round-robin, least-busy, skill-based).  Enriched events
-carry \texttt{from\_state}, \texttt{to\_state},
-\texttt{resource\_workload}, and \texttt{correlation\_id} attributes
-for conformance checking and resource-perspective analysis.
+Multi-object correlation events (three-way match, payment allocation,
+bank reconciliation) link objects across process boundaries.
+Resource pool workload modeling assigns events to users via
+configurable strategies (round-robin, least-busy, skill-based).
+Enriched events carry state, workload, and correlation-ID
+attributes for conformance checking and resource-perspective
+analysis.
 
 The OCEL~2.0 logs are fully traceable to the reference knowledge
 graph---every event corresponds to a known structural, statistical,

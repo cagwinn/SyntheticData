@@ -2,7 +2,7 @@
 \section{System Architecture}
 \label{sec:architecture}
 
-\system{} is implemented as a Rust workspace comprising 19 crates
+\system{} is implemented as a Rust workspace comprising 17 crates
 organized into five architectural layers (\Cref{fig:architecture}).  The
 layered design enforces separation of concerns and maps directly onto
 the three-layer knowledge model (\Cref{def:three_layers}): domain models
@@ -20,8 +20,8 @@ Layer~3 (normative) knowledge.
 \fbox{\parbox{0.92\textwidth}{%
 \small
 \begin{verbatim}
-Layer 5  UI / Interfaces
-         datasynth-cli | datasynth-server | datasynth-ui
+Layer 5  Interfaces
+         datasynth-cli | datasynth-server
 
 Layer 4  Analytics & Export
          datasynth-eval | datasynth-graph | datasynth-graph-export
@@ -40,7 +40,7 @@ Layer 1  Foundation
          datasynth-test-utils
 \end{verbatim}
 }}
-\caption{Layered crate architecture of \system{} (19 crates).
+\caption{Layered crate architecture of \system{} (17 crates).
   Dependency arrows point downward; each layer depends only on layers
   below it.}
 \label{fig:architecture}
@@ -134,9 +134,8 @@ and synthesis.
 \paragraph{Layer 5: Interfaces.}
 A CLI binary (\texttt{datasynth-data}) supports \texttt{generate},
 \texttt{validate}, \texttt{init}, \texttt{info}, and \texttt{fingerprint}
-subcommands.  A REST/gRPC/WebSocket server enables streaming generation
-with API-key authentication and rate limiting.  A Tauri + SvelteKit
-desktop UI provides visual configuration and monitoring.
+subcommands.  A REST/gRPC/WebSocket server enables streaming
+generation with API-key authentication and rate limiting.
 
 % ─────────────────────────────────────────────────────────────────────
 \subsection{Knowledge Layer Mapping}
@@ -147,16 +146,16 @@ architecture as follows:
 
 \begin{center}
 \small
-\begin{tabular}{lll}
+\begin{tabular}{@{}l p{0.34\textwidth} p{0.34\textwidth}@{}}
 \toprule
 \textbf{Knowledge Layer} & \textbf{Crates} & \textbf{Artifacts} \\
 \midrule
 Structural ($\mathcal{K}_S$) &
   generators, graph, ocpm &
-  Entity types, edges, document chains \\
+  Entity types, edges, document chains \\[3pt]
 Statistical ($\mathcal{K}_\Sigma$) &
   core (distributions), eval &
-  Amount distributions, correlations, temporal \\
+  Amount distributions, correlations, temporal \\[3pt]
 Normative ($\mathcal{K}_N$) &
   standards, generators (controls), audit-fsm &
   GAAP/IFRS rules, ISA/SOX, COSO, audit trails \\

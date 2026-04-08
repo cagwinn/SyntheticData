@@ -89,16 +89,21 @@ maintaining formal privacy guarantees.
 \subsection{Workflow}
 \label{sec:priv_workflow}
 
+\smallskip\noindent
+{\small
 \begin{enumerate}
   \item \textbf{Extract:}
-    \texttt{datasynth-data fingerprint extract -{}-input data.csv -{}-output fp.dsf -{}-privacy-level standard}
+    \texttt{datasynth-data fingerprint extract -{}-input data.csv \textbackslash\newline
+    \hspace*{2em} -{}-output fp.dsf -{}-privacy-level standard}
   \item \textbf{Validate:}
     \texttt{datasynth-data fingerprint validate fp.dsf}
   \item \textbf{Generate:}
     \texttt{datasynth-data generate -{}-fingerprint fp.dsf -{}-output ./synthetic/}
   \item \textbf{Evaluate:}
-    \texttt{datasynth-data fingerprint evaluate -{}-fingerprint fp.dsf -{}-synthetic ./synthetic/}
+    \texttt{datasynth-data fingerprint evaluate -{}-fingerprint fp.dsf \textbackslash\newline
+    \hspace*{2em} -{}-synthetic ./synthetic/}
 \end{enumerate}
+}
 
 The fingerprint file can be safely shared across organizational
 boundaries, enabling generation of calibrated reference knowledge

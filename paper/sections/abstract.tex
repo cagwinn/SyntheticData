@@ -41,34 +41,28 @@ remaining undetected.  \system{} circumvents this by generating data
 reference datasets where the complete audit trail is known by
 construction.
 
-Implemented in Rust, \system{} achieves throughput exceeding $2 \times 10^5$ journal entries
-per second on a single core.  The framework generates end-to-end coherent
-data spanning journal entries, document flows, subledgers, financial
-statements, intercompany eliminations, tax accounting, treasury
-management, ESG reporting, project accounting, and OCEL~2.0 process
-mining event logs---all from a single declarative YAML configuration.
-A methodology-driven audit generation engine loads 12 audit methodology
+Implemented in Rust, \system{} achieves throughput exceeding
+$2 \times 10^5$ journal entries per second on a single core.  The
+framework generates end-to-end coherent data spanning journal entries,
+document flows, subledgers, financial statements, intercompany
+eliminations, tax accounting, treasury management, ESG reporting,
+project accounting, and OCEL~2.0 process mining event logs---all from a
+single declarative YAML configuration.
+A methodology-driven audit engine loads 12 audit methodology
 blueprints---spanning ISA, IIA-GIAS, PCAOB, AICPA SOC~2, and Big~4
 firm-style methodologies---as YAML-defined finite state machines,
-producing event-sourced audit trails alongside typed artifacts that
-trace each audit step to its governing standard.  Each step carries a
-\texttt{judgment\_level} classification (\texttt{data\_only},
-\texttt{ai\_assistable}, or \texttt{human\_required}), enabling
-cross-firm benchmark comparison of methodology complexity and
-automation potential.  Year-over-year engagement chains and ISA~600
-group audit simulation support multi-period and multi-component
-audit scenarios.
-Version~2.2 introduces end-to-end financial coherence: every
-manufacturing cost flows through WIP to COGS with standard cost
-variances, every treasury instrument accrues interest and generates
-hedge accounting entries per ASC~815/IFRS~9, and every tax provision
-derives from actual pre-tax income---validated by capstone coherence
-checks including a trial balance master proof.
-Additional capabilities include a multi-type anomaly injection framework
-with multi-stage fraud schemes, a privacy-preserving fingerprint module
-under $\varepsilon$-differential privacy, a counterfactual simulation
-engine with causal DAG propagation, and graph exports in PyTorch
-Geometric, Neo4j, and DGL formats for GNN-based audit analytics research.
+producing event-sourced audit trails with per-step
+\texttt{judgment\_level} annotations for automation-potential analysis.
+End-to-end financial coherence is enforced: manufacturing costs flow
+through WIP to COGS with standard cost variances, treasury instruments
+generate hedge accounting entries per ASC~815/IFRS~9, and tax provisions
+derive from actual pre-tax income---validated by 25+ coherence checks
+including a trial balance master proof.
+Additional capabilities include anomaly injection with over 130
+subtypes and multi-stage fraud schemes, a privacy-preserving fingerprint
+module under $\varepsilon$-differential privacy, a counterfactual
+simulation engine with causal DAG propagation, and graph exports in
+PyTorch Geometric, Neo4j, and DGL formats for GNN-based audit analytics.
 
 Experimental evaluation demonstrates that generated datasets satisfy all
 hard accounting invariants at 100\% compliance, achieve Benford first-digit

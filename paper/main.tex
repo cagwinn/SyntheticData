@@ -10,6 +10,10 @@
 \usepackage[T1]{fontenc}
 \usepackage{lmodern}
 \usepackage{microtype}
+% Suppress missing bold-smallcaps and italic-smallcaps warnings for lmodern
+\rmfamily % ensure lmr is loaded before declaring shapes
+\DeclareFontShape{T1}{lmr}{bx}{sc}{<->ssub*lmr/bx/n}{}
+\DeclareFontShape{T1}{lmr}{m}{scit}{<->ssub*lmr/m/sc}{}
 
 % ── Math ───────────────────────────────────────────────────────────────
 \usepackage{amsmath,amssymb,amsthm}
@@ -87,7 +91,7 @@
   \small\url{https://orcid.org/0009-0008-7829-2249}
 }
 
-\date{\today}
+\date{April 2026}
 
 % ═══════════════════════════════════════════════════════════════════════
 \begin{document}

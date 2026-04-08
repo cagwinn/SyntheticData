@@ -12,7 +12,10 @@ difficult to obtain from real enterprise data alone.
 \subsection{Anomaly Taxonomy}
 \label{sec:anom_taxonomy}
 
-\system{} defines 33 anomaly types organized into five categories:
+\system{} defines anomaly types organized into five categories, with
+over 130 fine-grained subtypes in the codebase.
+\Cref{tab:anomaly_types} summarizes the primary types used in the
+default injection framework.
 
 \begin{table}[t]
 \centering
@@ -23,17 +26,20 @@ difficult to obtain from real enterprise data alone.
 \toprule
 \textbf{Category} & \textbf{Count} & \textbf{Representative Types} \\
 \midrule
-Fraud & 10 & FictitiousEntry, RoundDollarManipulation,
+Fraud & 54 & FictitiousEntry, RoundDollarManipulation,
   JustBelowThreshold, SelfApproval, DuplicatePayment,
   FictitiousVendor, RevenueManipulation \\
-Error & 8 & DuplicateEntry, ReversedAmount, WrongPeriod,
-  WrongAccount, MissingReference \\
-Process & 5 & LatePosting, SkippedApproval,
-  ThresholdManipulation \\
-Statistical & 5 & UnusualAmount, TrendBreak,
-  BenfordViolation \\
-Relational & 5 & CircularTransaction,
-  DormantAccountActivity \\
+Error & 25 & DuplicateEntry, ReversedAmount, WrongPeriod,
+  WrongAccount, MissingReference, TransposedDigits,
+  CutoffError \\
+Process & 21 & LatePosting, SkippedApproval,
+  ThresholdManipulation, MissingDocumentation,
+  AfterHoursPosting \\
+Statistical & 17 & UnusualAmount, TrendBreak,
+  BenfordViolation, UnusualFrequency, SeasonalAnomaly \\
+Relational & 14 & CircularTransaction,
+  DormantAccountActivity, UnusualAccountPair,
+  NewCounterparty, CentralityAnomaly \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -124,8 +130,8 @@ A five-component organizational impact model:
 \end{equation}
 
 \paragraph{Confidence.}
-Detection confidence combining pattern-match, rule-violation,
-behavioral-deviation, and contextual modifiers.
+Detection confidence combining pattern-match, rule-violation, and
+behavioral-deviation scores with contextual modifiers.
 
 % ─────────────────────────────────────────────────────────────────────
 \subsection{Ground-Truth Labels}

@@ -1,0 +1,31 @@
+ARXIV SUBMISSION METADATA
+=========================
+
+TITLE:
+DataSynth: Reference Knowledge Graphs for Enterprise Audit Analytics through Synthetic Data Generation with Provable Statistical Properties
+
+AUTHORS:
+Michael Ivertowski
+
+SUBJECT AREAS:
+- Primary: cs.CE (Computational Engineering, Finance, and Science)
+- Cross-list: cs.DB (Databases), cs.AI (Artificial Intelligence), cs.LG (Machine Learning)
+
+ABSTRACT:
+Enterprise knowledge systems for audit analytics face a fundamental epistemological challenge: they are typically constructed from existing operational data -- data that may itself contain the very errors, fraud patterns, and systematic biases the systems are meant to detect. This is analogous to assembling a jigsaw puzzle with only a partial view of the picture on the box: teams assemble fragments of transactional evidence into knowledge graphs, but lack a ground truth against which to verify the result. When the source data harbors systematic errors -- which real-world client audits demonstrably do -- the constructed knowledge inherits and amplifies those errors, potentially obscuring root causes that audit procedures seek to identify. The complexity of the problem is not merely large; it is inter-dimensional, spanning accounting topology, statistical distributions, temporal dynamics, regulatory standards, and organizational structure simultaneously.
+
+We present DataSynth, an open-source framework that addresses this challenge by generating reference knowledge graphs: fully provenanced, multi-layer synthetic enterprise datasets where every node, edge, and property is produced from a known generative process. DataSynth operates across three layers of audit knowledge: (i) the structural layer -- accounting graph topology with a comprehensive set of entity and relationship types spanning major enterprise processes; (ii) the statistical layer -- distributional properties governed by log-normal mixture models, five copula families, Benford's-law compliance, and temporal dynamics calibrated against 155 real-world general ledger datasets comprising 364 million journal entries; and (iii) the normative layer -- accounting standards (US GAAP, IFRS, French GAAP, German GAAP, dual-reporting), audit standards (ISA, PCAOB, SOX), COSO 2013 internal controls, and regulatory compliance rules.
+
+We prove that recovering ground truth from observed enterprise data is combinatorially infeasible (the number of consistent accounting network configurations grows super-exponentially with journal entry complexity), and that systematic errors in source data propagate through inverse-reconstruction pipelines with high probability of remaining undetected. DataSynth circumvents this by generating data forward from a fully specified generative model, producing reference datasets where the complete audit trail is known by construction.
+
+Implemented in Rust, DataSynth achieves throughput exceeding 2x10^5 journal entries per second on a single core. The framework generates end-to-end coherent data spanning journal entries, document flows, subledgers, financial statements, intercompany eliminations, tax accounting, treasury management, ESG reporting, project accounting, and OCEL 2.0 process mining event logs -- all from a single declarative YAML configuration. A methodology-driven audit engine loads 12 audit methodology blueprints -- spanning ISA, IIA-GIAS, PCAOB, AICPA SOC 2, and Big 4 firm-style methodologies -- as YAML-defined finite state machines, producing event-sourced audit trails with per-step judgment_level annotations for automation-potential analysis. End-to-end financial coherence is enforced: manufacturing costs flow through WIP to COGS with standard cost variances, treasury instruments generate hedge accounting entries per ASC 815/IFRS 9, and tax provisions derive from actual pre-tax income -- validated by 25+ coherence checks including a trial balance master proof. Additional capabilities include anomaly injection with over 130 subtypes and multi-stage fraud schemes, a privacy-preserving fingerprint module under epsilon-differential privacy, a counterfactual simulation engine with causal DAG propagation, and graph exports in PyTorch Geometric, Neo4j, and DGL formats for GNN-based audit analytics.
+
+Experimental evaluation demonstrates that generated datasets satisfy all hard accounting invariants at 100% compliance, achieve Benford first-digit MAD scores below 0.006, and support downstream fraud detection models achieving F1 scores of 0.84 with graph neural networks -- within 3% of scores obtained on real data.
+
+The forward-generation approach does not replace the analysis of real enterprise data; rather, it provides a reference frame against which analytical tools, knowledge construction pipelines, and audit procedures can be developed, tested, and calibrated.
+
+KEYWORDS:
+reference knowledge graphs, synthetic data generation, enterprise accounting, audit analytics, ground truth, knowledge layers, Benford's law, copula models, fraud detection, differential privacy, process mining, graph neural networks, counterfactual analysis, audit methodology, finite state machines
+
+CODE AVAILABILITY:
+https://github.com/mivertowski/SyntheticData
