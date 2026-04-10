@@ -10,6 +10,8 @@ DataSynth generates statistically realistic, fully interconnected enterprise fin
 
 Generated data respects accounting identities (debits = credits, Assets = Liabilities + Equity), follows empirical distributions (Benford's Law, log-normal mixtures), and maintains referential integrity across 100+ output tables.
 
+Commercial offering and SDKs: https://vynfi.com
+
 ---
 
 ## Table of Contents
