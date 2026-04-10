@@ -17,9 +17,8 @@ members = [
     "crates/datasynth-banking",
     "crates/datasynth-fingerprint",
     "crates/datasynth-standards",
-    "crates/datasynth-graph-export",
 ]
-exclude = ["fuzz"]
+exclude = ["fuzz", "crates/datasynth-graph-export"]
 
 # Root package for workspace-level benchmarks
 [package]
