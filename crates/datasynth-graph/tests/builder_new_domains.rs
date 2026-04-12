@@ -885,6 +885,16 @@ fn make_test_bank_txn(suspicious: bool) -> datasynth_banking::models::BankTransa
         scenario_id: None,
         scenario_sequence: None,
         transaction_type: "WIRE".into(),
+        device_fingerprint: None,
+        velocity_features: None,
+        ground_truth_explanation: None,
+        is_false_positive: false,
+        false_positive_reason: None,
+        network_context: None,
+        source_payment_id: None,
+        source_invoice_id: None,
+        journal_entry_id: None,
+        gl_cash_account: None,
     }
 }
 
