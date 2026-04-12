@@ -91,14 +91,14 @@ pub struct GoingConcernIndicator {
     pub description: String,
     /// Quantitative measure associated with the indicator (e.g. net loss amount).
     #[serde(
-        with = "rust_decimal::serde::str_option",
+        with = "crate::serde_decimal::option",
         skip_serializing_if = "Option::is_none",
         default
     )]
     pub quantitative_measure: Option<Decimal>,
     /// Threshold at which the indicator becomes critical (e.g. covenant limit).
     #[serde(
-        with = "rust_decimal::serde::str_option",
+        with = "crate::serde_decimal::option",
         skip_serializing_if = "Option::is_none",
         default
     )]

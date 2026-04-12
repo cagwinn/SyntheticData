@@ -42,9 +42,9 @@ pub enum NoteTableValue {
     /// Plain text cell.
     Text(String),
     /// Monetary or numeric amount.
-    Amount(#[serde(with = "rust_decimal::serde::str")] Decimal),
+    Amount(#[serde(with = "crate::serde_decimal")] Decimal),
     /// Percentage value (stored as a fraction, e.g. 0.25 = 25 %).
-    Percentage(#[serde(with = "rust_decimal::serde::str")] Decimal),
+    Percentage(#[serde(with = "crate::serde_decimal")] Decimal),
     /// Date cell.
     Date(NaiveDate),
     /// Empty / not applicable cell.

@@ -33,6 +33,8 @@ pub mod pcg_loader;
 pub mod plugins;
 pub mod rate_limit;
 pub mod resource_guard;
+pub mod serde_decimal;
+pub mod serde_timestamp;
 pub mod skr;
 pub mod skr_loader;
 pub mod streaming;

@@ -3,8 +3,8 @@
 use serde::{Deserialize, Serialize};
 
 use super::{
-    AnomalyFingerprint, CorrelationFingerprint, IntegrityFingerprint, Manifest, PrivacyAudit,
-    RulesFingerprint, SchemaFingerprint, StatisticsFingerprint,
+    AnomalyFingerprint, BankingFingerprint, CorrelationFingerprint, IntegrityFingerprint,
+    Manifest, PrivacyAudit, RulesFingerprint, SchemaFingerprint, StatisticsFingerprint,
 };
 
 /// The root fingerprint structure containing all extracted components.
@@ -39,6 +39,10 @@ pub struct Fingerprint {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub anomalies: Option<AnomalyFingerprint>,
 
+    /// Banking/AML patterns (customer/account/typology distributions).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub banking: Option<BankingFingerprint>,
+
     /// Privacy audit trail documenting all privacy decisions.
     pub privacy_audit: PrivacyAudit,
 }
@@ -59,8 +63,20 @@ impl Fingerprint {
             integrity: None,
             rules: None,
             anomalies: None,
+            banking: None,
             privacy_audit,
         }
+    }
+
+    /// Add banking fingerprint.
+    pub fn with_banking(mut self, banking: BankingFingerprint) -> Self {
+        self.banking = Some(banking);
+        self
+    }
+
+    /// Check if the fingerprint has banking data.
+    pub fn has_banking(&self) -> bool {
+        self.banking.is_some()
     }
 
     /// Add correlation fingerprint.

@@ -18,7 +18,7 @@ pub struct IndustryBenchmark {
     /// Metric name (e.g., "gross_margin_pct", "current_ratio")
     pub metric: String,
     /// The benchmark value
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub value: Decimal,
     /// Source attribution — always synthetic
     pub source: String,

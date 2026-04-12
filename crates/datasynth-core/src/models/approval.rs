@@ -76,6 +76,7 @@ pub struct ApprovalAction {
     pub action: ApprovalActionType,
 
     /// Timestamp of the action
+    #[serde(with = "crate::serde_timestamp::utc")]
     pub action_timestamp: DateTime<Utc>,
 
     /// Comments/notes from the actor
@@ -141,9 +142,11 @@ pub struct ApprovalWorkflow {
     pub preparer_name: String,
 
     /// When the entry was submitted for approval
+    #[serde(default, with = "crate::serde_timestamp::utc::option")]
     pub submitted_at: Option<DateTime<Utc>>,
 
     /// When the entry was finally approved
+    #[serde(default, with = "crate::serde_timestamp::utc::option")]
     pub approved_at: Option<DateTime<Utc>>,
 
     /// Transaction amount (for threshold calculation)

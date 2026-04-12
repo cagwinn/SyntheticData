@@ -69,6 +69,26 @@ impl BankAccountType {
         }
     }
 
+    /// Default GL cash account code for this account type (following standard COA conventions).
+    ///
+    /// Enables integration with the accounting layer: bank transactions on this
+    /// account post to/from this GL account. Can be overridden per account.
+    pub fn default_gl_account(&self) -> &'static str {
+        match self {
+            Self::Checking => "100000",           // Cash - Operating
+            Self::Savings => "100100",            // Cash - Savings
+            Self::MoneyMarket => "100200",        // Cash - Money Market
+            Self::CertificateOfDeposit => "100300", // Cash - CDs
+            Self::BusinessOperating => "100000",  // Cash - Operating (same as Checking)
+            Self::BusinessSavings => "100100",    // Cash - Savings
+            Self::TrustAccount => "100500",       // Cash - Trust
+            Self::Investment => "120000",         // Marketable Securities
+            Self::ForeignCurrency => "100400",    // Cash - FX
+            Self::Escrow => "100600",             // Cash - Escrow
+            Self::Payroll => "100700",            // Cash - Payroll
+        }
+    }
+
     /// Risk weight for AML scoring.
     pub fn risk_weight(&self) -> f64 {
         match self {

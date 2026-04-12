@@ -1487,10 +1487,15 @@ impl EnhancedOrchestrator {
         Self::new(config, PhaseConfig::default())
     }
 
-    /// Set a streaming phase sink for real-time output.
+    /// Set a streaming phase sink for real-time output (builder pattern).
     pub fn with_phase_sink(mut self, sink: Box<dyn crate::stream_pipeline::PhaseSink>) -> Self {
         self.phase_sink = Some(sink);
         self
+    }
+
+    /// Set a streaming phase sink on an existing orchestrator.
+    pub fn set_phase_sink(&mut self, sink: Box<dyn crate::stream_pipeline::PhaseSink>) {
+        self.phase_sink = Some(sink);
     }
 
     /// Emit a batch of items to the phase sink (if configured).
@@ -1867,6 +1872,22 @@ impl EnhancedOrchestrator {
             self.config.global.period_months,
             self.config.companies.len()
         );
+
+        // Set decimal serialization mode (thread-local, affects JSON output).
+        // Use a scope guard to reset on drop (prevents leaking across spawn_blocking reuse).
+        let is_native = self.config.output.numeric_mode == datasynth_config::NumericMode::Native;
+        datasynth_core::serde_decimal::set_numeric_native(is_native);
+        struct NumericModeGuard;
+        impl Drop for NumericModeGuard {
+            fn drop(&mut self) {
+                datasynth_core::serde_decimal::set_numeric_native(false);
+            }
+        }
+        let _numeric_guard = if is_native {
+            Some(NumericModeGuard)
+        } else {
+            None
+        };
 
         // Initial resource check before starting
         let initial_level = self.check_resources_with_log("initial")?;
@@ -2326,6 +2347,55 @@ impl EnhancedOrchestrator {
             &anomaly_labels.labels,
         );
 
+        // Propagate fraud labels from journal entries to source documents.
+        // This allows consumers to identify fraudulent POs, invoices, etc. directly
+        // instead of tracing through document_references.json.
+        {
+            use std::collections::HashMap;
+            // Build a map from document_id -> (is_fraud, fraud_type) from fraudulent JEs
+            let mut fraud_map: HashMap<String, datasynth_core::FraudType> =
+                HashMap::new();
+            for je in &entries {
+                if je.header.is_fraud {
+                    if let Some(ref fraud_type) = je.header.fraud_type {
+                        // Extract referenced document ID from the JE reference field
+                        if let Some(ref reference) = je.header.reference {
+                            fraud_map.insert(reference.clone(), *fraud_type);
+                        }
+                        // Also tag via journal_entry_id on document headers
+                        fraud_map
+                            .insert(je.header.document_id.to_string(), *fraud_type);
+                    }
+                }
+            }
+            if !fraud_map.is_empty() {
+                let mut propagated = 0usize;
+                // Use DocumentHeader::propagate_fraud method for each doc type
+                macro_rules! propagate_to {
+                    ($collection:expr) => {
+                        for doc in &mut $collection {
+                            if doc.header.propagate_fraud(&fraud_map) {
+                                propagated += 1;
+                            }
+                        }
+                    };
+                }
+                propagate_to!(document_flows.purchase_orders);
+                propagate_to!(document_flows.goods_receipts);
+                propagate_to!(document_flows.vendor_invoices);
+                propagate_to!(document_flows.payments);
+                propagate_to!(document_flows.sales_orders);
+                propagate_to!(document_flows.deliveries);
+                propagate_to!(document_flows.customer_invoices);
+                if propagated > 0 {
+                    info!(
+                        "Propagated fraud labels to {} document flow records",
+                        propagated
+                    );
+                }
+            }
+        }
+
         // Phase 26: Red Flag Indicators (after anomaly injection so fraud labels are available)
         let red_flags = self.phase_red_flags(&anomaly_labels, &document_flows, &mut stats)?;
 
@@ -2356,7 +2426,50 @@ impl EnhancedOrchestrator {
         let audit = self.phase_audit_data(&entries, &mut stats)?;
 
         // Phase 12: Banking KYC/AML Data
-        let banking = self.phase_banking_data(&mut stats)?;
+        let mut banking = self.phase_banking_data(&mut stats)?;
+
+        // Phase 12.5: Bridge document-flow Payments → BankTransactions
+        // Creates coherence between the accounting layer (payments, JEs) and the
+        // banking layer (bank transactions). A vendor invoice payment now appears
+        // on both sides with cross-references and fraud labels propagated.
+        if self.phase_config.generate_banking
+            && !document_flows.payments.is_empty()
+            && !banking.accounts.is_empty()
+        {
+            let bridge_rate = self.config.banking.typologies.payment_bridge_rate;
+            if bridge_rate > 0.0 {
+                let mut bridge = datasynth_banking::generators::payment_bridge::PaymentBridgeGenerator::new(
+                    self.seed,
+                );
+                let (bridged_txns, bridge_stats) = bridge.bridge_payments(
+                    &document_flows.payments,
+                    &banking.customers,
+                    &banking.accounts,
+                    bridge_rate,
+                );
+                info!(
+                    "Payment bridge: {} payments bridged, {} bank txns emitted, {} fraud propagated",
+                    bridge_stats.bridged_count,
+                    bridge_stats.transactions_emitted,
+                    bridge_stats.fraud_propagated,
+                );
+                let bridged_count = bridged_txns.len();
+                banking.transactions.extend(bridged_txns);
+
+                // Re-run velocity computation so bridged txns also get features
+                // (otherwise ML pipelines see a split: native=with-velocity, bridged=without)
+                if self.config.banking.temporal.enable_velocity_features && bridged_count > 0 {
+                    datasynth_banking::generators::velocity_computer::compute_velocity_features(
+                        &mut banking.transactions,
+                    );
+                }
+
+                // Recompute suspicious count after bridging
+                banking.suspicious_count = banking.transactions.iter().filter(|t| t.is_suspicious).count();
+                stats.banking_transaction_count = banking.transactions.len();
+                stats.banking_suspicious_count = banking.suspicious_count;
+            }
+        }
 
         // Phase 13: Graph Export
         let graph_export = self.phase_graph_export(&entries, &coa, &mut stats)?;

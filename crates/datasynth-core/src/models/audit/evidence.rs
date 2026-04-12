@@ -71,7 +71,9 @@ pub struct AuditEvidence {
     pub status: EvidenceStatus,
 
     // === Metadata ===
+    #[serde(with = "crate::serde_timestamp::utc")]
     pub created_at: DateTime<Utc>,
+    #[serde(with = "crate::serde_timestamp::utc")]
     pub updated_at: DateTime<Utc>,
 }
 

@@ -55,6 +55,7 @@
 //! - [`DistributionType::Empirical`] - Fallback histogram representation
 
 mod anomaly;
+mod banking;
 mod correlation;
 mod fingerprint;
 mod integrity;
@@ -65,6 +66,7 @@ mod schema;
 mod statistics;
 
 pub use anomaly::*;
+pub use banking::*;
 pub use correlation::*;
 pub use fingerprint::*;
 pub use integrity::*;

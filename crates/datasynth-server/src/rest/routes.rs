@@ -181,6 +181,7 @@ pub fn create_router_full_with_backend(
         .route("/api/stream/pause", post(pause_stream))
         .route("/api/stream/resume", post(resume_stream))
         .route("/api/stream/trigger/{pattern}", post(trigger_pattern))
+        .route("/api/stream/ndjson", get(stream_ndjson))
         // Jobs
         .route("/api/jobs/submit", post(submit_job))
         .route("/api/jobs", get(list_jobs))
@@ -258,6 +259,7 @@ pub fn create_router_with_auth(
         .route("/api/stream/pause", post(pause_stream))
         .route("/api/stream/resume", post(resume_stream))
         .route("/api/stream/trigger/{pattern}", post(trigger_pattern))
+        .route("/api/stream/ndjson", get(stream_ndjson))
         // Jobs
         .route("/api/jobs/submit", post(submit_job))
         .route("/api/jobs", get(list_jobs))
@@ -321,6 +323,7 @@ pub fn create_router_with_cors(service: SynthService, cors_config: CorsConfig) -
         .route("/api/stream/pause", post(pause_stream))
         .route("/api/stream/resume", post(resume_stream))
         .route("/api/stream/trigger/{pattern}", post(trigger_pattern))
+        .route("/api/stream/ndjson", get(stream_ndjson))
         // Jobs
         .route("/api/jobs/submit", post(submit_job))
         .route("/api/jobs", get(list_jobs))
@@ -941,6 +944,197 @@ async fn trigger_pattern(
             message: "Failed to acquire lock for pattern trigger".to_string(),
         }),
     }
+}
+
+/// A [`PhaseSink`](datasynth_runtime::stream_pipeline::PhaseSink) that sends
+/// NDJSON lines through a `tokio::sync::mpsc::Sender`. Bridges the synchronous
+/// generation pipeline to an async HTTP streaming response.
+struct ChannelPhaseSink {
+    tx: tokio::sync::mpsc::Sender<String>,
+    stats: Arc<std::sync::Mutex<datasynth_runtime::stream_pipeline::StreamStats>>,
+}
+
+impl ChannelPhaseSink {
+    fn new(tx: tokio::sync::mpsc::Sender<String>) -> Self {
+        Self {
+            tx,
+            stats: Arc::new(std::sync::Mutex::new(
+                datasynth_runtime::stream_pipeline::StreamStats::default(),
+            )),
+        }
+    }
+}
+
+impl datasynth_runtime::stream_pipeline::PhaseSink for ChannelPhaseSink {
+    fn emit(
+        &self,
+        phase: &str,
+        item_type: &str,
+        item: &serde_json::Value,
+    ) -> Result<(), datasynth_runtime::stream_pipeline::StreamError> {
+        let envelope = serde_json::json!({
+            "phase": phase,
+            "item_type": item_type,
+            "data": item,
+        });
+        let json = serde_json::to_string(&envelope).map_err(|e| {
+            datasynth_runtime::stream_pipeline::StreamError::Serialization(e.to_string())
+        })?;
+
+        // blocking_send: we're on a spawn_blocking thread
+        self.tx.blocking_send(json).map_err(|_| {
+            datasynth_runtime::stream_pipeline::StreamError::Connection(
+                "channel closed".to_string(),
+            )
+        })?;
+
+        if let Ok(mut stats) = self.stats.lock() {
+            stats.items_emitted += 1;
+        }
+        Ok(())
+    }
+
+    fn phase_complete(&self, _phase: &str) -> Result<(), datasynth_runtime::stream_pipeline::StreamError> {
+        if let Ok(mut stats) = self.stats.lock() {
+            stats.phases_completed += 1;
+        }
+        Ok(())
+    }
+
+    fn flush(&self) -> Result<(), datasynth_runtime::stream_pipeline::StreamError> {
+        Ok(())
+    }
+
+    fn stats(&self) -> datasynth_runtime::stream_pipeline::StreamStats {
+        self.stats
+            .lock()
+            .map(|s| s.clone())
+            .unwrap_or_default()
+    }
+}
+
+/// Query parameters for the NDJSON streaming endpoint.
+#[derive(Debug, Deserialize)]
+struct NdjsonStreamQuery {
+    /// Target events per second (0 or absent = unlimited).
+    #[serde(default)]
+    rate: Option<f64>,
+    /// Token bucket burst size (default 100).
+    #[serde(default)]
+    burst: Option<u32>,
+    /// Emit a _progress event every N items (default 100, 0 = disabled).
+    #[serde(default)]
+    progress_interval: Option<u64>,
+}
+
+/// NDJSON streaming endpoint.
+///
+/// Runs a full generation and streams every phase (master data, document flows,
+/// journal entries, anomalies, OCPM, etc.) as newline-delimited JSON.
+///
+/// Each line is a self-describing NDJSON envelope:
+/// ```json
+/// {"phase":"journal_entries","item_type":"JournalEntry","data":{...}}
+/// ```
+/// Progress events: `{"phase":"_progress","item_type":"StreamProgress","data":{...}}`
+/// Completion: `{"type":"_complete","summary":{...}}`
+///
+/// Rate-controlled via the `rate` query parameter (events/sec, 0 = unlimited).
+///
+/// Example: `GET /api/stream/ndjson?rate=100&progress_interval=50`
+async fn stream_ndjson(
+    State(state): State<AppState>,
+    axum::extract::Query(params): axum::extract::Query<NdjsonStreamQuery>,
+) -> impl IntoResponse {
+    let config = state.server_state.config.read().await.clone();
+    let rate = params.rate.unwrap_or(0.0);
+    let burst = params.burst.unwrap_or(100);
+    let progress_interval = params.progress_interval.unwrap_or(100);
+
+    // Channel: generation thread sends NDJSON lines, HTTP response reads them
+    let (tx, rx) = tokio::sync::mpsc::channel::<String>(1024);
+
+    // Spawn generation on a blocking thread
+    tokio::task::spawn_blocking(move || {
+        use datasynth_runtime::stream_pipeline::*;
+
+        // Create a PhaseSink that sends NDJSON through the channel
+        let channel_sink = ChannelPhaseSink::new(tx.clone());
+
+        // Wrap with rate limiting
+        let pipeline: Box<dyn PhaseSink> = Box::new(RateLimitedPipeline::new(
+            Box::new(channel_sink),
+            rate,
+            burst,
+            progress_interval,
+        ));
+
+        // Configure generation with all phases
+        let mut phase_config = PhaseConfig::from_config(&config);
+        phase_config.show_progress = false;
+
+        match EnhancedOrchestrator::new(config, phase_config) {
+            Ok(mut orchestrator) => {
+                orchestrator.set_phase_sink(pipeline);
+                match orchestrator.generate() {
+                    Ok(result) => {
+                        // Send completion summary
+                        let summary = serde_json::json!({
+                            "type": "_complete",
+                            "summary": {
+                                "total_entries": result.statistics.total_entries,
+                                "total_line_items": result.statistics.total_line_items,
+                                "anomaly_count": result.anomaly_labels.labels.len(),
+                            }
+                        });
+                        let _ = tx.blocking_send(
+                            serde_json::to_string(&summary).unwrap_or_default(),
+                        );
+                    }
+                    Err(e) => {
+                        let err = serde_json::json!({
+                            "type": "_error",
+                            "message": format!("Generation failed: {e}"),
+                        });
+                        let _ = tx.blocking_send(
+                            serde_json::to_string(&err).unwrap_or_default(),
+                        );
+                    }
+                }
+            }
+            Err(e) => {
+                let err = serde_json::json!({
+                    "type": "_error",
+                    "message": format!("Failed to create orchestrator: {e}"),
+                });
+                let _ =
+                    tx.blocking_send(serde_json::to_string(&err).unwrap_or_default());
+            }
+        }
+        // tx is dropped here, closing the channel → stream ends
+    });
+
+    // Convert the receiver into an axum streaming response
+    let stream = tokio_stream::wrappers::ReceiverStream::new(rx);
+    let body = axum::body::Body::from_stream(
+        tokio_stream::StreamExt::map(stream, |mut line| {
+            line.push('\n');
+            Ok::<_, std::convert::Infallible>(line)
+        }),
+    );
+
+    axum::response::Response::builder()
+        .header("Content-Type", "application/x-ndjson")
+        .header("Transfer-Encoding", "chunked")
+        .header("Cache-Control", "no-cache")
+        .header("X-Content-Type-Options", "nosniff")
+        .body(body)
+        .unwrap_or_else(|_| {
+            axum::response::Response::builder()
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .body(axum::body::Body::empty())
+                .expect("fallback response")
+        })
 }
 
 /// WebSocket endpoint for metrics stream.

@@ -30,7 +30,7 @@ pub struct SubsequentEvent {
     pub description: String,
     /// Financial impact, if quantifiable (adjusting events or disclosed amounts)
     #[serde(
-        with = "rust_decimal::serde::str_option",
+        with = "crate::serde_decimal::option",
         skip_serializing_if = "Option::is_none",
         default
     )]

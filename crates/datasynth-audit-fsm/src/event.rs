@@ -9,6 +9,7 @@ use uuid::Uuid;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AuditEvent {
     pub event_id: Uuid,
+    #[serde(with = "datasynth_core::serde_timestamp::naive")]
     pub timestamp: NaiveDateTime,
     pub event_type: String,
     pub procedure_id: String,
@@ -66,6 +67,7 @@ pub struct AuditAnomalyRecord {
     pub severity: AnomalySeverity,
     pub procedure_id: String,
     pub step_id: Option<String>,
+    #[serde(with = "datasynth_core::serde_timestamp::naive")]
     pub timestamp: NaiveDateTime,
     pub description: String,
 }

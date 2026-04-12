@@ -132,7 +132,9 @@ pub struct ExternalConfirmation {
     pub status: ConfirmationStatus,
     /// Positive, negative, or blank form
     pub positive_negative: ConfirmationForm,
+    #[serde(with = "crate::serde_timestamp::utc")]
     pub created_at: DateTime<Utc>,
+    #[serde(with = "crate::serde_timestamp::utc")]
     pub updated_at: DateTime<Utc>,
 }
 
@@ -219,7 +221,9 @@ pub struct ConfirmationResponse {
     pub reconciled: bool,
     /// Explanation of the reconciliation
     pub reconciliation_explanation: Option<String>,
+    #[serde(with = "crate::serde_timestamp::utc")]
     pub created_at: DateTime<Utc>,
+    #[serde(with = "crate::serde_timestamp::utc")]
     pub updated_at: DateTime<Utc>,
 }
 

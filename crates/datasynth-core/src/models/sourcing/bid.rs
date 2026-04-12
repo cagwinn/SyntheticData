@@ -32,12 +32,12 @@ pub struct BidLineItem {
     /// Item number (matches RFx line item)
     pub item_number: u16,
     /// Offered unit price
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub unit_price: Decimal,
     /// Offered quantity
     pub quantity: Decimal,
     /// Total line amount
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub total_amount: Decimal,
     /// Lead time in days
     pub lead_time_days: u32,
@@ -63,7 +63,7 @@ pub struct SupplierBid {
     /// Bid line items
     pub line_items: Vec<BidLineItem>,
     /// Total bid amount
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub total_amount: Decimal,
     /// Validity period (days from submission)
     pub validity_days: u32,

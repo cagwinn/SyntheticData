@@ -78,9 +78,9 @@ pub struct EmissionRecord {
     pub period: NaiveDate,
     pub activity_data: Option<String>,
     pub activity_unit: Option<String>,
-    #[serde(with = "rust_decimal::serde::str_option")]
+    #[serde(with = "crate::serde_decimal::option")]
     pub emission_factor: Option<Decimal>,
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub co2e_tonnes: Decimal,
     pub estimation_method: EstimationMethod,
     pub source: Option<String>,
@@ -123,9 +123,9 @@ pub struct EnergyConsumption {
     pub facility_id: String,
     pub period: NaiveDate,
     pub energy_source: EnergySourceType,
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub consumption_kwh: Decimal,
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub cost: Decimal,
     pub currency: String,
     pub is_renewable: bool,
@@ -155,11 +155,11 @@ pub struct WaterUsage {
     pub facility_id: String,
     pub period: NaiveDate,
     pub source: WaterSource,
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub withdrawal_m3: Decimal,
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub discharge_m3: Decimal,
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub consumption_m3: Decimal,
     pub is_water_stressed_area: bool,
 }
@@ -208,7 +208,7 @@ pub struct WasteRecord {
     pub period: NaiveDate,
     pub waste_type: WasteType,
     pub disposal_method: DisposalMethod,
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub quantity_tonnes: Decimal,
     pub is_diverted_from_landfill: bool,
 }
@@ -262,7 +262,7 @@ pub struct WorkforceDiversityMetric {
     pub category: String,
     pub headcount: u32,
     pub total_headcount: u32,
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub percentage: Decimal,
 }
 
@@ -289,11 +289,11 @@ pub struct PayEquityMetric {
     pub dimension: DiversityDimension,
     pub reference_group: String,
     pub comparison_group: String,
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub reference_median_salary: Decimal,
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub comparison_median_salary: Decimal,
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub pay_gap_ratio: Decimal,
     pub sample_size: u32,
 }
@@ -349,11 +349,11 @@ pub struct SafetyMetric {
     pub days_away: u32,
     pub near_misses: u32,
     pub fatalities: u32,
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub trir: Decimal,
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub ltir: Decimal,
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub dart_rate: Decimal,
 }
 
@@ -401,9 +401,9 @@ pub struct GovernanceMetric {
     pub board_size: u32,
     pub independent_directors: u32,
     pub female_directors: u32,
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub board_independence_ratio: Decimal,
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub board_gender_diversity_ratio: Decimal,
     pub ethics_training_completion_pct: f64,
     pub whistleblower_reports: u32,
@@ -454,13 +454,13 @@ pub struct SupplierEsgAssessment {
     pub vendor_id: String,
     pub assessment_date: NaiveDate,
     pub method: AssessmentMethod,
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub environmental_score: Decimal,
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub social_score: Decimal,
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub governance_score: Decimal,
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub overall_score: Decimal,
     pub risk_flag: EsgRiskFlag,
     pub corrective_actions_required: u32,
@@ -531,13 +531,13 @@ pub struct MaterialityAssessment {
     pub period: NaiveDate,
     pub topic: String,
     /// Impact materiality (outward impact on environment/society)
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub impact_score: Decimal,
     /// Financial materiality (inward impact on the enterprise)
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub financial_score: Decimal,
     /// Combined score
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub combined_score: Decimal,
     pub is_material: bool,
 }
@@ -585,13 +585,13 @@ pub struct ClimateScenario {
     pub scenario_type: ScenarioType,
     pub time_horizon: TimeHorizon,
     pub description: String,
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub temperature_rise_c: Decimal,
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub transition_risk_impact: Decimal,
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub physical_risk_impact: Decimal,
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub financial_impact: Decimal,
 }
 

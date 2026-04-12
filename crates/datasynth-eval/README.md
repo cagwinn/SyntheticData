@@ -19,6 +19,22 @@ Evaluation framework for synthetic financial data quality and coherence.
 | Coherence | Trial balance, subledger reconciliation, FX consistency |
 | Intercompany | IC matching rates, elimination completeness |
 | Uniqueness | Document ID collisions, duplicate transaction detection |
+| Banking/AML | 10 dedicated analyzers covering KYC, typologies, velocity, networks, lifecycle |
+
+### Banking Analyzers (`banking/`)
+
+| Analyzer | What it validates |
+|----------|-------------------|
+| `KycCompletenessAnalyzer` | Core KYC field coverage (name, DOB, ID, risk rating, beneficial owners) |
+| `AmlDetectabilityAnalyzer` | Typology coverage + scenario case_id coherence |
+| `CrossLayerCoherenceAnalyzer` | Payment↔BankTransaction referential integrity, fraud propagation rate |
+| `VelocityQualityAnalyzer` | Rolling-window ordering invariants (1h≤24h≤7d≤30d), z-score calibration |
+| `FalsePositiveAnalyzer` | FP rate bounds, label mutual exclusivity, reason coverage |
+| `DeviceFingerprintAnalyzer` | Power-law device distribution, single-device dominance, trust calibration |
+| `SanctionsScreeningAnalyzer` | Low-risk Clear rate, high-risk match rate, PEP name variations |
+| `SophisticationAnalyzer` | Sophistication level diversity, context-appropriate skew |
+| `LifecycleAnalyzer` | Phase diversity, progression rate, event-driven transition rate |
+| `NetworkStructureAnalyzer` | Power-law topology (hub ratio ≥2.5× avg), role diversity |
 
 ## Usage
 

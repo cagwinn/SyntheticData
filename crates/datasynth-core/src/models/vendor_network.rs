@@ -377,14 +377,14 @@ pub struct PaymentHistory {
     /// Number of late payments
     pub late_payments: u32,
     /// Total payment amount
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub total_amount: Decimal,
     /// Average days to payment
     pub average_days_to_pay: f64,
     /// Last payment date
     pub last_payment_date: Option<NaiveDate>,
     /// Total discounts captured
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub total_discounts: Decimal,
 }
 
@@ -662,7 +662,7 @@ pub struct VendorRelationship {
     /// Dependency analysis
     pub dependency: Option<VendorDependency>,
     /// Annual spend amount
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub annual_spend: Decimal,
     /// Contract reference
     pub contract_id: Option<String>,
@@ -794,7 +794,7 @@ pub struct NetworkStatistics {
     /// Active vendor count
     pub active_vendors: usize,
     /// Total annual spend
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub total_annual_spend: Decimal,
     /// Average relationship age in days
     pub avg_relationship_age_days: f64,

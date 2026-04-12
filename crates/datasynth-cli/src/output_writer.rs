@@ -118,6 +118,66 @@ fn write_journal_entries_csv(
     Ok(())
 }
 
+/// Write journal entries as flat JSON (header fields merged onto each line).
+///
+/// Each object in the output array contains all header fields plus all line fields,
+/// with no nesting. This is the analytics-friendly format.
+fn write_journal_entries_flat_json(
+    result: &EnhancedGenerationResult,
+    output_dir: &Path,
+) -> Result<(), Box<dyn std::error::Error>> {
+    if result.journal_entries.is_empty() {
+        return Ok(());
+    }
+
+    let path = output_dir.join("journal_entries.json");
+    let file = std::fs::File::create(&path)?;
+    let mut writer = std::io::BufWriter::with_capacity(256 * 1024, file);
+
+    // Write opening bracket
+    writer.write_all(b"[\n")?;
+
+    let mut first = true;
+    let mut total_lines = 0usize;
+    for je in &result.journal_entries {
+        // Serialize header to a JSON map
+        let header_value = serde_json::to_value(&je.header)?;
+
+        for line in &je.lines {
+            if !first {
+                writer.write_all(b",\n")?;
+            }
+            first = false;
+            total_lines += 1;
+
+            // Serialize line to a JSON map, then merge header fields in
+            let mut line_value = serde_json::to_value(line)?;
+
+            if let serde_json::Value::Object(ref header_map) = header_value {
+                if let serde_json::Value::Object(ref mut line_map) = line_value {
+                    for (key, val) in header_map {
+                        // Line fields take precedence for shared keys (e.g. document_id)
+                        if !line_map.contains_key(key) {
+                            line_map.insert(key.clone(), val.clone());
+                        }
+                    }
+                }
+            }
+
+            serde_json::to_writer_pretty(&mut writer, &line_value)?;
+        }
+    }
+
+    writer.write_all(b"\n]\n")?;
+    writer.flush()?;
+    info!(
+        "  Journal entries (flat JSON) written: {} line items -> {}",
+        total_lines,
+        path.display()
+    );
+    Ok(())
+}
+
 /// Escape a string for CSV output by quoting if it contains commas or quotes.
 fn csv_escape(s: &str) -> String {
     if s.contains(',') || s.contains('"') || s.contains('\n') {
@@ -141,15 +201,25 @@ fn csv_opt_str(opt: &Option<String>) -> String {
 /// Journal entries are written as a flat CSV file (one row per line item)
 /// and as a nested JSON file. Other data is written as JSON files since
 /// many model types contain nested structures.
+#[allow(dead_code)]
 pub fn write_all_output(
     result: &EnhancedGenerationResult,
     output_dir: &Path,
+) -> Result<(), Box<dyn std::error::Error>> {
+    write_all_output_with_layout(result, output_dir, datasynth_config::ExportLayout::Nested)
+}
+
+/// Write all generated data with a configurable export layout.
+pub fn write_all_output_with_layout(
+    result: &EnhancedGenerationResult,
+    output_dir: &Path,
+    export_layout: datasynth_config::ExportLayout,
 ) -> Result<(), Box<dyn std::error::Error>> {
     std::fs::create_dir_all(output_dir)?;
     info!("Writing comprehensive output to: {}", output_dir.display());
 
     // ========================================================================
-    // Journal Entries (flat CSV + nested JSON)
+    // Journal Entries (flat CSV + JSON)
     // ========================================================================
     if !result.journal_entries.is_empty() {
         // Write flat CSV with one row per line item (header fields repeated)
@@ -157,12 +227,19 @@ pub fn write_all_output(
             warn!("Failed to write journal_entries.csv: {}", e);
         }
 
-        // Also write full journal entries as JSON for consumers that need the nested structure
-        write_json(
-            &result.journal_entries,
-            &output_dir.join("journal_entries.json"),
-            "Journal entries (JSON)",
-        )?;
+        if export_layout == datasynth_config::ExportLayout::Flat {
+            // Flat JSON: header fields merged onto each line
+            if let Err(e) = write_journal_entries_flat_json(result, output_dir) {
+                warn!("Failed to write flat journal_entries.json: {}", e);
+            }
+        } else {
+            // Nested JSON: {"header": {...}, "lines": [...]}
+            write_json(
+                &result.journal_entries,
+                &output_dir.join("journal_entries.json"),
+                "Journal entries (JSON)",
+            )?;
+        }
     }
 
     // ========================================================================
@@ -215,31 +292,36 @@ pub fn write_all_output(
     // Document Flows
     // ========================================================================
     let df_dir = output_dir.join("document_flows");
+    let flat_mode = export_layout == datasynth_config::ExportLayout::Flat;
     if !result.document_flows.purchase_orders.is_empty()
         || !result.document_flows.sales_orders.is_empty()
     {
         std::fs::create_dir_all(&df_dir)?;
         info!("Writing document flows...");
 
-        write_json_safe(
+        write_json_auto(
             &result.document_flows.purchase_orders,
             &df_dir.join("purchase_orders.json"),
             "Purchase orders",
+            flat_mode,
         );
-        write_json_safe(
+        write_json_auto(
             &result.document_flows.goods_receipts,
             &df_dir.join("goods_receipts.json"),
             "Goods receipts",
+            flat_mode,
         );
-        write_json_safe(
+        write_json_auto(
             &result.document_flows.vendor_invoices,
             &df_dir.join("vendor_invoices.json"),
             "Vendor invoices",
+            flat_mode,
         );
-        write_json_safe(
+        write_json_auto(
             &result.document_flows.payments,
             &df_dir.join("payments.json"),
             "Payments",
+            flat_mode,
         );
         let customer_receipts: Vec<_> = result
             .document_flows
@@ -247,25 +329,29 @@ pub fn write_all_output(
             .iter()
             .filter(|p| p.payment_type == PaymentType::ArReceipt)
             .collect();
-        write_json_safe(
+        write_json_auto(
             &customer_receipts,
             &df_dir.join("customer_receipts.json"),
             "Customer receipts",
+            flat_mode,
         );
-        write_json_safe(
+        write_json_auto(
             &result.document_flows.sales_orders,
             &df_dir.join("sales_orders.json"),
             "Sales orders",
+            flat_mode,
         );
-        write_json_safe(
+        write_json_auto(
             &result.document_flows.deliveries,
             &df_dir.join("deliveries.json"),
             "Deliveries",
+            flat_mode,
         );
-        write_json_safe(
+        write_json_auto(
             &result.document_flows.customer_invoices,
             &df_dir.join("customer_invoices.json"),
             "Customer invoices",
+            flat_mode,
         );
 
         // Document cross-references (PO→GR, GR→Invoice, Invoice→Payment, etc.)
@@ -1294,7 +1380,9 @@ pub fn write_all_output(
     // ========================================================================
     // Chart of Accounts
     // ========================================================================
-    match serde_json::to_string_pretty(&result.chart_of_accounts) {
+    // Write accounts as a flat array for consistency with other entity files.
+    // CoA metadata (coa_id, country, industry) is preserved in the generation manifest.
+    match serde_json::to_string_pretty(&result.chart_of_accounts.accounts) {
         Ok(json) => {
             if let Err(e) = std::fs::write(output_dir.join("chart_of_accounts.json"), json) {
                 warn!("Failed to write chart of accounts: {}", e);
@@ -1336,6 +1424,106 @@ pub fn write_all_output(
                 }
             }
             Err(e) => warn!("Failed to serialize data quality stats: {}", e),
+        }
+    }
+
+    // ========================================================================
+    // Pre-built Analytics (Benford, amount distribution, process variants)
+    // ========================================================================
+    {
+        let analytics_dir = output_dir.join("analytics");
+
+        // Collect non-zero amounts from journal entry lines
+        let amounts: Vec<_> = result
+            .journal_entries
+            .iter()
+            .flat_map(|je| je.lines.iter())
+            .flat_map(|line| {
+                let d = (!line.debit_amount.is_zero()).then_some(line.debit_amount);
+                let c = (!line.credit_amount.is_zero()).then_some(line.credit_amount);
+                d.into_iter().chain(c)
+            })
+            .collect();
+
+        if amounts.len() >= 10 {
+            std::fs::create_dir_all(&analytics_dir)?;
+            info!("Writing pre-built analytics ({} amounts)...", amounts.len());
+
+            // Benford's Law analysis
+            let benford_analyzer = datasynth_eval::BenfordAnalyzer::default();
+            match benford_analyzer.analyze(&amounts) {
+                Ok(ref benford_result) => {
+                    if let Ok(json) = serde_json::to_string_pretty(benford_result) {
+                        if let Err(e) =
+                            std::fs::write(analytics_dir.join("benford_analysis.json"), json)
+                        {
+                            warn!("Failed to write Benford analysis: {}", e);
+                        } else {
+                            info!(
+                                "  Benford analysis written (conformity: {:?}, MAD: {:.4})",
+                                benford_result.conformity, benford_result.mad
+                            );
+                        }
+                    }
+                }
+                Err(e) => warn!("Benford analysis skipped: {}", e),
+            }
+
+            // Amount distribution analysis
+            let amount_analyzer = datasynth_eval::AmountDistributionAnalyzer::new();
+            match amount_analyzer.analyze(&amounts) {
+                Ok(ref dist_result) => {
+                    if let Ok(json) = serde_json::to_string_pretty(dist_result) {
+                        if let Err(e) =
+                            std::fs::write(analytics_dir.join("amount_distribution.json"), json)
+                        {
+                            warn!("Failed to write amount distribution: {}", e);
+                        } else {
+                            info!(
+                                "  Amount distribution written (skewness: {:.2}, kurtosis: {:.2})",
+                                dist_result.skewness, dist_result.kurtosis
+                            );
+                        }
+                    }
+                }
+                Err(e) => warn!("Amount distribution analysis skipped: {}", e),
+            }
+        }
+
+        // Process variant summary (from OCPM event log)
+        if let Some(ref event_log) = result.ocpm.event_log {
+            if !event_log.variants.is_empty() {
+                std::fs::create_dir_all(&analytics_dir)?;
+                let variant_data: Vec<datasynth_eval::VariantData> = event_log
+                    .variants
+                    .values()
+                    .map(|v| datasynth_eval::VariantData {
+                        variant_id: v.variant_id.clone(),
+                        case_count: v.frequency as usize,
+                        is_happy_path: v.is_happy_path,
+                    })
+                    .collect();
+
+                let variant_analyzer = datasynth_eval::VariantAnalyzer::new();
+                match variant_analyzer.analyze(&variant_data) {
+                    Ok(ref variant_result) => {
+                        if let Ok(json) = serde_json::to_string_pretty(variant_result) {
+                            if let Err(e) = std::fs::write(
+                                analytics_dir.join("process_variant_summary.json"),
+                                json,
+                            ) {
+                                warn!("Failed to write variant summary: {}", e);
+                            } else {
+                                info!(
+                                    "  Process variant summary written ({} variants, entropy: {:.2})",
+                                    variant_result.variant_count, variant_result.variant_entropy
+                                );
+                            }
+                        }
+                    }
+                    Err(e) => warn!("Variant analysis skipped: {}", e),
+                }
+            }
         }
     }
 
@@ -1901,6 +2089,107 @@ pub fn write_all_output(
 fn write_json_safe<T: serde::Serialize>(data: &[T], path: &Path, label: &str) {
     if let Err(e) = write_json(data, path, label) {
         warn!("Failed to write {}: {}", label, e);
+    }
+}
+
+/// Write JSON, choosing flat or nested layout based on the flag.
+fn write_json_auto<T: serde::Serialize>(data: &[T], path: &Path, label: &str, flat: bool) {
+    if flat {
+        write_json_flat(data, path, label);
+    } else {
+        write_json_safe(data, path, label);
+    }
+}
+
+/// Write a flat JSON file by merging nested `header` fields onto each top-level item.
+///
+/// For structures like `{"header": {...}, "items": [...], "field": val}`, this
+/// merges header fields and top-level scalar fields onto each item. If the struct
+/// has no `header` key, it writes the data as-is (passthrough).
+fn write_json_flat<T: serde::Serialize>(data: &[T], path: &Path, label: &str) {
+    if data.is_empty() {
+        return;
+    }
+
+    let flat: Vec<serde_json::Value> = data
+        .iter()
+        .flat_map(|item| {
+            let val = match serde_json::to_value(item) {
+                Ok(v) => v,
+                Err(e) => {
+                    warn!("Failed to serialize record for flat export: {}", e);
+                    return vec![];
+                }
+            };
+
+            if let serde_json::Value::Object(ref map) = val {
+                // Find the header object
+                let header = map.get("header").cloned();
+                // Find the items/lines array (first array field that isn't in the header)
+                let items_key = ["items", "lines", "allocations", "line_items"]
+                    .iter()
+                    .find(|k| map.contains_key(**k))
+                    .copied();
+
+                if let (Some(serde_json::Value::Object(header_map)), Some(items_key)) =
+                    (header, items_key)
+                {
+                    // Collect top-level scalar fields (not header, not items/lines)
+                    let mut top_fields = serde_json::Map::new();
+                    for (k, v) in map {
+                        if k != "header" && k != items_key && !v.is_array() && !v.is_object() {
+                            top_fields.insert(k.clone(), v.clone());
+                        }
+                    }
+
+                    if let Some(serde_json::Value::Array(items)) = map.get(items_key) {
+                        return items
+                            .iter()
+                            .map(|item_val| {
+                                let mut merged = serde_json::Map::new();
+                                // Line/item fields first (take precedence over header)
+                                if let serde_json::Value::Object(ref m) = *item_val {
+                                    merged.extend(m.clone());
+                                }
+                                // Then header fields (don't overwrite line fields)
+                                for (k, v) in &header_map {
+                                    if !merged.contains_key(k) {
+                                        merged.insert(k.clone(), v.clone());
+                                    }
+                                }
+                                // Then top-level scalars
+                                for (k, v) in &top_fields {
+                                    if !merged.contains_key(k) {
+                                        merged.insert(k.clone(), v.clone());
+                                    }
+                                }
+                                serde_json::Value::Object(merged)
+                            })
+                            .collect();
+                    }
+                }
+            }
+
+            // Passthrough: no header/items structure
+            vec![val]
+        })
+        .collect();
+
+    if flat.is_empty() {
+        return;
+    }
+
+    let count = flat.len();
+    match std::fs::File::create(path) {
+        Ok(file) => {
+            let writer = std::io::BufWriter::with_capacity(256 * 1024, file);
+            if let Err(e) = serde_json::to_writer_pretty(writer, &flat) {
+                warn!("Failed to write {}: {}", label, e);
+            } else {
+                info!("  {} written (flat): {} records -> {}", label, count, path.display());
+            }
+        }
+        Err(e) => warn!("Failed to create {}: {}", label, e),
     }
 }
 

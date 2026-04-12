@@ -40,13 +40,16 @@ pub struct BankTransaction {
     /// Account ID
     pub account_id: Uuid,
     /// Timestamp when transaction was initiated
+    #[serde(with = "datasynth_core::serde_timestamp::utc")]
     pub timestamp_initiated: DateTime<Utc>,
     /// Timestamp when transaction was booked
+    #[serde(with = "datasynth_core::serde_timestamp::utc")]
     pub timestamp_booked: DateTime<Utc>,
     /// Timestamp when transaction was settled
+    #[serde(default, with = "datasynth_core::serde_timestamp::utc::option")]
     pub timestamp_settled: Option<DateTime<Utc>>,
     /// Transaction amount (always positive)
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub amount: Decimal,
     /// Transaction currency (ISO 4217)
     pub currency: String,
@@ -63,18 +66,18 @@ pub struct BankTransaction {
     /// Transaction reference/description
     pub reference: String,
     /// Balance before transaction
-    #[serde(with = "rust_decimal::serde::str_option")]
+    #[serde(with = "datasynth_core::serde_decimal::option")]
     pub balance_before: Option<Decimal>,
     /// Balance after transaction
-    #[serde(with = "rust_decimal::serde::str_option")]
+    #[serde(with = "datasynth_core::serde_decimal::option")]
     pub balance_after: Option<Decimal>,
     /// Original currency (if FX conversion)
     pub original_currency: Option<String>,
     /// Original amount (if FX conversion)
-    #[serde(with = "rust_decimal::serde::str_option")]
+    #[serde(with = "datasynth_core::serde_decimal::option")]
     pub original_amount: Option<Decimal>,
     /// FX rate applied
-    #[serde(with = "rust_decimal::serde::str_option")]
+    #[serde(with = "datasynth_core::serde_decimal::option")]
     pub fx_rate: Option<Decimal>,
     /// Location (country code)
     pub location_country: Option<String>,
@@ -112,6 +115,48 @@ pub struct BankTransaction {
     pub scenario_sequence: Option<u32>,
     /// Derived transaction type (e.g., "CARD_PRESENT_SHOPPING")
     pub transaction_type: String,
+
+    // --- Enhanced fields (v2.3.0) ---
+
+    /// Structured device fingerprint (replaces simple device_id for ML use)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub device_fingerprint: Option<super::DeviceFingerprint>,
+
+    /// Pre-computed velocity features (rolling windows)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub velocity_features: Option<super::VelocityFeatures>,
+
+    /// Human-readable ground truth explanation for suspicious transactions
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ground_truth_explanation: Option<String>,
+
+    /// Whether this transaction is a false positive (looks suspicious but isn't)
+    #[serde(default)]
+    pub is_false_positive: bool,
+
+    /// Reason this transaction looks suspicious despite being legitimate
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub false_positive_reason: Option<String>,
+
+    /// Multi-party network context (if part of a coordinated scenario)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub network_context: Option<super::NetworkContext>,
+
+    /// Source Payment document ID (if this bank transaction corresponds to a P2P/O2C payment)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_payment_id: Option<String>,
+
+    /// Source Invoice document ID (vendor invoice or customer invoice paid by this transaction)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_invoice_id: Option<String>,
+
+    /// GL journal entry UUID (if this bank transaction corresponds to a posted JE)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub journal_entry_id: Option<String>,
+
+    /// GL cash account number (from BankAccount.gl_account)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gl_cash_account: Option<String>,
 }
 
 impl BankTransaction {
@@ -165,6 +210,16 @@ impl BankTransaction {
             scenario_id: None,
             scenario_sequence: None,
             transaction_type,
+            device_fingerprint: None,
+            velocity_features: None,
+            ground_truth_explanation: None,
+            is_false_positive: false,
+            false_positive_reason: None,
+            network_context: None,
+            source_payment_id: None,
+            source_invoice_id: None,
+            journal_entry_id: None,
+            gl_cash_account: None,
         }
     }
 
@@ -412,6 +467,30 @@ impl CounterpartyRef {
             account_identifier: None,
             bank_identifier: None,
             country: None,
+        }
+    }
+
+    /// Create a trade partner counterparty with country.
+    pub fn trade_partner(id: Uuid, name: &str, country: &str) -> Self {
+        Self {
+            counterparty_type: CounterpartyType::FinancialInstitution,
+            counterparty_id: Some(id),
+            name: name.to_string(),
+            account_identifier: None,
+            bank_identifier: None,
+            country: Some(country.to_string()),
+        }
+    }
+
+    /// Create a sanctioned entity counterparty with country.
+    pub fn sanctioned_entity(id: Uuid, name: &str, country: &str) -> Self {
+        Self {
+            counterparty_type: CounterpartyType::Unknown,
+            counterparty_id: Some(id),
+            name: name.to_string(),
+            account_identifier: None,
+            bank_identifier: None,
+            country: Some(country.to_string()),
         }
     }
 

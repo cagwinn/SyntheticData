@@ -34,7 +34,7 @@ pub struct BusinessCombination {
 
     /// Goodwill recognised (consideration minus net identifiable assets at FV).
     /// Zero when consideration < net identifiable assets (bargain purchase).
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub goodwill: Decimal,
 
     /// Accounting framework applied: "IFRS" or "US_GAAP"
@@ -45,19 +45,19 @@ pub struct BusinessCombination {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AcquisitionConsideration {
     /// Cash and cash equivalents paid
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub cash: Decimal,
 
     /// Fair value of equity instruments issued by the acquirer
-    #[serde(default, with = "rust_decimal::serde::str_option")]
+    #[serde(default, with = "crate::serde_decimal::option")]
     pub shares_issued_value: Option<Decimal>,
 
     /// Fair value of contingent consideration (earn-out) at acquisition date
-    #[serde(default, with = "rust_decimal::serde::str_option")]
+    #[serde(default, with = "crate::serde_decimal::option")]
     pub contingent_consideration: Option<Decimal>,
 
     /// Total consideration (sum of cash + shares + contingent)
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub total: Decimal,
 }
 
@@ -76,7 +76,7 @@ pub struct AcquisitionPpa {
 
     /// Net identifiable assets at fair value
     /// = sum(asset FVs) - sum(liability FVs)
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub net_identifiable_assets_fv: Decimal,
 }
 
@@ -91,15 +91,15 @@ pub struct AcquisitionFvAdjustment {
     pub asset_or_liability: String,
 
     /// Carrying amount in the acquiree's books at acquisition date
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub book_value: Decimal,
 
     /// Fair value assigned in the PPA
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub fair_value: Decimal,
 
     /// Step-up amount (fair_value - book_value; may be negative for liabilities)
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub step_up: Decimal,
 
     /// Useful life in years for finite-lived intangibles; None for PP&E and indefinite-lived assets

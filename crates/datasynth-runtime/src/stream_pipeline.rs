@@ -6,6 +6,7 @@
 
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
+use std::time::Instant;
 
 /// Trait for sinks that receive generated items phase-by-phase.
 pub trait PhaseSink: Send + Sync {
@@ -189,6 +190,134 @@ impl PhaseSink for StreamPipeline {
 
     fn stats(&self) -> StreamStats {
         self.stats.lock().map(|s| s.clone()).unwrap_or_default()
+    }
+}
+
+/// A rate-limited wrapper around any [`PhaseSink`].
+///
+/// Uses a token bucket [`RateLimiter`] to control emission rate. Each call to
+/// `emit()` acquires a token before forwarding to the inner sink, blocking if
+/// the rate is exceeded.
+///
+/// Also adds a monotonic sequence number and optional progress events to the
+/// output stream.
+///
+/// **Thread safety note:** The rate limiter may sleep while holding an internal
+/// mutex. This is correct for single-threaded generation (the current model)
+/// but would serialize all callers if `emit()` is called from multiple threads
+/// concurrently. If multi-threaded emission is needed in the future, the
+/// lock-then-sleep pattern must be restructured.
+pub struct RateLimitedPipeline {
+    inner: Box<dyn PhaseSink>,
+    limiter: Mutex<datasynth_core::rate_limit::RateLimiter>,
+    sequence: std::sync::atomic::AtomicU64,
+    progress_interval: u64,
+    start_time: Instant,
+}
+
+impl RateLimitedPipeline {
+    /// Wrap a `PhaseSink` with rate limiting.
+    ///
+    /// - `events_per_second`: target rate (0 = unlimited)
+    /// - `burst_size`: token bucket burst capacity
+    /// - `progress_interval`: emit a `_progress` event every N items (0 = disabled)
+    pub fn new(
+        inner: Box<dyn PhaseSink>,
+        events_per_second: f64,
+        burst_size: u32,
+        progress_interval: u64,
+    ) -> Self {
+        let config = if events_per_second > 0.0 {
+            datasynth_core::rate_limit::RateLimitConfig {
+                entities_per_second: events_per_second,
+                burst_size,
+                backpressure: datasynth_core::rate_limit::RateLimitBackpressure::Block,
+                enabled: true,
+            }
+        } else {
+            datasynth_core::rate_limit::RateLimitConfig {
+                enabled: false,
+                ..Default::default()
+            }
+        };
+
+        Self {
+            inner,
+            limiter: Mutex::new(datasynth_core::rate_limit::RateLimiter::new(config)),
+            sequence: std::sync::atomic::AtomicU64::new(0),
+            progress_interval,
+            start_time: Instant::now(),
+        }
+    }
+
+    /// Update the rate limit dynamically (e.g., from a REST endpoint).
+    pub fn set_rate(&self, events_per_second: f64) {
+        if let Ok(mut limiter) = self.limiter.lock() {
+            *limiter = datasynth_core::rate_limit::RateLimiter::new(
+                datasynth_core::rate_limit::RateLimitConfig {
+                    entities_per_second: events_per_second,
+                    burst_size: 100,
+                    backpressure: datasynth_core::rate_limit::RateLimitBackpressure::Block,
+                    enabled: events_per_second > 0.0,
+                },
+            );
+        }
+    }
+}
+
+impl PhaseSink for RateLimitedPipeline {
+    fn emit(
+        &self,
+        phase: &str,
+        item_type: &str,
+        item: &serde_json::Value,
+    ) -> Result<(), StreamError> {
+        // Acquire a token (blocks if rate exceeded)
+        if let Ok(mut limiter) = self.limiter.lock() {
+            limiter.acquire();
+        }
+
+        let seq = self
+            .sequence
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+
+        // Write through to inner sink
+        self.inner.emit(phase, item_type, item)?;
+
+        // Periodic progress events
+        if self.progress_interval > 0 && seq > 0 && seq.is_multiple_of(self.progress_interval) {
+            let elapsed = self.start_time.elapsed();
+            let rate = if elapsed.as_secs_f64() > 0.0 {
+                seq as f64 / elapsed.as_secs_f64()
+            } else {
+                0.0
+            };
+            let progress = serde_json::json!({
+                "type": "_progress",
+                "items_emitted": seq,
+                "rate_actual": (rate * 100.0).round() / 100.0,
+                "elapsed_ms": elapsed.as_millis() as u64,
+            });
+            self.inner.emit("_progress", "StreamProgress", &progress)?;
+        }
+
+        Ok(())
+    }
+
+    fn phase_complete(&self, phase: &str) -> Result<(), StreamError> {
+        self.inner.phase_complete(phase)
+    }
+
+    fn flush(&self) -> Result<(), StreamError> {
+        self.inner.flush()
+    }
+
+    fn stats(&self) -> StreamStats {
+        let mut stats = self.inner.stats();
+        stats.items_emitted = self
+            .sequence
+            .load(std::sync::atomic::Ordering::Relaxed);
+        stats
     }
 }
 
@@ -384,5 +513,82 @@ mod tests {
         // Verify items from different phases are properly tagged
         assert_eq!(items[0].0, "journal_entries");
         assert_eq!(items[1].0, "anomaly_injection");
+    }
+
+    #[test]
+    fn test_rate_limited_pipeline_emits_and_tracks_sequence() {
+        let mock = MockPhaseSink::new();
+        let pipeline = RateLimitedPipeline::new(
+            Box::new(mock),
+            0.0,  // unlimited
+            100,
+            0,    // no progress events
+        );
+        let item = serde_json::json!({"id": "test"});
+        pipeline.emit("phase", "Type", &item).unwrap();
+        pipeline.emit("phase", "Type", &item).unwrap();
+        pipeline.emit("phase", "Type", &item).unwrap();
+
+        let stats = pipeline.stats();
+        assert_eq!(stats.items_emitted, 3);
+    }
+
+    #[test]
+    fn test_rate_limited_pipeline_emits_progress() {
+        let mock = MockPhaseSink::new();
+        let pipeline = RateLimitedPipeline::new(
+            Box::new(mock),
+            0.0,  // unlimited
+            100,
+            5,    // progress every 5 items
+        );
+        let item = serde_json::json!({"id": "test"});
+        for _ in 0..10 {
+            pipeline.emit("phase", "Type", &item).unwrap();
+        }
+
+        let stats = pipeline.stats();
+        // Outer sequence counter reports 10 (progress events forwarded to inner sink, not counted)
+        assert_eq!(stats.items_emitted, 10);
+    }
+
+    #[test]
+    fn test_rate_limited_pipeline_respects_rate() {
+        let mock = MockPhaseSink::new();
+        let pipeline = RateLimitedPipeline::new(
+            Box::new(mock),
+            100.0,  // 100 events/sec
+            10,
+            0,
+        );
+        let item = serde_json::json!({"id": "test"});
+        let start = Instant::now();
+        // Emit 15 items at 100/sec with burst=10 — first 10 are instant, next 5 take ~50ms
+        for _ in 0..15 {
+            pipeline.emit("phase", "Type", &item).unwrap();
+        }
+        let elapsed = start.elapsed();
+        // Should take at least 40ms (5 items beyond burst at 10ms each)
+        assert!(elapsed.as_millis() >= 30, "expected rate limiting, got {:?}", elapsed);
+    }
+
+    #[test]
+    fn test_rate_limited_pipeline_dynamic_rate_change() {
+        let mock = MockPhaseSink::new();
+        let pipeline = RateLimitedPipeline::new(
+            Box::new(mock),
+            0.0,  // start unlimited
+            100,
+            0,
+        );
+        let item = serde_json::json!({"id": "test"});
+        pipeline.emit("phase", "Type", &item).unwrap();
+
+        // Change to limited
+        pipeline.set_rate(50.0);
+
+        // Still works
+        pipeline.emit("phase", "Type", &item).unwrap();
+        assert_eq!(pipeline.stats().items_emitted, 2);
     }
 }

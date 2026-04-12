@@ -17,6 +17,7 @@ pub struct AccessLog {
     /// Unique identifier for this log entry
     pub log_id: Uuid,
     /// Timestamp of the access event
+    #[serde(with = "crate::serde_timestamp::naive")]
     pub timestamp: NaiveDateTime,
     /// Employee identifier (references master data)
     pub user_id: String,
@@ -57,8 +58,10 @@ pub struct ChangeManagementRecord {
     /// Employee who implemented the change
     pub implemented_by: String,
     /// Date the change was requested
+    #[serde(with = "crate::serde_timestamp::naive")]
     pub request_date: NaiveDateTime,
     /// Date the change was implemented
+    #[serde(with = "crate::serde_timestamp::naive")]
     pub implementation_date: NaiveDateTime,
     /// Whether the change was tested before deployment
     pub tested: bool,

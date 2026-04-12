@@ -170,10 +170,10 @@ pub struct ThresholdChange {
     /// Threshold category (e.g., "amount", "risk_level").
     pub category: String,
     /// Old threshold value.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub old_threshold: Decimal,
     /// New threshold value.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub new_threshold: Decimal,
 }
 
@@ -320,10 +320,10 @@ pub struct PolicyChangeConfig {
     #[serde(default)]
     pub description: Option<String>,
     /// Old policy value (for threshold-based policies).
-    #[serde(default, with = "rust_decimal::serde::str_option")]
+    #[serde(default, with = "crate::serde_decimal::option")]
     pub old_value: Option<Decimal>,
     /// New policy value (for threshold-based policies).
-    #[serde(default, with = "rust_decimal::serde::str_option")]
+    #[serde(default, with = "crate::serde_decimal::option")]
     pub new_value: Option<Decimal>,
     /// Error rate during transition period.
     #[serde(default = "default_policy_transition_error")]
@@ -452,10 +452,10 @@ impl Default for ControlEnhancementConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ToleranceChange {
     /// Old tolerance value.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub old_tolerance: Decimal,
     /// New tolerance value.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub new_tolerance: Decimal,
     /// Tolerance type.
     #[serde(default)]

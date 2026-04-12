@@ -109,7 +109,9 @@ pub struct AuditFinding {
     /// Review date
     pub review_date: Option<NaiveDate>,
 
+    #[serde(with = "crate::serde_timestamp::utc")]
     pub created_at: DateTime<Utc>,
+    #[serde(with = "crate::serde_timestamp::utc")]
     pub updated_at: DateTime<Utc>,
 }
 
@@ -404,7 +406,9 @@ pub struct RemediationPlan {
     pub milestones: Vec<RemediationMilestone>,
     /// Notes
     pub notes: String,
+    #[serde(with = "crate::serde_timestamp::utc")]
     pub created_at: DateTime<Utc>,
+    #[serde(with = "crate::serde_timestamp::utc")]
     pub updated_at: DateTime<Utc>,
 }
 

@@ -68,6 +68,7 @@ pub struct InventoryMovement {
     /// Created by.
     pub created_by: String,
     /// Created at.
+    #[serde(with = "crate::serde_timestamp::utc")]
     pub created_at: DateTime<Utc>,
     /// Reversed.
     pub is_reversed: bool,
@@ -495,6 +496,7 @@ pub struct StockTransfer {
     /// Created by.
     pub created_by: String,
     /// Created at.
+    #[serde(with = "crate::serde_timestamp::utc")]
     pub created_at: DateTime<Utc>,
 }
 
@@ -552,10 +554,12 @@ pub struct PhysicalInventoryDoc {
     /// Created by.
     pub created_by: String,
     /// Created at.
+    #[serde(with = "crate::serde_timestamp::utc")]
     pub created_at: DateTime<Utc>,
     /// Posted.
     pub posted: bool,
     /// Posted at.
+    #[serde(default, with = "crate::serde_timestamp::utc::option")]
     pub posted_at: Option<DateTime<Utc>>,
 }
 

@@ -132,19 +132,19 @@ pub struct CycleCountItem {
     /// Storage location within the warehouse
     pub storage_location: String,
     /// Quantity recorded in the system
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub book_quantity: Decimal,
     /// Quantity physically counted
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub counted_quantity: Decimal,
     /// Difference between counted and book quantities
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub variance_quantity: Decimal,
     /// Unit cost of the material
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub unit_cost: Decimal,
     /// Monetary value of the variance
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub variance_value: Decimal,
     /// Classification of variance severity
     pub variance_type: CountVarianceType,

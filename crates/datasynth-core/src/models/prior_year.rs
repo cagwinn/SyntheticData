@@ -20,13 +20,13 @@ pub struct PriorYearComparative {
     /// Account description
     pub account_name: String,
     /// Current-year closing balance
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub current_year_amount: Decimal,
     /// Prior-year closing balance (derived with realistic variance)
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub prior_year_amount: Decimal,
     /// Absolute variance: current_year_amount - prior_year_amount
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub variance: Decimal,
     /// Variance as percentage: (current - prior) / |prior| * 100
     pub variance_pct: f64,
@@ -80,7 +80,7 @@ pub struct PriorYearSummary {
     /// Audit opinion issued: "unmodified", "qualified", "adverse", "disclaimer"
     pub opinion_type: String,
     /// Prior-year materiality threshold
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub materiality: Decimal,
     /// Total number of findings raised
     pub total_findings: usize,

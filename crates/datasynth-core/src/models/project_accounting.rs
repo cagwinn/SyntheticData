@@ -79,7 +79,7 @@ pub struct ProjectCostLine {
     /// Reference to the source document
     pub source_document_id: String,
     /// Cost amount (always positive)
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub amount: Decimal,
     /// Currency
     pub currency: String,
@@ -184,35 +184,35 @@ pub struct ProjectRevenue {
     /// Period end
     pub period_end: NaiveDate,
     /// Total contract value
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub contract_value: Decimal,
     /// Total estimated cost at completion
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub estimated_total_cost: Decimal,
     /// Costs incurred to date
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub costs_to_date: Decimal,
     /// Completion percentage (0.00 to 1.00)
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub completion_pct: Decimal,
     /// Revenue method
     pub method: RevenueMethod,
     /// Completion measure
     pub measure: CompletionMeasure,
     /// Cumulative revenue recognized to date
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub cumulative_revenue: Decimal,
     /// Revenue recognized in this period
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub period_revenue: Decimal,
     /// Cumulative amount billed to customer
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub billed_to_date: Decimal,
     /// Unbilled revenue (cumulative_revenue - billed_to_date)
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub unbilled_revenue: Decimal,
     /// Estimated gross margin percentage
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub gross_margin_pct: Decimal,
 }
 
@@ -283,10 +283,10 @@ pub struct ProjectMilestone {
     /// Current status
     pub status: MilestoneStatus,
     /// Payment amount tied to milestone (if any)
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub payment_amount: Decimal,
     /// Completion weight for EVM (0.0 to 1.0)
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub weight: Decimal,
     /// Sequence order
     pub sequence: u32,
@@ -405,10 +405,10 @@ pub struct ChangeOrder {
     /// Description of the change
     pub description: String,
     /// Impact on contract value (positive = increase, negative = decrease)
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub cost_impact: Decimal,
     /// Impact on estimated total cost
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub estimated_cost_impact: Decimal,
     /// Schedule impact in calendar days (positive = delay)
     pub schedule_impact_days: i32,
@@ -505,13 +505,13 @@ pub struct Retainage {
     /// Vendor/subcontractor ID this retainage relates to
     pub vendor_id: String,
     /// Retainage percentage (e.g., 0.10 for 10%)
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub retainage_pct: Decimal,
     /// Total retainage held
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub total_held: Decimal,
     /// Amount released to date
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub released_amount: Decimal,
     /// Current status
     pub status: RetainageStatus,
@@ -592,37 +592,37 @@ pub struct EarnedValueMetric {
     /// Measurement date
     pub measurement_date: NaiveDate,
     /// Budget at Completion (total baseline budget)
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub bac: Decimal,
     /// Planned Value (BCWS — Budgeted Cost of Work Scheduled)
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub planned_value: Decimal,
     /// Earned Value (BCWP — Budgeted Cost of Work Performed)
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub earned_value: Decimal,
     /// Actual Cost (ACWP — Actual Cost of Work Performed)
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub actual_cost: Decimal,
     /// Schedule Variance (EV - PV)
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub schedule_variance: Decimal,
     /// Cost Variance (EV - AC)
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub cost_variance: Decimal,
     /// Schedule Performance Index (EV / PV)
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub spi: Decimal,
     /// Cost Performance Index (EV / AC)
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub cpi: Decimal,
     /// Estimate at Completion (BAC / CPI)
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub eac: Decimal,
     /// Estimate to Complete (EAC - AC)
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub etc: Decimal,
     /// To-Complete Performance Index ((BAC - EV) / (BAC - AC))
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub tcpi: Decimal,
 }
 

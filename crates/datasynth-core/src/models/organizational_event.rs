@@ -263,16 +263,16 @@ impl DateRange {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PurchasePriceAllocation {
     /// Total purchase price.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub purchase_price: Decimal,
     /// Fair value of net identifiable assets.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub net_identifiable_assets: Decimal,
     /// Goodwill recognized (purchase price - net identifiable assets).
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub goodwill: Decimal,
     /// Bargain purchase gain if applicable.
-    #[serde(default, with = "rust_decimal::serde::str_option")]
+    #[serde(default, with = "crate::serde_decimal::option")]
     pub bargain_purchase_gain: Option<Decimal>,
     /// Intangible assets acquired.
     #[serde(default)]
@@ -285,7 +285,7 @@ pub struct IntangibleAsset {
     /// Asset type (e.g., "customer_relationships", "brand", "technology").
     pub asset_type: String,
     /// Fair value.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub fair_value: Decimal,
     /// Useful life in years (None = indefinite).
     pub useful_life_years: Option<u8>,
@@ -314,7 +314,7 @@ pub struct DivestitureConfig {
     #[serde(default)]
     pub account_closures: Vec<String>,
     /// Gain/loss on disposal.
-    #[serde(default, with = "rust_decimal::serde::str_option")]
+    #[serde(default, with = "crate::serde_decimal::option")]
     pub disposal_gain_loss: Option<Decimal>,
 }
 
@@ -449,10 +449,10 @@ pub struct PolicyChangeDetail {
     /// Description of change.
     pub description: String,
     /// Old threshold or value (if applicable).
-    #[serde(default, with = "rust_decimal::serde::str_option")]
+    #[serde(default, with = "crate::serde_decimal::option")]
     pub old_value: Option<Decimal>,
     /// New threshold or value (if applicable).
-    #[serde(default, with = "rust_decimal::serde::str_option")]
+    #[serde(default, with = "crate::serde_decimal::option")]
     pub new_value: Option<Decimal>,
 }
 
@@ -497,7 +497,7 @@ pub struct WorkforceReductionConfig {
     #[serde(default = "default_workforce_transition")]
     pub transition_months: u32,
     /// Severance costs.
-    #[serde(default, with = "rust_decimal::serde::str_option")]
+    #[serde(default, with = "crate::serde_decimal::option")]
     pub severance_costs: Option<Decimal>,
 }
 
@@ -554,7 +554,7 @@ pub struct MergerConfig {
     #[serde(default)]
     pub fair_value_adjustments: Vec<FairValueAdjustment>,
     /// Goodwill recognized.
-    #[serde(default, with = "rust_decimal::serde::str_option")]
+    #[serde(default, with = "crate::serde_decimal::option")]
     pub goodwill: Option<Decimal>,
 }
 
@@ -583,7 +583,7 @@ pub struct FairValueAdjustment {
     /// Account affected.
     pub account: String,
     /// Adjustment amount.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub adjustment_amount: Decimal,
     /// Reason for adjustment.
     pub reason: String,

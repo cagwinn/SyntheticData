@@ -97,6 +97,7 @@
 //! [`AnomalyFingerprint`]: crate::models::AnomalyFingerprint
 
 mod anomaly_extractor;
+pub mod banking_extractor;
 mod correlation_extractor;
 mod integrity_extractor;
 mod rules_extractor;
@@ -105,6 +106,7 @@ mod stats_extractor;
 pub mod streaming;
 
 pub use anomaly_extractor::*;
+pub use banking_extractor::*;
 pub use correlation_extractor::*;
 pub use integrity_extractor::*;
 pub use rules_extractor::*;

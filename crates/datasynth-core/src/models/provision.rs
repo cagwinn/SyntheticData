@@ -87,18 +87,18 @@ pub struct Provision {
     /// Description of the obligation (e.g. "Product warranty — FY2024 sales").
     pub description: String,
     /// Best estimate of the expenditure required to settle the obligation.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub best_estimate: Decimal,
     /// Lower end of the estimated range.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub range_low: Decimal,
     /// Upper end of the estimated range.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub range_high: Decimal,
     /// Discount rate applied to long-term provisions (e.g. 0.04 = 4%).
     /// `None` for provisions expected to be settled within 12 months.
     #[serde(
-        with = "rust_decimal::serde::str_option",
+        with = "crate::serde_decimal::option",
         skip_serializing_if = "Option::is_none",
         default
     )]
@@ -131,7 +131,7 @@ pub struct ContingentLiability {
     pub probability: ContingentProbability,
     /// Best estimate of the potential exposure (if determinable).
     #[serde(
-        with = "rust_decimal::serde::str_option",
+        with = "crate::serde_decimal::option",
         skip_serializing_if = "Option::is_none",
         default
     )]
@@ -159,22 +159,22 @@ pub struct ProvisionMovement {
     /// Period label (e.g. "2024-Q4" or "FY2024").
     pub period: String,
     /// Provision balance at start of period.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub opening: Decimal,
     /// New provisions recognised during the period.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub additions: Decimal,
     /// Amounts utilised (actual cash payments) during the period.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub utilizations: Decimal,
     /// Provisions reversed (no longer required) during the period.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub reversals: Decimal,
     /// Unwinding of discount on long-term provisions (finance cost).
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub unwinding_of_discount: Decimal,
     /// Provision balance at end of period.
     /// `opening + additions − utilizations − reversals + unwinding_of_discount`
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub closing: Decimal,
 }

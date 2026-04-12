@@ -268,22 +268,22 @@ pub struct CashPosition {
     /// Position date
     pub date: NaiveDate,
     /// Balance at start of day
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub opening_balance: Decimal,
     /// Total inflows during the day
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub inflows: Decimal,
     /// Total outflows during the day
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub outflows: Decimal,
     /// Balance at end of day (opening + inflows - outflows)
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub closing_balance: Decimal,
     /// Available balance (after holds, pending transactions)
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub available_balance: Decimal,
     /// Value-date balance (settlement-adjusted)
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub value_date_balance: Decimal,
 }
 
@@ -344,10 +344,10 @@ pub struct CashForecastItem {
     /// Category of the forecast item
     pub category: TreasuryCashFlowCategory,
     /// Expected amount (positive = inflow, negative = outflow)
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub amount: Decimal,
     /// Probability of occurrence (0.0 to 1.0)
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub probability: Decimal,
     /// Source document type (e.g., "SalesOrder", "PurchaseOrder")
     pub source_document_type: Option<String>,
@@ -371,10 +371,10 @@ pub struct CashForecast {
     /// Individual forecast line items
     pub items: Vec<CashForecastItem>,
     /// Net position (sum of probability-weighted amounts)
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub net_position: Decimal,
     /// Confidence level for the forecast (0.0 to 1.0)
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub confidence_level: Decimal,
 }
 
@@ -432,7 +432,7 @@ pub struct CashPool {
     /// Time of day when sweeps occur
     pub sweep_time: NaiveTime,
     /// Interest rate benefit from pooling (bps or decimal fraction)
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub interest_rate_benefit: Decimal,
 }
 
@@ -488,7 +488,7 @@ pub struct CashPoolSweep {
     /// Destination account (balance swept to)
     pub to_account_id: String,
     /// Amount swept
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub amount: Decimal,
     /// Currency of the sweep
     pub currency: String,
@@ -502,19 +502,19 @@ pub struct HedgingInstrument {
     /// Type of derivative
     pub instrument_type: HedgeInstrumentType,
     /// Notional / face amount
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub notional_amount: Decimal,
     /// Primary currency
     pub currency: String,
     /// Currency pair for FX instruments (e.g., "EUR/USD")
     pub currency_pair: Option<String>,
     /// Fixed rate (for swaps, forwards)
-    #[serde(default, with = "rust_decimal::serde::str_option")]
+    #[serde(default, with = "crate::serde_decimal::option")]
     pub fixed_rate: Option<Decimal>,
     /// Floating rate index name (e.g., "SOFR", "EURIBOR")
     pub floating_index: Option<String>,
     /// Strike rate for options
-    #[serde(default, with = "rust_decimal::serde::str_option")]
+    #[serde(default, with = "crate::serde_decimal::option")]
     pub strike_rate: Option<Decimal>,
     /// Trade date
     pub trade_date: NaiveDate,
@@ -523,7 +523,7 @@ pub struct HedgingInstrument {
     /// Counterparty name
     pub counterparty: String,
     /// Current fair value (mark-to-market)
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub fair_value: Decimal,
     /// Current lifecycle status
     pub status: InstrumentStatus,
@@ -624,12 +624,12 @@ pub struct HedgeRelationship {
     /// Method used for effectiveness testing
     pub effectiveness_test_method: EffectivenessMethod,
     /// Effectiveness ratio (hedging instrument change / hedged item change)
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub effectiveness_ratio: Decimal,
     /// Whether the hedge qualifies as effective (ratio within 80-125%)
     pub is_effective: bool,
     /// Ineffectiveness amount recognized in P&L
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub ineffectiveness_amount: Decimal,
 }
 
@@ -690,13 +690,13 @@ pub struct AmortizationPayment {
     /// Payment date
     pub date: NaiveDate,
     /// Principal portion of the payment
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub principal_payment: Decimal,
     /// Interest portion of the payment
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub interest_payment: Decimal,
     /// Outstanding balance after this payment
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub balance_after: Decimal,
 }
 
@@ -715,19 +715,19 @@ pub struct DebtCovenant {
     /// Type of financial ratio being tested
     pub covenant_type: CovenantType,
     /// Covenant threshold value
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub threshold: Decimal,
     /// How often the covenant is tested
     pub measurement_frequency: Frequency,
     /// Most recent actual measured value
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub actual_value: Decimal,
     /// Date the measurement was taken
     pub measurement_date: NaiveDate,
     /// Whether the entity is in compliance
     pub is_compliant: bool,
     /// Distance from the covenant threshold (positive = headroom, negative = breach)
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub headroom: Decimal,
     /// Whether a waiver was obtained for a breach
     pub waiver_obtained: bool,
@@ -858,12 +858,12 @@ pub struct DebtInstrument {
     /// Lender / creditor name
     pub lender: String,
     /// Original principal amount
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub principal: Decimal,
     /// Denomination currency
     pub currency: String,
     /// Interest rate (annual, as decimal fraction)
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub interest_rate: Decimal,
     /// Fixed or variable rate
     pub rate_type: InterestRateType,
@@ -876,10 +876,10 @@ pub struct DebtInstrument {
     /// Associated financial covenants
     pub covenants: Vec<DebtCovenant>,
     /// Current drawn amount (for revolving facilities)
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub drawn_amount: Decimal,
     /// Committed facility limit (for revolving facilities)
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub facility_limit: Decimal,
 }
 
@@ -981,7 +981,7 @@ pub struct BankGuarantee {
     /// Type of guarantee
     pub guarantee_type: GuaranteeType,
     /// Face amount of the guarantee
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub amount: Decimal,
     /// Denomination currency
     pub currency: String,
@@ -1068,13 +1068,13 @@ pub struct NettingPosition {
     /// Entity identifier
     pub entity_id: String,
     /// Gross amount receivable from other entities
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub gross_receivable: Decimal,
     /// Gross amount payable to other entities
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub gross_payable: Decimal,
     /// Net position (receivable - payable)
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub net_position: Decimal,
     /// Whether this entity pays or receives
     pub settlement_direction: PayOrReceive,
@@ -1092,13 +1092,13 @@ pub struct NettingRun {
     /// List of participating entity IDs
     pub participating_entities: Vec<String>,
     /// Total gross receivables across all entities
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub gross_receivables: Decimal,
     /// Total gross payables across all entities
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub gross_payables: Decimal,
     /// Net settlement amount (sum of absolute net positions / 2)
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub net_settlement: Decimal,
     /// Settlement currency
     pub settlement_currency: String,

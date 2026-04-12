@@ -126,7 +126,9 @@ pub struct AnalyticalProcedureResult {
     pub status: AnalyticalStatus,
 
     // === Timestamps ===
+    #[serde(with = "crate::serde_timestamp::utc")]
     pub created_at: DateTime<Utc>,
+    #[serde(with = "crate::serde_timestamp::utc")]
     pub updated_at: DateTime<Utc>,
 }
 

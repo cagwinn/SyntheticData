@@ -27,6 +27,12 @@ pub struct BankingConfig {
     /// Output configuration
     #[serde(default)]
     pub output: BankingOutputConfig,
+    /// Temporal behavior configuration
+    #[serde(default)]
+    pub temporal: TemporalBehaviorConfig,
+    /// Device fingerprint configuration
+    #[serde(default)]
+    pub device: DeviceFingerprintConfig,
 }
 
 fn default_true() -> bool {
@@ -43,6 +49,8 @@ impl Default for BankingConfig {
             typologies: TypologyConfig::default(),
             spoofing: SpoofingConfig::default(),
             output: BankingOutputConfig::default(),
+            temporal: TemporalBehaviorConfig::default(),
+            device: DeviceFingerprintConfig::default(),
         }
     }
 }
@@ -295,7 +303,36 @@ pub struct TypologyConfig {
     pub round_tripping_rate: f64,
     /// Trade-based ML rate
     pub trade_based_rate: f64,
+    /// Synthetic identity fraud rate
+    #[serde(default = "default_synth_id_rate")]
+    pub synthetic_identity_rate: f64,
+    /// Cryptocurrency integration rate
+    #[serde(default = "default_crypto_rate")]
+    pub crypto_integration_rate: f64,
+    /// Sanctions evasion rate
+    #[serde(default = "default_sanctions_rate")]
+    pub sanctions_evasion_rate: f64,
+    /// False positive rate (fraction of legitimate txns tagged as suspicious-looking)
+    #[serde(default = "default_false_positive_rate")]
+    pub false_positive_rate: f64,
+    /// Cross-typology co-occurrence rate (fraction of cases combining multiple typologies)
+    #[serde(default = "default_co_occurrence_rate")]
+    pub co_occurrence_rate: f64,
+    /// Multi-party network scenario rate (fraction using coordinated networks)
+    #[serde(default = "default_network_rate")]
+    pub network_typology_rate: f64,
+    /// Fraction of document-flow Payments to bridge to BankTransactions (0.0 disables)
+    #[serde(default = "default_payment_bridge_rate")]
+    pub payment_bridge_rate: f64,
 }
+
+fn default_synth_id_rate() -> f64 { 0.001 }
+fn default_crypto_rate() -> f64 { 0.001 }
+fn default_sanctions_rate() -> f64 { 0.0005 }
+fn default_false_positive_rate() -> f64 { 0.05 }
+fn default_co_occurrence_rate() -> f64 { 0.10 }
+fn default_network_rate() -> f64 { 0.05 }
+fn default_payment_bridge_rate() -> f64 { 0.75 }
 
 impl Default for TypologyConfig {
     fn default() -> Self {
@@ -310,6 +347,13 @@ impl Default for TypologyConfig {
             detectability: 0.5,
             round_tripping_rate: 0.001,
             trade_based_rate: 0.001,
+            synthetic_identity_rate: 0.001,
+            crypto_integration_rate: 0.001,
+            sanctions_evasion_rate: 0.0005,
+            false_positive_rate: 0.05,
+            co_occurrence_rate: 0.10,
+            network_typology_rate: 0.05,
+            payment_bridge_rate: 0.75,
         }
     }
 }
@@ -454,5 +498,76 @@ mod tests {
         let config = BankingConfig::default();
         let sum: f64 = config.population.retail_persona_weights.values().sum();
         assert!((sum - 1.0).abs() < 0.01);
+    }
+}
+
+/// Temporal behavior configuration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TemporalBehaviorConfig {
+    /// Enable account lifecycle phases (New → RampUp → Steady → Decline → Dormant)
+    #[serde(default = "default_true")]
+    pub enable_lifecycle_phases: bool,
+    /// Enable behavioral drift (gradual/sudden spending pattern shifts)
+    #[serde(default = "default_true")]
+    pub enable_behavioral_drift: bool,
+    /// Enable velocity feature pre-computation on every transaction
+    #[serde(default = "default_true")]
+    pub enable_velocity_features: bool,
+    /// Enable impossible travel injection (geolocation anomalies)
+    #[serde(default = "default_true")]
+    pub enable_impossible_travel: bool,
+    /// Proportion of customers with behavioral drift (default 5%)
+    #[serde(default = "default_drift_rate")]
+    pub drift_rate: f64,
+    /// Of drifting customers, proportion with sudden (suspicious) drift vs gradual (normal)
+    #[serde(default = "default_sudden_ratio")]
+    pub sudden_drift_ratio: f64,
+    /// Impossible travel injection rate for suspicious customers
+    #[serde(default = "default_impossible_travel_rate")]
+    pub impossible_travel_rate: f64,
+}
+
+fn default_drift_rate() -> f64 { 0.05 }
+fn default_sudden_ratio() -> f64 { 0.30 }
+fn default_impossible_travel_rate() -> f64 { 0.02 }
+
+impl Default for TemporalBehaviorConfig {
+    fn default() -> Self {
+        Self {
+            enable_lifecycle_phases: true,
+            enable_behavioral_drift: true,
+            enable_velocity_features: true,
+            enable_impossible_travel: true,
+            drift_rate: 0.05,
+            sudden_drift_ratio: 0.30,
+            impossible_travel_rate: 0.02,
+        }
+    }
+}
+
+/// Device fingerprint generation configuration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DeviceFingerprintConfig {
+    /// Enable structured device fingerprints (replaces simple DEV-hash pattern)
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    /// Probability a customer reuses an existing device vs generating a new one
+    #[serde(default = "default_device_reuse")]
+    pub device_reuse_rate: f64,
+    /// Proportion of customers with 2+ devices
+    #[serde(default = "default_multi_device")]
+    pub multi_device_rate: f64,
+}
+
+fn default_device_reuse() -> f64 { 0.85 }
+fn default_multi_device() -> f64 { 0.30 }
+
+impl Default for DeviceFingerprintConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            device_reuse_rate: 0.85,
+            multi_device_rate: 0.30,
+        }
     }
 }

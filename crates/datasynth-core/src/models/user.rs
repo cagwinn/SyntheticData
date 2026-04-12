@@ -655,7 +655,7 @@ pub struct Employee {
     ///
     /// Used by the payroll generator to compute monthly gross pay
     /// (`base_salary / 12`) instead of a hardcoded default.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub base_salary: rust_decimal::Decimal,
 }
 

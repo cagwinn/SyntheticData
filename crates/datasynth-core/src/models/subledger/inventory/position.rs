@@ -53,6 +53,7 @@ pub struct InventoryPosition {
     /// Serial numbers (if serialized).
     pub serial_numbers: Vec<SerialNumber>,
     /// Last updated.
+    #[serde(with = "crate::serde_timestamp::utc")]
     pub updated_at: DateTime<Utc>,
 }
 

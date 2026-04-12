@@ -52,6 +52,7 @@ pub struct ARReceipt {
     /// GL references.
     pub gl_references: Vec<GLReference>,
     /// Created timestamp.
+    #[serde(with = "crate::serde_timestamp::utc")]
     pub created_at: DateTime<Utc>,
     /// Created by user.
     pub created_by: Option<String>,
@@ -278,6 +279,7 @@ pub struct ARReceiptBatch {
     /// Created by.
     pub created_by: String,
     /// Created at.
+    #[serde(with = "crate::serde_timestamp::utc")]
     pub created_at: DateTime<Utc>,
 }
 

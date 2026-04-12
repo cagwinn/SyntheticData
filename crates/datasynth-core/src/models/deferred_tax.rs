@@ -42,13 +42,13 @@ pub struct TemporaryDifference {
     /// Human-readable description (e.g. "Accelerated depreciation – MACRS").
     pub description: String,
     /// Book (GAAP/IFRS) carrying amount.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub book_basis: Decimal,
     /// Tax basis of the same asset or liability.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub tax_basis: Decimal,
     /// `book_basis − tax_basis`; positive = DTA, negative = DTL (before type override).
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub difference: Decimal,
     /// Whether this difference yields a DTA or DTL.
     pub deferred_type: DeferredTaxType,
@@ -66,10 +66,10 @@ pub struct PermanentDifference {
     /// Description of the permanent difference (e.g. "Meals & entertainment (50% disallowed)").
     pub description: String,
     /// Pre-tax amount of the difference (positive = adds to taxable income).
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub amount: Decimal,
     /// Tax effect = `amount × statutory_rate` (positive = increases tax expense).
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub tax_effect: Decimal,
 }
 
@@ -84,21 +84,21 @@ pub struct TaxRateReconciliation {
     /// Period label (e.g. "FY2024", "2024-Q4").
     pub period: String,
     /// Pre-tax income (profit before income tax).
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub pre_tax_income: Decimal,
     /// Statutory (nominal) corporate income tax rate.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub statutory_rate: Decimal,
     /// `pre_tax_income × statutory_rate` (expected tax at statutory rate).
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub expected_tax: Decimal,
     /// Permanent differences that bridge expected → actual tax.
     pub permanent_differences: Vec<PermanentDifference>,
     /// `actual_tax / pre_tax_income`.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub effective_rate: Decimal,
     /// Actual income tax expense for the period.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub actual_tax: Decimal,
 }
 
@@ -114,18 +114,18 @@ pub struct DeferredTaxRollforward {
     /// Period label.
     pub period: String,
     /// Opening Deferred Tax Asset balance.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub opening_dta: Decimal,
     /// Opening Deferred Tax Liability balance.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub opening_dtl: Decimal,
     /// Net movement during the period (DTA creation less reversal, net of DTL movement).
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub current_year_movement: Decimal,
     /// Closing Deferred Tax Asset balance (`opening_dta + dta_movement`).
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub closing_dta: Decimal,
     /// Closing Deferred Tax Liability balance (`opening_dtl + dtl_movement`).
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub closing_dtl: Decimal,
 }

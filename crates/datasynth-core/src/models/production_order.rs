@@ -62,13 +62,13 @@ pub struct ProductionOrder {
     /// Current status of the production order
     pub status: ProductionOrderStatus,
     /// Planned production quantity
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub planned_quantity: Decimal,
     /// Actual quantity produced
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub actual_quantity: Decimal,
     /// Quantity scrapped during production
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub scrap_quantity: Decimal,
     /// Planned start date
     pub planned_start: NaiveDate,
@@ -83,10 +83,10 @@ pub struct ProductionOrder {
     /// Optional routing identifier
     pub routing_id: Option<String>,
     /// Planned cost of production
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub planned_cost: Decimal,
     /// Actual cost incurred
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub actual_cost: Decimal,
     /// Detailed cost breakdown by component (material, labor, overhead).
     /// When present, `actual_cost` equals `cost_breakdown.total_actual()`.
@@ -118,10 +118,10 @@ pub struct RoutingOperation {
     /// Run time in hours
     pub run_time_hours: f64,
     /// Planned quantity for this operation
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub planned_quantity: Decimal,
     /// Actual quantity processed in this operation
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub actual_quantity: Decimal,
     /// Current status of the operation
     pub status: OperationStatus,
@@ -137,25 +137,25 @@ pub struct RoutingOperation {
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct CostBreakdown {
     /// Material cost (raw materials consumed)
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub material_cost: Decimal,
     /// Direct labor cost (hours × rate)
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub labor_cost: Decimal,
     /// Applied overhead (labor cost × overhead rate)
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub overhead_cost: Decimal,
     /// Standard material cost for variance calculation
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub standard_material_cost: Decimal,
     /// Standard labor cost for variance calculation
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub standard_labor_cost: Decimal,
     /// Standard overhead cost for variance calculation
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub standard_overhead_cost: Decimal,
     /// Standard cost per unit of output
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub standard_unit_cost: Decimal,
 }
 

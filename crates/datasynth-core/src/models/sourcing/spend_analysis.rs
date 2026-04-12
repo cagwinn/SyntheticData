@@ -13,7 +13,7 @@ pub struct SpendAnalysis {
     /// Company code
     pub company_code: String,
     /// Total spend in the analysis period
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub total_spend: Decimal,
     /// Number of active vendors in this category
     pub vendor_count: u32,
@@ -41,7 +41,7 @@ pub struct VendorSpendShare {
     /// Vendor name
     pub vendor_name: String,
     /// Spend amount
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub spend_amount: Decimal,
     /// Share of category spend (0.0 to 1.0)
     pub share: f64,

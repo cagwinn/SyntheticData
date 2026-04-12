@@ -154,7 +154,10 @@ pub struct BankingCustomer {
     pub customer_id: Uuid,
     /// Customer type (retail, business, trust)
     pub customer_type: BankingCustomerType,
-    /// Customer name
+    /// Flat display name for analytics (trade name if present, otherwise legal name)
+    #[serde(skip_deserializing, default)]
+    pub display_name: String,
+    /// Customer name (structured)
     pub name: CustomerName,
     /// Behavioral persona
     pub persona: Option<PersonaVariant>,
@@ -218,6 +221,10 @@ pub struct BankingCustomer {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enterprise_customer_id: Option<String>,
 
+    /// Sanctions screening results
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sanctions_screening: Option<super::SanctionsScreening>,
+
     // Ground truth labels (for ML)
     /// Whether this is a mule account (ground truth)
     pub is_mule: bool,
@@ -236,10 +243,13 @@ impl BankingCustomer {
         residence_country: &str,
         onboarding_date: NaiveDate,
     ) -> Self {
+        let name = CustomerName::individual(first_name, last_name);
+        let display_name = name.display_name().to_string();
         Self {
             customer_id,
             customer_type: BankingCustomerType::Retail,
-            name: CustomerName::individual(first_name, last_name),
+            display_name,
+            name,
             persona: None,
             residence_country: residence_country.to_string(),
             citizenship_country: Some(residence_country.to_string()),
@@ -270,6 +280,7 @@ impl BankingCustomer {
             last_kyc_review: Some(onboarding_date),
             next_kyc_review: None,
             enterprise_customer_id: None,
+            sanctions_screening: None,
             is_mule: false,
             kyc_truthful: true,
             true_source_of_funds: None,
@@ -283,10 +294,13 @@ impl BankingCustomer {
         residence_country: &str,
         onboarding_date: NaiveDate,
     ) -> Self {
+        let name = CustomerName::business(legal_name);
+        let display_name = name.display_name().to_string();
         Self {
             customer_id,
             customer_type: BankingCustomerType::Business,
-            name: CustomerName::business(legal_name),
+            display_name,
+            name,
             persona: None,
             residence_country: residence_country.to_string(),
             citizenship_country: None,
@@ -317,6 +331,7 @@ impl BankingCustomer {
             last_kyc_review: Some(onboarding_date),
             next_kyc_review: None,
             enterprise_customer_id: None,
+            sanctions_screening: None,
             is_mule: false,
             kyc_truthful: true,
             true_source_of_funds: None,

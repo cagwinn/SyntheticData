@@ -42,23 +42,23 @@ pub struct ImpairmentTest {
     pub test_date: NaiveDate,
 
     /// Carrying amount before impairment.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub carrying_amount: Decimal,
 
     /// Recoverable amount (higher of fair value less costs to sell and value in use).
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub recoverable_amount: Decimal,
 
     /// Fair value less costs to sell.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub fair_value_less_costs: Decimal,
 
     /// Value in use (present value of future cash flows).
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub value_in_use: Decimal,
 
     /// Impairment loss recognized.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub impairment_loss: Decimal,
 
     /// Indicators that triggered the test.
@@ -71,11 +71,11 @@ pub struct ImpairmentTest {
     pub framework: AccountingFramework,
 
     /// For US GAAP: Undiscounted cash flows for Step 1.
-    #[serde(default, with = "rust_decimal::serde::str_option")]
+    #[serde(default, with = "datasynth_core::serde_decimal::option")]
     pub undiscounted_cash_flows: Option<Decimal>,
 
     /// Discount rate used for value in use.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub discount_rate: Decimal,
 
     /// Cash flow projections used.
@@ -331,23 +331,23 @@ pub struct CashFlowProjection {
     pub year: u32,
 
     /// Projected revenue.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub revenue: Decimal,
 
     /// Projected operating expenses.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub operating_expenses: Decimal,
 
     /// Projected capital expenditures.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub capital_expenditures: Decimal,
 
     /// Net cash flow.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub net_cash_flow: Decimal,
 
     /// Growth rate assumption.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub growth_rate: Decimal,
 
     /// Is this a terminal value projection.
@@ -391,19 +391,19 @@ pub struct ImpairmentReversal {
     pub reversal_date: NaiveDate,
 
     /// Carrying amount before reversal.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub carrying_amount_before: Decimal,
 
     /// Reversal amount.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub reversal_amount: Decimal,
 
     /// Carrying amount after reversal.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub carrying_amount_after: Decimal,
 
     /// Maximum carrying amount (what it would have been without impairment).
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub maximum_carrying_amount: Decimal,
 
     /// Reason for reversal.

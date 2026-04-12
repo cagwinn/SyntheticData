@@ -59,7 +59,7 @@ pub struct Lease {
     pub termination_option_months: Option<u32>,
 
     /// Fixed lease payment per period.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub fixed_payment: Decimal,
 
     /// Payment frequency.
@@ -70,14 +70,14 @@ pub struct Lease {
 
     /// Discount rate used for present value calculations.
     /// Either implicit rate (if determinable) or incremental borrowing rate.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub discount_rate: Decimal,
 
     /// Whether the implicit rate is readily determinable.
     pub implicit_rate_determinable: bool,
 
     /// Fair value of underlying asset at commencement.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub fair_value_at_commencement: Decimal,
 
     /// Economic life of underlying asset in months.
@@ -115,17 +115,17 @@ pub struct Lease {
 
     /// Initial direct costs incurred by the lessee (e.g., commissions, legal fees).
     #[serde(default)]
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub initial_direct_costs: Decimal,
 
     /// Lease payments made at or before the commencement date (prepayments).
     #[serde(default)]
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub prepaid_payments: Decimal,
 
     /// Lease incentives received from the lessor.
     #[serde(default)]
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub lease_incentives: Decimal,
 
     /// Related fixed asset ID (if any).
@@ -609,7 +609,7 @@ pub struct VariableLeasePayment {
     pub calculation_basis: String,
 
     /// Estimated annual amount.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub estimated_annual_amount: Decimal,
 }
 
@@ -638,19 +638,19 @@ pub struct ROUAsset {
     pub lease_id: Uuid,
 
     /// Initial measurement at commencement.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub initial_measurement: Decimal,
 
     /// Accumulated depreciation/amortization.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub accumulated_depreciation: Decimal,
 
     /// Accumulated impairment losses.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub accumulated_impairment: Decimal,
 
     /// Current carrying amount.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub carrying_amount: Decimal,
 
     /// Useful life (typically lease term) in months.
@@ -697,19 +697,19 @@ pub struct LeaseLiability {
     pub lease_id: Uuid,
 
     /// Initial measurement (PV of lease payments).
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub initial_measurement: Decimal,
 
     /// Current portion (due within 12 months).
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub current_portion: Decimal,
 
     /// Non-current portion (due after 12 months).
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub non_current_portion: Decimal,
 
     /// Total interest recognized.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub accumulated_interest: Decimal,
 
     /// Amortization schedule.
@@ -733,23 +733,23 @@ pub struct LeaseAmortizationEntry {
     pub period_date: NaiveDate,
 
     /// Beginning liability balance.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub beginning_balance: Decimal,
 
     /// Total payment amount.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub payment_amount: Decimal,
 
     /// Interest expense portion.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub interest_expense: Decimal,
 
     /// Principal reduction portion.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub principal_payment: Decimal,
 
     /// Ending liability balance.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub ending_balance: Decimal,
 }
 

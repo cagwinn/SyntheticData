@@ -37,7 +37,7 @@ pub struct StratumResult {
     /// Number of journal entries in this stratum.
     pub item_count: usize,
     /// Sum of debit amounts across all entries in this stratum.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub total_amount: Decimal,
     /// Number of entries flagged as anomaly or fraud.
     pub anomaly_count: usize,

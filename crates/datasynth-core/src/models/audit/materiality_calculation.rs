@@ -70,7 +70,7 @@ pub struct NormalizationAdjustment {
     /// Human-readable description (e.g. "Restructuring charge — one-time Q3").
     pub description: String,
     /// Amount of the adjustment (positive = increases earnings, negative = decreases).
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub amount: Decimal,
     /// Category of adjustment.
     pub adjustment_type: AdjustmentType,
@@ -81,12 +81,12 @@ pub struct NormalizationAdjustment {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NormalizedEarnings {
     /// Reported (unadjusted) earnings from the income statement.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub reported_earnings: Decimal,
     /// Adjustments applied to arrive at normalized earnings.
     pub adjustments: Vec<NormalizationAdjustment>,
     /// Normalized earnings = reported + sum(adjustments).
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub normalized_amount: Decimal,
 }
 
@@ -120,30 +120,30 @@ pub struct MaterialityCalculation {
     /// Benchmark selected for this entity.
     pub benchmark: MaterialityBenchmark,
     /// Raw benchmark amount drawn from financial data.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub benchmark_amount: Decimal,
     /// Percentage applied to the benchmark (e.g. 0.05 for 5%).
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub benchmark_percentage: Decimal,
     /// Overall materiality = benchmark_amount × benchmark_percentage.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub overall_materiality: Decimal,
     /// Performance materiality (typically 50–75% of overall; default 65%).
     /// Used to reduce the risk that aggregate uncorrected misstatements exceed
     /// overall materiality (ISA 320.11).
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub performance_materiality: Decimal,
     /// Clearly trivial threshold (typically 5% of overall).
     /// Misstatements below this amount need not be accumulated (ISA 450.A2).
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub clearly_trivial: Decimal,
     /// Tolerable error — equals performance materiality for sampling purposes.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub tolerable_error: Decimal,
     /// Summary of Audit Differences (SAD) nominal threshold — misstatements
     /// below this amount need not be individually tracked in the SAD schedule.
     /// Set to 5% of overall materiality per common practice (ISA 450).
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub sad_nominal: Decimal,
     /// Optional normalized earnings schedule (generated when reported earnings
     /// are unusual or volatile).

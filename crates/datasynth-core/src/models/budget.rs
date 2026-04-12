@@ -40,13 +40,13 @@ pub struct BudgetLineItem {
     /// Cost center this line applies to
     pub cost_center: Option<String>,
     /// Budgeted amount for the period
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub budget_amount: Decimal,
     /// Actual amount recorded for the period
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub actual_amount: Decimal,
     /// Variance (actual - budget)
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub variance: Decimal,
     /// Variance as a percentage of budget
     pub variance_percent: f64,
@@ -72,13 +72,13 @@ pub struct Budget {
     /// Current status of the budget
     pub status: BudgetStatus,
     /// Total budgeted amount across all line items
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub total_budget: Decimal,
     /// Total actual amount across all line items
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub total_actual: Decimal,
     /// Total variance across all line items
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub total_variance: Decimal,
     /// Individual budget line items
     pub line_items: Vec<BudgetLineItem>,

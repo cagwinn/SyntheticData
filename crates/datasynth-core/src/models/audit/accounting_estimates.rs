@@ -119,7 +119,7 @@ pub struct EstimateAssumption {
     pub description: String,
     /// Sensitivity of the estimate to a 1-unit change in this assumption
     /// (expressed as absolute monetary impact).
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub sensitivity: Decimal,
     /// Auditor's assessment of the assumption's reasonableness.
     pub reasonableness: AssumptionAssessment,
@@ -143,16 +143,16 @@ pub struct Isa540RiskFactors {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RetrospectiveReview {
     /// Management's estimate at the prior period-end.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub prior_period_estimate: Decimal,
     /// Actual outcome observed in the current period.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub actual_outcome: Decimal,
     /// Monetary variance (actual − estimate).
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub variance: Decimal,
     /// Variance expressed as a percentage of the prior-period estimate.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub variance_percentage: Decimal,
     /// `true` if the direction of variance suggests consistent management bias
     /// (e.g. estimate consistently overstated vs actual).
@@ -175,13 +175,13 @@ pub struct AccountingEstimate {
     /// Human-readable description (e.g. "ECL allowance — trade receivables").
     pub description: String,
     /// Management's point estimate (the amount recognised in the financial statements).
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub management_point_estimate: Decimal,
     /// Auditor's independent point estimate (when developed as an audit procedure).
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
-        with = "rust_decimal::serde::str_option"
+        with = "crate::serde_decimal::option"
     )]
     pub auditor_point_estimate: Option<Decimal>,
     /// Auditor's assessment of estimation uncertainty per ISA 540.

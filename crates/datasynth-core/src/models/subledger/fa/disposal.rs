@@ -61,6 +61,7 @@ pub struct AssetDisposal {
     /// Created by.
     pub created_by: String,
     /// Created at.
+    #[serde(with = "crate::serde_timestamp::utc")]
     pub created_at: DateTime<Utc>,
     /// Notes.
     pub notes: Option<String>,
@@ -324,6 +325,7 @@ pub struct AssetTransfer {
     /// Created by.
     pub created_by: String,
     /// Created at.
+    #[serde(with = "crate::serde_timestamp::utc")]
     pub created_at: DateTime<Utc>,
     /// Notes.
     pub notes: Option<String>,
@@ -451,6 +453,7 @@ pub struct AssetImpairment {
     /// Created by.
     pub created_by: String,
     /// Created at.
+    #[serde(with = "crate::serde_timestamp::utc")]
     pub created_at: DateTime<Utc>,
     /// Notes.
     pub notes: Option<String>,

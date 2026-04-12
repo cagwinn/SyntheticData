@@ -151,7 +151,9 @@ pub struct RiskAssessment {
     /// Related control IDs
     pub related_controls: Vec<String>,
 
+    #[serde(with = "crate::serde_timestamp::utc")]
     pub created_at: DateTime<Utc>,
+    #[serde(with = "crate::serde_timestamp::utc")]
     pub updated_at: DateTime<Utc>,
 }
 

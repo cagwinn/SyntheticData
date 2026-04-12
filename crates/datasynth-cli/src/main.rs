@@ -858,7 +858,11 @@ fn main() -> Result<()> {
 
             // Write all generated data (journal entries, master data, document flows,
             // subledgers, HR, manufacturing, sourcing, banking, audit, tax, ESG, etc.)
-            if let Err(e) = output_writer::write_all_output(&result, &output) {
+            if let Err(e) = output_writer::write_all_output_with_layout(
+                &result,
+                &output,
+                generator_config.output.export_layout,
+            ) {
                 tracing::warn!("Some output files may not have been written: {}", e);
             }
 

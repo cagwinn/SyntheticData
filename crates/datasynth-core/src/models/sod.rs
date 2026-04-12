@@ -142,6 +142,7 @@ pub struct SodViolation {
     /// Description of the conflicting action
     pub conflicting_action: String,
     /// When the violation occurred
+    #[serde(with = "crate::serde_timestamp::utc")]
     pub timestamp: DateTime<Utc>,
     /// Severity of this specific violation
     pub severity: RiskLevel,

@@ -5,6 +5,156 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.0] - 2026-04-12
+
+### Added
+
+#### Banking/AML Comprehensive Enhancement
+
+##### New Typology Injectors (4)
+- **Synthetic Identity** (`typologies/synthetic_identity.rs`): Fabricated identity → 30-180d credit seasoning with small legitimate purchases → bust-out via ATM/wire/card extraction. Sophistication scales seasoning period, bust-out count, and total amount.
+- **Trade-Based Money Laundering** (`typologies/trade_based_ml.rs`): Over-invoicing cycles with SWIFT payments to trade partners in high-risk countries (CN, HK, SG, AE, TR), followed by laundered-difference "rebate" returns. Business customers only.
+- **Cryptocurrency Integration** (`typologies/crypto_integration.rs`): Fiat-to-exchange placement → off-chain gap (simulating blockchain layering) → peel chain returns from multiple exchanges (Coinbase, Kraken, Binance, etc.). Gap days and exchange count scale with sophistication.
+- **Sanctions Evasion** (`typologies/sanctions_evasion.rs`): Name variation generation (transliteration, reordering, initials), transshipment routing through intermediary countries (Turkey, UAE, Georgia, etc.) to sanctioned destinations. Includes `SanctionsScreening` with ground truth `is_true_match` for evaders who pass screening.
+
+##### Multi-Party Criminal Networks
+- **`NetworkGenerator`** (`typologies/network_generator.rs`): Coordinates multiple customers into realistic criminal networks:
+  - **Structuring rings**: 1 coordinator + 5-25 smurfs (based on sophistication), each running `StructuringInjector`, all linked by `network_id`
+  - **Mule chains**: Recruiter → 2-10 middlemen → cash-out node, each running `MuleInjector` with role-based `NetworkContext`
+  - **Shell company pyramids**: 2-7 layer business entity hierarchies for layering, each level tagged with `ShellEntity` role
+- **`NetworkContext`** model: `network_id`, `network_role` (Coordinator/Smurf/Middleman/CashOut/ShellEntity/Recruiter/Beneficiary), `co_occurring_typologies`, `network_size`
+
+##### Temporal Behavior & ML Features
+- **Account Lifecycle Phases** (`AccountLifecyclePhase` enum + `lifecycle_engine.rs`): New(30d, 0.2x activity) → RampUp(60d, 0.3→1.0x linear) → Steady(1.0x) → Decline(0.5→0.3x) → Dormant(0.0x). Phase assigned from account age and inactivity.
+- **Velocity Feature Pre-computation** (`velocity_computer.rs`): Post-generation pass computes rolling-window features on every transaction: `txn_count_{1h,24h,7d,30d}`, `amount_sum_{24h,7d,30d}`, `amount_max_24h`, `unique_counterparties_{24h,7d}`, `unique_countries_7d`, `avg_amount_30d`, `std_amount_30d`, `amount_zscore`.
+
+##### Quick Wins
+- **False Positive Injection** (`false_positive.rs`): Tags `false_positive_rate` (default 5%) of legitimate transactions as "suspicious-looking but clean" with `is_false_positive=true` and `false_positive_reason` (near-threshold, round amount, cross-border, off-hours, cash).
+- **Transaction Ground Truth Explanations**: Every suspicious transaction carries `ground_truth_explanation` (e.g., "Structuring deposit #3 of 8: $9,450 below $10K threshold").
+- **Sanctions Screening Fields**: `SanctionsScreening` struct on `BankingCustomer` with `last_screened`, `screening_result` (Clear/PotentialMatch/ConfirmedMatch), `match_score`, `name_variations`, `is_true_match`.
+- **`DeviceFingerprint` model**: `device_id`, `device_model`, `os`, `os_version`, `screen_resolution`, `browser`, `is_known_device`, `device_trust_score` — static device profile tables for realistic generation.
+
+##### New Model Structs
+- `VelocityFeatures` — 14-field rolling-window feature vector per transaction
+- `NetworkContext` + `NetworkRole` — multi-party network tagging
+- `AccountLifecyclePhase` — 5-phase account maturity model
+- `SanctionsScreening` + `ScreeningResult` — sanctions list screening results
+- `DeviceFingerprint` + `DeviceProfiles` — realistic device fingerprinting
+
+##### Coherent Cross-Layer Integration (v2.3.0 coherence release)
+
+The banking module is no longer a silo — it is now fully integrated with the accounting, document flow, and fingerprint layers. A single business event (e.g., a vendor invoice payment) is now visible across all layers with cross-references and label propagation.
+
+- **`PaymentBridgeGenerator`** (`generators/payment_bridge.rs`): For each P2P/O2C `Payment` document, emits a corresponding `BankTransaction` on the enterprise's house bank account. If the counterparty has a banking profile (via `enterprise_customer_id`), also emits a mirror transaction on the counterparty side. Default bridge rate: 75%.
+- **Cross-reference fields on `BankTransaction`**:
+  - `source_payment_id` — links back to the `Payment` document
+  - `source_invoice_id` — links to the vendor/customer invoice being settled
+  - `journal_entry_id` — links to the GL journal entry
+  - `gl_cash_account` — the GL code posted against (from BankAccount.gl_account)
+- **Automatic GL code assignment**: `BankAccount::new()` now auto-populates `gl_account` from `BankAccountType::default_gl_account()` with standard US GAAP cash account codes (100000 Operating, 100100 Savings, 100500 Trust, 100600 Escrow, etc.).
+- **Cross-layer fraud label propagation**: When a `Payment.header.is_fraud = true` (set by the fraud propagation pipeline from v2.3.0 #11), the bridged `BankTransaction` inherits fraud labels via `FraudType → AmlTypology` mapping (e.g., `DuplicatePayment → FirstPartyFraud`, `FictitiousVendor → ShellCompany`, `Kickback → Corruption`). Both sides of the mirror pair get marked suspicious with `ground_truth_explanation`.
+- **`BankingFingerprint`** (`datasynth-fingerprint/src/models/banking.rs`): New fingerprint component capturing banking patterns for privacy-preserving re-synthesis — customer type distribution, risk tier distribution, retail persona distribution, account type distribution, transaction channel/category distribution, AML typology rates, log-normal amount parameters, per-customer account counts, per-account transaction counts, PEP/mule/bridged/network/cross-border/cash rates.
+- **`BankingExtractor`** (`datasynth-fingerprint/src/extraction/banking_extractor.rs`): Generic extractor that decouples the fingerprint crate from `datasynth-banking` via closure-based accessors, enabling banking pattern extraction from any data source.
+
+##### Realism Release (v2.3.0 final realism push)
+
+The original banking module had known simplifications that reduced training realism. This release closes those gaps — every generator that previously used fixed distributions now uses context-aware stochastic models, and every enhancement ships with a matching evaluator.
+
+**Extended Typology Coverage (4 more injectors)**
+- `PouchActivityInjector`: physical cash collection + bulk deposits across multiple branches (high-cash industry fronts)
+- `RomanceScamInjector`: escalating outbound transfers to foreign persona, "emergency" patterns
+- `CasinoIntegrationInjector`: chip purchase → minimal play → "winnings" check (placement → integration)
+- `RealEstateIntegrationInjector`: earnest money + closing payments via title companies, LLC-obscured ownership
+- Total: **14 fully-implemented typologies** (up from 10), covering 50% of the `AmlTypology` enum
+
+**Device Behavioral Realism**
+- `DeviceRealismGenerator`: per-customer device pool (1-5 devices) with **power-law usage weights** (primary device dominates)
+- Realistic device-count distribution: 70% single-device, 20% dual, 7% triple, 3% power users (4-5 devices)
+- Trust score evolution with age and usage bonuses
+- Replaces flat `device_reuse_rate = 0.85`
+
+**Sanctions Screening Variance**
+- `SanctionsVarianceGenerator`: context-aware screening with multiplicative risk boosts
+- Risk tier multiplier (Low 1× → Prohibited 100×)
+- High-risk country boost (20×), transshipment country boost (5×)
+- PEP boost (15×), high-risk industry boost (8×), name complexity boost (3×)
+- Name-variation generation for PEPs and transliterated names
+
+**Sophistication Context Correlation**
+- `SophisticationSampler::sample_sophistication(ctx)`: conditional probability based on amount, typology, customer_type, network_size
+- Replaces flat multinomial from config
+- Examples: trade-based ML skews Professional+; retail with small amounts skews Basic; large business amounts shift toward Advanced/StateLevel
+- Typology-specific baseline shifts (SanctionsEvasion +30%, CryptoIntegration +25%, TradeBasedML +20%)
+
+**Account Lifecycle Stochasticity**
+- `StochasticLifecycleEngine`: replaces deterministic age-based progression with event-driven stochastic simulation
+- **Life events**: JobChange (8%/yr), Relocation (5%/yr), MajorPurchase (10%/yr), Retirement (2%/yr), Abandonment (3%/yr), Reactivation (20%/yr for dormant)
+- Natural sigmoid-weighted phase progression when no event triggers
+- Accounts can skip phases, reactivate from dormancy, regress on life events
+- Full transition history exported for analytics
+
+**Network Topology Realism**
+- `NetworkTopologyGenerator::generate_ba()`: **Barabási-Albert preferential attachment** — each new node attaches to existing nodes with probability proportional to degree
+- Produces power-law degree distribution (hub + long tail of leaves)
+- Multi-cluster support with automatic bridge-node identification
+- Replaces simple hub-and-spoke (coordinator + N identical smurfs)
+- Max degree typically 3-5× average → realistic criminal network topology
+
+##### Evaluation Framework Coverage (parallel to the generator enhancements)
+
+To match the expanded generator surface, `datasynth-eval` gains three new banking evaluators:
+
+- **`CrossLayerCoherenceAnalyzer`** (`banking/cross_layer_coherence.rs`): Validates Payment↔BankTransaction referential integrity — detects dangling `source_payment_id` references, missing `gl_cash_account`, amount deviations between bridged transactions and their source payments, and **most importantly verifies the fraud propagation rate** (`Payment.is_fraud → BankTransaction.is_suspicious` must hit ≥95% by default).
+- **`VelocityQualityAnalyzer`** (`banking/velocity_quality.rs`): Validates pre-computed velocity features — checks window ordering invariants (1h ≤ 24h ≤ 7d ≤ 30d counts; 24h ≤ 7d ≤ 30d amounts), coverage rate, and z-score calibration (mean should be near 0 when aggregated).
+- **`FalsePositiveAnalyzer`** (`banking/false_positive_quality.rs`): Validates FP injection quality — enforces rate bounds (1-30%), **label mutual exclusivity** (no transaction should be both `is_suspicious=true` AND `is_false_positive=true`), and reason coverage.
+- **`DeviceFingerprintAnalyzer`** (`banking/device_fingerprint.rs`): Validates power-law device distribution, single-device dominance, trust score calibration.
+- **`SanctionsScreeningAnalyzer`** (`banking/sanctions_screening.rs`): Validates that low-risk customers are mostly Clear, high-risk customers have elevated match rates, PEPs have name variations populated.
+- **`SophisticationAnalyzer`** (`banking/sophistication_distribution.rs`): Validates sophistication level diversity, small-retail skew toward Basic, sanctions evasion skew away from Basic.
+- **`LifecycleAnalyzer`** (`banking/account_lifecycle.rs`): Validates phase diversity, progression rate, event-driven transition rate, detects accounts stuck in New phase.
+- **`NetworkStructureAnalyzer`** (`banking/network_structure.rs`): Validates power-law topology (hub ratio ≥2.5× average), role diversity, flags uniform-degree hub-and-spoke patterns.
+
+`BankingEvaluation` now has 10 sub-analyses (KYC, AML, cross-layer, velocity, false-positive, device, sanctions, sophistication, lifecycle, network). 33 banking eval tests total (24 new + 9 from earlier + 3 original), all passing.
+
+**Result:** A fraudulent $100K vendor payment now produces:
+- `Payment-001` (document flow) with `is_fraud=true`, `fraud_type=Some(DuplicatePayment)`
+- `JournalEntry` with DR AP 2000 / CR Cash 100000
+- `BankTransaction` on enterprise bank with `source_payment_id=Payment-001`, `journal_entry_id=JE-001`, `is_suspicious=true`, `suspicion_reason=Some(FirstPartyFraud)`
+- Mirror `BankTransaction` on vendor bank (if vendor has banking profile) with the same references
+- OCPM events linking all of it in a single case trace
+
+##### Config Extensions (all backward-compatible with serde defaults)
+- `typologies.synthetic_identity_rate` (0.001), `crypto_integration_rate` (0.001), `sanctions_evasion_rate` (0.0005)
+- `typologies.false_positive_rate` (0.05), `co_occurrence_rate` (0.10), `network_typology_rate` (0.05)
+- `temporal.enable_lifecycle_phases`, `enable_behavioral_drift`, `enable_velocity_features`, `enable_impossible_travel`, `drift_rate` (0.05), `sudden_drift_ratio` (0.30)
+- `device.enabled`, `device_reuse_rate` (0.85), `multi_device_rate` (0.30)
+
+#### SDK/API Consumer Experience (#1-#12 feedback)
+- **`numeric_mode: native` output config**: Decimal fields can now serialize as JSON numbers (`1729237.30`) instead of strings (`"1729237.30"`). Configurable via `output.numeric_mode: native` in YAML. Thread-local flag drives a custom `serde_decimal` module replacing 507 field annotations across 64 source files. Default remains `string` for lossless precision.
+- **Normalized timestamp serialization**: All `DateTime<Utc>` and `NaiveDateTime` fields now serialize with microsecond precision and consistent UTC `Z` suffix via a custom `serde_timestamp` module. Eliminates pandas "Mixed timezones detected" errors and nanosecond precision issues. ~100 field annotations across 40+ files.
+- **`export_layout: flat` output config**: Journal entries and document flows can now export as flat JSON (header fields merged onto each line) instead of nested `{"header": {...}, "lines": [...]}`. Configurable via `output.export_layout: flat`. Supports PO, GR, VI, Payment, SO, Delivery, CI, and all array-bearing document types.
+- **`display_name` on `BankingCustomer`**: Top-level `display_name` field computed from `CustomerName::display_name()` (trade name if present, otherwise legal name). Eliminates the need for consumers to flatten the nested `name` dict.
+- **Pre-built analytics in archive output**: New `analytics/` directory with `benford_analysis.json` (Benford's Law conformity, MAD, chi-squared), `amount_distribution.json` (mean, median, skewness, kurtosis, log-normal fit), and `process_variant_summary.json` (variant count, entropy, happy-path concentration). Powered by existing `datasynth-eval` analyzers.
+- **Fraud label propagation to document flows**: `DocumentHeader` now carries `is_fraud` and `fraud_type` fields. After anomaly injection, fraud labels are back-propagated from journal entries to source documents (PO, GR, VI, Payment, SO, Delivery, CI) via reference and journal_entry_id matching. Consumers can identify fraudulent documents directly without tracing through `document_references.json`.
+- **`DocumentHeader::propagate_fraud()` method**: Encapsulates fraud label propagation logic for reuse across document types.
+
+#### Rate-Controlled NDJSON Streaming
+- **`RateLimitedPipeline`**: New `PhaseSink` wrapper that composes any sink with the existing token bucket `RateLimiter`. Supports dynamic rate changes via `set_rate()`, burst capacity, and periodic `_progress` event injection.
+- **`GET /api/stream/ndjson` endpoint**: Streams the entire generation output as newline-delimited JSON. Each line is a self-describing envelope: `{"type":"journal_entries","subtype":"JournalEntry","data":{...}}`. Rate-controlled via `?rate=100&burst=50&progress_interval=100` query parameters.
+- **Streaming config**: Added `events_per_second` and `burst_size` to `StreamingSchemaConfig` for YAML-based streaming rate control.
+
+### Changed
+- **Chart of accounts output**: `chart_of_accounts.json` now serializes as a flat array of `GLAccount` records (consistent with other entity files) instead of the wrapper `{"coa_id": ..., "accounts": [...]}` object. CoA metadata remains in the generation manifest.
+- **OCEL event logs**: Verified that all 8 process types (P2P, O2C, S2C, H2R, MFG, Banking, Audit, BankRecon) are already wired into `generate_ocpm_events()` for all sectors, not just manufacturing. No code change needed — documentation gap only.
+
+### Fixed
+- **Flat JSON export performance**: Eliminated deep clone of header `serde_json::Value` per line item; replaced with borrow-based merge. Eliminated per-line `Vec` allocation in analytics amount collection. Switched `write_json_flat` from in-memory `to_string_pretty` to streaming `to_writer_pretty`.
+- **Timestamp serialization performance**: `format_normalized()` now writes to a `[u8; 32]` stack buffer instead of heap-allocating a `String` per timestamp field. Replaced `unsafe from_utf8_unchecked` with safe `from_utf8` (negligible perf impact on 27-byte ASCII buffer).
+- **NDJSON envelope schema**: `ChannelPhaseSink` now uses `phase`/`item_type` field names, consistent with `StreamPipeline`'s file-based JSONL format.
+- **NDJSON streaming allocation**: Replaced `format!("{line}\n")` per-line String allocation with in-place `line.push('\n')` on owned String.
+- **`write_json_flat` robustness**: Added `allocations` and `line_items` to the items-key detection list (fixes silent passthrough for Payment and other document types). Added `warn!()` logging for serialization failures instead of silent drops.
+- **Numeric mode thread-local leak**: Added scope guard (`NumericModeGuard`) that resets `set_numeric_native(false)` on drop, preventing the thread-local from leaking across `spawn_blocking` thread pool reuse.
+- **Fraud propagation**: Extracted closure to `DocumentHeader::propagate_fraud()` method; orchestrator uses macro for 7 document types.
+
 ## [2.2.0] - 2026-04-07
 
 ### Added

@@ -42,12 +42,15 @@ pub struct RelationshipMetadata {
     /// Data source.
     pub source: String,
     /// Generation timestamp.
+    #[serde(with = "datasynth_core::serde_timestamp::utc")]
     pub generated_at: DateTime<Utc>,
     /// Relationship weight.
     pub weight: Option<f64>,
     /// Valid from timestamp.
+    #[serde(default, with = "datasynth_core::serde_timestamp::utc::option")]
     pub valid_from: Option<DateTime<Utc>>,
     /// Valid to timestamp.
+    #[serde(default, with = "datasynth_core::serde_timestamp::utc::option")]
     pub valid_to: Option<DateTime<Utc>>,
     /// Custom labels.
     pub labels: HashMap<String, String>,

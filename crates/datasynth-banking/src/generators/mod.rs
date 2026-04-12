@@ -10,8 +10,14 @@
 mod account_generator;
 mod counterparty_generator;
 mod customer_generator;
+pub mod device_realism;
 mod kyc_generator;
+pub mod lifecycle_engine;
+pub mod lifecycle_stochastic;
+pub mod payment_bridge;
+pub mod sanctions_variance;
 mod transaction_generator;
+pub mod velocity_computer;
 
 pub use account_generator::*;
 pub use counterparty_generator::*;

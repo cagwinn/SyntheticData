@@ -30,14 +30,14 @@ pub struct FinancialRatios {
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
-        with = "rust_decimal::serde::str_option"
+        with = "datasynth_core::serde_decimal::option"
     )]
     pub current_ratio: Option<Decimal>,
     /// Quick ratio: (current assets − inventory) / current liabilities.
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
-        with = "rust_decimal::serde::str_option"
+        with = "datasynth_core::serde_decimal::option"
     )]
     pub quick_ratio: Option<Decimal>,
 
@@ -46,21 +46,21 @@ pub struct FinancialRatios {
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
-        with = "rust_decimal::serde::str_option"
+        with = "datasynth_core::serde_decimal::option"
     )]
     pub dso: Option<Decimal>,
     /// Days Payable Outstanding: AP / COGS × 365.
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
-        with = "rust_decimal::serde::str_option"
+        with = "datasynth_core::serde_decimal::option"
     )]
     pub dpo: Option<Decimal>,
     /// Inventory turnover: COGS / inventory.
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
-        with = "rust_decimal::serde::str_option"
+        with = "datasynth_core::serde_decimal::option"
     )]
     pub inventory_turnover: Option<Decimal>,
 
@@ -69,35 +69,35 @@ pub struct FinancialRatios {
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
-        with = "rust_decimal::serde::str_option"
+        with = "datasynth_core::serde_decimal::option"
     )]
     pub gross_margin: Option<Decimal>,
     /// Operating margin: (revenue − COGS − operating expenses) / revenue.
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
-        with = "rust_decimal::serde::str_option"
+        with = "datasynth_core::serde_decimal::option"
     )]
     pub operating_margin: Option<Decimal>,
     /// Net margin: net income / revenue.
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
-        with = "rust_decimal::serde::str_option"
+        with = "datasynth_core::serde_decimal::option"
     )]
     pub net_margin: Option<Decimal>,
     /// Return on assets: net income / total assets.
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
-        with = "rust_decimal::serde::str_option"
+        with = "datasynth_core::serde_decimal::option"
     )]
     pub roa: Option<Decimal>,
     /// Return on equity: net income / total equity.
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
-        with = "rust_decimal::serde::str_option"
+        with = "datasynth_core::serde_decimal::option"
     )]
     pub roe: Option<Decimal>,
 
@@ -106,14 +106,14 @@ pub struct FinancialRatios {
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
-        with = "rust_decimal::serde::str_option"
+        with = "datasynth_core::serde_decimal::option"
     )]
     pub debt_to_equity: Option<Decimal>,
     /// Debt-to-assets: total liabilities / total assets.
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
-        with = "rust_decimal::serde::str_option"
+        with = "datasynth_core::serde_decimal::option"
     )]
     pub debt_to_assets: Option<Decimal>,
 }
@@ -127,14 +127,14 @@ pub struct RatioCheck {
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
-        with = "rust_decimal::serde::str_option"
+        with = "datasynth_core::serde_decimal::option"
     )]
     pub value: Option<Decimal>,
     /// Minimum acceptable value for this industry.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub industry_min: Decimal,
     /// Maximum acceptable value for this industry.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub industry_max: Decimal,
     /// True if the ratio is within bounds (or not computable — vacuously true).
     pub is_reasonable: bool,

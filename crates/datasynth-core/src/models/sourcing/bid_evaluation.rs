@@ -35,7 +35,7 @@ pub struct RankedBid {
     /// Technical/quality score component
     pub quality_score: f64,
     /// Total bid amount
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub total_amount: Decimal,
     /// Individual criterion scores
     pub criterion_scores: Vec<BidEvaluationEntry>,

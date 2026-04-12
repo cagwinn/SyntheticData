@@ -47,6 +47,7 @@ pub struct EvaluationReport {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReportMetadata {
     /// Report generation timestamp.
+    #[serde(with = "datasynth_core::serde_timestamp::utc")]
     pub generated_at: DateTime<Utc>,
     /// Evaluation version.
     pub version: String,

@@ -329,6 +329,7 @@ pub struct DocumentHeader {
     pub entry_date: NaiveDate,
 
     /// Entry timestamp
+    #[serde(with = "crate::serde_timestamp::naive")]
     pub entry_timestamp: NaiveDateTime,
 
     /// Document status
@@ -341,6 +342,7 @@ pub struct DocumentHeader {
     pub changed_by: Option<String>,
 
     /// Last change timestamp
+    #[serde(default, with = "crate::serde_timestamp::naive::option")]
     pub changed_at: Option<NaiveDateTime>,
 
     /// Employee ID of the creator (bridges user_id ↔ employee_id)
@@ -367,6 +369,15 @@ pub struct DocumentHeader {
 
     /// References to other documents
     pub document_references: Vec<DocumentReference>,
+
+    /// Whether this document is part of a fraud scenario.
+    /// Propagated from the corresponding journal entry after anomaly injection.
+    #[serde(default)]
+    pub is_fraud: bool,
+
+    /// Fraud type if applicable (propagated from journal entry).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fraud_type: Option<crate::models::FraudType>,
 }
 
 impl DocumentHeader {
@@ -401,7 +412,30 @@ impl DocumentHeader {
             header_text: None,
             journal_entry_id: None,
             document_references: Vec::new(),
+            is_fraud: false,
+            fraud_type: None,
         }
+    }
+
+    /// Propagate fraud labels from a fraud map (document_id/journal_entry_id -> FraudType).
+    /// Returns true if this document was tagged as fraudulent.
+    pub fn propagate_fraud(
+        &mut self,
+        fraud_map: &std::collections::HashMap<String, crate::models::FraudType>,
+    ) -> bool {
+        if let Some(ft) = fraud_map.get(&self.document_id) {
+            self.is_fraud = true;
+            self.fraud_type = Some(*ft);
+            return true;
+        }
+        if let Some(ref je_id) = self.journal_entry_id {
+            if let Some(ft) = fraud_map.get(je_id) {
+                self.is_fraud = true;
+                self.fraud_type = Some(*ft);
+                return true;
+            }
+        }
+        false
     }
 
     /// Set the employee ID of the document creator.

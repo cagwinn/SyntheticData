@@ -90,7 +90,7 @@ pub struct KeyItem {
     /// Reference ID — JE document_id, subledger record ID, etc.
     pub item_id: String,
     /// Monetary amount of the item.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub amount: Decimal,
     /// Reason this item was designated as a key item.
     pub reason: KeyItemReason,
@@ -118,7 +118,7 @@ pub struct SampledItem {
     /// FK → `SamplingPlan.id` — the plan this item belongs to.
     pub sampling_plan_id: String,
     /// Monetary amount of the item.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub amount: Decimal,
     /// How the item was selected into the sample.
     pub selection_type: SelectionType,
@@ -154,25 +154,25 @@ pub struct SamplingPlan {
     /// Total number of items in the population before key item extraction.
     pub population_size: usize,
     /// Total monetary value of the population.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub population_value: Decimal,
     /// Key items identified and extracted for 100% testing.
     pub key_items: Vec<KeyItem>,
     /// Total monetary value of all key items.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub key_items_value: Decimal,
     /// Monetary value of the residual population (population_value − key_items_value).
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub remaining_population_value: Decimal,
     /// Number of representative sample items drawn from the residual population.
     pub sample_size: usize,
     /// Sampling interval = remaining_population_value / sample_size (for MUS / systematic).
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub sampling_interval: Decimal,
     /// CRA level that drove this plan (links to `CombinedRiskAssessment.combined_risk`).
     pub cra_level: String,
     /// Tolerable error for this population (equals performance materiality from ISA 320).
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub tolerable_error: Decimal,
 }
 

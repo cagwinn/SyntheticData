@@ -137,6 +137,7 @@ impl FingerprintReader {
             integrity,
             rules,
             anomalies,
+            banking: None,
             privacy_audit,
         })
     }
@@ -213,6 +214,7 @@ impl FingerprintReader {
             integrity,
             rules,
             anomalies,
+            banking: None,
             privacy_audit,
         })
     }

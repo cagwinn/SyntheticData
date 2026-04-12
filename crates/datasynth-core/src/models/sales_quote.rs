@@ -48,14 +48,14 @@ pub struct SalesQuote {
     /// Individual line items on the quote
     pub line_items: Vec<QuoteLineItem>,
     /// Total quoted amount before discount
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub total_amount: Decimal,
     /// Currency code (e.g., USD, EUR)
     pub currency: String,
     /// Discount percentage applied (0.0 to 1.0)
     pub discount_percent: f64,
     /// Calculated discount amount
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub discount_amount: Decimal,
     /// Sales representative responsible for the quote
     pub sales_rep_id: Option<String>,
@@ -79,12 +79,12 @@ pub struct QuoteLineItem {
     /// Description of the quoted item
     pub description: String,
     /// Quoted quantity
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub quantity: Decimal,
     /// Unit price for the item
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub unit_price: Decimal,
     /// Total line amount (quantity * unit_price)
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub line_amount: Decimal,
 }

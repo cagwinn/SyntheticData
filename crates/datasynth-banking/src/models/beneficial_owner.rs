@@ -19,7 +19,7 @@ pub struct BeneficialOwner {
     /// Country of citizenship
     pub citizenship_country: Option<String>,
     /// Ownership percentage
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub ownership_percentage: Decimal,
     /// Control type
     pub control_type: ControlType,
@@ -205,7 +205,7 @@ pub struct IntermediaryEntity {
     /// Jurisdiction (country)
     pub jurisdiction: String,
     /// Ownership percentage through this entity
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub ownership_percentage: Decimal,
     /// Is this a shell company
     pub is_shell: bool,
@@ -285,7 +285,7 @@ pub struct OwnershipChain {
     /// Total layers in ownership structure
     pub total_layers: u8,
     /// Effective ownership percentage
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub effective_ownership: Decimal,
 }
 

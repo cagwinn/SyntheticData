@@ -245,6 +245,7 @@ pub struct ReconciliationStatus {
     /// Is reconciled (within tolerance).
     pub is_reconciled: bool,
     /// Reconciliation timestamp.
+    #[serde(with = "crate::serde_timestamp::utc")]
     pub reconciled_at: DateTime<Utc>,
     /// Unreconciled items.
     pub unreconciled_items: Vec<UnreconciledItem>,

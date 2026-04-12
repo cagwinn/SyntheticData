@@ -74,10 +74,10 @@ pub struct VestingEntry {
     /// Date on which this tranche vests.
     pub vesting_date: NaiveDate,
     /// Percentage of the total grant vesting in this period (e.g. 0.25 = 25%).
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub percentage: Decimal,
     /// Cumulative percentage vested through this entry (e.g. 0.50 after Year 2 of 4).
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub cumulative_percentage: Decimal,
 }
 
@@ -125,14 +125,14 @@ pub struct StockGrant {
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
-        with = "rust_decimal::serde::str_option"
+        with = "crate::serde_decimal::option"
     )]
     pub exercise_price: Option<Decimal>,
     /// Fair value per share / unit at the grant date (measurement basis for expense).
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub fair_value_at_grant: Decimal,
     /// Total grant-date fair value (`quantity × fair_value_at_grant`).
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub total_grant_value: Decimal,
     /// Vesting schedule defining when each tranche vests.
     pub vesting_schedule: VestingSchedule,
@@ -140,7 +140,7 @@ pub struct StockGrant {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub expiration_date: Option<NaiveDate>,
     /// Estimated annual forfeiture rate applied to reduce total grant expense.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub forfeiture_rate: Decimal,
     /// Reporting currency code (e.g. "USD").
     pub currency: String,
@@ -169,15 +169,15 @@ pub struct StockCompExpense {
     /// Period label (e.g. "2024-Q1" or "2024-12").
     pub period: String,
     /// Expense recognised in this period.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub expense_amount: Decimal,
     /// Cumulative expense recognised through the end of this period.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub cumulative_recognized: Decimal,
     /// Remaining unrecognised expense after this period.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub remaining_unrecognized: Decimal,
     /// Forfeiture rate applied to this grant (snapshot at grant date).
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub forfeiture_rate: Decimal,
 }

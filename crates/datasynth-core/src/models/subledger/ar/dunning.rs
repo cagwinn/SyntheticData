@@ -39,8 +39,10 @@ pub struct DunningRun {
     /// Letters generated in this run.
     pub letters: Vec<DunningLetter>,
     /// Started timestamp.
+    #[serde(with = "crate::serde_timestamp::utc")]
     pub started_at: DateTime<Utc>,
     /// Completed timestamp.
+    #[serde(default, with = "crate::serde_timestamp::utc::option")]
     pub completed_at: Option<DateTime<Utc>>,
     /// User who initiated the run.
     pub created_by: Option<String>,
@@ -168,6 +170,7 @@ pub struct DunningLetter {
     /// Notes.
     pub notes: Option<String>,
     /// Created timestamp.
+    #[serde(with = "crate::serde_timestamp::utc")]
     pub created_at: DateTime<Utc>,
 }
 

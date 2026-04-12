@@ -57,6 +57,7 @@ pub struct APPayment {
     /// Payment run ID.
     pub payment_run_id: Option<String>,
     /// Created timestamp.
+    #[serde(with = "crate::serde_timestamp::utc")]
     pub created_at: DateTime<Utc>,
     /// Created by user.
     pub created_by: Option<String>,
@@ -332,6 +333,7 @@ pub struct PaymentProposal {
     /// Created by.
     pub created_by: String,
     /// Created at.
+    #[serde(with = "crate::serde_timestamp::utc")]
     pub created_at: DateTime<Utc>,
 }
 

@@ -90,16 +90,16 @@ pub struct PaymentAllocation {
     /// Invoice type
     pub invoice_type: DocumentType,
     /// Allocated amount
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub amount: Decimal,
     /// Discount taken
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub discount_taken: Decimal,
     /// Write-off amount
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub write_off: Decimal,
     /// Withholding tax
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub withholding_tax: Decimal,
     /// Is this allocation cleared?
     pub is_cleared: bool,
@@ -153,7 +153,7 @@ pub struct Payment {
     pub payment_status: PaymentStatus,
 
     /// Payment amount
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub amount: Decimal,
 
     /// Payment currency
@@ -181,23 +181,23 @@ pub struct Payment {
     pub allocations: Vec<PaymentAllocation>,
 
     /// Total discount taken
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub total_discount: Decimal,
 
     /// Total write-off
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub total_write_off: Decimal,
 
     /// Bank charges
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub bank_charges: Decimal,
 
     /// Exchange rate (if foreign currency)
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub exchange_rate: Decimal,
 
     /// FX gain/loss
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub fx_gain_loss: Decimal,
 
     /// Payment run ID (if from automatic payment run)

@@ -20,11 +20,11 @@ use datasynth_standards::audit::opinion::{AuditOpinion, KeyAuditMatter};
 pub struct TrialBalanceEntry {
     pub account_code: String,
     pub account_description: String,
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub debit_balance: rust_decimal::Decimal,
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub credit_balance: rust_decimal::Decimal,
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub net_balance: rust_decimal::Decimal,
     pub entity_code: String,
     pub period: String,

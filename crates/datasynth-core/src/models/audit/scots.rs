@@ -174,7 +174,7 @@ pub struct SignificantClassOfTransactions {
     /// Approximate number of transactions in the period.
     pub volume: usize,
     /// Aggregate monetary value of transactions in the period.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub monetary_value: Decimal,
     /// The four-stage critical path (Initiation → Recording → Processing → Reporting).
     pub critical_path: Vec<CriticalPathStage>,

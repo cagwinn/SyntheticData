@@ -81,7 +81,7 @@ pub struct PeriodDataPoint {
     /// Human-readable period label (e.g. "FY2024-Q3", "FY2023").
     pub period: String,
     /// Computed value for the relationship in this period.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub value: Decimal,
     /// Whether this is the current (under-audit) period.
     pub is_current: bool,
@@ -95,7 +95,7 @@ pub struct SupportingMetric {
     /// Name of the metric (e.g. "Employee headcount", "Units shipped").
     pub metric_name: String,
     /// Metric value for the current period.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub value: Decimal,
     /// System or process from which the metric was sourced.
     pub source: String,

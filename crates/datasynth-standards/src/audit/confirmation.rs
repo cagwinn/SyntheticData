@@ -39,7 +39,7 @@ pub struct ExternalConfirmation {
     pub item_description: String,
 
     /// Amount per client records.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub client_amount: Decimal,
 
     /// Currency.
@@ -239,7 +239,7 @@ pub struct ConfirmationResponse {
     pub date_received: NaiveDate,
 
     /// Confirmed amount.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub confirmed_amount: Decimal,
 
     /// Response agrees with client records.
@@ -297,7 +297,7 @@ pub struct ConfirmedDifference {
     pub description: String,
 
     /// Amount of difference.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub amount: Decimal,
 
     /// Type of difference.
@@ -326,22 +326,22 @@ pub enum DifferenceType {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConfirmationReconciliation {
     /// Client balance.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub client_balance: Decimal,
 
     /// Confirmed balance.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub confirmed_balance: Decimal,
 
     /// Total difference.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub total_difference: Decimal,
 
     /// Reconciling items.
     pub reconciling_items: Vec<ReconcilingItem>,
 
     /// Unreconciled difference.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub unreconciled_difference: Decimal,
 
     /// Conclusion on reconciliation.
@@ -376,7 +376,7 @@ pub struct ReconcilingItem {
     pub description: String,
 
     /// Amount.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub amount: Decimal,
 
     /// Type of reconciling item.

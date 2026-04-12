@@ -48,12 +48,12 @@ pub struct InventoryMovement {
     /// Movement type
     pub movement_type: MovementType,
     /// Quantity moved
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub quantity: Decimal,
     /// Unit of measure
     pub unit: String,
     /// Total value of the movement
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub value: Decimal,
     /// Currency code
     pub currency: String,

@@ -19,7 +19,7 @@ pub struct CatalogItem {
     /// Item description
     pub description: String,
     /// Catalog price (from contract)
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub catalog_price: Decimal,
     /// Unit of measure
     pub uom: String,

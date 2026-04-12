@@ -82,7 +82,9 @@ pub struct AuditEngagement {
     pub fraud_risk_level: RiskLevel,
 
     // === Timestamps ===
+    #[serde(with = "crate::serde_timestamp::utc")]
     pub created_at: DateTime<Utc>,
+    #[serde(with = "crate::serde_timestamp::utc")]
     pub updated_at: DateTime<Utc>,
 
     // === Scope ===

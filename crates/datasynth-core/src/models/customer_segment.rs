@@ -207,7 +207,7 @@ pub enum CustomerLifecycleStage {
         /// Date when stable state achieved
         stable_since: NaiveDate,
         /// Average annual spend
-        #[serde(with = "rust_decimal::serde::str")]
+        #[serde(with = "crate::serde_decimal")]
         avg_annual_spend: Decimal,
     },
     /// Customer showing churn signals
@@ -372,13 +372,13 @@ pub struct CustomerEngagement {
     /// Orders in the last 12 months
     pub orders_last_12_months: u32,
     /// Total revenue (lifetime)
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub lifetime_revenue: Decimal,
     /// Revenue in the last 12 months
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub revenue_last_12_months: Decimal,
     /// Average order value
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub average_order_value: Decimal,
     /// Days since last order
     pub days_since_last_order: u32,
@@ -509,7 +509,7 @@ pub struct SegmentedCustomer {
     /// Industry
     pub industry: Option<String>,
     /// Annual contract value
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub annual_contract_value: Decimal,
     /// Churn risk score (0.0 to 1.0)
     pub churn_risk_score: f64,
@@ -648,7 +648,7 @@ pub struct SegmentStatistics {
     /// Revenue by segment
     pub revenue_by_segment: HashMap<String, Decimal>,
     /// Total revenue
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub total_revenue: Decimal,
     /// Average churn risk
     pub avg_churn_risk: f64,

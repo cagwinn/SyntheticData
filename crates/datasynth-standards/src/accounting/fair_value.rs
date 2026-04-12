@@ -37,11 +37,11 @@ pub struct FairValueMeasurement {
     pub valuation_technique: ValuationTechnique,
 
     /// Measured fair value.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub fair_value: Decimal,
 
     /// Carrying amount (if different from fair value).
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub carrying_amount: Decimal,
 
     /// Measurement date.
@@ -227,7 +227,7 @@ pub struct ValuationInput {
     pub name: String,
 
     /// Input value.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub value: Decimal,
 
     /// Unit of measurement.
@@ -280,11 +280,11 @@ pub struct SensitivityAnalysis {
     pub input_range: (Decimal, Decimal),
 
     /// Fair value at low end of range.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub fair_value_low: Decimal,
 
     /// Fair value at high end of range.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub fair_value_high: Decimal,
 
     /// Correlation with other inputs.
@@ -330,27 +330,27 @@ pub struct FairValueHierarchySummary {
     pub company_code: String,
 
     /// Total Level 1 assets.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub level1_assets: Decimal,
 
     /// Total Level 2 assets.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub level2_assets: Decimal,
 
     /// Total Level 3 assets.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub level3_assets: Decimal,
 
     /// Total Level 1 liabilities.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub level1_liabilities: Decimal,
 
     /// Total Level 2 liabilities.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub level2_liabilities: Decimal,
 
     /// Total Level 3 liabilities.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub level3_liabilities: Decimal,
 
     /// Framework applied.

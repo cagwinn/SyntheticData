@@ -46,7 +46,7 @@ pub struct GroupAuditPlan {
     /// Reference to the parent audit engagement.
     pub engagement_id: String,
     /// Group-level materiality (applied to group financial statements).
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub group_materiality: Decimal,
     /// Materiality allocation per component entity.
     pub component_allocations: Vec<ComponentMaterialityAllocation>,
@@ -76,10 +76,10 @@ pub struct ComponentMaterialityAllocation {
     /// Entity code this allocation applies to.
     pub entity_code: String,
     /// Component materiality threshold (lower than group materiality).
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub component_materiality: Decimal,
     /// Clearly-trivial threshold (items below this need not be aggregated).
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub clearly_trivial: Decimal,
     /// Basis used to allocate materiality.
     pub allocation_basis: AllocationBasis,
@@ -125,7 +125,7 @@ pub struct ComponentInstruction {
     /// Scope of work required.
     pub scope: ComponentScope,
     /// Materiality allocated for this instruction (from GroupAuditPlan).
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub materiality_allocated: Decimal,
     /// Deadline by which the component auditor must report back.
     pub reporting_deadline: NaiveDate,
@@ -162,7 +162,7 @@ pub struct Misstatement {
     /// Description of the misstatement.
     pub description: String,
     /// Monetary amount of the misstatement.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub amount: Decimal,
     /// Classification of the misstatement.
     pub classification: MisstatementType,

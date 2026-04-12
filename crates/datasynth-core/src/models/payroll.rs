@@ -43,16 +43,16 @@ pub struct PayrollRun {
     /// Current status of the payroll run
     pub status: PayrollRunStatus,
     /// Total gross pay across all employees
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub total_gross: Decimal,
     /// Total deductions across all employees
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub total_deductions: Decimal,
     /// Total net pay across all employees
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub total_net: Decimal,
     /// Total employer cost (gross + employer-side taxes/benefits)
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub total_employer_cost: Decimal,
     /// Number of employees included in this run
     pub employee_count: u32,
@@ -74,34 +74,34 @@ pub struct PayrollLineItem {
     /// Unique line item identifier
     pub line_id: String,
     /// Total gross pay for this employee
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub gross_pay: Decimal,
     /// Base salary component
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub base_salary: Decimal,
     /// Overtime pay component
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub overtime_pay: Decimal,
     /// Bonus component
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub bonus: Decimal,
     /// Federal/state tax withholding
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub tax_withholding: Decimal,
     /// Social security / FICA deduction
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub social_security: Decimal,
     /// Health insurance deduction
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub health_insurance: Decimal,
     /// Retirement plan contribution (employee side)
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub retirement_contribution: Decimal,
     /// Other deductions (garnishments, voluntary deductions, etc.)
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub other_deductions: Decimal,
     /// Net pay after all deductions
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub net_pay: Decimal,
     /// Regular hours worked in the period
     pub hours_worked: f64,
@@ -244,10 +244,10 @@ pub struct BenefitEnrollment {
     /// Fiscal period (e.g. "2024-06")
     pub period: String,
     /// Employee contribution amount per period
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub employee_contribution: Decimal,
     /// Employer contribution amount per period
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub employer_contribution: Decimal,
     /// Currency code
     pub currency: String,

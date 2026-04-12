@@ -53,10 +53,10 @@ pub struct ManagementKpi {
     /// End of the measurement period
     pub period_end: NaiveDate,
     /// Actual measured value for the period
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub value: Decimal,
     /// Target value for the period
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub target: Decimal,
     /// Unit of measure (e.g., "%", "days", "USD")
     pub unit: String,
@@ -65,6 +65,6 @@ pub struct ManagementKpi {
     /// Year-over-year percentage change (e.g., 0.05 = +5%)
     pub year_over_year_change: Option<f64>,
     /// Value from the prior period for comparison
-    #[serde(default, with = "rust_decimal::serde::str_option")]
+    #[serde(default, with = "crate::serde_decimal::option")]
     pub prior_period_value: Option<Decimal>,
 }

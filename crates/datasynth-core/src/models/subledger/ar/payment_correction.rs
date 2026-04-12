@@ -49,10 +49,12 @@ pub struct PaymentCorrection {
     /// Fee amount (bank fees, chargeback fees).
     pub fee_amount: Decimal,
     /// Created timestamp.
+    #[serde(with = "crate::serde_timestamp::utc")]
     pub created_at: DateTime<Utc>,
     /// Created by user.
     pub created_by: Option<String>,
     /// Resolved timestamp.
+    #[serde(default, with = "crate::serde_timestamp::utc::option")]
     pub resolved_at: Option<DateTime<Utc>>,
     /// Notes.
     pub notes: Option<String>,
@@ -257,10 +259,12 @@ pub struct ShortPayment {
     /// Re-bill invoice ID if re-billed.
     pub rebill_invoice_id: Option<String>,
     /// Created timestamp.
+    #[serde(with = "crate::serde_timestamp::utc")]
     pub created_at: DateTime<Utc>,
     /// Created by user.
     pub created_by: Option<String>,
     /// Resolved timestamp.
+    #[serde(default, with = "crate::serde_timestamp::utc::option")]
     pub resolved_at: Option<DateTime<Utc>>,
     /// Notes.
     pub notes: Option<String>,
@@ -410,6 +414,7 @@ pub struct OnAccountPayment {
     /// Reason for on-account posting.
     pub reason: Option<OnAccountReason>,
     /// Created timestamp.
+    #[serde(with = "crate::serde_timestamp::utc")]
     pub created_at: DateTime<Utc>,
     /// Created by user.
     pub created_by: Option<String>,

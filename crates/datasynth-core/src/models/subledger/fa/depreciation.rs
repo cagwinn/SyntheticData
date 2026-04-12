@@ -39,8 +39,10 @@ pub struct DepreciationRun {
     /// Created by.
     pub created_by: String,
     /// Created at.
+    #[serde(with = "crate::serde_timestamp::utc")]
     pub created_at: DateTime<Utc>,
     /// Completed at.
+    #[serde(default, with = "crate::serde_timestamp::utc::option")]
     pub completed_at: Option<DateTime<Utc>>,
     /// Error count.
     pub error_count: u32,
@@ -296,6 +298,7 @@ pub struct DepreciationForecast {
     /// Total forecasted depreciation.
     pub total_forecast: Decimal,
     /// Generated at.
+    #[serde(with = "crate::serde_timestamp::utc")]
     pub generated_at: DateTime<Utc>,
 }
 

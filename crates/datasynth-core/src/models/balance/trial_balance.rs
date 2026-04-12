@@ -44,12 +44,14 @@ pub struct TrialBalance {
     /// Summary by account category.
     pub category_summary: HashMap<AccountCategory, CategorySummary>,
     /// Created timestamp.
+    #[serde(with = "crate::serde_timestamp::naive")]
     pub created_at: NaiveDateTime,
     /// Created by.
     pub created_by: String,
     /// Approved by (if applicable).
     pub approved_by: Option<String>,
     /// Approval date.
+    #[serde(default, with = "crate::serde_timestamp::naive::option")]
     pub approved_at: Option<NaiveDateTime>,
     /// Status.
     pub status: TrialBalanceStatus,
@@ -500,6 +502,7 @@ pub struct ComparativeTrialBalance {
     /// Lines with balances for each period.
     pub lines: Vec<ComparativeTrialBalanceLine>,
     /// Created timestamp.
+    #[serde(with = "crate::serde_timestamp::naive")]
     pub created_at: NaiveDateTime,
 }
 

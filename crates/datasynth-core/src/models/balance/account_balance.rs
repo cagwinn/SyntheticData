@@ -40,6 +40,7 @@ pub struct AccountBalance {
     /// Profit center (if applicable).
     pub profit_center: Option<String>,
     /// Last updated timestamp.
+    #[serde(with = "crate::serde_timestamp::naive")]
     pub last_updated: NaiveDateTime,
 }
 
@@ -277,6 +278,7 @@ pub struct BalanceSnapshot {
     /// Balance sheet difference (should be zero).
     pub balance_difference: Decimal,
     /// Created timestamp.
+    #[serde(with = "crate::serde_timestamp::naive")]
     pub created_at: NaiveDateTime,
 }
 

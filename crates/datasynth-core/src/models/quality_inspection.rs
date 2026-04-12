@@ -65,10 +65,10 @@ pub struct QualityInspection {
     /// Inspector who performed the inspection
     pub inspector_id: Option<String>,
     /// Total lot size under inspection
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub lot_size: Decimal,
     /// Sample size drawn for inspection
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub sample_size: Decimal,
     /// Number of defects found
     pub defect_count: u32,

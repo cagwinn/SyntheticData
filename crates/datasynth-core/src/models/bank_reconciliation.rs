@@ -56,7 +56,7 @@ pub struct BankStatementLine {
     /// Value date
     pub value_date: NaiveDate,
     /// Transaction amount (positive = inflow, negative = outflow)
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub amount: Decimal,
     /// Direction
     pub direction: Direction,
@@ -100,7 +100,7 @@ pub struct ReconcilingItem {
     /// Related document ID
     pub document_id: Option<String>,
     /// Amount
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub amount: Decimal,
     /// Date of the item
     pub date: NaiveDate,
@@ -124,20 +124,20 @@ pub struct BankReconciliation {
     /// Status
     pub status: ReconciliationStatus,
     /// Bank statement ending balance
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub bank_ending_balance: Decimal,
     /// Book (GL) ending balance
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub book_ending_balance: Decimal,
     /// Bank statement lines for this period
     pub statement_lines: Vec<BankStatementLine>,
     /// Reconciling items
     pub reconciling_items: Vec<ReconcilingItem>,
     /// Net difference after reconciling items (should be zero)
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub net_difference: Decimal,
     /// Opening bank balance
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub opening_balance: Decimal,
     /// Preparer ID
     pub preparer_id: String,

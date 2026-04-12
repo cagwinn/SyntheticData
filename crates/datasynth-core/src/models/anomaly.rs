@@ -780,6 +780,7 @@ pub struct LabeledAnomaly {
     /// Date the anomaly occurred.
     pub anomaly_date: NaiveDate,
     /// Timestamp when detected/injected.
+    #[serde(with = "crate::serde_timestamp::naive")]
     pub detection_timestamp: NaiveDateTime,
     /// Confidence score (0.0 - 1.0) for injected anomalies.
     pub confidence: f64,

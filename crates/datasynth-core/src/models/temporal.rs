@@ -38,14 +38,18 @@ pub struct BiTemporal<T> {
 
     // === Business Time (Valid Time) ===
     /// When this fact became true in the business world
+    #[serde(with = "crate::serde_timestamp::naive")]
     pub valid_from: NaiveDateTime,
     /// When this fact stopped being true (None = still current)
+    #[serde(default, with = "crate::serde_timestamp::naive::option")]
     pub valid_to: Option<NaiveDateTime>,
 
     // === System Time (Transaction Time) ===
     /// When this record was created in the system
+    #[serde(with = "crate::serde_timestamp::utc")]
     pub recorded_at: DateTime<Utc>,
     /// When this record was superseded by a newer version (None = current version)
+    #[serde(default, with = "crate::serde_timestamp::utc::option")]
     pub superseded_at: Option<DateTime<Utc>>,
 
     // === Audit Metadata ===
@@ -250,8 +254,10 @@ impl TemporalChangeType {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct TemporalQuery {
     /// Query as of this business time (None = current)
+    #[serde(default, with = "crate::serde_timestamp::naive::option")]
     pub as_of_valid_time: Option<NaiveDateTime>,
     /// Query as of this system time (None = current)
+    #[serde(default, with = "crate::serde_timestamp::utc::option")]
     pub as_of_system_time: Option<DateTime<Utc>>,
     /// Include superseded versions
     pub include_history: bool,
@@ -350,6 +356,7 @@ pub struct TemporalAuditEntry {
     /// Action performed
     pub action: TemporalAction,
     /// Timestamp
+    #[serde(with = "crate::serde_timestamp::utc")]
     pub timestamp: DateTime<Utc>,
     /// User who performed the action
     pub user_id: String,

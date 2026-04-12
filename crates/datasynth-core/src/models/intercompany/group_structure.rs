@@ -176,17 +176,17 @@ pub struct NciMeasurement {
     /// Entity code of the subsidiary carrying an NCI.
     pub entity_code: String,
     /// NCI percentage (= 100 − parent ownership percentage).
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub nci_percentage: Decimal,
     /// NCI share of the subsidiary's net assets at period-end.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub nci_share_net_assets: Decimal,
     /// NCI share of the subsidiary's net income/(loss) for the period.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub nci_share_profit: Decimal,
     /// Total NCI recognised in the consolidated balance sheet
     /// (opening NCI + share of profit − NCI dividends).
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub total_nci: Decimal,
 }
 

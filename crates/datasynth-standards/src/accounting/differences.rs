@@ -31,15 +31,15 @@ pub struct FrameworkDifferenceRecord {
     pub description: String,
 
     /// US GAAP amount.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub us_gaap_amount: Decimal,
 
     /// IFRS amount.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub ifrs_amount: Decimal,
 
     /// Difference (IFRS - US GAAP).
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub difference_amount: Decimal,
 
     /// US GAAP account classification.
@@ -165,22 +165,22 @@ pub enum DifferenceType {
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct FinancialStatementImpact {
     /// Impact on balance sheet assets.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub assets_impact: Decimal,
     /// Impact on balance sheet liabilities.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub liabilities_impact: Decimal,
     /// Impact on equity.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub equity_impact: Decimal,
     /// Impact on revenue.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub revenue_impact: Decimal,
     /// Impact on expenses.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub expense_impact: Decimal,
     /// Impact on net income.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub net_income_impact: Decimal,
 }
 
@@ -194,27 +194,27 @@ pub struct FrameworkReconciliation {
     pub period_date: NaiveDate,
 
     /// US GAAP net income.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub us_gaap_net_income: Decimal,
 
     /// IFRS net income.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub ifrs_net_income: Decimal,
 
     /// US GAAP total equity.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub us_gaap_equity: Decimal,
 
     /// IFRS total equity.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub ifrs_equity: Decimal,
 
     /// US GAAP total assets.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub us_gaap_assets: Decimal,
 
     /// IFRS total assets.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub ifrs_assets: Decimal,
 
     /// Reconciling items.
@@ -265,19 +265,19 @@ pub struct ReconcilingItem {
     pub difference_area: DifferenceArea,
 
     /// Impact on net income.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub net_income_impact: Decimal,
 
     /// Impact on equity.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub equity_impact: Decimal,
 
     /// Impact on assets.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub asset_impact: Decimal,
 
     /// Impact on liabilities.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub liability_impact: Decimal,
 
     /// Detailed explanation.

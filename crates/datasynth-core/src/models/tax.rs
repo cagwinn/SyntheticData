@@ -213,7 +213,7 @@ pub struct TaxCode {
     /// Category of tax
     pub tax_type: TaxType,
     /// Tax rate as a decimal fraction (e.g., 0.20 for 20%)
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub rate: Decimal,
     /// Jurisdiction this code applies to
     pub jurisdiction_id: String,
@@ -313,10 +313,10 @@ pub struct TaxLine {
     /// Jurisdiction the tax is assessed in
     pub jurisdiction_id: String,
     /// Base amount subject to tax
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub taxable_amount: Decimal,
     /// Computed tax amount
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub tax_amount: Decimal,
     /// Whether the input tax is deductible (reclaimable)
     pub is_deductible: bool,
@@ -403,13 +403,13 @@ pub struct TaxReturn {
     /// Current lifecycle status
     pub status: TaxReturnStatus,
     /// Total output tax (tax collected / charged)
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub total_output_tax: Decimal,
     /// Total input tax (tax paid / reclaimable)
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub total_input_tax: Decimal,
     /// Net amount payable to the authority (output - input)
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub net_payable: Decimal,
     /// Statutory filing deadline
     pub filing_deadline: NaiveDate,
@@ -480,7 +480,7 @@ pub struct RateReconciliationItem {
     /// Description of the reconciling item (e.g., "State taxes", "R&D credits")
     pub description: String,
     /// Impact on the effective rate (positive increases, negative decreases)
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub rate_impact: Decimal,
 }
 
@@ -494,19 +494,19 @@ pub struct TaxProvision {
     /// Period end date
     pub period: NaiveDate,
     /// Current period income tax expense
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub current_tax_expense: Decimal,
     /// Deferred tax asset balance
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub deferred_tax_asset: Decimal,
     /// Deferred tax liability balance
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub deferred_tax_liability: Decimal,
     /// Statutory tax rate
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub statutory_rate: Decimal,
     /// Effective tax rate after permanent and temporary differences
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub effective_rate: Decimal,
     /// Rate reconciliation from statutory to effective rate
     pub rate_reconciliation: Vec<RateReconciliationItem>,
@@ -570,13 +570,13 @@ pub struct UncertainTaxPosition {
     /// Description of the tax position
     pub description: String,
     /// Total gross tax benefit claimed
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub tax_benefit: Decimal,
     /// Recognition threshold (typically 0.50 for "more-likely-than-not")
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub recognition_threshold: Decimal,
     /// Amount recognized in the financial statements
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub recognized_amount: Decimal,
     /// Measurement method used to determine the recognized amount
     pub measurement_method: TaxMeasurementMethod,
@@ -623,19 +623,19 @@ pub struct WithholdingTaxRecord {
     /// Category of withholding
     pub withholding_type: WithholdingType,
     /// Reduced rate under an applicable tax treaty
-    #[serde(default, with = "rust_decimal::serde::str_option")]
+    #[serde(default, with = "crate::serde_decimal::option")]
     pub treaty_rate: Option<Decimal>,
     /// Domestic statutory withholding rate
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub statutory_rate: Decimal,
     /// Rate actually applied (may equal treaty_rate or statutory_rate)
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub applied_rate: Decimal,
     /// Gross payment amount subject to withholding
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub base_amount: Decimal,
     /// Amount withheld (base_amount * applied_rate)
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub withheld_amount: Decimal,
     /// Tax certificate / receipt number from the authority
     pub certificate_number: Option<String>,

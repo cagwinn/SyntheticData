@@ -119,6 +119,20 @@ impl BankingOrchestrator {
         let mut account_gen = AccountGenerator::new(self.config.clone(), self.seed);
         let mut accounts = account_gen.generate_for_customers(&mut customers);
 
+        // Phase 4.5: Assign lifecycle phases to accounts
+        if self.config.temporal.enable_lifecycle_phases {
+            let reference_date = chrono::NaiveDate::parse_from_str(
+                &self.config.population.start_date,
+                "%Y-%m-%d",
+            )
+            .unwrap_or_else(|_| chrono::Utc::now().date_naive())
+                + chrono::Months::new(self.config.population.period_months);
+            crate::generators::lifecycle_engine::assign_lifecycle_phases(
+                &mut accounts,
+                reference_date,
+            );
+        }
+
         // Phase 5: Generate transactions
         let mut txn_gen = TransactionGenerator::new(self.config.clone(), self.seed);
         let mut transactions = txn_gen.generate_all(&customers, &mut accounts);
@@ -127,6 +141,23 @@ impl BankingOrchestrator {
         let mut typology_injector = TypologyInjector::new(self.config.clone(), self.seed);
         typology_injector.inject(&mut customers, &mut accounts, &mut transactions);
         let scenarios: Vec<AmlScenario> = typology_injector.get_scenarios().to_vec();
+
+        // Phase 6.5: Inject false positives
+        if self.config.typologies.false_positive_rate > 0.0 {
+            let mut fp_injector =
+                crate::typologies::FalsePositiveInjector::new(self.seed);
+            fp_injector.inject(
+                &mut transactions,
+                self.config.typologies.false_positive_rate,
+            );
+        }
+
+        // Phase 6.6: Compute velocity features
+        if self.config.temporal.enable_velocity_features {
+            crate::generators::velocity_computer::compute_velocity_features(
+                &mut transactions,
+            );
+        }
 
         // Phase 7: Generate narratives
         let mut narrative_gen = NarrativeGenerator::new(self.seed);
@@ -147,6 +178,23 @@ impl BankingOrchestrator {
         // Compute statistics
         let suspicious_count = transactions.iter().filter(|t| t.is_suspicious).count();
         let spoofed_count = transactions.iter().filter(|t| t.is_spoofed).count();
+        let false_positive_count = transactions.iter().filter(|t| t.is_false_positive).count();
+        let network_txn_count = transactions
+            .iter()
+            .filter(|t| t.network_context.is_some())
+            .count();
+        let velocity_count = transactions
+            .iter()
+            .filter(|t| t.velocity_features.is_some())
+            .count();
+        tracing::info!(
+            "Banking stats: {} txns, {} suspicious, {} false positives, {} network, {} with velocity",
+            transactions.len(),
+            suspicious_count,
+            false_positive_count,
+            network_txn_count,
+            velocity_count,
+        );
 
         let stats = GenerationStats {
             customer_count: customers.len(),

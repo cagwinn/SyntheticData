@@ -140,7 +140,9 @@ pub struct RelatedParty {
     pub identified_by: IdentificationSource,
 
     // === Timestamps ===
+    #[serde(with = "crate::serde_timestamp::utc")]
     pub created_at: DateTime<Utc>,
+    #[serde(with = "crate::serde_timestamp::utc")]
     pub updated_at: DateTime<Utc>,
 }
 
@@ -225,7 +227,9 @@ pub struct RelatedPartyTransaction {
     pub management_override_risk: bool,
 
     // === Timestamps ===
+    #[serde(with = "crate::serde_timestamp::utc")]
     pub created_at: DateTime<Utc>,
+    #[serde(with = "crate::serde_timestamp::utc")]
     pub updated_at: DateTime<Utc>,
 }
 

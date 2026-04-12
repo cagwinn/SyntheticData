@@ -65,7 +65,7 @@ pub struct SourcingProject {
     /// Spend category being sourced
     pub category_id: String,
     /// Estimated annual spend
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub estimated_annual_spend: Decimal,
     /// Target savings percentage
     pub target_savings_pct: f64,

@@ -58,6 +58,7 @@ pub struct ARCreditMemo {
     /// Approval date.
     pub approved_date: Option<NaiveDate>,
     /// Created timestamp.
+    #[serde(with = "crate::serde_timestamp::utc")]
     pub created_at: DateTime<Utc>,
     /// Created by user.
     pub created_by: Option<String>,

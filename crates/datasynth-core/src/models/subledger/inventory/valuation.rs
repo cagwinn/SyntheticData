@@ -28,6 +28,7 @@ pub struct InventoryValuationReport {
     /// Value by material group.
     pub by_material_group: HashMap<String, Decimal>,
     /// Generated at.
+    #[serde(with = "crate::serde_timestamp::utc")]
     pub generated_at: DateTime<Utc>,
 }
 
@@ -360,6 +361,7 @@ pub struct CostVarianceAnalysis {
     /// Total quantity variance.
     pub total_quantity_variance: Decimal,
     /// Generated at.
+    #[serde(with = "crate::serde_timestamp::utc")]
     pub generated_at: DateTime<Utc>,
 }
 

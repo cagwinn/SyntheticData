@@ -68,10 +68,12 @@ pub struct ARInvoice {
     /// Division.
     pub division: Option<String>,
     /// Created timestamp.
+    #[serde(with = "crate::serde_timestamp::utc")]
     pub created_at: DateTime<Utc>,
     /// Created by user.
     pub created_by: Option<String>,
     /// Last modified timestamp.
+    #[serde(default, with = "crate::serde_timestamp::utc::option")]
     pub modified_at: Option<DateTime<Utc>>,
     /// Notes.
     pub notes: Option<String>,

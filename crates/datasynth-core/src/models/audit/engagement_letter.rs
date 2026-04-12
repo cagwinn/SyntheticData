@@ -57,7 +57,7 @@ pub struct FeeArrangement {
     /// Basis on which fees are charged (e.g., "Fixed", "Time and materials")
     pub basis: String,
     /// Agreed fee amount
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub amount: Decimal,
     /// Currency code (ISO 4217)
     pub currency: String,

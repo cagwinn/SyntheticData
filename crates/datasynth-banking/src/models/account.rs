@@ -28,10 +28,10 @@ pub struct BankAccount {
     /// Account closing date (if closed)
     pub closing_date: Option<NaiveDate>,
     /// Current balance
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub current_balance: Decimal,
     /// Available balance (may differ due to holds)
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub available_balance: Decimal,
     /// Account features/capabilities
     pub features: AccountFeatures,
@@ -46,9 +46,10 @@ pub struct BankAccount {
     /// Interest rate (for savings/CD)
     pub interest_rate: Option<Decimal>,
     /// Overdraft limit
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub overdraft_limit: Decimal,
     /// Last activity timestamp
+    #[serde(default, with = "datasynth_core::serde_timestamp::utc::option")]
     pub last_activity: Option<DateTime<Utc>>,
     /// Days dormant (calculated field)
     pub days_dormant: u32,
@@ -71,6 +72,13 @@ pub struct BankAccount {
     pub is_funnel_account: bool,
     /// Associated case ID for suspicious activity
     pub case_id: Option<String>,
+
+    /// Account lifecycle phase
+    #[serde(default)]
+    pub lifecycle_phase: super::AccountLifecyclePhase,
+    /// Date the current lifecycle phase started
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub phase_start_date: Option<NaiveDate>,
 }
 
 impl BankAccount {
@@ -117,7 +125,9 @@ impl BankAccount {
             is_mule_account: false,
             is_funnel_account: false,
             case_id: None,
-            gl_account: None,
+            gl_account: Some(account_type.default_gl_account().to_string()),
+            lifecycle_phase: super::AccountLifecyclePhase::New,
+            phase_start_date: Some(opening_date),
         }
     }
 

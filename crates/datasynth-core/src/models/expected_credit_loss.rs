@@ -68,11 +68,11 @@ pub struct EclModel {
     pub provision_matrix: Option<ProvisionMatrix>,
 
     /// Total ECL across all segments.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub total_ecl: Decimal,
 
     /// Total gross exposure.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub total_exposure: Decimal,
 }
 
@@ -83,14 +83,14 @@ pub struct EclPortfolioSegment {
     pub segment_name: String,
 
     /// Gross exposure at the measurement date.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub exposure_at_default: Decimal,
 
     /// Stage allocations within this segment.
     pub staging: Vec<EclStageAllocation>,
 
     /// Total ECL for this segment (sum of stage ECLs).
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub total_ecl: Decimal,
 }
 
@@ -101,23 +101,23 @@ pub struct EclStageAllocation {
     pub stage: EclStage,
 
     /// Gross exposure in this stage.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub exposure: Decimal,
 
     /// Probability of default (0–1).
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub probability_of_default: Decimal,
 
     /// Loss given default (0–1).
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub loss_given_default: Decimal,
 
     /// Computed ECL = exposure × PD × LGD × forward_looking_adjustment.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub ecl_amount: Decimal,
 
     /// Forward-looking multiplier applied to historical rate (1.0 = no adjustment).
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub forward_looking_adjustment: Decimal,
 }
 
@@ -141,15 +141,15 @@ pub struct ProvisionMatrix {
     pub aging_buckets: Vec<ProvisionMatrixRow>,
 
     /// Sum of all provisions across all buckets.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub total_provision: Decimal,
 
     /// Sum of all exposures across all buckets.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub total_exposure: Decimal,
 
     /// Blended loss rate = total_provision / total_exposure.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub blended_loss_rate: Decimal,
 }
 
@@ -157,32 +157,32 @@ pub struct ProvisionMatrix {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScenarioWeights {
     /// Weight for base scenario.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub base: Decimal,
 
     /// Multiplier applied to historical rates under base scenario (typically 1.0).
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub base_multiplier: Decimal,
 
     /// Weight for optimistic scenario.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub optimistic: Decimal,
 
     /// Multiplier applied to historical rates under optimistic scenario (< 1.0).
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub optimistic_multiplier: Decimal,
 
     /// Weight for pessimistic scenario.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub pessimistic: Decimal,
 
     /// Multiplier applied to historical rates under pessimistic scenario (> 1.0).
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub pessimistic_multiplier: Decimal,
 
     /// Resulting blended forward-looking multiplier
     /// = base*base_m + optimistic*opt_m + pessimistic*pes_m.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub blended_multiplier: Decimal,
 }
 
@@ -193,23 +193,23 @@ pub struct ProvisionMatrixRow {
     pub bucket: AgingBucket,
 
     /// Historical loss rate for this bucket (e.g. 0.005 = 0.5%).
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub historical_loss_rate: Decimal,
 
     /// Forward-looking adjustment multiplier (scenario-weighted).
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub forward_looking_adjustment: Decimal,
 
     /// Applied loss rate = historical_loss_rate × forward_looking_adjustment.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub applied_loss_rate: Decimal,
 
     /// Gross exposure in this bucket.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub exposure: Decimal,
 
     /// Provision = exposure × applied_loss_rate.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub provision: Decimal,
 }
 
@@ -232,30 +232,30 @@ pub struct EclProvisionMovement {
     pub period: String,
 
     /// Opening allowance balance.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub opening: Decimal,
 
     /// New originations charged to P&L (increase in allowance).
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub new_originations: Decimal,
 
     /// Stage-transfer adjustments (positive = provision increase).
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub stage_transfers: Decimal,
 
     /// Write-offs charged against the allowance (reduces allowance balance).
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub write_offs: Decimal,
 
     /// Cash recoveries on previously written-off receivables (increases allowance).
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub recoveries: Decimal,
 
     /// Closing allowance = opening + new_originations + stage_transfers - write_offs + recoveries.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub closing: Decimal,
 
     /// P&L charge for the period = new_originations + stage_transfers + recoveries - write_offs.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub pl_charge: Decimal,
 }

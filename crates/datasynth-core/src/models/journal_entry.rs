@@ -251,6 +251,7 @@ pub struct JournalEntryHeader {
     pub document_date: NaiveDate,
 
     /// Entry timestamp (when created in system)
+    #[serde(with = "crate::serde_timestamp::utc")]
     pub created_at: DateTime<Utc>,
 
     /// Document type code
@@ -260,7 +261,7 @@ pub struct JournalEntryHeader {
     pub currency: String,
 
     /// Exchange rate to local currency (1.0 if same currency)
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub exchange_rate: Decimal,
 
     /// Reference document number (external reference)
@@ -325,7 +326,7 @@ pub struct JournalEntryHeader {
     /// Timestamp when the entry was created (may differ from posting_date).
     /// For automated entries this is typically before posting_date; for manual
     /// entries created_date and posting_date are often on the same day.
-    #[serde(default)]
+    #[serde(default, with = "crate::serde_timestamp::naive::option")]
     pub created_date: Option<NaiveDateTime>,
 
     // --- Internal Controls / SOX Compliance Fields ---
@@ -524,19 +525,19 @@ pub struct JournalEntryLine {
     pub account_description: Option<String>,
 
     /// Debit amount in transaction currency (positive or zero)
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub debit_amount: Decimal,
 
     /// Credit amount in transaction currency (positive or zero)
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub credit_amount: Decimal,
 
     /// Amount in local/company currency
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub local_amount: Decimal,
 
     /// Amount in group currency (for consolidation)
-    #[serde(default, with = "rust_decimal::serde::str_option")]
+    #[serde(default, with = "crate::serde_decimal::option")]
     pub group_amount: Option<Decimal>,
 
     /// Cost center assignment
@@ -570,7 +571,7 @@ pub struct JournalEntryLine {
     pub tax_code: Option<String>,
 
     /// Tax amount
-    #[serde(default, with = "rust_decimal::serde::str_option")]
+    #[serde(default, with = "crate::serde_decimal::option")]
     pub tax_amount: Option<Decimal>,
 
     /// Assignment field (for account assignment)
@@ -586,7 +587,7 @@ pub struct JournalEntryLine {
     pub trading_partner: Option<String>,
 
     /// Quantity (for quantity-based postings)
-    #[serde(default, with = "rust_decimal::serde::str_option")]
+    #[serde(default, with = "crate::serde_decimal::option")]
     pub quantity: Option<Decimal>,
 
     /// Unit of measure

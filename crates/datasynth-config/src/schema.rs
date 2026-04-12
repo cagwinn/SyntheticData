@@ -854,6 +854,12 @@ pub struct StreamingSchemaConfig {
     /// Enable streaming output.
     #[serde(default)]
     pub enabled: bool,
+    /// Target events per second (0 = unlimited, default 0).
+    #[serde(default)]
+    pub events_per_second: f64,
+    /// Token bucket burst size (default 100).
+    #[serde(default = "default_burst_size")]
+    pub burst_size: u32,
     /// Buffer size for streaming (number of items).
     #[serde(default = "default_buffer_size")]
     pub buffer_size: usize,
@@ -880,6 +886,8 @@ impl Default for StreamingSchemaConfig {
     fn default() -> Self {
         Self {
             enabled: false,
+            events_per_second: 0.0,
+            burst_size: 100,
             buffer_size: 1000,
             enable_progress: true,
             progress_interval: 100,
@@ -1481,6 +1489,16 @@ pub struct OutputConfig {
     /// Partition by company code
     #[serde(default)]
     pub partition_by_company: bool,
+    /// Numeric serialization mode for JSON output.
+    /// "string" (default): decimals as `"1729237.30"` — lossless precision.
+    /// "native": decimals as `1729237.30` — friendlier for pandas/analytics.
+    #[serde(default)]
+    pub numeric_mode: NumericMode,
+    /// JSON export layout for journal entries and document flows.
+    /// "nested" (default): `{"header": {...}, "lines": [...]}` — natural ERP structure.
+    /// "flat": header fields repeated on every line — friendlier for analytics/ML.
+    #[serde(default)]
+    pub export_layout: ExportLayout,
 }
 
 fn default_formats() -> Vec<FileFormat> {
@@ -1502,8 +1520,32 @@ impl Default for OutputConfig {
             include_bseg: false,
             partition_by_period: true,
             partition_by_company: false,
+            numeric_mode: NumericMode::default(),
+            export_layout: ExportLayout::default(),
         }
     }
+}
+
+/// Numeric serialization mode for JSON decimal fields.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum NumericMode {
+    /// Decimals as JSON strings (e.g. `"1729237.30"`). Preserves full precision.
+    #[default]
+    String,
+    /// Decimals as JSON numbers (e.g. `1729237.30`). Friendlier for pandas/analytics.
+    Native,
+}
+
+/// JSON export layout for nested structures (journal entries, document flows).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ExportLayout {
+    /// Nested structure: `{"header": {...}, "lines": [...]}`. Natural ERP format.
+    #[default]
+    Nested,
+    /// Flat structure: header fields repeated on every line. Analytics-friendly.
+    Flat,
 }
 
 /// Output mode.

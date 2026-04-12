@@ -64,7 +64,7 @@ pub struct ExpenseReport {
     /// Current status of the expense report
     pub status: ExpenseStatus,
     /// Total amount across all line items
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub total_amount: Decimal,
     /// Currency code (e.g., USD, EUR)
     pub currency: String,
@@ -157,7 +157,7 @@ pub struct ExpenseLineItem {
     /// Date the expense was incurred
     pub date: NaiveDate,
     /// Amount of the expense
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub amount: Decimal,
     /// Currency code (e.g., USD, EUR)
     pub currency: String,

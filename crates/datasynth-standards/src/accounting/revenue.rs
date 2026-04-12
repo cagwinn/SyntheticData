@@ -42,7 +42,7 @@ pub struct CustomerContract {
     pub end_date: Option<NaiveDate>,
 
     /// Total transaction price before allocation.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub transaction_price: Decimal,
 
     /// Currency of the contract.
@@ -61,7 +61,7 @@ pub struct CustomerContract {
     pub has_significant_financing: bool,
 
     /// Discount rate for significant financing component.
-    #[serde(default, with = "rust_decimal::serde::str_option")]
+    #[serde(default, with = "datasynth_core::serde_decimal::option")]
     pub financing_rate: Option<Decimal>,
 
     /// Accounting framework applied.
@@ -212,27 +212,27 @@ pub struct PerformanceObligation {
     pub progress_method: Option<ProgressMethod>,
 
     /// Standalone selling price for allocation.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub standalone_selling_price: Decimal,
 
     /// Allocated transaction price (Step 4).
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub allocated_price: Decimal,
 
     /// Percentage complete (0-100).
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub progress_percent: Decimal,
 
     /// Revenue recognized to date.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub revenue_recognized: Decimal,
 
     /// Deferred revenue (contract liability).
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub deferred_revenue: Decimal,
 
     /// Unbilled receivable (contract asset).
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub contract_asset: Decimal,
 
     /// Date obligation was satisfied (if complete).
@@ -395,18 +395,18 @@ pub struct VariableConsideration {
     pub vc_type: VariableConsiderationType,
 
     /// Estimated amount (expected value or most likely amount).
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub estimated_amount: Decimal,
 
     /// Constrained amount included in transaction price.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub constrained_amount: Decimal,
 
     /// Estimation method used.
     pub estimation_method: EstimationMethod,
 
     /// Probability that estimate is reliable.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub probability: Decimal,
 
     /// Description of the variable component.
@@ -416,7 +416,7 @@ pub struct VariableConsideration {
     pub resolution_date: Option<NaiveDate>,
 
     /// Actual amount (after resolution).
-    #[serde(default, with = "rust_decimal::serde::str_option")]
+    #[serde(default, with = "datasynth_core::serde_decimal::option")]
     pub actual_amount: Option<Decimal>,
 }
 
@@ -504,11 +504,11 @@ pub struct MaterialRight {
     pub right_type: MaterialRightType,
 
     /// Standalone selling price of the right.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub standalone_selling_price: Decimal,
 
     /// Exercise probability.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub exercise_probability: Decimal,
 
     /// Expiration date.
@@ -540,7 +540,7 @@ pub struct ContractModification {
     pub treatment: ModificationTreatment,
 
     /// Change in transaction price.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub price_change: Decimal,
 
     /// Description of modification.
@@ -574,23 +574,23 @@ pub struct RevenueRecognitionEntry {
     pub period_date: NaiveDate,
 
     /// Revenue recognized in this period.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub revenue_amount: Decimal,
 
     /// Cumulative revenue recognized.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub cumulative_revenue: Decimal,
 
     /// Deferred revenue balance.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub deferred_revenue_balance: Decimal,
 
     /// Contract asset balance.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub contract_asset_balance: Decimal,
 
     /// Progress percentage at period end.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub progress_percent: Decimal,
 
     /// Journal entry reference.

@@ -102,10 +102,10 @@ pub enum RegulationType {
         /// Tax type (e.g., "corporate_income", "vat", "sales").
         tax_type: String,
         /// Old rate.
-        #[serde(with = "rust_decimal::serde::str")]
+        #[serde(with = "crate::serde_decimal")]
         old_rate: Decimal,
         /// New rate.
-        #[serde(with = "rust_decimal::serde::str")]
+        #[serde(with = "crate::serde_decimal")]
         new_rate: Decimal,
         /// Jurisdiction.
         jurisdiction: String,

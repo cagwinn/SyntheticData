@@ -59,10 +59,12 @@ pub struct FixedAssetRecord {
     /// GL account mappings.
     pub account_determination: AssetAccountDetermination,
     /// Created timestamp.
+    #[serde(with = "crate::serde_timestamp::utc")]
     pub created_at: DateTime<Utc>,
     /// Created by user.
     pub created_by: Option<String>,
     /// Last modified.
+    #[serde(default, with = "crate::serde_timestamp::utc::option")]
     pub modified_at: Option<DateTime<Utc>>,
     /// Notes.
     pub notes: Option<String>,

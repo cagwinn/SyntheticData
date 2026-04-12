@@ -33,7 +33,7 @@ KYC/AML banking transaction generator for compliance testing and fraud detection
 | `transaction_generator` | Persona-based transaction generation |
 | `counterparty_generator` | Counterparty pool management |
 
-### AML Typologies (`typologies/`)
+### AML Typologies (`typologies/`) — 14 implemented
 
 | Typology | Description |
 |----------|-------------|
@@ -41,9 +41,42 @@ KYC/AML banking transaction generator for compliance testing and fraud detection
 | `funnel` | Funnel account patterns for layering |
 | `layering` | Complex transaction layering schemes |
 | `mule` | Money mule network patterns |
-| `round_tripping` | Round-tripping schemes |
-| `fraud` | Credit card fraud, synthetic identity fraud |
-| `spoofing` | Adversarial transaction generation |
+| `round_tripping` | Round-tripping via foreign accounts |
+| `fraud` | ATO, BEC, fake vendor, APP, duplicate payment |
+| `synthetic_identity` | Fabricated identity → credit seasoning → bust-out |
+| `trade_based_ml` | Over/under-invoicing, phantom shipments (SWIFT) |
+| `crypto_integration` | Fiat→exchange→off-chain gap→fiat peel chain |
+| `sanctions_evasion` | Name variations, transshipment routing |
+| `pouch_activity` | Multi-branch cash pouch deposits |
+| `romance_scam` | Escalating outbound to foreign persona |
+| `casino_integration` | Chip purchase → minimal play → winnings check |
+| `real_estate_integration` | Earnest + closing via title companies |
+| `spoofing` | Adversarial transaction camouflage |
+
+### Multi-party networks (`typologies/network_*`)
+
+| Component | Description |
+|-----------|-------------|
+| `network_generator` | Structuring rings, mule chains, shell pyramids |
+| `network_topology` | Barabási-Albert preferential attachment (power-law) |
+
+### Temporal realism (`generators/`)
+
+| Component | Description |
+|-----------|-------------|
+| `lifecycle_engine` | Account phase assignment (New→RampUp→Steady→Decline→Dormant) |
+| `lifecycle_stochastic` | Event-driven phase transitions (6 life events) |
+| `velocity_computer` | Pre-computed rolling-window features per transaction |
+| `device_realism` | Per-customer power-law device pool + trust evolution |
+| `sanctions_variance` | Context-aware screening (risk × country × PEP × industry) |
+| `payment_bridge` | Cross-layer bridge from document-flow Payments to BankTransactions |
+
+### Quality injection
+
+| Component | Description |
+|-----------|-------------|
+| `false_positive` | Tags legitimate transactions that look suspicious |
+| `sophistication_sampler` | Context-correlated sophistication sampler |
 
 ### Customer Personas (`personas/`)
 

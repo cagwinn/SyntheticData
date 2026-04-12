@@ -45,6 +45,7 @@ pub struct CounterfactualPair {
     pub injection_strategy: InjectionStrategy,
 
     /// Timestamp when the pair was generated.
+    #[serde(with = "datasynth_core::serde_timestamp::naive")]
     pub generated_at: NaiveDateTime,
 
     /// Additional metadata.

@@ -30,7 +30,7 @@ pub struct AmlScenario {
     /// Transaction IDs involved
     pub involved_transactions: Vec<Uuid>,
     /// Total amount laundered/defrauded
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub total_amount: Decimal,
     /// Evasion tactics employed
     pub evasion_tactics: Vec<EvasionTactic>,

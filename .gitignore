@@ -69,3 +69,10 @@ coverage.xml
 
 # Git worktrees
 .worktrees/
+
+# Paper submission artifacts and local notes (may contain credentials/drafts)
+paper/arxiv-metadata.txt
+paper/arxiv-submission.tar
+paper/main.bbl
+paper/main.blg
+paper/tmp/

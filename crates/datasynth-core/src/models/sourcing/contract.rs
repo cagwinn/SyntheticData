@@ -106,7 +106,7 @@ pub struct ContractLineItem {
     /// Description
     pub description: String,
     /// Contracted unit price
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub unit_price: Decimal,
     /// Unit of measure
     pub uom: String,
@@ -118,7 +118,7 @@ pub struct ContractLineItem {
     #[serde(default)]
     pub quantity_released: Decimal,
     /// Value released so far
-    #[serde(default, with = "rust_decimal::serde::str")]
+    #[serde(default, with = "crate::serde_decimal")]
     pub value_released: Decimal,
 }
 
@@ -146,10 +146,10 @@ pub struct ProcurementContract {
     /// End date
     pub end_date: NaiveDate,
     /// Total contract value
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub total_value: Decimal,
     /// Value consumed so far
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub consumed_value: Decimal,
     /// Contract terms
     pub terms: ContractTerms,

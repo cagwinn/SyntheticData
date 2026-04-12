@@ -57,7 +57,7 @@ pub struct FinancialStatementLineItem {
     /// Sort order within section
     pub sort_order: u32,
     /// Current period amount
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub amount: Decimal,
     /// Prior period amount (for comparison)
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -87,7 +87,7 @@ pub struct CashFlowItem {
     /// Cash flow category
     pub category: CashFlowCategory,
     /// Amount
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub amount: Decimal,
     /// Prior period amount
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -108,13 +108,13 @@ pub struct ConsolidationLineItem {
     #[serde(default)]
     pub entity_amounts: HashMap<String, Decimal>,
     /// Sum of all entity amounts before eliminations
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub pre_elimination_total: Decimal,
     /// Net elimination adjustment (positive = increases total, negative = decreases)
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub elimination_adjustments: Decimal,
     /// post_elimination_total = pre_elimination_total + elimination_adjustments
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub post_elimination_total: Decimal,
 }
 
@@ -156,25 +156,25 @@ pub struct OperatingSegment {
     /// Basis on which the segment is identified
     pub segment_type: SegmentType,
     /// Revenue from transactions with external customers
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub revenue_external: Decimal,
     /// Revenue from transactions with other operating segments (eliminated on consolidation)
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub revenue_intersegment: Decimal,
     /// Segment operating profit (before corporate overhead and group tax)
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub operating_profit: Decimal,
     /// Total assets allocated to this segment
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub total_assets: Decimal,
     /// Total liabilities allocated to this segment
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub total_liabilities: Decimal,
     /// Capital expenditure (additions to PP&E and intangibles) in the period
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub capital_expenditure: Decimal,
     /// Depreciation and amortisation charged in the period
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub depreciation_amortization: Decimal,
     /// Fiscal period label for which these figures are reported (e.g. "2024-03")
     pub period: String,
@@ -191,31 +191,31 @@ pub struct SegmentReconciliation {
     /// Company / group code
     pub company_code: String,
     /// Sum of all reportable segment revenues (external + intersegment)
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub segment_revenue_total: Decimal,
     /// Elimination of intersegment revenues (typically negative)
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub intersegment_eliminations: Decimal,
     /// Consolidated external revenue = segment_revenue_total + intersegment_eliminations
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub consolidated_revenue: Decimal,
     /// Sum of all reportable segment operating profits
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub segment_profit_total: Decimal,
     /// Unallocated corporate overhead (negative amount)
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub corporate_overhead: Decimal,
     /// Consolidated operating profit = segment_profit_total + corporate_overhead
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub consolidated_profit: Decimal,
     /// Sum of all reportable segment assets
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub segment_assets_total: Decimal,
     /// Unallocated corporate / group assets (e.g. deferred tax, goodwill)
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub unallocated_assets: Decimal,
     /// Consolidated total assets = segment_assets_total + unallocated_assets
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub consolidated_assets: Decimal,
 }
 
@@ -263,10 +263,10 @@ pub struct KpiSummaryLine {
     /// KPI metric name (e.g., "Revenue Growth Rate", "Gross Margin")
     pub metric: String,
     /// Actual value achieved in the period
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub actual: Decimal,
     /// Target value set for the period
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub target: Decimal,
     /// Variance as a percentage of target ((actual - target) / target)
     pub variance_pct: f64,
@@ -283,13 +283,13 @@ pub struct BudgetVarianceLine {
     /// GL account code or category (e.g., "4000", "Revenue")
     pub account: String,
     /// Budgeted amount for the period
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub budget_amount: Decimal,
     /// Actual amount recorded for the period
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub actual_amount: Decimal,
     /// Variance = actual − budget
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub variance: Decimal,
     /// Variance as a percentage of budget ((actual − budget) / budget)
     pub variance_pct: f64,
@@ -340,10 +340,10 @@ pub struct DividendDeclaration {
     /// Payment date (cash disbursement)
     pub payment_date: NaiveDate,
     /// Dividend per share
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub per_share_amount: Decimal,
     /// Total dividend amount
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub total_amount: Decimal,
     /// Currency
     pub currency: String,

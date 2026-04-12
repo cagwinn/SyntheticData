@@ -52,3 +52,33 @@ pub const ROUND_TRIPPING_INJECTOR_SEED_OFFSET: u64 = 7100;
 
 /// Seed offset for [`FraudInjector`](crate::typologies::FraudInjector).
 pub const FRAUD_INJECTOR_SEED_OFFSET: u64 = 7200;
+
+/// Seed offset for Synthetic Identity injector.
+pub const SYNTHETIC_IDENTITY_SEED_OFFSET: u64 = 7300;
+
+/// Seed offset for Trade-Based ML injector.
+pub const TRADE_BASED_ML_SEED_OFFSET: u64 = 7400;
+
+/// Seed offset for Crypto Integration injector.
+pub const CRYPTO_INTEGRATION_SEED_OFFSET: u64 = 7500;
+
+/// Seed offset for Sanctions Evasion injector.
+pub const SANCTIONS_EVASION_SEED_OFFSET: u64 = 7600;
+
+/// Seed offset for Network Generator.
+pub const NETWORK_GENERATOR_SEED_OFFSET: u64 = 7700;
+
+/// Seed offset for False Positive injector.
+pub const FALSE_POSITIVE_SEED_OFFSET: u64 = 7800;
+
+/// Seed offset for Pouch Activity injector.
+pub const POUCH_ACTIVITY_SEED_OFFSET: u64 = 8000;
+
+/// Seed offset for Romance Scam injector.
+pub const ROMANCE_SCAM_SEED_OFFSET: u64 = 8100;
+
+/// Seed offset for Casino Integration injector.
+pub const CASINO_INTEGRATION_SEED_OFFSET: u64 = 8200;
+
+/// Seed offset for Real Estate Integration injector.
+pub const REAL_ESTATE_INTEGRATION_SEED_OFFSET: u64 = 8300;

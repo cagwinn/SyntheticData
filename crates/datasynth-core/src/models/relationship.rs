@@ -1550,7 +1550,7 @@ pub struct GraphMetadata {
     /// Creation date
     pub created_date: Option<NaiveDate>,
     /// Total transaction volume
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub total_transaction_volume: Decimal,
     /// Date range covered
     pub date_range: Option<(NaiveDate, NaiveDate)>,
@@ -1804,7 +1804,7 @@ pub struct CrossProcessLink {
     /// Link type
     pub link_type: CrossProcessLinkType,
     /// Quantity involved
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "crate::serde_decimal")]
     pub quantity: Decimal,
     /// Link date
     pub link_date: NaiveDate,

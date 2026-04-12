@@ -106,8 +106,10 @@ pub struct AuditProcedureStep {
     /// Evidence items supporting this step
     pub evidence_ids: Vec<Uuid>,
     /// Creation timestamp
+    #[serde(with = "crate::serde_timestamp::utc")]
     pub created_at: DateTime<Utc>,
     /// Last-modified timestamp
+    #[serde(with = "crate::serde_timestamp::utc")]
     pub updated_at: DateTime<Utc>,
 }
 

@@ -231,7 +231,7 @@ pub struct Sox404Assessment {
     pub scope: Vec<ScopedEntity>,
 
     /// Materiality threshold used.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub materiality_threshold: Decimal,
 
     /// Number of key controls tested.
@@ -338,11 +338,11 @@ pub struct ScopedEntity {
     pub entity_name: String,
 
     /// Percentage of consolidated revenue.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub revenue_percent: Decimal,
 
     /// Percentage of consolidated assets.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub assets_percent: Decimal,
 
     /// Scoping conclusion.
@@ -523,7 +523,7 @@ pub struct MaterialWeakness {
     pub root_cause: String,
 
     /// Potential misstatement amount.
-    #[serde(default, with = "rust_decimal::serde::str_option")]
+    #[serde(default, with = "datasynth_core::serde_decimal::option")]
     pub potential_misstatement: Option<Decimal>,
 
     /// Likelihood assessment.

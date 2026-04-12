@@ -1,4 +1,4 @@
-# DataSynth v2.2.0
+# DataSynth v2.3.0
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-green.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/rust-1.88%2B-orange.svg)](https://www.rust-lang.org)
@@ -79,6 +79,65 @@ This produces 113+ interconnected files:
 | **Graph Export** | 78+ entity types, 39+ edge types for ML training and AI agent interaction |
 
 CRA drives sampling, sampling correlates with misstatement rates, misstatements drive findings, findings drive the audit opinion.
+
+---
+
+## What's New in v2.3.0
+
+### SDK/API Consumer Experience
+- **`numeric_mode: native`** — decimals serialize as JSON numbers instead of strings (opt-in config)
+- **Normalized timestamps** — microsecond precision + consistent UTC `Z` suffix (fixes pandas mixed-timezone errors)
+- **`export_layout: flat`** — flatten journal entries / document flows for analytics-friendly output
+- **Pre-built analytics** — `analytics/benford_analysis.json`, `amount_distribution.json`, `process_variant_summary.json` generated automatically
+- **Banking `display_name`, flat CoA array, `include` docs** for OCEL all-sectors
+
+### Rate-Controlled Streaming
+- **`GET /api/stream/ndjson?rate=100`** — NDJSON streaming endpoint with token-bucket rate limiting, burst control, progress event interleaving
+- Works with `curl -N`, Python `httpx.stream()`, Node `fetch` — no client library needed
+
+### Banking/AML Realism Release (the big one)
+
+**14 implemented AML typologies** (up from 6):
+- Structuring, Smurfing, FunnelAccount, Layering, MoneyMule, RoundTripping (v2.2.0)
+- SyntheticIdentity, TradeBasedML, CryptoIntegration, SanctionsEvasion (v2.3.0)
+- **PouchActivity, RomanceScam, CasinoIntegration, RealEstateIntegration** (v2.3.0 final)
+
+**Multi-party criminal networks**:
+- `NetworkGenerator` creates structuring rings, mule chains, shell pyramids
+- **Barabási-Albert preferential attachment** produces realistic power-law degree distributions (hubs + long tail)
+- Bridge nodes between clusters, `NetworkContext` tagging with roles (Coordinator/Smurf/Middleman/CashOut/ShellEntity/Recruiter/Beneficiary)
+
+**Temporal behavior & ML features**:
+- **Stochastic account lifecycle**: New → RampUp → Steady → Decline → Dormant with life-event triggers (JobChange, Relocation, MajorPurchase, Retirement, Abandonment, Reactivation)
+- **Pre-computed velocity features** on every transaction: `txn_count_{1h,24h,7d,30d}`, `amount_sum_*`, `unique_counterparties_*`, `amount_zscore`
+- **Device behavioral realism**: power-law per-customer device distribution (70% single-device, 20% dual, etc.), trust score evolution
+- **Sanctions screening variance**: context-aware screening intensity (risk tier × country × PEP × industry × name complexity multipliers)
+- **Context-correlated sophistication**: conditional probability based on amount, typology, customer type, network size (replaces flat multinomial)
+
+**Cross-layer coherence** (critical for unified use cases):
+- **Banking ↔ Document Flows bridge**: `Payment` documents now produce corresponding `BankTransaction` records with `source_payment_id`, `source_invoice_id`, `journal_entry_id` cross-references. A vendor invoice payment is visible on both sides.
+- **Fraud label propagation**: `Payment.is_fraud` flows through to `BankTransaction.is_suspicious` with `FraudType → AmlTypology` mapping
+- **GL integration**: `BankAccount.gl_account` auto-populated with standard cash GL codes (100000 Operating, 100100 Savings, 100500 Trust, etc.)
+- **Mirror transactions**: when both sides have banking profiles, a second `BankTransaction` is emitted on the counterparty's bank with inverse direction
+
+**Banking fingerprinting**:
+- `BankingFingerprint` + `BankingExtractor` capture customer/account/typology/amount distributions
+- Privacy-preserving re-synthesis of banking patterns
+
+### Evaluation Framework Coverage
+9 new evaluators validating the realism properties:
+- `CrossLayerCoherenceAnalyzer` — Payment↔BankTxn referential integrity, fraud propagation rate
+- `VelocityQualityAnalyzer` — window ordering invariants, z-score calibration
+- `FalsePositiveAnalyzer` — FP rate bounds, label mutual exclusivity, reason coverage
+- `DeviceFingerprintAnalyzer` — power-law distribution, trust calibration
+- `SanctionsScreeningAnalyzer` — low-risk Clear rate, high-risk match rate, PEP variations
+- `SophisticationAnalyzer` — level diversity, context-appropriate skew
+- `LifecycleAnalyzer` — phase diversity, progression rate, event-driven rate
+- `NetworkStructureAnalyzer` — power-law topology, role diversity
+
+**33 banking eval tests, 142 banking generator tests, 597 total across banking + eval — all green.**
+
+See [CHANGELOG.md](CHANGELOG.md) for complete details.
 
 ---
 

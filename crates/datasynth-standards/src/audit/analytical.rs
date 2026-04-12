@@ -35,19 +35,19 @@ pub struct AnalyticalProcedure {
     pub expectation: AnalyticalExpectation,
 
     /// Actual recorded value.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub actual_value: Decimal,
 
     /// Variance from expectation.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub variance: Decimal,
 
     /// Variance as percentage.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub variance_percent: Decimal,
 
     /// Threshold for investigation.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub investigation_threshold: Decimal,
 
     /// Whether variance exceeds threshold.
@@ -185,7 +185,7 @@ impl std::fmt::Display for AnalyticalPurpose {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct AnalyticalExpectation {
     /// Expected value.
-    #[serde(with = "rust_decimal::serde::str")]
+    #[serde(with = "datasynth_core::serde_decimal")]
     pub expected_value: Decimal,
 
     /// Basis for the expectation.
@@ -318,7 +318,7 @@ pub struct VarianceInvestigation {
     pub variance_explained: bool,
 
     /// Misstatement identified, if any.
-    #[serde(default, with = "rust_decimal::serde::str_option")]
+    #[serde(default, with = "datasynth_core::serde_decimal::option")]
     pub misstatement_amount: Option<Decimal>,
 
     /// Investigation conclusion.

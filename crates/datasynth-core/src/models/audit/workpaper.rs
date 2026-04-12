@@ -90,7 +90,9 @@ pub struct Workpaper {
     pub review_notes: Vec<ReviewNote>,
 
     // === Timestamps ===
+    #[serde(with = "crate::serde_timestamp::utc")]
     pub created_at: DateTime<Utc>,
+    #[serde(with = "crate::serde_timestamp::utc")]
     pub updated_at: DateTime<Utc>,
 }
 
@@ -462,8 +464,10 @@ pub struct ReviewNote {
     /// Note status
     pub status: ReviewNoteStatus,
     /// When the note was created
+    #[serde(with = "crate::serde_timestamp::utc")]
     pub created_at: DateTime<Utc>,
     /// When the note was resolved
+    #[serde(default, with = "crate::serde_timestamp::utc::option")]
     pub resolved_at: Option<DateTime<Utc>>,
 }
 
