@@ -7,9 +7,7 @@
 //! - Customer type: retail rarely runs state-level schemes
 //! - Network size: bigger networks → organized → higher sophistication
 
-use datasynth_core::models::banking::{
-    AmlTypology, BankingCustomerType, Sophistication,
-};
+use datasynth_core::models::banking::{AmlTypology, BankingCustomerType, Sophistication};
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
 
@@ -176,7 +174,10 @@ mod tests {
             counts[idx] += 1;
         }
         // Should be heavily basic/standard
-        assert!(counts[0] + counts[1] > 700, "Small-retail should be basic/standard: {counts:?}");
+        assert!(
+            counts[0] + counts[1] > 700,
+            "Small-retail should be basic/standard: {counts:?}"
+        );
     }
 
     #[test]
@@ -202,7 +203,10 @@ mod tests {
         }
         // Large amount + trade-based + network → should skew to professional+
         let higher = counts[2] + counts[3] + counts[4];
-        assert!(higher > 600, "Large/trade-based should skew higher: {counts:?}");
+        assert!(
+            higher > 600,
+            "Large/trade-based should skew higher: {counts:?}"
+        );
     }
 
     #[test]
@@ -221,6 +225,9 @@ mod tests {
             }
         }
         // Sanctions evasion should skew away from Basic (baseline 40% → should be substantially lower)
-        assert!(basic_count < 300, "Sanctions should rarely be Basic: {basic_count}/1000 (baseline 40%)");
+        assert!(
+            basic_count < 300,
+            "Sanctions should rarely be Basic: {basic_count}/1000 (baseline 40%)"
+        );
     }
 }

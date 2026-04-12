@@ -15,7 +15,7 @@ use std::fmt;
 
 use std::io::Write;
 
-use chrono::{Datelike, DateTime, NaiveDateTime, Timelike, Utc};
+use chrono::{DateTime, Datelike, NaiveDateTime, Timelike, Utc};
 use serde::{self, Deserializer, Serializer};
 
 /// Format a NaiveDateTime as `YYYY-MM-DDTHH:MM:SS[.ffffff]Z` into a stack buffer.
@@ -27,23 +27,34 @@ fn format_normalized(dt: NaiveDateTime, buf: &mut [u8; 32]) -> usize {
         let _ = write!(
             cursor,
             "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}.{:06}Z",
-            dt.year(), dt.month(), dt.day(),
-            dt.hour(), dt.minute(), dt.second(),
+            dt.year(),
+            dt.month(),
+            dt.day(),
+            dt.hour(),
+            dt.minute(),
+            dt.second(),
             micros,
         );
     } else {
         let _ = write!(
             cursor,
             "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}Z",
-            dt.year(), dt.month(), dt.day(),
-            dt.hour(), dt.minute(), dt.second(),
+            dt.year(),
+            dt.month(),
+            dt.day(),
+            dt.hour(),
+            dt.minute(),
+            dt.second(),
         );
     }
     cursor.position() as usize
 }
 
 /// Serialize a NaiveDateTime as a normalized UTC timestamp string.
-fn serialize_normalized<S: Serializer>(dt: NaiveDateTime, serializer: S) -> Result<S::Ok, S::Error> {
+fn serialize_normalized<S: Serializer>(
+    dt: NaiveDateTime,
+    serializer: S,
+) -> Result<S::Ok, S::Error> {
     let mut buf = [0u8; 32];
     let len = format_normalized(dt, &mut buf);
     let s = std::str::from_utf8(&buf[..len]).expect("timestamp is always ASCII");
@@ -63,11 +74,16 @@ fn serialize_normalized<S: Serializer>(dt: NaiveDateTime, serializer: S) -> Resu
 pub mod utc {
     use super::*;
 
-    pub fn serialize<S: Serializer>(value: &DateTime<Utc>, serializer: S) -> Result<S::Ok, S::Error> {
+    pub fn serialize<S: Serializer>(
+        value: &DateTime<Utc>,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
         serialize_normalized(value.naive_utc(), serializer)
     }
 
-    pub fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<DateTime<Utc>, D::Error> {
+    pub fn deserialize<'de, D: Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<DateTime<Utc>, D::Error> {
         deserializer.deserialize_any(UtcVisitor)
     }
 
@@ -285,7 +301,10 @@ mod tests {
             .and_hms_nano_opt(8, 30, 45, 123_456_789)
             .unwrap()
             .and_utc();
-        let s = TestUtc { ts: dt, opt_ts: Some(dt) };
+        let s = TestUtc {
+            ts: dt,
+            opt_ts: Some(dt),
+        };
         let json = serde_json::to_string(&s).unwrap();
         // Should truncate to microseconds: 123456, not 123456789
         assert!(json.contains(".123456Z"), "got: {json}");
@@ -299,7 +318,10 @@ mod tests {
             .and_hms_opt(8, 30, 45)
             .unwrap()
             .and_utc();
-        let s = TestUtc { ts: dt, opt_ts: None };
+        let s = TestUtc {
+            ts: dt,
+            opt_ts: None,
+        };
         let json = serde_json::to_string(&s).unwrap();
         assert!(json.contains("08:30:45Z"), "got: {json}");
         assert!(!json.contains(".000"), "unnecessary decimals: {json}");
@@ -311,7 +333,10 @@ mod tests {
             .unwrap()
             .and_hms_nano_opt(14, 0, 0, 500_000_000)
             .unwrap();
-        let s = TestNaive { ts: dt, opt_ts: Some(dt) };
+        let s = TestNaive {
+            ts: dt,
+            opt_ts: Some(dt),
+        };
         let json = serde_json::to_string(&s).unwrap();
         // NaiveDateTime should also get Z suffix
         assert!(json.contains(".500000Z"), "got: {json}");

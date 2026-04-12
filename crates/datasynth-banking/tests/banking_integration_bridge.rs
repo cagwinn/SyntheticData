@@ -47,7 +47,11 @@ fn setup_account(owner: Uuid, account_type: BankAccountType) -> BankAccount {
     )
 }
 
-fn make_vendor_payment(vendor_id: &str, amount: rust_decimal::Decimal, fraud_type: Option<FraudType>) -> Payment {
+fn make_vendor_payment(
+    vendor_id: &str,
+    amount: rust_decimal::Decimal,
+    fraud_type: Option<FraudType>,
+) -> Payment {
     let mut p = Payment::new_ap_payment(
         format!("PAY-{}", Uuid::new_v4()),
         "COMP001",
@@ -74,8 +78,14 @@ fn test_bank_accounts_have_gl_codes() {
     let business = setup_account(enterprise.customer_id, BankAccountType::BusinessOperating);
     let trust = setup_account(enterprise.customer_id, BankAccountType::TrustAccount);
 
-    assert!(checking.gl_account.is_some(), "Checking should have GL account");
-    assert!(business.gl_account.is_some(), "Business should have GL account");
+    assert!(
+        checking.gl_account.is_some(),
+        "Checking should have GL account"
+    );
+    assert!(
+        business.gl_account.is_some(),
+        "Business should have GL account"
+    );
     assert!(trust.gl_account.is_some(), "Trust should have GL account");
 
     // Different account types should get different GL codes
@@ -113,12 +123,24 @@ fn test_payment_bridge_creates_cross_referenced_bank_transaction() {
     }
 
     // One should be outbound (AP payment leaving house bank), other inbound (vendor receiving)
-    let out_count = txns.iter().filter(|t| {
-        matches!(t.direction, datasynth_core::models::banking::Direction::Outbound)
-    }).count();
-    let in_count = txns.iter().filter(|t| {
-        matches!(t.direction, datasynth_core::models::banking::Direction::Inbound)
-    }).count();
+    let out_count = txns
+        .iter()
+        .filter(|t| {
+            matches!(
+                t.direction,
+                datasynth_core::models::banking::Direction::Outbound
+            )
+        })
+        .count();
+    let in_count = txns
+        .iter()
+        .filter(|t| {
+            matches!(
+                t.direction,
+                datasynth_core::models::banking::Direction::Inbound
+            )
+        })
+        .count();
     assert_eq!(out_count, 1, "One outbound from enterprise");
     assert_eq!(in_count, 1, "One inbound to vendor");
 }
@@ -162,11 +184,13 @@ fn test_bridge_preserves_payment_reference_chain() {
 
     // Payment with allocation to an invoice
     let mut payment = make_vendor_payment("V-999", dec!(25_000), None);
-    payment.allocations.push(datasynth_core::documents::PaymentAllocation::new(
-        "VI-ACME-001",
-        datasynth_core::documents::DocumentType::VendorInvoice,
-        dec!(25_000),
-    ));
+    payment
+        .allocations
+        .push(datasynth_core::documents::PaymentAllocation::new(
+            "VI-ACME-001",
+            datasynth_core::documents::DocumentType::VendorInvoice,
+            dec!(25_000),
+        ));
 
     let mut bridge = PaymentBridgeGenerator::new(42);
     let (txns, _) = bridge.bridge_payments(&[payment.clone()], &customers, &accounts, 1.0);
@@ -175,7 +199,13 @@ fn test_bridge_preserves_payment_reference_chain() {
     let bank_txn = &txns[0];
 
     // Full reference chain: bank → payment → invoice → JE
-    assert_eq!(bank_txn.source_payment_id, Some(payment.header.document_id.clone()));
+    assert_eq!(
+        bank_txn.source_payment_id,
+        Some(payment.header.document_id.clone())
+    );
     assert_eq!(bank_txn.source_invoice_id, Some("VI-ACME-001".to_string()));
-    assert_eq!(bank_txn.journal_entry_id, payment.header.journal_entry_id.clone());
+    assert_eq!(
+        bank_txn.journal_entry_id,
+        payment.header.journal_entry_id.clone()
+    );
 }

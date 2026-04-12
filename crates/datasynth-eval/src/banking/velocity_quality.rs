@@ -253,11 +253,10 @@ mod tests {
     #[test]
     fn test_low_coverage_flagged() {
         // 1 with velocity out of 10 total = 10% coverage, fails min_coverage=95%
-        let data: Vec<Option<VelocityFeaturesData>> = std::iter::once(Some(
-            VelocityFeaturesData::default(),
-        ))
-        .chain(std::iter::repeat_n(None, 9))
-        .collect();
+        let data: Vec<Option<VelocityFeaturesData>> =
+            std::iter::once(Some(VelocityFeaturesData::default()))
+                .chain(std::iter::repeat_n(None, 9))
+                .collect();
         let analyzer = VelocityQualityAnalyzer::new();
         let result = analyzer.analyze(data, 10).unwrap();
         assert!(!result.passes);

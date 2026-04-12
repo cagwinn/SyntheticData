@@ -26,7 +26,10 @@ impl PouchActivityInjector {
     pub fn new(seed: u64) -> Self {
         Self {
             rng: ChaCha8Rng::seed_from_u64(seed.wrapping_add(POUCH_ACTIVITY_SEED_OFFSET)),
-            uuid_factory: DeterministicUuidFactory::new(seed, datasynth_core::GeneratorType::Anomaly),
+            uuid_factory: DeterministicUuidFactory::new(
+                seed,
+                datasynth_core::GeneratorType::Anomaly,
+            ),
         }
     }
 
@@ -65,7 +68,7 @@ impl PouchActivityInjector {
             Sophistication::StateLevel => self.rng.random_range(6..10),
         };
 
-        let available_days = (end_date - start_date).num_days().max(1) as i64;
+        let available_days = (end_date - start_date).num_days().max(1);
         let mut seq = 0u32;
 
         for i in 0..num_pouches {
@@ -78,7 +81,11 @@ impl PouchActivityInjector {
             let branch_name = format!("Branch-{branch_id:03}");
             let amount = cash_per_pouch * self.rng.random_range(0.9..1.1);
             let ts = date
-                .and_hms_opt(self.rng.random_range(9..17), self.rng.random_range(0..60), 0)
+                .and_hms_opt(
+                    self.rng.random_range(9..17),
+                    self.rng.random_range(0..60),
+                    0,
+                )
                 .map(|dt| dt.and_utc())
                 .unwrap_or_else(chrono::Utc::now);
 
@@ -119,20 +126,36 @@ mod tests {
     #[test]
     fn test_pouch_activity_generates_cash_deposits() {
         let mut inj = PouchActivityInjector::new(42);
-        let customer = BankingCustomer::new_business(Uuid::new_v4(), "Cash Store LLC", "US",
-            NaiveDate::from_ymd_opt(2024, 1, 1).unwrap());
-        let account = BankAccount::new(Uuid::new_v4(), "ACC".into(),
+        let customer = BankingCustomer::new_business(
+            Uuid::new_v4(),
+            "Cash Store LLC",
+            "US",
+            NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
+        );
+        let account = BankAccount::new(
+            Uuid::new_v4(),
+            "ACC".into(),
             datasynth_core::models::banking::BankAccountType::BusinessOperating,
-            customer.customer_id, "USD", NaiveDate::from_ymd_opt(2024, 1, 1).unwrap());
+            customer.customer_id,
+            "USD",
+            NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
+        );
 
-        let txns = inj.generate(&customer, &account,
+        let txns = inj.generate(
+            &customer,
+            &account,
             NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
             NaiveDate::from_ymd_opt(2024, 6, 30).unwrap(),
-            Sophistication::Professional);
+            Sophistication::Professional,
+        );
 
         assert!(!txns.is_empty());
-        assert!(txns.iter().all(|t| matches!(t.direction, Direction::Inbound)));
+        assert!(txns
+            .iter()
+            .all(|t| matches!(t.direction, Direction::Inbound)));
         assert!(txns.iter().all(|t| t.channel == TransactionChannel::Cash));
-        assert!(txns.iter().all(|t| t.suspicion_reason == Some(AmlTypology::PouchActivity)));
+        assert!(txns
+            .iter()
+            .all(|t| t.suspicion_reason == Some(AmlTypology::PouchActivity)));
     }
 }

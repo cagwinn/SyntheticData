@@ -18,8 +18,15 @@ use crate::seed_offsets::TRADE_BASED_ML_SEED_OFFSET;
 
 const TRADE_COUNTRIES: &[&str] = &["CN", "HK", "SG", "AE", "TR", "TH", "VN", "MY", "ID", "PH"];
 const GOODS: &[&str] = &[
-    "Electronics", "Textiles", "Machinery", "Chemicals", "Automotive Parts",
-    "Medical Supplies", "Agricultural Products", "Precious Metals", "Construction Materials",
+    "Electronics",
+    "Textiles",
+    "Machinery",
+    "Chemicals",
+    "Automotive Parts",
+    "Medical Supplies",
+    "Agricultural Products",
+    "Precious Metals",
+    "Construction Materials",
 ];
 
 /// Trade-based money laundering injector.
@@ -32,7 +39,10 @@ impl TradeBasedMLInjector {
     pub fn new(seed: u64) -> Self {
         Self {
             rng: ChaCha8Rng::seed_from_u64(seed.wrapping_add(TRADE_BASED_ML_SEED_OFFSET)),
-            uuid_factory: DeterministicUuidFactory::new(seed, datasynth_core::GeneratorType::Anomaly),
+            uuid_factory: DeterministicUuidFactory::new(
+                seed,
+                datasynth_core::GeneratorType::Anomaly,
+            ),
         }
     }
 
@@ -65,7 +75,7 @@ impl TradeBasedMLInjector {
             Sophistication::StateLevel => self.rng.random_range(1.05..1.2),
         };
 
-        let available_days = (end_date - start_date).num_days().max(1) as i64;
+        let available_days = (end_date - start_date).num_days().max(1);
         let days_per_cycle = (available_days / num_cycles as i64).max(7);
         let mut seq = 0u32;
 
@@ -79,13 +89,21 @@ impl TradeBasedMLInjector {
             let country = TRADE_COUNTRIES[self.rng.random_range(0..TRADE_COUNTRIES.len())];
             let true_value: f64 = self.rng.random_range(10_000.0..100_000.0);
             let invoiced_value = true_value * invoice_factor;
-            let invoice_num = format!("INV-{}-{:04}", cycle_start.format("%Y%m"), self.rng.random::<u16>());
+            let invoice_num = format!(
+                "INV-{}-{:04}",
+                cycle_start.format("%Y%m"),
+                self.rng.random::<u16>()
+            );
 
             // Outbound payment (inflated invoice amount)
             let pay_date = cycle_start + Duration::days(self.rng.random_range(0..3) as i64);
             if pay_date <= end_date {
                 let ts = pay_date
-                    .and_hms_opt(self.rng.random_range(9..17), self.rng.random_range(0..60), 0)
+                    .and_hms_opt(
+                        self.rng.random_range(9..17),
+                        self.rng.random_range(0..60),
+                        0,
+                    )
                     .map(|dt| dt.and_utc())
                     .unwrap_or_else(|| pay_date.and_hms_opt(12, 0, 0).expect("valid").and_utc());
 
@@ -97,7 +115,11 @@ impl TradeBasedMLInjector {
                     Direction::Outbound,
                     TransactionChannel::Swift,
                     TransactionCategory::InternationalTransfer,
-                    CounterpartyRef::trade_partner(self.uuid_factory.next(), &format!("{country} Trading Co"), country),
+                    CounterpartyRef::trade_partner(
+                        self.uuid_factory.next(),
+                        &format!("{country} Trading Co"),
+                        country,
+                    ),
                     &format!("{invoice_num} - {goods}"),
                     ts,
                 );
@@ -116,9 +138,14 @@ impl TradeBasedMLInjector {
             let rebate_days = self.rng.random_range(10..30).min(days_per_cycle as u32);
             let rebate_date = cycle_start + Duration::days(rebate_days as i64);
             if rebate_date <= end_date {
-                let rebate_amount = (invoiced_value - true_value) * self.rng.random_range(0.8..0.95);
+                let rebate_amount =
+                    (invoiced_value - true_value) * self.rng.random_range(0.8..0.95);
                 let ts = rebate_date
-                    .and_hms_opt(self.rng.random_range(9..17), self.rng.random_range(0..60), 0)
+                    .and_hms_opt(
+                        self.rng.random_range(9..17),
+                        self.rng.random_range(0..60),
+                        0,
+                    )
                     .map(|dt| dt.and_utc())
                     .unwrap_or_else(|| rebate_date.and_hms_opt(12, 0, 0).expect("valid").and_utc());
 
@@ -130,7 +157,11 @@ impl TradeBasedMLInjector {
                     Direction::Inbound,
                     TransactionChannel::Swift,
                     TransactionCategory::TransferIn,
-                    CounterpartyRef::trade_partner(self.uuid_factory.next(), &format!("{country} Rebate Agent"), country),
+                    CounterpartyRef::trade_partner(
+                        self.uuid_factory.next(),
+                        &format!("{country} Rebate Agent"),
+                        country,
+                    ),
                     &format!("Trade rebate - {invoice_num}"),
                     ts,
                 );
@@ -159,27 +190,54 @@ mod tests {
     #[test]
     fn test_trade_based_ml_generates_paired_transactions() {
         let mut injector = TradeBasedMLInjector::new(42);
-        let customer = BankingCustomer::new_business(Uuid::new_v4(), "Import Export LLC", "US",
-            NaiveDate::from_ymd_opt(2024, 1, 1).unwrap());
-        let account = BankAccount::new(Uuid::new_v4(), "ACC-001".into(),
+        let customer = BankingCustomer::new_business(
+            Uuid::new_v4(),
+            "Import Export LLC",
+            "US",
+            NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
+        );
+        let account = BankAccount::new(
+            Uuid::new_v4(),
+            "ACC-001".into(),
             datasynth_core::models::banking::BankAccountType::BusinessOperating,
-            customer.customer_id, "USD", NaiveDate::from_ymd_opt(2024, 1, 1).unwrap());
+            customer.customer_id,
+            "USD",
+            NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
+        );
 
-        let txns = injector.generate(&customer, &account,
+        let txns = injector.generate(
+            &customer,
+            &account,
             NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
             NaiveDate::from_ymd_opt(2024, 12, 31).unwrap(),
-            Sophistication::Professional);
+            Sophistication::Professional,
+        );
 
         assert!(!txns.is_empty());
-        let outbound = txns.iter().filter(|t| t.direction == Direction::Outbound).count();
-        let inbound = txns.iter().filter(|t| t.direction == Direction::Inbound).count();
+        let outbound = txns
+            .iter()
+            .filter(|t| t.direction == Direction::Outbound)
+            .count();
+        let inbound = txns
+            .iter()
+            .filter(|t| t.direction == Direction::Inbound)
+            .count();
         assert!(outbound > 0, "Should have outbound invoice payments");
         assert!(inbound > 0, "Should have inbound rebates");
         // Outbound amounts should be larger than inbound (over-invoicing)
-        let out_sum: f64 = txns.iter().filter(|t| t.direction == Direction::Outbound)
-            .map(|t| t.amount.to_string().parse::<f64>().unwrap_or(0.0)).sum();
-        let in_sum: f64 = txns.iter().filter(|t| t.direction == Direction::Inbound)
-            .map(|t| t.amount.to_string().parse::<f64>().unwrap_or(0.0)).sum();
-        assert!(out_sum > in_sum, "Outbound should exceed inbound (over-invoicing)");
+        let out_sum: f64 = txns
+            .iter()
+            .filter(|t| t.direction == Direction::Outbound)
+            .map(|t| t.amount.to_string().parse::<f64>().unwrap_or(0.0))
+            .sum();
+        let in_sum: f64 = txns
+            .iter()
+            .filter(|t| t.direction == Direction::Inbound)
+            .map(|t| t.amount.to_string().parse::<f64>().unwrap_or(0.0))
+            .sum();
+        assert!(
+            out_sum > in_sum,
+            "Outbound should exceed inbound (over-invoicing)"
+        );
     }
 }

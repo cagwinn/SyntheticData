@@ -108,8 +108,10 @@ impl CrossLayerCoherenceAnalyzer {
         payments: &[PaymentRef],
         bank_txns: &[BankTxnLinks],
     ) -> EvalResult<CrossLayerCoherenceAnalysis> {
-        let payment_by_id: HashMap<&str, &PaymentRef> =
-            payments.iter().map(|p| (p.payment_id.as_str(), p)).collect();
+        let payment_by_id: HashMap<&str, &PaymentRef> = payments
+            .iter()
+            .map(|p| (p.payment_id.as_str(), p))
+            .collect();
         let total_fraud_payments = payments.iter().filter(|p| p.is_fraud).count();
 
         let mut bridged_count = 0usize;
@@ -124,7 +126,9 @@ impl CrossLayerCoherenceAnalyzer {
             if txn.parent_transaction_id.is_some() {
                 mirror_count += 1;
             }
-            let Some(ref pid) = txn.source_payment_id else { continue };
+            let Some(ref pid) = txn.source_payment_id else {
+                continue;
+            };
             bridged_count += 1;
 
             match payment_by_id.get(pid.as_str()) {
@@ -134,8 +138,7 @@ impl CrossLayerCoherenceAnalyzer {
                 Some(payment) => {
                     // Amount match (bridged should have same amount as payment)
                     let deviation =
-                        ((payment.amount - txn.amount).abs() / payment.amount.abs().max(1.0))
-                            as f64;
+                        (payment.amount - txn.amount).abs() / payment.amount.abs().max(1.0);
                     if deviation > self.thresholds.max_amount_deviation {
                         mismatches += 1;
                     }
@@ -151,8 +154,8 @@ impl CrossLayerCoherenceAnalyzer {
             }
         }
 
-        let unpropagated_fraud_payments = total_fraud_payments
-            .saturating_sub(fraud_payments_with_suspicious_txn.len());
+        let unpropagated_fraud_payments =
+            total_fraud_payments.saturating_sub(fraud_payments_with_suspicious_txn.len());
 
         let fraud_propagation_rate = if total_fraud_payments > 0 {
             fraud_payments_with_suspicious_txn.len() as f64 / total_fraud_payments as f64

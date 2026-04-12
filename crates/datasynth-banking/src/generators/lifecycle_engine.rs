@@ -23,9 +23,7 @@ pub fn assign_lifecycle_phases(accounts: &mut [BankAccount], reference_date: Nai
 /// This is called by the transaction generator on each day to scale
 /// the persona-based transaction count.
 pub fn activity_multiplier_for_date(account: &BankAccount, current_date: NaiveDate) -> f64 {
-    let phase_start = account
-        .phase_start_date
-        .unwrap_or(account.opening_date);
+    let phase_start = account.phase_start_date.unwrap_or(account.opening_date);
     let days_in_phase = (current_date - phase_start).num_days().max(0) as u32;
     account.lifecycle_phase.activity_multiplier(days_in_phase)
 }
@@ -66,7 +64,11 @@ mod tests {
     #[test]
     fn test_activity_multiplier_new_is_low() {
         let account = make_account(NaiveDate::from_ymd_opt(2024, 1, 1).unwrap());
-        let mult = activity_multiplier_for_date(&account, NaiveDate::from_ymd_opt(2024, 1, 10).unwrap());
-        assert!(mult < 0.3, "New account should have low multiplier, got {mult}");
+        let mult =
+            activity_multiplier_for_date(&account, NaiveDate::from_ymd_opt(2024, 1, 10).unwrap());
+        assert!(
+            mult < 0.3,
+            "New account should have low multiplier, got {mult}"
+        );
     }
 }

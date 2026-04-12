@@ -2353,8 +2353,7 @@ impl EnhancedOrchestrator {
         {
             use std::collections::HashMap;
             // Build a map from document_id -> (is_fraud, fraud_type) from fraudulent JEs
-            let mut fraud_map: HashMap<String, datasynth_core::FraudType> =
-                HashMap::new();
+            let mut fraud_map: HashMap<String, datasynth_core::FraudType> = HashMap::new();
             for je in &entries {
                 if je.header.is_fraud {
                     if let Some(ref fraud_type) = je.header.fraud_type {
@@ -2363,8 +2362,7 @@ impl EnhancedOrchestrator {
                             fraud_map.insert(reference.clone(), *fraud_type);
                         }
                         // Also tag via journal_entry_id on document headers
-                        fraud_map
-                            .insert(je.header.document_id.to_string(), *fraud_type);
+                        fraud_map.insert(je.header.document_id.to_string(), *fraud_type);
                     }
                 }
             }
@@ -2438,9 +2436,10 @@ impl EnhancedOrchestrator {
         {
             let bridge_rate = self.config.banking.typologies.payment_bridge_rate;
             if bridge_rate > 0.0 {
-                let mut bridge = datasynth_banking::generators::payment_bridge::PaymentBridgeGenerator::new(
-                    self.seed,
-                );
+                let mut bridge =
+                    datasynth_banking::generators::payment_bridge::PaymentBridgeGenerator::new(
+                        self.seed,
+                    );
                 let (bridged_txns, bridge_stats) = bridge.bridge_payments(
                     &document_flows.payments,
                     &banking.customers,
@@ -2465,7 +2464,11 @@ impl EnhancedOrchestrator {
                 }
 
                 // Recompute suspicious count after bridging
-                banking.suspicious_count = banking.transactions.iter().filter(|t| t.is_suspicious).count();
+                banking.suspicious_count = banking
+                    .transactions
+                    .iter()
+                    .filter(|t| t.is_suspicious)
+                    .count();
                 stats.banking_transaction_count = banking.transactions.len();
                 stats.banking_suspicious_count = banking.suspicious_count;
             }

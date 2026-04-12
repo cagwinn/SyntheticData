@@ -109,7 +109,9 @@ mod tests {
 
     #[test]
     fn test_steady_is_full() {
-        assert!((AccountLifecyclePhase::Steady.activity_multiplier(100) - 1.0).abs() < f64::EPSILON);
+        assert!(
+            (AccountLifecyclePhase::Steady.activity_multiplier(100) - 1.0).abs() < f64::EPSILON
+        );
     }
 
     #[test]
@@ -119,9 +121,21 @@ mod tests {
 
     #[test]
     fn test_from_account_age() {
-        assert_eq!(AccountLifecyclePhase::from_account_age(5, 0), AccountLifecyclePhase::New);
-        assert_eq!(AccountLifecyclePhase::from_account_age(50, 0), AccountLifecyclePhase::RampUp);
-        assert_eq!(AccountLifecyclePhase::from_account_age(200, 0), AccountLifecyclePhase::Steady);
-        assert_eq!(AccountLifecyclePhase::from_account_age(200, 100), AccountLifecyclePhase::Dormant);
+        assert_eq!(
+            AccountLifecyclePhase::from_account_age(5, 0),
+            AccountLifecyclePhase::New
+        );
+        assert_eq!(
+            AccountLifecyclePhase::from_account_age(50, 0),
+            AccountLifecyclePhase::RampUp
+        );
+        assert_eq!(
+            AccountLifecyclePhase::from_account_age(200, 0),
+            AccountLifecyclePhase::Steady
+        );
+        assert_eq!(
+            AccountLifecyclePhase::from_account_age(200, 100),
+            AccountLifecyclePhase::Dormant
+        );
     }
 }

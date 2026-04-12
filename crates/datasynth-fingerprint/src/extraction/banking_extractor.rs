@@ -26,6 +26,7 @@ impl BankingExtractor {
     /// Uses generic accessor functions (extractor callbacks) to decouple from
     /// the concrete banking crate types, keeping `datasynth-fingerprint` free
     /// of a direct dependency on `datasynth-banking`.
+    #[allow(clippy::too_many_arguments)]
     pub fn extract<Cust, Acct, Txn>(
         customers: &[Cust],
         accounts: &[Acct],
@@ -93,8 +94,7 @@ impl BankingExtractor {
         fp.account_type_dist = BankingFingerprint::normalize_counts(&at_counts);
         if !customers.is_empty() {
             let counts: Vec<f64> = accounts_per_owner.values().map(|v| *v as f64).collect();
-            fp.accounts_per_customer_mean =
-                counts.iter().sum::<f64>() / counts.len().max(1) as f64;
+            fp.accounts_per_customer_mean = counts.iter().sum::<f64>() / counts.len().max(1) as f64;
             let mean = fp.accounts_per_customer_mean;
             let var =
                 counts.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / counts.len().max(1) as f64;
@@ -166,10 +166,7 @@ impl BankingExtractor {
                 .collect();
             if !log_amounts.is_empty() {
                 let mu = log_amounts.iter().sum::<f64>() / log_amounts.len() as f64;
-                let var = log_amounts
-                    .iter()
-                    .map(|v| (v - mu).powi(2))
-                    .sum::<f64>()
+                let var = log_amounts.iter().map(|v| (v - mu).powi(2)).sum::<f64>()
                     / log_amounts.len() as f64;
                 fp.amount_log_mu = mu;
                 fp.amount_log_sigma = var.sqrt();
@@ -236,23 +233,85 @@ mod tests {
     #[test]
     fn test_extract_basic() {
         let customers = vec![
-            FakeCust { ctype: "retail".into(), tier: "low".into(), pep: false, mule: false },
-            FakeCust { ctype: "business".into(), tier: "high".into(), pep: true, mule: false },
-            FakeCust { ctype: "retail".into(), tier: "medium".into(), pep: false, mule: true },
+            FakeCust {
+                ctype: "retail".into(),
+                tier: "low".into(),
+                pep: false,
+                mule: false,
+            },
+            FakeCust {
+                ctype: "business".into(),
+                tier: "high".into(),
+                pep: true,
+                mule: false,
+            },
+            FakeCust {
+                ctype: "retail".into(),
+                tier: "medium".into(),
+                pep: false,
+                mule: true,
+            },
         ];
         let accounts = vec![
-            FakeAcct { atype: "checking".into(), owner: "c1".into() },
-            FakeAcct { atype: "savings".into(), owner: "c1".into() },
-            FakeAcct { atype: "business_operating".into(), owner: "c2".into() },
+            FakeAcct {
+                atype: "checking".into(),
+                owner: "c1".into(),
+            },
+            FakeAcct {
+                atype: "savings".into(),
+                owner: "c1".into(),
+            },
+            FakeAcct {
+                atype: "business_operating".into(),
+                owner: "c2".into(),
+            },
         ];
         let transactions = vec![
-            FakeTxn { channel: "ach".into(), category: "salary".into(), typology: None, amount: 1000.0, susp: false, fp: false, bridged: true, network: false, cross_border: false, cash: false, account: "a1".into() },
-            FakeTxn { channel: "wire".into(), category: "transfer_out".into(), typology: Some("structuring".into()), amount: 9500.0, susp: true, fp: false, bridged: false, network: false, cross_border: true, cash: false, account: "a2".into() },
-            FakeTxn { channel: "cash".into(), category: "cash_deposit".into(), typology: None, amount: 500.0, susp: false, fp: true, bridged: false, network: false, cross_border: false, cash: true, account: "a1".into() },
+            FakeTxn {
+                channel: "ach".into(),
+                category: "salary".into(),
+                typology: None,
+                amount: 1000.0,
+                susp: false,
+                fp: false,
+                bridged: true,
+                network: false,
+                cross_border: false,
+                cash: false,
+                account: "a1".into(),
+            },
+            FakeTxn {
+                channel: "wire".into(),
+                category: "transfer_out".into(),
+                typology: Some("structuring".into()),
+                amount: 9500.0,
+                susp: true,
+                fp: false,
+                bridged: false,
+                network: false,
+                cross_border: true,
+                cash: false,
+                account: "a2".into(),
+            },
+            FakeTxn {
+                channel: "cash".into(),
+                category: "cash_deposit".into(),
+                typology: None,
+                amount: 500.0,
+                susp: false,
+                fp: true,
+                bridged: false,
+                network: false,
+                cross_border: false,
+                cash: true,
+                account: "a1".into(),
+            },
         ];
 
         let fp = BankingExtractor::extract(
-            &customers, &accounts, &transactions,
+            &customers,
+            &accounts,
+            &transactions,
             |c| c.ctype.clone(),
             |c| c.tier.clone(),
             |_| None,
@@ -276,12 +335,12 @@ mod tests {
         assert_eq!(fp.customer_count, 3);
         assert_eq!(fp.account_count, 3);
         assert_eq!(fp.transaction_count, 3);
-        assert!((fp.customer_type_dist["retail"] - 2.0/3.0).abs() < 0.001);
-        assert!((fp.pep_rate - 1.0/3.0).abs() < 0.001);
-        assert!((fp.mule_rate - 1.0/3.0).abs() < 0.001);
-        assert!((fp.suspicious_rate - 1.0/3.0).abs() < 0.001);
-        assert!((fp.false_positive_rate - 1.0/3.0).abs() < 0.001);
-        assert!((fp.bridged_payment_rate - 1.0/3.0).abs() < 0.001);
+        assert!((fp.customer_type_dist["retail"] - 2.0 / 3.0).abs() < 0.001);
+        assert!((fp.pep_rate - 1.0 / 3.0).abs() < 0.001);
+        assert!((fp.mule_rate - 1.0 / 3.0).abs() < 0.001);
+        assert!((fp.suspicious_rate - 1.0 / 3.0).abs() < 0.001);
+        assert!((fp.false_positive_rate - 1.0 / 3.0).abs() < 0.001);
+        assert!((fp.bridged_payment_rate - 1.0 / 3.0).abs() < 0.001);
         assert!(fp.amount_log_mu > 0.0);
         assert!(fp.accounts_per_customer_mean > 0.0);
     }

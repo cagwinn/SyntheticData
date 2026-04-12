@@ -99,7 +99,10 @@ impl DeviceFingerprintAnalyzer {
             .filter(|s| s.len() > 5)
             .count();
         let mean_devices = if customers_with_devices > 0 {
-            devices_per_customer.values().map(|s| s.len()).sum::<usize>() as f64
+            devices_per_customer
+                .values()
+                .map(|s| s.len())
+                .sum::<usize>() as f64
                 / customers_with_devices as f64
         } else {
             0.0

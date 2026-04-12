@@ -20,8 +20,8 @@ pub const NETWORK_TOPOLOGY_SEED_OFFSET: u64 = 8600;
 pub struct NetworkNode {
     pub id: usize,
     pub degree: usize,
-    pub is_hub: bool,        // high-degree node (coordinator)
-    pub is_bridge: bool,     // connects otherwise-disconnected subgroups
+    pub is_hub: bool,    // high-degree node (coordinator)
+    pub is_bridge: bool, // connects otherwise-disconnected subgroups
     pub cluster_id: Option<usize>,
 }
 
@@ -72,7 +72,12 @@ impl NetworkTopologyGenerator {
     /// - `total_nodes`: target number of nodes
     /// - `m`: each new node creates `m` edges to existing nodes, weighted by degree
     /// - `num_clusters`: target number of clusters (creates bridge nodes between clusters)
-    pub fn generate_ba(&mut self, total_nodes: usize, m: usize, num_clusters: usize) -> NetworkTopology {
+    pub fn generate_ba(
+        &mut self,
+        total_nodes: usize,
+        m: usize,
+        num_clusters: usize,
+    ) -> NetworkTopology {
         let total_nodes = total_nodes.max(m + 1);
         let mut nodes: Vec<NetworkNode> = (0..total_nodes)
             .map(|i| NetworkNode {
@@ -126,7 +131,10 @@ impl NetworkTopologyGenerator {
                 }
             }
             for t in targets {
-                edges.push(NetworkEdge { from: new_id, to: t });
+                edges.push(NetworkEdge {
+                    from: new_id,
+                    to: t,
+                });
                 nodes[new_id].degree += 1;
                 nodes[t].degree += 1;
             }
@@ -168,10 +176,10 @@ mod tests {
 
         assert_eq!(network.nodes.len(), 100);
         assert!(network.edges.len() >= 99); // at least a connected graph
-        // Max degree should be substantially higher than average (power-law signature)
+                                            // Max degree should be substantially higher than average (power-law signature)
         let max_degree = network.nodes.iter().map(|n| n.degree).max().unwrap();
-        let avg_degree: f64 = network.nodes.iter().map(|n| n.degree as f64).sum::<f64>()
-            / network.nodes.len() as f64;
+        let avg_degree: f64 =
+            network.nodes.iter().map(|n| n.degree as f64).sum::<f64>() / network.nodes.len() as f64;
         assert!(
             (max_degree as f64) > 3.0 * avg_degree,
             "Max degree ({max_degree}) should exceed 3x average ({avg_degree:.1}) — power-law signature"
@@ -183,7 +191,10 @@ mod tests {
         let mut gen = NetworkTopologyGenerator::new(42);
         let network = gen.generate_ba(100, 2, 1);
         let hubs = network.hub_count(5);
-        assert!(hubs > 0 && hubs < 30, "Should have some but not too many hubs: {hubs}");
+        assert!(
+            hubs > 0 && hubs < 30,
+            "Should have some but not too many hubs: {hubs}"
+        );
     }
 
     #[test]
@@ -191,7 +202,10 @@ mod tests {
         let mut gen = NetworkTopologyGenerator::new(42);
         let network = gen.generate_ba(50, 2, 3); // 3 clusters
         let bridges = network.nodes.iter().filter(|n| n.is_bridge).count();
-        assert!(bridges > 0, "Should have bridge nodes with multiple clusters");
+        assert!(
+            bridges > 0,
+            "Should have bridge nodes with multiple clusters"
+        );
     }
 
     #[test]
@@ -200,8 +214,19 @@ mod tests {
         let network = gen.generate_ba(200, 3, 1);
         let dist = network.degree_distribution();
         // Should have many low-degree nodes and a few high-degree ones
-        let low_degree = dist.iter().filter(|(d, _)| **d <= 3).map(|(_, c)| c).sum::<usize>();
-        let high_degree = dist.iter().filter(|(d, _)| **d >= 10).map(|(_, c)| c).sum::<usize>();
-        assert!(low_degree > high_degree, "Should have more low-degree than high-degree nodes");
+        let low_degree = dist
+            .iter()
+            .filter(|(d, _)| **d <= 3)
+            .map(|(_, c)| c)
+            .sum::<usize>();
+        let high_degree = dist
+            .iter()
+            .filter(|(d, _)| **d >= 10)
+            .map(|(_, c)| c)
+            .sum::<usize>();
+        assert!(
+            low_degree > high_degree,
+            "Should have more low-degree than high-degree nodes"
+        );
     }
 }

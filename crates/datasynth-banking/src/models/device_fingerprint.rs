@@ -78,9 +78,19 @@ impl DeviceProfiles {
     ];
 
     /// Screen resolutions.
-    pub const MOBILE_RESOLUTIONS: &[&str] =
-        &["2556x1179", "2796x1290", "2340x1080", "2400x1080", "1792x828"];
+    pub const MOBILE_RESOLUTIONS: &[&str] = &[
+        "2556x1179",
+        "2796x1290",
+        "2340x1080",
+        "2400x1080",
+        "1792x828",
+    ];
 
-    pub const DESKTOP_RESOLUTIONS: &[&str] =
-        &["1920x1080", "2560x1440", "3840x2160", "1440x900", "1680x1050"];
+    pub const DESKTOP_RESOLUTIONS: &[&str] = &[
+        "1920x1080",
+        "2560x1440",
+        "3840x2160",
+        "1440x900",
+        "1680x1050",
+    ];
 }

@@ -326,13 +326,27 @@ pub struct TypologyConfig {
     pub payment_bridge_rate: f64,
 }
 
-fn default_synth_id_rate() -> f64 { 0.001 }
-fn default_crypto_rate() -> f64 { 0.001 }
-fn default_sanctions_rate() -> f64 { 0.0005 }
-fn default_false_positive_rate() -> f64 { 0.05 }
-fn default_co_occurrence_rate() -> f64 { 0.10 }
-fn default_network_rate() -> f64 { 0.05 }
-fn default_payment_bridge_rate() -> f64 { 0.75 }
+fn default_synth_id_rate() -> f64 {
+    0.001
+}
+fn default_crypto_rate() -> f64 {
+    0.001
+}
+fn default_sanctions_rate() -> f64 {
+    0.0005
+}
+fn default_false_positive_rate() -> f64 {
+    0.05
+}
+fn default_co_occurrence_rate() -> f64 {
+    0.10
+}
+fn default_network_rate() -> f64 {
+    0.05
+}
+fn default_payment_bridge_rate() -> f64 {
+    0.75
+}
 
 impl Default for TypologyConfig {
     fn default() -> Self {
@@ -527,9 +541,15 @@ pub struct TemporalBehaviorConfig {
     pub impossible_travel_rate: f64,
 }
 
-fn default_drift_rate() -> f64 { 0.05 }
-fn default_sudden_ratio() -> f64 { 0.30 }
-fn default_impossible_travel_rate() -> f64 { 0.02 }
+fn default_drift_rate() -> f64 {
+    0.05
+}
+fn default_sudden_ratio() -> f64 {
+    0.30
+}
+fn default_impossible_travel_rate() -> f64 {
+    0.02
+}
 
 impl Default for TemporalBehaviorConfig {
     fn default() -> Self {
@@ -559,8 +579,12 @@ pub struct DeviceFingerprintConfig {
     pub multi_device_rate: f64,
 }
 
-fn default_device_reuse() -> f64 { 0.85 }
-fn default_multi_device() -> f64 { 0.30 }
+fn default_device_reuse() -> f64 {
+    0.85
+}
+fn default_multi_device() -> f64 {
+    0.30
+}
 
 impl Default for DeviceFingerprintConfig {
     fn default() -> Self {

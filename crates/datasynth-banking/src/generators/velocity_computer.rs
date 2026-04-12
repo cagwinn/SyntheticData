@@ -7,8 +7,8 @@
 use std::collections::{HashMap, HashSet};
 
 use chrono::Duration;
-use rust_decimal::Decimal;
 use rust_decimal::prelude::ToPrimitive;
+use rust_decimal::Decimal;
 
 use crate::models::{BankTransaction, VelocityFeatures};
 
@@ -20,14 +20,11 @@ pub fn compute_velocity_features(transactions: &mut [BankTransaction]) {
     // Group transaction indices by account_id
     let mut account_txns: HashMap<uuid::Uuid, Vec<usize>> = HashMap::new();
     for (idx, txn) in transactions.iter().enumerate() {
-        account_txns
-            .entry(txn.account_id)
-            .or_default()
-            .push(idx);
+        account_txns.entry(txn.account_id).or_default().push(idx);
     }
 
     // Process each account's transactions in chronological order
-    for (_account_id, indices) in &account_txns {
+    for indices in account_txns.values() {
         // Sort indices by timestamp
         let mut sorted_indices: Vec<usize> = indices.clone();
         sorted_indices.sort_by_key(|&i| transactions[i].timestamp_initiated);
@@ -195,8 +192,18 @@ mod tests {
         let acct = Uuid::new_v4();
         let base = Utc.with_ymd_and_hms(2024, 3, 1, 10, 0, 0).unwrap();
         // Use varied amounts so std > 0
-        let amounts = [dec!(80), dec!(120), dec!(95), dec!(110), dec!(90),
-                       dec!(105), dec!(115), dec!(85), dec!(100), dec!(100)];
+        let amounts = [
+            dec!(80),
+            dec!(120),
+            dec!(95),
+            dec!(110),
+            dec!(90),
+            dec!(105),
+            dec!(115),
+            dec!(85),
+            dec!(100),
+            dec!(100),
+        ];
         let mut txns: Vec<BankTransaction> = amounts
             .iter()
             .enumerate()
@@ -208,6 +215,10 @@ mod tests {
         compute_velocity_features(&mut txns);
 
         let outlier = txns.last().unwrap().velocity_features.as_ref().unwrap();
-        assert!(outlier.amount_zscore > 2.0, "Outlier should have high z-score, got {}", outlier.amount_zscore);
+        assert!(
+            outlier.amount_zscore > 2.0,
+            "Outlier should have high z-score, got {}",
+            outlier.amount_zscore
+        );
     }
 }

@@ -92,7 +92,11 @@ impl FalsePositiveAnalyzer {
             }
         }
 
-        let fp_rate = if total > 0 { fp as f64 / total as f64 } else { 0.0 };
+        let fp_rate = if total > 0 {
+            fp as f64 / total as f64
+        } else {
+            0.0
+        };
         let overlap_rate = if total > 0 {
             overlap as f64 / total as f64
         } else {

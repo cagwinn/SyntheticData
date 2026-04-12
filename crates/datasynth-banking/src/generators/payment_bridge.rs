@@ -53,7 +53,10 @@ impl PaymentBridgeGenerator {
     pub fn new(seed: u64) -> Self {
         Self {
             rng: ChaCha8Rng::seed_from_u64(seed.wrapping_add(PAYMENT_BRIDGE_SEED_OFFSET)),
-            uuid_factory: DeterministicUuidFactory::new(seed, datasynth_core::GeneratorType::Anomaly),
+            uuid_factory: DeterministicUuidFactory::new(
+                seed,
+                datasynth_core::GeneratorType::Anomaly,
+            ),
         }
     }
 
@@ -119,13 +122,12 @@ impl PaymentBridgeGenerator {
             .or_else(|| banking_accounts.first());
 
         // Look up the house bank owner's residence_country for location tagging
-        let house_bank_country: Option<String> = house_bank_account
-            .and_then(|a| {
-                banking_customers
-                    .iter()
-                    .find(|c| c.customer_id == a.primary_owner_id)
-                    .map(|c| c.residence_country.clone())
-            });
+        let house_bank_country: Option<String> = house_bank_account.and_then(|a| {
+            banking_customers
+                .iter()
+                .find(|c| c.customer_id == a.primary_owner_id)
+                .map(|c| c.residence_country.clone())
+        });
 
         for payment in payments {
             // Probabilistic bridging based on rate
@@ -151,9 +153,7 @@ impl PaymentBridgeGenerator {
                 PaymentType::ApPayment | PaymentType::DownPayment | PaymentType::Advance => {
                     (Direction::Outbound, TransactionCategory::TransferOut)
                 }
-                PaymentType::ArReceipt => {
-                    (Direction::Inbound, TransactionCategory::TransferIn)
-                }
+                PaymentType::ArReceipt => (Direction::Inbound, TransactionCategory::TransferIn),
                 PaymentType::Refund => {
                     if payment.is_vendor {
                         // Vendor refund = money coming back to us
@@ -168,8 +168,9 @@ impl PaymentBridgeGenerator {
             let channel = payment_method_to_channel(payment.payment_method);
 
             // Look up the counterparty's banking profile (if any)
-            let counterparty_banking =
-                bp_to_banking.get(payment.business_partner_id.as_str()).copied();
+            let counterparty_banking = bp_to_banking
+                .get(payment.business_partner_id.as_str())
+                .copied();
 
             let counterparty_ref = if let Some(bc) = counterparty_banking {
                 CounterpartyRef {
@@ -266,8 +267,7 @@ impl PaymentBridgeGenerator {
                         Direction::Outbound => Direction::Inbound,
                     };
                     let mirror_counterparty = CounterpartyRef {
-                        counterparty_type:
-                            crate::models::CounterpartyType::FinancialInstitution,
+                        counterparty_type: crate::models::CounterpartyType::FinancialInstitution,
                         counterparty_id: None,
                         name: format!("House Bank — {}", payment.header.company_code),
                         account_identifier: Some(payment.bank_account_id.clone()),
@@ -304,7 +304,8 @@ impl PaymentBridgeGenerator {
                             .fraud_type
                             .and_then(fraud_type_to_aml_typology)
                             .unwrap_or(AmlTypology::FirstPartyFraud);
-                        mirror_txn = mirror_txn.mark_suspicious(fraud_typology, &payment.header.document_id);
+                        mirror_txn =
+                            mirror_txn.mark_suspicious(fraud_typology, &payment.header.document_id);
                         mirror_txn = mirror_txn.with_laundering_stage(LaunderingStage::Integration);
                         mirror_txn.ground_truth_explanation = Some(format!(
                             "Payment-to-bank mirror: {fraud_typology:?} fraud propagated from document {} (${:.2}, counterparty side)",
@@ -336,9 +337,7 @@ fn payment_method_to_channel(method: PaymentMethod) -> TransactionChannel {
 }
 
 /// Map FraudType (from accounting layer) to AmlTypology (banking layer).
-fn fraud_type_to_aml_typology(
-    fraud: datasynth_core::models::FraudType,
-) -> Option<AmlTypology> {
+fn fraud_type_to_aml_typology(fraud: datasynth_core::models::FraudType) -> Option<AmlTypology> {
     use datasynth_core::models::FraudType as F;
     Some(match fraud {
         F::FictitiousTransaction | F::FictitiousVendor | F::FictitiousEntry => {
@@ -373,7 +372,10 @@ mod tests {
         c
     }
 
-    fn make_account(owner: Uuid, account_type: datasynth_core::models::banking::BankAccountType) -> BankAccount {
+    fn make_account(
+        owner: Uuid,
+        account_type: datasynth_core::models::banking::BankAccountType,
+    ) -> BankAccount {
         BankAccount::new(
             Uuid::new_v4(),
             format!("ACC-{owner}"),
@@ -427,7 +429,11 @@ mod tests {
         assert!(stats.bridged_count > 0, "Should bridge the payment");
         assert!(txns.iter().any(|t| t.source_payment_id.is_some()));
         // Should create mirror transaction since vendor has banking profile
-        assert_eq!(txns.len(), 2, "Should emit 2 transactions: enterprise + mirror");
+        assert_eq!(
+            txns.len(),
+            2,
+            "Should emit 2 transactions: enterprise + mirror"
+        );
     }
 
     #[test]

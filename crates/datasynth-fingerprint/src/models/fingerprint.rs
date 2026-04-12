@@ -3,8 +3,8 @@
 use serde::{Deserialize, Serialize};
 
 use super::{
-    AnomalyFingerprint, BankingFingerprint, CorrelationFingerprint, IntegrityFingerprint,
-    Manifest, PrivacyAudit, RulesFingerprint, SchemaFingerprint, StatisticsFingerprint,
+    AnomalyFingerprint, BankingFingerprint, CorrelationFingerprint, IntegrityFingerprint, Manifest,
+    PrivacyAudit, RulesFingerprint, SchemaFingerprint, StatisticsFingerprint,
 };
 
 /// The root fingerprint structure containing all extracted components.

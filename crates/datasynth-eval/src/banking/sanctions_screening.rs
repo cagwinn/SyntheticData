@@ -11,10 +11,10 @@ use crate::error::EvalResult;
 
 #[derive(Debug, Clone)]
 pub struct ScreeningObservation {
-    pub risk_tier: String,         // "low" | "medium" | "high" | "very_high" | "prohibited"
+    pub risk_tier: String, // "low" | "medium" | "high" | "very_high" | "prohibited"
     pub is_pep: bool,
     pub is_high_risk_country: bool,
-    pub screening_result: String,  // "clear" | "potential_match" | "confirmed_match"
+    pub screening_result: String, // "clear" | "potential_match" | "confirmed_match"
     pub has_name_variations: bool,
 }
 

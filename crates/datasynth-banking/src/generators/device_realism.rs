@@ -76,9 +76,7 @@ impl DeviceRealismGenerator {
             self.profiles
                 .insert(customer_id, CustomerDeviceProfile { devices });
         }
-        self.profiles
-            .get(&customer_id)
-            .expect("just inserted")
+        self.profiles.get(&customer_id).expect("just inserted")
     }
 
     /// Sample the number of devices for a customer from realistic distribution.
@@ -192,12 +190,11 @@ fn fresh_device(rng: &mut ChaCha8Rng, is_mobile: bool) -> DeviceFingerprint {
             device_trust_score: 0.0,
         }
     } else {
-        let (model, os) = DeviceProfiles::DESKTOP_OS
-            [rng.random_range(0..DeviceProfiles::DESKTOP_OS.len())];
+        let (model, os) =
+            DeviceProfiles::DESKTOP_OS[rng.random_range(0..DeviceProfiles::DESKTOP_OS.len())];
         let res = DeviceProfiles::DESKTOP_RESOLUTIONS
             [rng.random_range(0..DeviceProfiles::DESKTOP_RESOLUTIONS.len())];
-        let browser = DeviceProfiles::BROWSERS
-            [rng.random_range(0..DeviceProfiles::BROWSERS.len())];
+        let browser = DeviceProfiles::BROWSERS[rng.random_range(0..DeviceProfiles::BROWSERS.len())];
         DeviceFingerprint {
             device_id,
             device_model: Some(model.to_string()),
@@ -267,7 +264,10 @@ mod tests {
         if profile.devices.len() >= 2 {
             let primary_id = &profile.devices[0].0.device_id;
             let primary_count = picks.get(primary_id).copied().unwrap_or(0);
-            assert!(primary_count > 600, "Primary should dominate: {primary_count}/1000");
+            assert!(
+                primary_count > 600,
+                "Primary should dominate: {primary_count}/1000"
+            );
         }
     }
 }

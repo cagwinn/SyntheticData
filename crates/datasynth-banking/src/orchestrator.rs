@@ -121,12 +121,10 @@ impl BankingOrchestrator {
 
         // Phase 4.5: Assign lifecycle phases to accounts
         if self.config.temporal.enable_lifecycle_phases {
-            let reference_date = chrono::NaiveDate::parse_from_str(
-                &self.config.population.start_date,
-                "%Y-%m-%d",
-            )
-            .unwrap_or_else(|_| chrono::Utc::now().date_naive())
-                + chrono::Months::new(self.config.population.period_months);
+            let reference_date =
+                chrono::NaiveDate::parse_from_str(&self.config.population.start_date, "%Y-%m-%d")
+                    .unwrap_or_else(|_| chrono::Utc::now().date_naive())
+                    + chrono::Months::new(self.config.population.period_months);
             crate::generators::lifecycle_engine::assign_lifecycle_phases(
                 &mut accounts,
                 reference_date,
@@ -144,8 +142,7 @@ impl BankingOrchestrator {
 
         // Phase 6.5: Inject false positives
         if self.config.typologies.false_positive_rate > 0.0 {
-            let mut fp_injector =
-                crate::typologies::FalsePositiveInjector::new(self.seed);
+            let mut fp_injector = crate::typologies::FalsePositiveInjector::new(self.seed);
             fp_injector.inject(
                 &mut transactions,
                 self.config.typologies.false_positive_rate,
@@ -154,9 +151,7 @@ impl BankingOrchestrator {
 
         // Phase 6.6: Compute velocity features
         if self.config.temporal.enable_velocity_features {
-            crate::generators::velocity_computer::compute_velocity_features(
-                &mut transactions,
-            );
+            crate::generators::velocity_computer::compute_velocity_features(&mut transactions);
         }
 
         // Phase 7: Generate narratives

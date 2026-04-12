@@ -17,8 +17,16 @@ use crate::models::{BankAccount, BankTransaction, BankingCustomer, CounterpartyR
 use crate::seed_offsets::CRYPTO_INTEGRATION_SEED_OFFSET;
 
 const EXCHANGES: &[&str] = &[
-    "Coinbase", "Kraken", "Binance", "Gemini", "Bitstamp",
-    "Crypto.com", "OKX", "Bybit", "KuCoin", "Gate.io",
+    "Coinbase",
+    "Kraken",
+    "Binance",
+    "Gemini",
+    "Bitstamp",
+    "Crypto.com",
+    "OKX",
+    "Bybit",
+    "KuCoin",
+    "Gate.io",
 ];
 
 /// Cryptocurrency integration injector.
@@ -31,7 +39,10 @@ impl CryptoIntegrationInjector {
     pub fn new(seed: u64) -> Self {
         Self {
             rng: ChaCha8Rng::seed_from_u64(seed.wrapping_add(CRYPTO_INTEGRATION_SEED_OFFSET)),
-            uuid_factory: DeterministicUuidFactory::new(seed, datasynth_core::GeneratorType::Anomaly),
+            uuid_factory: DeterministicUuidFactory::new(
+                seed,
+                datasynth_core::GeneratorType::Anomaly,
+            ),
         }
     }
 
@@ -72,7 +83,7 @@ impl CryptoIntegrationInjector {
             Sophistication::StateLevel => self.rng.random_range(30..60),
         };
 
-        let available_days = (end_date - start_date).num_days().max(1) as i64;
+        let available_days = (end_date - start_date).num_days().max(1);
         let mut seq = 0u32;
 
         // Phase 1: Fiat → Crypto (placement)
@@ -81,7 +92,9 @@ impl CryptoIntegrationInjector {
         let per_outbound = total_amount / outbound_count as f64;
 
         for i in 0..outbound_count {
-            let day_offset = self.rng.random_range(0..3.min(available_days as u32).max(1));
+            let day_offset = self
+                .rng
+                .random_range(0..3.min(available_days as u32).max(1));
             let date = start_date + Duration::days(day_offset as i64);
             if date > end_date {
                 continue;
@@ -89,7 +102,11 @@ impl CryptoIntegrationInjector {
             let exchange = EXCHANGES[self.rng.random_range(0..EXCHANGES.len())];
             let amount = per_outbound * self.rng.random_range(0.85..1.15);
             let ts = date
-                .and_hms_opt(self.rng.random_range(9..20), self.rng.random_range(0..60), 0)
+                .and_hms_opt(
+                    self.rng.random_range(9..20),
+                    self.rng.random_range(0..60),
+                    0,
+                )
                 .map(|dt| dt.and_utc())
                 .unwrap_or_else(|| date.and_hms_opt(12, 0, 0).expect("valid").and_utc());
 
@@ -133,7 +150,9 @@ impl CryptoIntegrationInjector {
 
         for i in 0..return_count {
             let return_start = start_date + Duration::days(gap_days as i64);
-            let day_offset = self.rng.random_range(0..5.min(available_days as u32).max(1));
+            let day_offset = self
+                .rng
+                .random_range(0..5.min(available_days as u32).max(1));
             let date = return_start + Duration::days(day_offset as i64);
             if date > end_date {
                 continue;
@@ -141,7 +160,11 @@ impl CryptoIntegrationInjector {
             let exchange = EXCHANGES[self.rng.random_range(0..EXCHANGES.len())];
             let amount = per_return * self.rng.random_range(0.8..1.2);
             let ts = date
-                .and_hms_opt(self.rng.random_range(9..20), self.rng.random_range(0..60), 0)
+                .and_hms_opt(
+                    self.rng.random_range(9..20),
+                    self.rng.random_range(0..60),
+                    0,
+                )
                 .map(|dt| dt.and_utc())
                 .unwrap_or_else(|| date.and_hms_opt(12, 0, 0).expect("valid").and_utc());
 
@@ -181,20 +204,39 @@ mod tests {
     #[test]
     fn test_crypto_generates_placement_and_integration() {
         let mut injector = CryptoIntegrationInjector::new(42);
-        let customer = BankingCustomer::new_retail(Uuid::new_v4(), "Test", "User", "US",
-            NaiveDate::from_ymd_opt(2024, 1, 1).unwrap());
-        let account = BankAccount::new(Uuid::new_v4(), "ACC-001".into(),
+        let customer = BankingCustomer::new_retail(
+            Uuid::new_v4(),
+            "Test",
+            "User",
+            "US",
+            NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
+        );
+        let account = BankAccount::new(
+            Uuid::new_v4(),
+            "ACC-001".into(),
             datasynth_core::models::banking::BankAccountType::Checking,
-            customer.customer_id, "USD", NaiveDate::from_ymd_opt(2024, 1, 1).unwrap());
+            customer.customer_id,
+            "USD",
+            NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
+        );
 
-        let txns = injector.generate(&customer, &account,
+        let txns = injector.generate(
+            &customer,
+            &account,
             NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
             NaiveDate::from_ymd_opt(2024, 6, 30).unwrap(),
-            Sophistication::Professional);
+            Sophistication::Professional,
+        );
 
         assert!(!txns.is_empty());
-        let outbound = txns.iter().filter(|t| t.direction == Direction::Outbound).count();
-        let inbound = txns.iter().filter(|t| t.direction == Direction::Inbound).count();
+        let outbound = txns
+            .iter()
+            .filter(|t| t.direction == Direction::Outbound)
+            .count();
+        let inbound = txns
+            .iter()
+            .filter(|t| t.direction == Direction::Inbound)
+            .count();
         assert!(outbound > 0, "Should have placement (outbound) txns");
         assert!(inbound > 0, "Should have integration (inbound) txns");
         assert!(txns.iter().all(|t| t.ground_truth_explanation.is_some()));

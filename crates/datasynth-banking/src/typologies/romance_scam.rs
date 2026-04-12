@@ -38,7 +38,10 @@ impl RomanceScamInjector {
     pub fn new(seed: u64) -> Self {
         Self {
             rng: ChaCha8Rng::seed_from_u64(seed.wrapping_add(ROMANCE_SCAM_SEED_OFFSET)),
-            uuid_factory: DeterministicUuidFactory::new(seed, datasynth_core::GeneratorType::Anomaly),
+            uuid_factory: DeterministicUuidFactory::new(
+                seed,
+                datasynth_core::GeneratorType::Anomaly,
+            ),
         }
     }
 
@@ -64,10 +67,10 @@ impl RomanceScamInjector {
 
         let persona = SCAM_PERSONAS[self.rng.random_range(0..SCAM_PERSONAS.len())];
         let country = SCAM_COUNTRIES[self.rng.random_range(0..SCAM_COUNTRIES.len())];
-        let available_days = (end_date - start_date).num_days().max(1) as i64;
-        let mut seq = 0u32;
+        let available_days = (end_date - start_date).num_days().max(1);
 
         for i in 0..num_transfers {
+            let seq = i as u32;
             // Escalating amounts: starts small ($100-500), grows to $5K-50K
             let progress = i as f64 / num_transfers.max(1) as f64;
             let base_amount = 200.0 + progress.powf(2.0) * 10_000.0;
@@ -77,19 +80,28 @@ impl RomanceScamInjector {
             let is_emergency = i > num_transfers / 2 && self.rng.random::<f64>() < 0.3;
             let amount = if is_emergency { amount * 2.5 } else { amount };
 
-            let day_offset = ((available_days as f64) * progress
-                + self.rng.random_range(-3.0..3.0))
+            let day_offset = ((available_days as f64) * progress + self.rng.random_range(-3.0..3.0))
                 .clamp(0.0, available_days as f64 - 1.0) as i64;
             let date = start_date + Duration::days(day_offset);
             let ts = date
-                .and_hms_opt(self.rng.random_range(0..24), self.rng.random_range(0..60), 0)
+                .and_hms_opt(
+                    self.rng.random_range(0..24),
+                    self.rng.random_range(0..60),
+                    0,
+                )
                 .map(|dt| dt.and_utc())
                 .unwrap_or_else(chrono::Utc::now);
 
             let (channel, category) = match self.rng.random_range(0..4) {
-                0 => (TransactionChannel::Wire, TransactionCategory::InternationalTransfer),
+                0 => (
+                    TransactionChannel::Wire,
+                    TransactionCategory::InternationalTransfer,
+                ),
                 1 => (TransactionChannel::Wire, TransactionCategory::TransferOut),
-                2 => (TransactionChannel::PeerToPeer, TransactionCategory::P2PPayment),
+                2 => (
+                    TransactionChannel::PeerToPeer,
+                    TransactionCategory::P2PPayment,
+                ),
                 _ => (TransactionChannel::Ach, TransactionCategory::TransferOut),
             };
 
@@ -131,7 +143,6 @@ impl RomanceScamInjector {
                 "Romance scam: {stage_note} to '{persona}' in {country} (transfer {}/{num_transfers})",
                 i + 1,
             ));
-            seq += 1;
             transactions.push(txn);
         }
 
@@ -148,28 +159,52 @@ mod tests {
     #[test]
     fn test_romance_scam_escalation() {
         let mut inj = RomanceScamInjector::new(42);
-        let customer = BankingCustomer::new_retail(Uuid::new_v4(), "Mary", "Victim", "US",
-            NaiveDate::from_ymd_opt(2024, 1, 1).unwrap());
-        let account = BankAccount::new(Uuid::new_v4(), "ACC".into(),
+        let customer = BankingCustomer::new_retail(
+            Uuid::new_v4(),
+            "Mary",
+            "Victim",
+            "US",
+            NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
+        );
+        let account = BankAccount::new(
+            Uuid::new_v4(),
+            "ACC".into(),
             datasynth_core::models::banking::BankAccountType::Checking,
-            customer.customer_id, "USD", NaiveDate::from_ymd_opt(2024, 1, 1).unwrap());
+            customer.customer_id,
+            "USD",
+            NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
+        );
 
-        let txns = inj.generate(&customer, &account,
+        let txns = inj.generate(
+            &customer,
+            &account,
             NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
             NaiveDate::from_ymd_opt(2024, 12, 31).unwrap(),
-            Sophistication::Professional);
+            Sophistication::Professional,
+        );
 
         assert!(!txns.is_empty());
-        assert!(txns.iter().all(|t| t.suspicion_reason == Some(AmlTypology::RomanceScam)));
+        assert!(txns
+            .iter()
+            .all(|t| t.suspicion_reason == Some(AmlTypology::RomanceScam)));
         // Amounts should escalate: last quartile should have higher average than first
         let n = txns.len();
         if n >= 8 {
             use rust_decimal::prelude::ToPrimitive;
-            let first_quarter: f64 = txns[..n/4].iter()
-                .map(|t| t.amount.to_f64().unwrap_or(0.0)).sum::<f64>() / (n/4) as f64;
-            let last_quarter: f64 = txns[3*n/4..].iter()
-                .map(|t| t.amount.to_f64().unwrap_or(0.0)).sum::<f64>() / (n/4) as f64;
-            assert!(last_quarter > first_quarter, "Amounts should escalate: first={first_quarter}, last={last_quarter}");
+            let first_quarter: f64 = txns[..n / 4]
+                .iter()
+                .map(|t| t.amount.to_f64().unwrap_or(0.0))
+                .sum::<f64>()
+                / (n / 4) as f64;
+            let last_quarter: f64 = txns[3 * n / 4..]
+                .iter()
+                .map(|t| t.amount.to_f64().unwrap_or(0.0))
+                .sum::<f64>()
+                / (n / 4) as f64;
+            assert!(
+                last_quarter > first_quarter,
+                "Amounts should escalate: first={first_quarter}, last={last_quarter}"
+            );
         }
     }
 }

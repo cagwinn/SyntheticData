@@ -23,9 +23,8 @@ const HIGH_RISK_COUNTRIES: &[&str] = &[
 ];
 
 /// Countries often used for transshipment (moderate risk).
-const TRANSSHIPMENT_COUNTRIES: &[&str] = &[
-    "TR", "AE", "SG", "MY", "GE", "AM", "KG", "KZ", "LB", "PK",
-];
+const TRANSSHIPMENT_COUNTRIES: &[&str] =
+    &["TR", "AE", "SG", "MY", "GE", "AM", "KG", "KZ", "LB", "PK"];
 
 /// Industry codes (NAICS) with elevated AML scrutiny.
 const HIGH_RISK_INDUSTRIES: &[&str] = &[
@@ -44,11 +43,20 @@ const HIGH_RISK_INDUSTRIES: &[&str] = &[
 fn has_complex_transliteration(name: &str) -> bool {
     // Simple heuristic: names with non-ASCII, apostrophes, multiple spellings
     let complex_indicators: &[&str] = &[
-        "Muhammad", "Mohammad", "Mohammed", "Mohamed",
-        "Abdullah", "Abdelaziz", "Abdul",
-        "Ahmed", "Ahmad",
-        "Hussein", "Hussain", "Husein",
-        "'", "-", // apostrophes and hyphens in some names
+        "Muhammad",
+        "Mohammad",
+        "Mohammed",
+        "Mohamed",
+        "Abdullah",
+        "Abdelaziz",
+        "Abdul",
+        "Ahmed",
+        "Ahmad",
+        "Hussein",
+        "Hussain",
+        "Husein",
+        "'",
+        "-", // apostrophes and hyphens in some names
     ];
     complex_indicators.iter().any(|ind| name.contains(ind))
 }
@@ -215,13 +223,17 @@ mod tests {
         // Run many to get statistics
         let mut clear_count = 0;
         for _ in 0..1000 {
-            let s = gen.generate_for_customer(&customer, NaiveDate::from_ymd_opt(2024, 1, 1).unwrap());
+            let s =
+                gen.generate_for_customer(&customer, NaiveDate::from_ymd_opt(2024, 1, 1).unwrap());
             if matches!(s.screening_result, ScreeningResult::Clear) {
                 clear_count += 1;
             }
         }
         // >99% should be clear
-        assert!(clear_count > 990, "Low-risk US should be clear: {clear_count}/1000");
+        assert!(
+            clear_count > 990,
+            "Low-risk US should be clear: {clear_count}/1000"
+        );
     }
 
     #[test]
@@ -230,13 +242,17 @@ mod tests {
         let customer = mk_customer("IR", RiskTier::VeryHigh, false);
         let mut match_count = 0;
         for _ in 0..1000 {
-            let s = gen.generate_for_customer(&customer, NaiveDate::from_ymd_opt(2024, 1, 1).unwrap());
+            let s =
+                gen.generate_for_customer(&customer, NaiveDate::from_ymd_opt(2024, 1, 1).unwrap());
             if !matches!(s.screening_result, ScreeningResult::Clear) {
                 match_count += 1;
             }
         }
         // Should have many more matches than low-risk
-        assert!(match_count > 100, "High-risk country should have elevated matches: {match_count}/1000");
+        assert!(
+            match_count > 100,
+            "High-risk country should have elevated matches: {match_count}/1000"
+        );
     }
 
     #[test]
@@ -245,6 +261,9 @@ mod tests {
         let mut customer = mk_customer("US", RiskTier::Medium, true);
         customer.name.legal_name = "Muhammad Ali Khan".to_string();
         let s = gen.generate_for_customer(&customer, NaiveDate::from_ymd_opt(2024, 1, 1).unwrap());
-        assert!(s.name_variations.len() > 1, "PEP should get name variations");
+        assert!(
+            s.name_variations.len() > 1,
+            "PEP should get name variations"
+        );
     }
 }

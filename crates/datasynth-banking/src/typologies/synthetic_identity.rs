@@ -26,7 +26,10 @@ impl SyntheticIdentityInjector {
     pub fn new(seed: u64) -> Self {
         Self {
             rng: ChaCha8Rng::seed_from_u64(seed.wrapping_add(SYNTHETIC_IDENTITY_SEED_OFFSET)),
-            uuid_factory: DeterministicUuidFactory::new(seed, datasynth_core::GeneratorType::Anomaly),
+            uuid_factory: DeterministicUuidFactory::new(
+                seed,
+                datasynth_core::GeneratorType::Anomaly,
+            ),
         }
     }
 
@@ -68,7 +71,7 @@ impl SyntheticIdentityInjector {
             Sophistication::StateLevel => self.rng.random_range(100_000.0..500_000.0),
         };
 
-        let available_days = (end_date - start_date).num_days().max(1) as i64;
+        let available_days = (end_date - start_date).num_days().max(1);
         let actual_seasoning = (seasoning_days as i64).min(available_days * 2 / 3);
         let seq = &mut 0u32;
 
@@ -136,7 +139,10 @@ impl SyntheticIdentityInjector {
             } else if i % 3 == 1 {
                 (TransactionChannel::Wire, TransactionCategory::TransferOut)
             } else {
-                (TransactionChannel::CardNotPresent, TransactionCategory::Shopping)
+                (
+                    TransactionChannel::CardNotPresent,
+                    TransactionCategory::Shopping,
+                )
             };
 
             let mut txn = BankTransaction::new(
@@ -178,20 +184,38 @@ mod tests {
     #[test]
     fn test_synthetic_identity_generates_transactions() {
         let mut injector = SyntheticIdentityInjector::new(42);
-        let customer = BankingCustomer::new_retail(Uuid::new_v4(), "Fake", "Person", "US",
-            NaiveDate::from_ymd_opt(2024, 1, 1).unwrap());
-        let account = BankAccount::new(Uuid::new_v4(), "ACC-001".into(),
+        let customer = BankingCustomer::new_retail(
+            Uuid::new_v4(),
+            "Fake",
+            "Person",
+            "US",
+            NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
+        );
+        let account = BankAccount::new(
+            Uuid::new_v4(),
+            "ACC-001".into(),
             datasynth_core::models::banking::BankAccountType::Checking,
-            customer.customer_id, "USD", NaiveDate::from_ymd_opt(2024, 1, 1).unwrap());
+            customer.customer_id,
+            "USD",
+            NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
+        );
 
-        let txns = injector.generate(&customer, &account,
+        let txns = injector.generate(
+            &customer,
+            &account,
             NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
             NaiveDate::from_ymd_opt(2024, 12, 31).unwrap(),
-            Sophistication::Standard);
+            Sophistication::Standard,
+        );
 
         assert!(!txns.is_empty(), "Should generate transactions");
-        assert!(txns.iter().all(|t| t.is_suspicious), "All should be suspicious");
-        assert!(txns.iter().all(|t| t.suspicion_reason == Some(AmlTypology::SyntheticIdentity)));
+        assert!(
+            txns.iter().all(|t| t.is_suspicious),
+            "All should be suspicious"
+        );
+        assert!(txns
+            .iter()
+            .all(|t| t.suspicion_reason == Some(AmlTypology::SyntheticIdentity)));
         // Should have both seasoning (small) and bust-out (large) transactions
         let has_small = txns.iter().any(|t| t.amount < Decimal::from(500));
         let has_large = txns.iter().any(|t| t.amount > Decimal::from(1000));

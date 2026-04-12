@@ -14,8 +14,8 @@ use rand_chacha::ChaCha8Rng;
 use rust_decimal::Decimal;
 
 use crate::models::{
-    BankAccount, BankTransaction, BankingCustomer, CounterpartyRef,
-    SanctionsScreening, ScreeningResult,
+    BankAccount, BankTransaction, BankingCustomer, CounterpartyRef, SanctionsScreening,
+    ScreeningResult,
 };
 use crate::seed_offsets::SANCTIONS_EVASION_SEED_OFFSET;
 
@@ -35,7 +35,10 @@ impl SanctionsEvasionInjector {
     pub fn new(seed: u64) -> Self {
         Self {
             rng: ChaCha8Rng::seed_from_u64(seed.wrapping_add(SANCTIONS_EVASION_SEED_OFFSET)),
-            uuid_factory: DeterministicUuidFactory::new(seed, datasynth_core::GeneratorType::Anomaly),
+            uuid_factory: DeterministicUuidFactory::new(
+                seed,
+                datasynth_core::GeneratorType::Anomaly,
+            ),
         }
     }
 
@@ -46,7 +49,11 @@ impl SanctionsEvasionInjector {
 
         if parts.len() >= 2 {
             // Reversed name
-            variations.push(format!("{} {}", parts.last().unwrap_or(&""), parts.first().unwrap_or(&"")));
+            variations.push(format!(
+                "{} {}",
+                parts.last().unwrap_or(&""),
+                parts.first().unwrap_or(&"")
+            ));
             // Initial + last name
             if let Some(first) = parts.first() {
                 if let Some(c) = first.chars().next() {
@@ -57,8 +64,12 @@ impl SanctionsEvasionInjector {
 
         // Transliteration variants
         let translits: &[(&str, &str)] = &[
-            ("Mohammad", "Muhammad"), ("Muhammad", "Mohamed"), ("Ahmed", "Ahmad"),
-            ("Ali", "Aly"), ("Hussein", "Husein"), ("Hassan", "Hasan"),
+            ("Mohammad", "Muhammad"),
+            ("Muhammad", "Mohamed"),
+            ("Ahmed", "Ahmad"),
+            ("Ali", "Aly"),
+            ("Hussein", "Husein"),
+            ("Hassan", "Hasan"),
         ];
         for (from, to) in translits {
             if base_name.contains(from) {
@@ -101,9 +112,10 @@ impl SanctionsEvasionInjector {
             Sophistication::StateLevel => self.rng.random_range(3..5),
         };
 
-        let available_days = (end_date - start_date).num_days().max(1) as i64;
+        let available_days = (end_date - start_date).num_days().max(1);
         let name_variations = self.generate_name_variations(&customer.name.legal_name);
-        let sanctioned = SANCTIONED_DESTINATIONS[self.rng.random_range(0..SANCTIONED_DESTINATIONS.len())];
+        let sanctioned =
+            SANCTIONED_DESTINATIONS[self.rng.random_range(0..SANCTIONED_DESTINATIONS.len())];
         let mut seq = 0u32;
 
         for i in 0..num_transfers {
@@ -119,7 +131,11 @@ impl SanctionsEvasionInjector {
                 // Direct transfer to sanctioned country (basic evasion using name variation)
                 let alias = &name_variations[self.rng.random_range(0..name_variations.len())];
                 let ts = date
-                    .and_hms_opt(self.rng.random_range(9..17), self.rng.random_range(0..60), 0)
+                    .and_hms_opt(
+                        self.rng.random_range(9..17),
+                        self.rng.random_range(0..60),
+                        0,
+                    )
                     .map(|dt| dt.and_utc())
                     .unwrap_or_else(|| date.and_hms_opt(12, 0, 0).expect("valid").and_utc());
 
@@ -148,17 +164,25 @@ impl SanctionsEvasionInjector {
                 // Multi-hop through transshipment countries
                 let mut hop_amount = amount;
                 for hop in 0..=hops {
-                    let hop_date = date + Duration::days(hop as i64 * self.rng.random_range(1..4) as i64);
+                    let hop_date =
+                        date + Duration::days(hop as i64 * self.rng.random_range(1..4) as i64);
                     if hop_date > end_date {
                         break;
                     }
                     let ts = hop_date
-                        .and_hms_opt(self.rng.random_range(9..17), self.rng.random_range(0..60), 0)
+                        .and_hms_opt(
+                            self.rng.random_range(9..17),
+                            self.rng.random_range(0..60),
+                            0,
+                        )
                         .map(|dt| dt.and_utc())
-                        .unwrap_or_else(|| hop_date.and_hms_opt(12, 0, 0).expect("valid").and_utc());
+                        .unwrap_or_else(|| {
+                            hop_date.and_hms_opt(12, 0, 0).expect("valid").and_utc()
+                        });
 
                     let (dest_country, entity_name) = if hop < hops {
-                        let tc = TRANSSHIPMENT_COUNTRIES[self.rng.random_range(0..TRANSSHIPMENT_COUNTRIES.len())];
+                        let tc = TRANSSHIPMENT_COUNTRIES
+                            [self.rng.random_range(0..TRANSSHIPMENT_COUNTRIES.len())];
                         (tc, format!("{tc} Trading LLC"))
                     } else {
                         (sanctioned, format!("{sanctioned} Final Entity"))
@@ -183,7 +207,11 @@ impl SanctionsEvasionInjector {
                         Direction::Outbound,
                         TransactionChannel::Swift,
                         TransactionCategory::InternationalTransfer,
-                        CounterpartyRef::sanctioned_entity(self.uuid_factory.next(), &entity_name, dest_country),
+                        CounterpartyRef::sanctioned_entity(
+                            self.uuid_factory.next(),
+                            &entity_name,
+                            dest_country,
+                        ),
                         &format!("Wire - {entity_name}"),
                         ts,
                     );
@@ -230,19 +258,33 @@ mod tests {
     #[test]
     fn test_sanctions_evasion_basic() {
         let mut injector = SanctionsEvasionInjector::new(42);
-        let customer = BankingCustomer::new_business(Uuid::new_v4(), "Ahmad Trading", "AE",
-            NaiveDate::from_ymd_opt(2024, 1, 1).unwrap());
-        let account = BankAccount::new(Uuid::new_v4(), "ACC-001".into(),
+        let customer = BankingCustomer::new_business(
+            Uuid::new_v4(),
+            "Ahmad Trading",
+            "AE",
+            NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
+        );
+        let account = BankAccount::new(
+            Uuid::new_v4(),
+            "ACC-001".into(),
             datasynth_core::models::banking::BankAccountType::BusinessOperating,
-            customer.customer_id, "USD", NaiveDate::from_ymd_opt(2024, 1, 1).unwrap());
+            customer.customer_id,
+            "USD",
+            NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
+        );
 
-        let txns = injector.generate(&customer, &account,
+        let txns = injector.generate(
+            &customer,
+            &account,
             NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
             NaiveDate::from_ymd_opt(2024, 12, 31).unwrap(),
-            Sophistication::Professional);
+            Sophistication::Professional,
+        );
 
         assert!(!txns.is_empty());
-        assert!(txns.iter().all(|t| t.suspicion_reason == Some(AmlTypology::SanctionsEvasion)));
+        assert!(txns
+            .iter()
+            .all(|t| t.suspicion_reason == Some(AmlTypology::SanctionsEvasion)));
         assert!(txns.iter().all(|t| t.ground_truth_explanation.is_some()));
     }
 
@@ -257,10 +299,15 @@ mod tests {
     #[test]
     fn test_evasion_screening() {
         let mut injector = SanctionsEvasionInjector::new(42);
-        let customer = BankingCustomer::new_retail(Uuid::new_v4(), "Test", "User", "US",
-            NaiveDate::from_ymd_opt(2024, 1, 1).unwrap());
-        let screening = injector.generate_evasion_screening(&customer,
-            NaiveDate::from_ymd_opt(2024, 6, 1).unwrap());
+        let customer = BankingCustomer::new_retail(
+            Uuid::new_v4(),
+            "Test",
+            "User",
+            "US",
+            NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
+        );
+        let screening = injector
+            .generate_evasion_screening(&customer, NaiveDate::from_ymd_opt(2024, 6, 1).unwrap());
         assert_eq!(screening.screening_result, ScreeningResult::Clear);
         assert!(screening.is_true_match); // Evaded screening
     }

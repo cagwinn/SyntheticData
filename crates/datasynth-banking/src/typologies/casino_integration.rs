@@ -18,9 +18,16 @@ use crate::models::{BankAccount, BankTransaction, BankingCustomer, CounterpartyR
 use crate::seed_offsets::CASINO_INTEGRATION_SEED_OFFSET;
 
 const CASINOS: &[&str] = &[
-    "MGM Grand", "Caesars Palace", "Bellagio", "Wynn Las Vegas",
-    "The Venetian", "Hard Rock Casino", "Borgata Atlantic City",
-    "Mohegan Sun", "Foxwoods", "Resorts World",
+    "MGM Grand",
+    "Caesars Palace",
+    "Bellagio",
+    "Wynn Las Vegas",
+    "The Venetian",
+    "Hard Rock Casino",
+    "Borgata Atlantic City",
+    "Mohegan Sun",
+    "Foxwoods",
+    "Resorts World",
 ];
 
 pub struct CasinoIntegrationInjector {
@@ -32,7 +39,10 @@ impl CasinoIntegrationInjector {
     pub fn new(seed: u64) -> Self {
         Self {
             rng: ChaCha8Rng::seed_from_u64(seed.wrapping_add(CASINO_INTEGRATION_SEED_OFFSET)),
-            uuid_factory: DeterministicUuidFactory::new(seed, datasynth_core::GeneratorType::Anomaly),
+            uuid_factory: DeterministicUuidFactory::new(
+                seed,
+                datasynth_core::GeneratorType::Anomaly,
+            ),
         }
     }
 
@@ -71,7 +81,7 @@ impl CasinoIntegrationInjector {
             Sophistication::StateLevel => self.rng.random_range(150_000.0..1_000_000.0),
         };
 
-        let available_days = (end_date - start_date).num_days().max(1) as i64;
+        let available_days = (end_date - start_date).num_days().max(1);
         let days_per_cycle = (available_days / num_cycles as i64).max(3);
         let mut seq = 0u32;
 
@@ -87,11 +97,14 @@ impl CasinoIntegrationInjector {
             // Phase 1: Cash/wire to casino (chip purchase)
             let place_date = cycle_start + Duration::days(self.rng.random_range(0..2));
             if place_date <= end_date {
-                let ts = place_date.and_hms_opt(
-                    self.rng.random_range(10..23),
-                    self.rng.random_range(0..60),
-                    0,
-                ).map(|dt| dt.and_utc()).unwrap_or_else(chrono::Utc::now);
+                let ts = place_date
+                    .and_hms_opt(
+                        self.rng.random_range(10..23),
+                        self.rng.random_range(0..60),
+                        0,
+                    )
+                    .map(|dt| dt.and_utc())
+                    .unwrap_or_else(chrono::Utc::now);
 
                 let mut txn = BankTransaction::new(
                     self.uuid_factory.next(),
@@ -117,7 +130,8 @@ impl CasinoIntegrationInjector {
                 txn = txn.with_scenario(&scenario_id, seq);
                 txn.ground_truth_explanation = Some(format!(
                     "Casino integration: ${:.0} chip purchase at {casino} (cycle {}/{num_cycles})",
-                    placement_amount, cycle + 1,
+                    placement_amount,
+                    cycle + 1,
                 ));
                 seq += 1;
                 transactions.push(txn);
@@ -128,11 +142,14 @@ impl CasinoIntegrationInjector {
             let return_amount = placement_amount * (1.0 - loss_pct);
             let return_date = cycle_start + Duration::days(self.rng.random_range(1..7));
             if return_date <= end_date {
-                let ts = return_date.and_hms_opt(
-                    self.rng.random_range(9..17),
-                    self.rng.random_range(0..60),
-                    0,
-                ).map(|dt| dt.and_utc()).unwrap_or_else(chrono::Utc::now);
+                let ts = return_date
+                    .and_hms_opt(
+                        self.rng.random_range(9..17),
+                        self.rng.random_range(0..60),
+                        0,
+                    )
+                    .map(|dt| dt.and_utc())
+                    .unwrap_or_else(chrono::Utc::now);
 
                 let mut txn = BankTransaction::new(
                     self.uuid_factory.next(),
@@ -178,20 +195,42 @@ mod tests {
     #[test]
     fn test_casino_integration_paired_txns() {
         let mut inj = CasinoIntegrationInjector::new(42);
-        let customer = BankingCustomer::new_retail(Uuid::new_v4(), "Test", "User", "US",
-            NaiveDate::from_ymd_opt(2024, 1, 1).unwrap());
-        let account = BankAccount::new(Uuid::new_v4(), "ACC".into(),
+        let customer = BankingCustomer::new_retail(
+            Uuid::new_v4(),
+            "Test",
+            "User",
+            "US",
+            NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
+        );
+        let account = BankAccount::new(
+            Uuid::new_v4(),
+            "ACC".into(),
             datasynth_core::models::banking::BankAccountType::Checking,
-            customer.customer_id, "USD", NaiveDate::from_ymd_opt(2024, 1, 1).unwrap());
+            customer.customer_id,
+            "USD",
+            NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
+        );
 
-        let txns = inj.generate(&customer, &account,
+        let txns = inj.generate(
+            &customer,
+            &account,
             NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
             NaiveDate::from_ymd_opt(2024, 12, 31).unwrap(),
-            Sophistication::Professional);
+            Sophistication::Professional,
+        );
 
         assert!(!txns.is_empty());
-        let out = txns.iter().filter(|t| matches!(t.direction, Direction::Outbound)).count();
-        let inb = txns.iter().filter(|t| matches!(t.direction, Direction::Inbound)).count();
-        assert!(out > 0 && inb > 0, "Should have both placement and integration legs");
+        let out = txns
+            .iter()
+            .filter(|t| matches!(t.direction, Direction::Outbound))
+            .count();
+        let inb = txns
+            .iter()
+            .filter(|t| matches!(t.direction, Direction::Inbound))
+            .count();
+        assert!(
+            out > 0 && inb > 0,
+            "Should have both placement and integration legs"
+        );
     }
 }

@@ -2186,7 +2186,12 @@ fn write_json_flat<T: serde::Serialize>(data: &[T], path: &Path, label: &str) {
             if let Err(e) = serde_json::to_writer_pretty(writer, &flat) {
                 warn!("Failed to write {}: {}", label, e);
             } else {
-                info!("  {} written (flat): {} records -> {}", label, count, path.display());
+                info!(
+                    "  {} written (flat): {} records -> {}",
+                    label,
+                    count,
+                    path.display()
+                );
             }
         }
         Err(e) => warn!("Failed to create {}: {}", label, e),

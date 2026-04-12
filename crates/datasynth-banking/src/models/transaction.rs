@@ -117,7 +117,6 @@ pub struct BankTransaction {
     pub transaction_type: String,
 
     // --- Enhanced fields (v2.3.0) ---
-
     /// Structured device fingerprint (replaces simple device_id for ML use)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub device_fingerprint: Option<super::DeviceFingerprint>,

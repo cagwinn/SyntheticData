@@ -180,25 +180,71 @@ mod tests {
     fn test_realistic_lifecycle_passes() {
         let states = vec![
             // 20% new (young accounts)
-            LifecycleEndState { lifecycle_phase: "new".into(), days_since_opening: 20 },
-            LifecycleEndState { lifecycle_phase: "new".into(), days_since_opening: 25 },
+            LifecycleEndState {
+                lifecycle_phase: "new".into(),
+                days_since_opening: 20,
+            },
+            LifecycleEndState {
+                lifecycle_phase: "new".into(),
+                days_since_opening: 25,
+            },
             // 30% ramp_up
-            LifecycleEndState { lifecycle_phase: "ramp_up".into(), days_since_opening: 50 },
-            LifecycleEndState { lifecycle_phase: "ramp_up".into(), days_since_opening: 80 },
-            LifecycleEndState { lifecycle_phase: "ramp_up".into(), days_since_opening: 70 },
+            LifecycleEndState {
+                lifecycle_phase: "ramp_up".into(),
+                days_since_opening: 50,
+            },
+            LifecycleEndState {
+                lifecycle_phase: "ramp_up".into(),
+                days_since_opening: 80,
+            },
+            LifecycleEndState {
+                lifecycle_phase: "ramp_up".into(),
+                days_since_opening: 70,
+            },
             // 40% steady
-            LifecycleEndState { lifecycle_phase: "steady".into(), days_since_opening: 200 },
-            LifecycleEndState { lifecycle_phase: "steady".into(), days_since_opening: 300 },
-            LifecycleEndState { lifecycle_phase: "steady".into(), days_since_opening: 350 },
-            LifecycleEndState { lifecycle_phase: "steady".into(), days_since_opening: 250 },
+            LifecycleEndState {
+                lifecycle_phase: "steady".into(),
+                days_since_opening: 200,
+            },
+            LifecycleEndState {
+                lifecycle_phase: "steady".into(),
+                days_since_opening: 300,
+            },
+            LifecycleEndState {
+                lifecycle_phase: "steady".into(),
+                days_since_opening: 350,
+            },
+            LifecycleEndState {
+                lifecycle_phase: "steady".into(),
+                days_since_opening: 250,
+            },
             // 10% decline/dormant
-            LifecycleEndState { lifecycle_phase: "dormant".into(), days_since_opening: 400 },
+            LifecycleEndState {
+                lifecycle_phase: "dormant".into(),
+                days_since_opening: 400,
+            },
         ];
         let transitions = vec![
-            TransitionRecord { from_phase: "new".into(), to_phase: "ramp_up".into(), triggered_by_event: false },
-            TransitionRecord { from_phase: "ramp_up".into(), to_phase: "steady".into(), triggered_by_event: false },
-            TransitionRecord { from_phase: "steady".into(), to_phase: "decline".into(), triggered_by_event: true },
-            TransitionRecord { from_phase: "decline".into(), to_phase: "dormant".into(), triggered_by_event: false },
+            TransitionRecord {
+                from_phase: "new".into(),
+                to_phase: "ramp_up".into(),
+                triggered_by_event: false,
+            },
+            TransitionRecord {
+                from_phase: "ramp_up".into(),
+                to_phase: "steady".into(),
+                triggered_by_event: false,
+            },
+            TransitionRecord {
+                from_phase: "steady".into(),
+                to_phase: "decline".into(),
+                triggered_by_event: true,
+            },
+            TransitionRecord {
+                from_phase: "decline".into(),
+                to_phase: "dormant".into(),
+                triggered_by_event: false,
+            },
         ];
         let a = LifecycleAnalyzer::new();
         let r = a.analyze(&states, &transitions).unwrap();
@@ -216,6 +262,9 @@ mod tests {
         let a = LifecycleAnalyzer::new();
         let r = a.analyze(&states, &[]).unwrap();
         assert!(!r.passes);
-        assert!(r.issues.iter().any(|i| i.contains("stuck") || i.contains("Progression") || i.contains("phases")));
+        assert!(r
+            .issues
+            .iter()
+            .any(|i| i.contains("stuck") || i.contains("Progression") || i.contains("phases")));
     }
 }

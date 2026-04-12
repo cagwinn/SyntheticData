@@ -994,7 +994,10 @@ impl datasynth_runtime::stream_pipeline::PhaseSink for ChannelPhaseSink {
         Ok(())
     }
 
-    fn phase_complete(&self, _phase: &str) -> Result<(), datasynth_runtime::stream_pipeline::StreamError> {
+    fn phase_complete(
+        &self,
+        _phase: &str,
+    ) -> Result<(), datasynth_runtime::stream_pipeline::StreamError> {
         if let Ok(mut stats) = self.stats.lock() {
             stats.phases_completed += 1;
         }
@@ -1006,10 +1009,7 @@ impl datasynth_runtime::stream_pipeline::PhaseSink for ChannelPhaseSink {
     }
 
     fn stats(&self) -> datasynth_runtime::stream_pipeline::StreamStats {
-        self.stats
-            .lock()
-            .map(|s| s.clone())
-            .unwrap_or_default()
+        self.stats.lock().map(|s| s.clone()).unwrap_or_default()
     }
 }
 
@@ -1087,18 +1087,15 @@ async fn stream_ndjson(
                                 "anomaly_count": result.anomaly_labels.labels.len(),
                             }
                         });
-                        let _ = tx.blocking_send(
-                            serde_json::to_string(&summary).unwrap_or_default(),
-                        );
+                        let _ =
+                            tx.blocking_send(serde_json::to_string(&summary).unwrap_or_default());
                     }
                     Err(e) => {
                         let err = serde_json::json!({
                             "type": "_error",
                             "message": format!("Generation failed: {e}"),
                         });
-                        let _ = tx.blocking_send(
-                            serde_json::to_string(&err).unwrap_or_default(),
-                        );
+                        let _ = tx.blocking_send(serde_json::to_string(&err).unwrap_or_default());
                     }
                 }
             }
@@ -1107,8 +1104,7 @@ async fn stream_ndjson(
                     "type": "_error",
                     "message": format!("Failed to create orchestrator: {e}"),
                 });
-                let _ =
-                    tx.blocking_send(serde_json::to_string(&err).unwrap_or_default());
+                let _ = tx.blocking_send(serde_json::to_string(&err).unwrap_or_default());
             }
         }
         // tx is dropped here, closing the channel → stream ends
@@ -1116,12 +1112,10 @@ async fn stream_ndjson(
 
     // Convert the receiver into an axum streaming response
     let stream = tokio_stream::wrappers::ReceiverStream::new(rx);
-    let body = axum::body::Body::from_stream(
-        tokio_stream::StreamExt::map(stream, |mut line| {
-            line.push('\n');
-            Ok::<_, std::convert::Infallible>(line)
-        }),
-    );
+    let body = axum::body::Body::from_stream(tokio_stream::StreamExt::map(stream, |mut line| {
+        line.push('\n');
+        Ok::<_, std::convert::Infallible>(line)
+    }));
 
     axum::response::Response::builder()
         .header("Content-Type", "application/x-ndjson")

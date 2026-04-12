@@ -68,7 +68,10 @@ impl NetworkStructureAnalyzer {
         // Group by network_id
         let mut by_network: HashMap<String, Vec<&NetworkNodeObservation>> = HashMap::new();
         for obs in observations {
-            by_network.entry(obs.network_id.clone()).or_default().push(obs);
+            by_network
+                .entry(obs.network_id.clone())
+                .or_default()
+                .push(obs);
         }
         let total_networks = by_network.len();
 
@@ -77,7 +80,7 @@ impl NetworkStructureAnalyzer {
         let mut uniform_count = 0usize;
         let mut power_law_count = 0usize;
 
-        for (_, nodes) in &by_network {
+        for nodes in by_network.values() {
             // Degree stats
             let degrees: Vec<usize> = nodes.iter().map(|n| n.degree).collect();
             let max_deg = *degrees.iter().max().unwrap_or(&0);
@@ -94,7 +97,8 @@ impl NetworkStructureAnalyzer {
             hub_ratios.push(hub_ratio);
 
             // Check uniformity (all nodes same degree = hub-and-spoke limitation)
-            let unique_degrees: std::collections::HashSet<usize> = degrees.iter().copied().collect();
+            let unique_degrees: std::collections::HashSet<usize> =
+                degrees.iter().copied().collect();
             if unique_degrees.len() <= 2 {
                 uniform_count += 1;
             }

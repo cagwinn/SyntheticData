@@ -44,10 +44,11 @@ pub struct RealEstateIntegrationInjector {
 impl RealEstateIntegrationInjector {
     pub fn new(seed: u64) -> Self {
         Self {
-            rng: ChaCha8Rng::seed_from_u64(
-                seed.wrapping_add(REAL_ESTATE_INTEGRATION_SEED_OFFSET),
+            rng: ChaCha8Rng::seed_from_u64(seed.wrapping_add(REAL_ESTATE_INTEGRATION_SEED_OFFSET)),
+            uuid_factory: DeterministicUuidFactory::new(
+                seed,
+                datasynth_core::GeneratorType::Anomaly,
             ),
-            uuid_factory: DeterministicUuidFactory::new(seed, datasynth_core::GeneratorType::Anomaly),
         }
     }
 
@@ -78,7 +79,7 @@ impl RealEstateIntegrationInjector {
             Sophistication::StateLevel => self.rng.random_range(5_000_000.0..50_000_000.0),
         };
 
-        let available_days = (end_date - start_date).num_days().max(1) as i64;
+        let available_days = (end_date - start_date).num_days().max(1);
         let days_per_property = (available_days / num_properties.max(1) as i64).max(14);
         let mut seq = 0u32;
 
@@ -95,7 +96,11 @@ impl RealEstateIntegrationInjector {
             let earnest_pct = self.rng.random_range(0.05..0.10);
             let earnest = property_amount * earnest_pct;
             let earnest_ts = property_start
-                .and_hms_opt(self.rng.random_range(9..17), self.rng.random_range(0..60), 0)
+                .and_hms_opt(
+                    self.rng.random_range(9..17),
+                    self.rng.random_range(0..60),
+                    0,
+                )
                 .map(|dt| dt.and_utc())
                 .unwrap_or_else(chrono::Utc::now);
 
@@ -118,7 +123,8 @@ impl RealEstateIntegrationInjector {
                 &format!("Earnest money - {property}"),
                 earnest_ts,
             );
-            earnest_txn = earnest_txn.mark_suspicious(AmlTypology::RealEstateIntegration, &scenario_id);
+            earnest_txn =
+                earnest_txn.mark_suspicious(AmlTypology::RealEstateIntegration, &scenario_id);
             earnest_txn = earnest_txn.with_laundering_stage(LaunderingStage::Layering);
             earnest_txn = earnest_txn.with_scenario(&scenario_id, seq);
             earnest_txn.ground_truth_explanation = Some(format!(
@@ -129,14 +135,21 @@ impl RealEstateIntegrationInjector {
             transactions.push(earnest_txn);
 
             // Closing: main balance
-            let closing_days = self.rng.random_range(30..60).min(days_per_property as u32 - 1);
+            let closing_days = self
+                .rng
+                .random_range(30..60)
+                .min(days_per_property as u32 - 1);
             let closing_date = property_start + Duration::days(closing_days as i64);
             if closing_date > end_date {
                 continue;
             }
             let closing_amount = property_amount - earnest;
             let closing_ts = closing_date
-                .and_hms_opt(self.rng.random_range(9..17), self.rng.random_range(0..60), 0)
+                .and_hms_opt(
+                    self.rng.random_range(9..17),
+                    self.rng.random_range(0..60),
+                    0,
+                )
                 .map(|dt| dt.and_utc())
                 .unwrap_or_else(chrono::Utc::now);
 
@@ -159,7 +172,8 @@ impl RealEstateIntegrationInjector {
                 &format!("Closing - {property} purchase"),
                 closing_ts,
             );
-            closing_txn = closing_txn.mark_suspicious(AmlTypology::RealEstateIntegration, &scenario_id);
+            closing_txn =
+                closing_txn.mark_suspicious(AmlTypology::RealEstateIntegration, &scenario_id);
             closing_txn = closing_txn.with_laundering_stage(LaunderingStage::Integration);
             closing_txn = closing_txn.with_scenario(&scenario_id, seq);
             closing_txn.ground_truth_explanation = Some(format!(
@@ -183,19 +197,33 @@ mod tests {
     #[test]
     fn test_real_estate_earnest_plus_closing() {
         let mut inj = RealEstateIntegrationInjector::new(42);
-        let customer = BankingCustomer::new_business(Uuid::new_v4(), "Shell LLC", "US",
-            NaiveDate::from_ymd_opt(2024, 1, 1).unwrap());
-        let account = BankAccount::new(Uuid::new_v4(), "ACC".into(),
+        let customer = BankingCustomer::new_business(
+            Uuid::new_v4(),
+            "Shell LLC",
+            "US",
+            NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
+        );
+        let account = BankAccount::new(
+            Uuid::new_v4(),
+            "ACC".into(),
             datasynth_core::models::banking::BankAccountType::BusinessOperating,
-            customer.customer_id, "USD", NaiveDate::from_ymd_opt(2024, 1, 1).unwrap());
+            customer.customer_id,
+            "USD",
+            NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
+        );
 
-        let txns = inj.generate(&customer, &account,
+        let txns = inj.generate(
+            &customer,
+            &account,
             NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
             NaiveDate::from_ymd_opt(2024, 12, 31).unwrap(),
-            Sophistication::Professional);
+            Sophistication::Professional,
+        );
 
         assert!(!txns.is_empty());
-        assert!(txns.iter().all(|t| matches!(t.direction, Direction::Outbound)));
+        assert!(txns
+            .iter()
+            .all(|t| matches!(t.direction, Direction::Outbound)));
         // Should have earnest + closing pairs
         let has_earnest = txns.iter().any(|t| t.reference.contains("Earnest"));
         let has_closing = txns.iter().any(|t| t.reference.contains("Closing"));

@@ -7,13 +7,13 @@
 use chrono::Timelike;
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
-use rust_decimal::Decimal;
 use rust_decimal::prelude::ToPrimitive;
 
 use crate::models::BankTransaction;
 use crate::seed_offsets::FALSE_POSITIVE_SEED_OFFSET;
 
 /// False positive injector.
+#[allow(dead_code)]
 pub struct FalsePositiveInjector {
     rng: ChaCha8Rng,
 }
@@ -101,7 +101,7 @@ impl FalsePositiveInjector {
 
         // Off-hours transaction (before 7am or after 10pm)
         let hour = txn.timestamp_initiated.time().hour();
-        if hour < 7 || hour >= 22 {
+        if !(7..22).contains(&hour) {
             score += 0.2;
             reasons.push("off-hours timing".to_string());
         }

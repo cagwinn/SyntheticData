@@ -15,7 +15,7 @@ use crate::error::EvalResult;
 pub struct SophisticationObservation {
     pub amount: f64,
     pub typology: String,
-    pub customer_type: String, // "retail" | "business" | "trust"
+    pub customer_type: String,  // "retail" | "business" | "trust"
     pub sophistication: String, // "basic" | "standard" | "professional" | "advanced" | "state_level"
 }
 
@@ -120,7 +120,8 @@ impl SophisticationAnalyzer {
         };
 
         let mut issues = Vec::new();
-        if small_retail.len() >= 10 && small_retail_rate < self.thresholds.min_small_retail_low_soph {
+        if small_retail.len() >= 10 && small_retail_rate < self.thresholds.min_small_retail_low_soph
+        {
             issues.push(format!(
                 "Small-retail low-sophistication rate {:.1}% below minimum {:.1}%",
                 small_retail_rate * 100.0,

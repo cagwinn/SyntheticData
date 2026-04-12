@@ -11,9 +11,7 @@ use datasynth_core::DeterministicUuidFactory;
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
 
-use crate::models::{
-    BankAccount, BankTransaction, BankingCustomer, NetworkContext, NetworkRole,
-};
+use crate::models::{BankAccount, BankTransaction, BankingCustomer, NetworkContext, NetworkRole};
 use crate::seed_offsets::NETWORK_GENERATOR_SEED_OFFSET;
 
 /// Multi-party network scenario generator.
@@ -30,7 +28,10 @@ impl NetworkGenerator {
     pub fn new(seed: u64) -> Self {
         Self {
             rng: ChaCha8Rng::seed_from_u64(seed.wrapping_add(NETWORK_GENERATOR_SEED_OFFSET)),
-            uuid_factory: DeterministicUuidFactory::new(seed, datasynth_core::GeneratorType::Anomaly),
+            uuid_factory: DeterministicUuidFactory::new(
+                seed,
+                datasynth_core::GeneratorType::Anomaly,
+            ),
             structuring_injector: super::StructuringInjector::new(seed + 100),
             mule_injector: super::MuleInjector::new(seed + 200),
             layering_injector: super::LayeringInjector::new(seed + 300),
@@ -69,7 +70,10 @@ impl NetworkGenerator {
         // First customer is coordinator, rest are smurfs
         for (idx, customer) in customers.iter().take(participant_count + 1).enumerate() {
             // Find this customer's account
-            let account = match accounts.iter().find(|a| a.primary_owner_id == customer.customer_id) {
+            let account = match accounts
+                .iter()
+                .find(|a| a.primary_owner_id == customer.customer_id)
+            {
                 Some(a) => a,
                 None => continue,
             };
@@ -135,7 +139,10 @@ impl NetworkGenerator {
 
         // Each participant in the chain runs the mule injector
         for (idx, customer) in customers.iter().take(participant_count).enumerate() {
-            let account = match accounts.iter().find(|a| a.primary_owner_id == customer.customer_id) {
+            let account = match accounts
+                .iter()
+                .find(|a| a.primary_owner_id == customer.customer_id)
+            {
                 Some(a) => a,
                 None => continue,
             };
@@ -198,7 +205,10 @@ impl NetworkGenerator {
         let participant_count = layers.min(customers.len());
 
         for (idx, customer) in customers.iter().take(participant_count).enumerate() {
-            let account = match accounts.iter().find(|a| a.primary_owner_id == customer.customer_id) {
+            let account = match accounts
+                .iter()
+                .find(|a| a.primary_owner_id == customer.customer_id)
+            {
                 Some(a) => a,
                 None => continue,
             };
@@ -243,16 +253,21 @@ mod tests {
 
     fn make_customer(name: &str) -> BankingCustomer {
         BankingCustomer::new_retail(
-            Uuid::new_v4(), name, "User", "US",
+            Uuid::new_v4(),
+            name,
+            "User",
+            "US",
             NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
         )
     }
 
     fn make_account(customer: &BankingCustomer) -> BankAccount {
         BankAccount::new(
-            Uuid::new_v4(), format!("ACC-{}", customer.customer_id),
+            Uuid::new_v4(),
+            format!("ACC-{}", customer.customer_id),
             datasynth_core::models::banking::BankAccountType::Checking,
-            customer.customer_id, "USD",
+            customer.customer_id,
+            "USD",
             NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
         )
     }
@@ -260,11 +275,14 @@ mod tests {
     #[test]
     fn test_structuring_ring() {
         let mut gen = NetworkGenerator::new(42);
-        let customers: Vec<_> = (0..6).map(|i| make_customer(&format!("Smurf{i}"))).collect();
+        let customers: Vec<_> = (0..6)
+            .map(|i| make_customer(&format!("Smurf{i}")))
+            .collect();
         let accounts: Vec<_> = customers.iter().map(|c| make_account(c)).collect();
 
         let txns = gen.generate_structuring_ring(
-            &customers, &accounts,
+            &customers,
+            &accounts,
             NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
             NaiveDate::from_ymd_opt(2024, 6, 30).unwrap(),
             Sophistication::Standard,
@@ -272,7 +290,8 @@ mod tests {
 
         assert!(!txns.is_empty(), "Should generate ring transactions");
         assert!(txns.iter().all(|t| t.network_context.is_some()));
-        let network_ids: std::collections::HashSet<_> = txns.iter()
+        let network_ids: std::collections::HashSet<_> = txns
+            .iter()
             .filter_map(|t| t.network_context.as_ref().map(|n| n.network_id.clone()))
             .collect();
         assert_eq!(network_ids.len(), 1, "All txns should share one network_id");
@@ -285,7 +304,8 @@ mod tests {
         let accounts: Vec<_> = customers.iter().map(|c| make_account(c)).collect();
 
         let txns = gen.generate_mule_chain(
-            &customers, &accounts,
+            &customers,
+            &accounts,
             NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
             NaiveDate::from_ymd_opt(2024, 6, 30).unwrap(),
             Sophistication::Professional,
@@ -293,9 +313,14 @@ mod tests {
 
         assert!(!txns.is_empty());
         // Should have multiple roles
-        let roles: std::collections::HashSet<_> = txns.iter()
+        let roles: std::collections::HashSet<_> = txns
+            .iter()
             .filter_map(|t| t.network_context.as_ref().map(|n| n.network_role))
             .collect();
-        assert!(roles.len() >= 2, "Should have multiple roles, got {:?}", roles);
+        assert!(
+            roles.len() >= 2,
+            "Should have multiple roles, got {:?}",
+            roles
+        );
     }
 }

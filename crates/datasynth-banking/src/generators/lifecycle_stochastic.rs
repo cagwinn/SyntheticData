@@ -245,7 +245,10 @@ mod tests {
             .iter()
             .filter(|a| a.lifecycle_phase != AccountLifecyclePhase::New)
             .count();
-        assert!(moved > accounts.len() / 2, "Most accounts should progress beyond New");
+        assert!(
+            moved > accounts.len() / 2,
+            "Most accounts should progress beyond New"
+        );
     }
 
     #[test]
@@ -264,7 +267,10 @@ mod tests {
             *counts.entry(a.lifecycle_phase).or_insert(0u32) += 1;
         }
         // Should have at least 2 distinct phases at end of year
-        assert!(counts.len() >= 2, "Expect multiple phase endpoints: {counts:?}");
+        assert!(
+            counts.len() >= 2,
+            "Expect multiple phase endpoints: {counts:?}"
+        );
     }
 
     #[test]
@@ -283,6 +289,9 @@ mod tests {
             .iter()
             .filter(|t| t.triggered_by.is_some())
             .count();
-        assert!(event_driven > 0, "Should have some event-triggered transitions");
+        assert!(
+            event_driven > 0,
+            "Should have some event-triggered transitions"
+        );
     }
 }

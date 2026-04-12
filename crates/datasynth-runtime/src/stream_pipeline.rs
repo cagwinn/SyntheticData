@@ -314,9 +314,7 @@ impl PhaseSink for RateLimitedPipeline {
 
     fn stats(&self) -> StreamStats {
         let mut stats = self.inner.stats();
-        stats.items_emitted = self
-            .sequence
-            .load(std::sync::atomic::Ordering::Relaxed);
+        stats.items_emitted = self.sequence.load(std::sync::atomic::Ordering::Relaxed);
         stats
     }
 }
@@ -520,9 +518,9 @@ mod tests {
         let mock = MockPhaseSink::new();
         let pipeline = RateLimitedPipeline::new(
             Box::new(mock),
-            0.0,  // unlimited
+            0.0, // unlimited
             100,
-            0,    // no progress events
+            0, // no progress events
         );
         let item = serde_json::json!({"id": "test"});
         pipeline.emit("phase", "Type", &item).unwrap();
@@ -538,9 +536,9 @@ mod tests {
         let mock = MockPhaseSink::new();
         let pipeline = RateLimitedPipeline::new(
             Box::new(mock),
-            0.0,  // unlimited
+            0.0, // unlimited
             100,
-            5,    // progress every 5 items
+            5, // progress every 5 items
         );
         let item = serde_json::json!({"id": "test"});
         for _ in 0..10 {
@@ -557,7 +555,7 @@ mod tests {
         let mock = MockPhaseSink::new();
         let pipeline = RateLimitedPipeline::new(
             Box::new(mock),
-            100.0,  // 100 events/sec
+            100.0, // 100 events/sec
             10,
             0,
         );
@@ -569,7 +567,11 @@ mod tests {
         }
         let elapsed = start.elapsed();
         // Should take at least 40ms (5 items beyond burst at 10ms each)
-        assert!(elapsed.as_millis() >= 30, "expected rate limiting, got {:?}", elapsed);
+        assert!(
+            elapsed.as_millis() >= 30,
+            "expected rate limiting, got {:?}",
+            elapsed
+        );
     }
 
     #[test]
@@ -577,7 +579,7 @@ mod tests {
         let mock = MockPhaseSink::new();
         let pipeline = RateLimitedPipeline::new(
             Box::new(mock),
-            0.0,  // start unlimited
+            0.0, // start unlimited
             100,
             0,
         );
