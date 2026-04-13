@@ -155,7 +155,7 @@ zstd = "0.13"
 
 # Data structures
 smallvec = { version = "1.13", features = ["serde"] }
-petgraph = "0.7"
+petgraph = "0.8"
 
 # Parallel processing
 rayon = "1.10"
