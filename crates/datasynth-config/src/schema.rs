@@ -256,6 +256,12 @@ pub struct DiffusionSchemaConfig {
     /// Number of sample rows to generate for demonstration.
     #[serde(default = "default_diffusion_sample_size")]
     pub sample_size: usize,
+    /// Backend type: "statistical" (default), "neural", "hybrid".
+    #[serde(default = "default_diffusion_backend")]
+    pub backend: String,
+    /// Neural diffusion backend configuration (used when backend is "neural" or "hybrid").
+    #[serde(default)]
+    pub neural: NeuralDiffusionSchemaConfig,
 }
 
 fn default_diffusion_steps() -> usize {
@@ -270,6 +276,10 @@ fn default_diffusion_sample_size() -> usize {
     100
 }
 
+fn default_diffusion_backend() -> String {
+    "statistical".to_string()
+}
+
 impl Default for DiffusionSchemaConfig {
     fn default() -> Self {
         Self {
@@ -277,6 +287,83 @@ impl Default for DiffusionSchemaConfig {
             n_steps: default_diffusion_steps(),
             schedule: default_diffusion_schedule(),
             sample_size: default_diffusion_sample_size(),
+            backend: default_diffusion_backend(),
+            neural: NeuralDiffusionSchemaConfig::default(),
+        }
+    }
+}
+
+/// Neural diffusion backend configuration.
+///
+/// Controls the `candle`-based neural score network that learns joint distributions
+/// from training data for the neural and hybrid diffusion backends.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NeuralDiffusionSchemaConfig {
+    /// Hidden layer dimensions for the score network MLP.
+    #[serde(default = "default_neural_hidden_dims")]
+    pub hidden_dims: Vec<usize>,
+    /// Dimensionality of the timestep embedding.
+    #[serde(default = "default_neural_timestep_embed_dim")]
+    pub timestep_embed_dim: usize,
+    /// Learning rate for training.
+    #[serde(default = "default_neural_learning_rate")]
+    pub learning_rate: f64,
+    /// Number of training epochs.
+    #[serde(default = "default_neural_training_epochs")]
+    pub training_epochs: usize,
+    /// Training batch size.
+    #[serde(default = "default_neural_batch_size")]
+    pub batch_size: usize,
+    /// Blend weight for hybrid mode (0.0 = all statistical, 1.0 = all neural).
+    #[serde(default = "default_neural_hybrid_weight")]
+    pub hybrid_weight: f64,
+    /// Hybrid blending strategy: "weighted_average", "column_select", "threshold".
+    #[serde(default = "default_neural_hybrid_strategy")]
+    pub hybrid_strategy: String,
+    /// Columns to apply neural generation to (empty = all numeric columns).
+    #[serde(default)]
+    pub neural_columns: Vec<String>,
+}
+
+fn default_neural_hidden_dims() -> Vec<usize> {
+    vec![256, 256, 128]
+}
+
+fn default_neural_timestep_embed_dim() -> usize {
+    64
+}
+
+fn default_neural_learning_rate() -> f64 {
+    0.001
+}
+
+fn default_neural_training_epochs() -> usize {
+    100
+}
+
+fn default_neural_batch_size() -> usize {
+    64
+}
+
+fn default_neural_hybrid_weight() -> f64 {
+    0.5
+}
+
+fn default_neural_hybrid_strategy() -> String {
+    "weighted_average".to_string()
+}
+
+impl Default for NeuralDiffusionSchemaConfig {
+    fn default() -> Self {
+        Self {
+            hidden_dims: default_neural_hidden_dims(),
+            timestep_embed_dim: default_neural_timestep_embed_dim(),
+            learning_rate: default_neural_learning_rate(),
+            training_epochs: default_neural_training_epochs(),
+            batch_size: default_neural_batch_size(),
+            hybrid_weight: default_neural_hybrid_weight(),
+            hybrid_strategy: default_neural_hybrid_strategy(),
+            neural_columns: Vec::new(),
         }
     }
 }

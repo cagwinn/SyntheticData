@@ -46,6 +46,8 @@ pub mod report;
 pub mod statistical;
 pub mod tuning;
 
+#[cfg(feature = "adversarial")]
+pub mod adversarial;
 pub mod banking;
 pub mod causal;
 pub mod diff_engine;
@@ -224,9 +226,9 @@ pub use tuning::{
 };
 
 pub use enhancement::{
-    AutoTuneResult, AutoTuner, ConfigPatch, EnhancementReport, Recommendation,
-    RecommendationCategory, RecommendationEngine, RecommendationPriority, RootCause,
-    SuggestedAction,
+    AiTuneResult, AiTuner, AiTunerConfig, AutoTuneResult, AutoTuner, ConfigPatch,
+    EnhancementReport, Recommendation, RecommendationCategory, RecommendationEngine,
+    RecommendationPriority, RootCause, SuggestedAction, TuningIteration,
 };
 
 pub use privacy::{

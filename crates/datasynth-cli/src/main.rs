@@ -173,6 +173,10 @@ enum Commands {
         /// CoA complexity (small, medium, large)
         #[arg(short, long, default_value = "medium")]
         complexity: String,
+
+        /// Generate config from a natural language description using AI
+        #[arg(long)]
+        from_description: Option<String>,
     },
 
     /// Show information about available presets
@@ -1758,7 +1762,23 @@ fn main() -> Result<()> {
             output,
             industry,
             complexity,
+            from_description,
         } => {
+            // If --from-description is provided, use the LLM-powered full config generator
+            if let Some(desc) = from_description {
+                let provider = datasynth_core::llm::MockLlmProvider::new(42);
+                let yaml = datasynth_core::llm::nl_config::NlConfigGenerator::generate_full(
+                    &desc, &provider,
+                )
+                .map_err(|e| anyhow::anyhow!("{e}"))?;
+                std::fs::write(&output, &yaml)?;
+                tracing::info!(
+                    "AI-generated configuration written to: {}",
+                    output.display()
+                );
+                return Ok(());
+            }
+
             let industry_lower = industry.to_lowercase();
             let industry_sector = match industry_lower.as_str() {
                 "manufacturing" => IndustrySector::Manufacturing,

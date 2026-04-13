@@ -77,6 +77,184 @@ impl NlConfigGenerator {
         }
     }
 
+    /// Generate a complete YAML configuration from a natural language description.
+    ///
+    /// Unlike [`generate`], which maps to a template via structured intent, this
+    /// method asks the LLM to produce the full YAML directly using the complete
+    /// DataSynth config schema as guidance.  Falls back to [`generate`] if the
+    /// LLM response is not valid YAML or does not contain expected top-level keys.
+    pub fn generate_full(
+        description: &str,
+        provider: &dyn LlmProvider,
+    ) -> Result<String, SynthError> {
+        if description.trim().is_empty() {
+            return Err(SynthError::generation(
+                "Natural language description cannot be empty",
+            ));
+        }
+
+        let system = Self::full_schema_system_prompt();
+        let request = LlmRequest::new(description.to_string())
+            .with_system(system)
+            .with_temperature(0.2)
+            .with_max_tokens(4096);
+
+        match provider.complete(&request) {
+            Ok(response) => {
+                let yaml_text = Self::extract_yaml(&response.content);
+                // Validate that it parses as a YAML mapping with at least one known key
+                if let Ok(value) = serde_yaml::from_str::<serde_yaml::Value>(&yaml_text) {
+                    if let Some(map) = value.as_mapping() {
+                        let known_keys = [
+                            "global",
+                            "companies",
+                            "chart_of_accounts",
+                            "transactions",
+                            "output",
+                            "fraud",
+                            "audit_standards",
+                            "banking",
+                            "internal_controls",
+                            "distributions",
+                            "temporal_patterns",
+                            "document_flows",
+                            "intercompany",
+                            "master_data",
+                            "business_processes",
+                            "hr",
+                            "manufacturing",
+                            "tax",
+                            "treasury",
+                            "esg",
+                            "project_accounting",
+                            "diffusion",
+                            "llm",
+                            "causal",
+                        ];
+                        let has_known = map
+                            .keys()
+                            .any(|k| k.as_str().map(|s| known_keys.contains(&s)).unwrap_or(false));
+                        if has_known {
+                            return Ok(yaml_text);
+                        }
+                    }
+                }
+                // Fallback to template-based generation
+                tracing::warn!(
+                    "LLM full-config response did not contain valid DataSynth YAML; falling back to template"
+                );
+                Self::generate(description, provider)
+            }
+            Err(e) => {
+                tracing::warn!("LLM full-config generation failed: {e}; falling back to template");
+                Self::generate(description, provider)
+            }
+        }
+    }
+
+    /// Extract YAML content from an LLM response, stripping ``` fences if present.
+    pub fn extract_yaml(content: &str) -> String {
+        let trimmed = content.trim();
+
+        // Try to extract from ```yaml ... ``` fenced block
+        if let Some(start) = trimmed.find("```yaml") {
+            let after = &trimmed[start + 7..];
+            if let Some(end) = after.find("```") {
+                return after[..end].trim().to_string();
+            }
+        }
+
+        // Try plain ``` ... ``` fenced block
+        if let Some(start) = trimmed.find("```") {
+            let after = &trimmed[start + 3..];
+            if let Some(end) = after.find("```") {
+                return after[..end].trim().to_string();
+            }
+        }
+
+        // No fences — return as-is
+        trimmed.to_string()
+    }
+
+    /// System prompt describing the full DataSynth configuration schema.
+    ///
+    /// Used by [`generate_full`] so the LLM can produce a complete config.
+    pub fn full_schema_system_prompt() -> String {
+        concat!(
+            "You are a DataSynth configuration generator. Given a natural language description, ",
+            "produce a complete, valid DataSynth YAML configuration.\n\n",
+            "Top-level sections (all optional — include only what is relevant):\n\n",
+            "global:\n",
+            "  industry: <retail|manufacturing|financial_services|healthcare|technology>\n",
+            "  start_date: \"YYYY-MM-DD\"\n",
+            "  period_months: <1-120>\n",
+            "  seed: <integer>\n\n",
+            "companies:\n",
+            "  - code: \"C001\"\n",
+            "    name: \"...\"\n",
+            "    currency: \"USD\"\n",
+            "    country: \"US\"\n\n",
+            "chart_of_accounts:\n",
+            "  complexity: <small|medium|large>\n\n",
+            "transactions:\n",
+            "  count: <number>\n",
+            "  anomaly_rate: <0.0-1.0>\n\n",
+            "output:\n",
+            "  format: <csv|json|parquet>\n",
+            "  compression: <true|false>\n\n",
+            "fraud:\n",
+            "  enabled: true\n",
+            "  types: [fictitious_transaction, duplicate_payment, split_transaction, ...]\n",
+            "  injection_rate: <0.0-1.0>\n\n",
+            "internal_controls:\n",
+            "  enabled: true\n",
+            "  coso_enabled: true\n",
+            "  target_maturity_level: <ad_hoc|repeatable|defined|managed|optimized>\n\n",
+            "distributions:\n",
+            "  enabled: true\n",
+            "  industry_profile: <industry>\n",
+            "  amounts: { enabled: true, distribution_type: lognormal, benford_compliance: true }\n\n",
+            "temporal_patterns:\n",
+            "  enabled: true\n",
+            "  business_days: { enabled: true }\n",
+            "  period_end: { model: exponential }\n\n",
+            "banking:\n",
+            "  enabled: true\n",
+            "  customer_count: <number>\n",
+            "  kyc_enabled: true\n",
+            "  aml_enabled: true\n\n",
+            "audit_standards:\n",
+            "  enabled: true\n",
+            "  isa_compliance: { enabled: true, compliance_level: standard }\n",
+            "  sox: { enabled: true }\n\n",
+            "intercompany:\n",
+            "  enabled: true\n\n",
+            "document_flows:\n",
+            "  p2p: { enabled: true }\n",
+            "  o2c: { enabled: true }\n\n",
+            "master_data:\n",
+            "  vendors: { count: <number> }\n",
+            "  customers: { count: <number> }\n\n",
+            "hr:\n",
+            "  enabled: true\n",
+            "  payroll: { enabled: true }\n\n",
+            "manufacturing:\n",
+            "  enabled: true\n\n",
+            "tax:\n",
+            "  enabled: true\n\n",
+            "treasury:\n",
+            "  enabled: true\n\n",
+            "esg:\n",
+            "  enabled: true\n\n",
+            "project_accounting:\n",
+            "  enabled: true\n\n",
+            "diffusion:\n",
+            "  enabled: true\n",
+            "  backend: <statistical|neural|hybrid>\n\n",
+            "Return ONLY the YAML configuration (optionally inside ```yaml fences), no other text.\n"
+        ).to_string()
+    }
+
     /// Map a [`ConfigIntent`] to a YAML configuration string.
     pub fn intent_to_yaml(intent: &ConfigIntent) -> Result<String, SynthError> {
         let industry = intent.industry.as_deref().unwrap_or("manufacturing");
@@ -239,22 +417,7 @@ impl NlConfigGenerator {
 
     /// Extract a JSON object substring from potentially noisy LLM output.
     fn extract_json(content: &str) -> Option<&str> {
-        // Find the first '{' and matching '}'
-        let start = content.find('{')?;
-        let mut depth = 0i32;
-        for (i, ch) in content[start..].char_indices() {
-            match ch {
-                '{' => depth += 1,
-                '}' => {
-                    depth -= 1;
-                    if depth == 0 {
-                        return Some(&content[start..start + i + 1]);
-                    }
-                }
-                _ => {}
-            }
-        }
-        None
+        super::json_utils::extract_json_object(content)
     }
 
     /// Keyword-based parsing as a reliable fallback.
@@ -882,5 +1045,69 @@ mod tests {
         assert!(yaml.contains("distributions:"));
         assert!(yaml.contains("industry_profile: retail"));
         assert!(yaml.contains("benford_compliance: true"));
+    }
+
+    #[test]
+    fn test_extract_yaml_from_fenced_block() {
+        let content = "Here is the config:\n```yaml\nglobal:\n  industry: retail\n```\nDone.";
+        let yaml = NlConfigGenerator::extract_yaml(content);
+        assert!(yaml.contains("global:"));
+        assert!(yaml.contains("industry: retail"));
+        assert!(!yaml.contains("```"));
+    }
+
+    #[test]
+    fn test_extract_yaml_plain_fences() {
+        let content = "```\nglobal:\n  seed: 42\n```";
+        let yaml = NlConfigGenerator::extract_yaml(content);
+        assert!(yaml.contains("global:"));
+        assert!(yaml.contains("seed: 42"));
+        assert!(!yaml.contains("```"));
+    }
+
+    #[test]
+    fn test_extract_yaml_no_fences() {
+        let content = "global:\n  industry: manufacturing\n";
+        let yaml = NlConfigGenerator::extract_yaml(content);
+        assert!(yaml.contains("global:"));
+        assert!(yaml.contains("industry: manufacturing"));
+    }
+
+    #[test]
+    fn test_generate_full_falls_back_to_template() {
+        // MockLlmProvider returns a fixed response that won't parse as valid
+        // DataSynth YAML, so generate_full should fall back to template-based
+        let provider = MockLlmProvider::new(42);
+        let yaml = NlConfigGenerator::generate_full(
+            "Generate 1 year of retail data for a medium US company",
+            &provider,
+        )
+        .expect("should fall back to template-based generation");
+
+        assert!(yaml.contains("industry: retail"));
+        assert!(yaml.contains("period_months: 12"));
+    }
+
+    #[test]
+    fn test_generate_full_empty_description() {
+        let provider = MockLlmProvider::new(42);
+        let result = NlConfigGenerator::generate_full("", &provider);
+        assert!(result.is_err());
+
+        let result = NlConfigGenerator::generate_full("   ", &provider);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_full_schema_system_prompt_covers_key_sections() {
+        let prompt = NlConfigGenerator::full_schema_system_prompt();
+        assert!(prompt.contains("global:"));
+        assert!(prompt.contains("companies:"));
+        assert!(prompt.contains("chart_of_accounts:"));
+        assert!(prompt.contains("transactions:"));
+        assert!(prompt.contains("fraud:"));
+        assert!(prompt.contains("banking:"));
+        assert!(prompt.contains("distributions:"));
+        assert!(prompt.contains("diffusion:"));
     }
 }

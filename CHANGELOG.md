@@ -5,6 +5,39 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.0] - 2026-04-13
+
+### Added
+
+#### AI Capabilities — Phase 1: Neural Generation + LLM Config
+
+##### Neural Diffusion Backend
+- **`NeuralDiffusionBackend`** (`diffusion/neural.rs`): Implements the existing `DiffusionBackend` trait using a `candle`-based neural score network that learns joint distributions from training data. Supports CPU inference with optional CUDA acceleration.
+- **`ScoreNetwork`** (`diffusion/score_network.rs`): Small MLP score network for tabular data with sinusoidal timestep embeddings, configurable hidden dimensions, and SiLU activations.
+- **`NeuralTrainer`** (`diffusion/neural_training.rs`): Denoising score matching training loop with configurable epochs, batch size, learning rate, and early stopping.
+- **Config schema extensions**: `diffusion.backend` field (`statistical`|`neural`|`hybrid`) and `diffusion.neural` section with `hidden_dims`, `timestep_embed_dim`, `learning_rate`, `training_epochs`, `batch_size`, `hybrid_weight`, `hybrid_strategy`, `neural_columns`.
+
+##### LLM-Powered Configuration
+- **`NlConfigGenerator::generate_full()`** (`llm/nl_config.rs`): Full-schema LLM-driven config generation that sends the complete DataSynth config schema as context and validates the response as a YAML mapping with known top-level keys. Falls back to template-based generation on invalid output.
+- **`NlConfigGenerator::extract_yaml()`**: Utility to strip ``` yaml fences from LLM responses.
+- **`NlConfigGenerator::full_schema_system_prompt()`**: Comprehensive system prompt listing all DataSynth config sections for LLM guidance.
+- **CLI `--from-description`**: New flag on `datasynth-data init` that generates configuration from a natural language description using AI.
+
+##### AI Tuning Loop
+- **`AiTuner`** (`enhancement/ai_tuner.rs`): Wraps `AutoTuner` and `RecommendationEngine` with an LLM interpretation layer that provides intelligent gap analysis and creative config suggestions beyond rule-based tuning. Iterates until convergence or max iterations.
+- **`AiTunerConfig`**: Configuration for max iterations, convergence threshold, minimum confidence, and LLM toggle.
+- **`AiTuneResult`** / **`TuningIteration`**: Structured results from the AI tuning loop with health score tracking and patch history.
+
+##### LLM Anomaly Designer
+- **`AnomalyDesigner`** (`llm_enrichment/anomaly_designer.rs`): Uses LLM to design fraud schemes contextual to a company's industry, control environment, and business processes. Produces `DesignedScheme` structs compatible with the existing `FraudScheme` infrastructure.
+- **`SchemeLibrary`**: Caching layer for designed schemes to avoid redundant LLM calls.
+
+##### Adversarial Testing (feature-gated)
+- **`adversarial` module** (`datasynth-eval`): ONNX Runtime-based model probing for robustness testing, fairness auditing, and decision boundary analysis. Gated behind the `adversarial` cargo feature.
+
+##### Shared Utilities
+- **`json_utils`** (`llm/json_utils.rs`): Shared JSON extraction utilities (`extract_json_object`, `extract_json_array`) for parsing structured data from noisy LLM output. `nl_config::extract_json` now delegates to this shared implementation.
+
 ## [2.3.1] - 2026-04-13
 
 Patch release fixing three bugs in v2.3.0 customer-facing features.

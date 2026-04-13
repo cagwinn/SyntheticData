@@ -37,6 +37,25 @@ tracing = { workspace = true }
 # Parallel processing
 rayon = { workspace = true }
 
+[features]
+adversarial = ["dep:ort", "dep:rand", "dep:rand_chacha", "dep:rand_distr"]
+
+[dependencies.ort]
+version = "2.0.0-rc.12"
+optional = true
+
+[dependencies.rand]
+workspace = true
+optional = true
+
+[dependencies.rand_chacha]
+workspace = true
+optional = true
+
+[dependencies.rand_distr]
+workspace = true
+optional = true
+
 [dev-dependencies]
 datasynth-test-utils = { workspace = true }
 tempfile = { workspace = true }

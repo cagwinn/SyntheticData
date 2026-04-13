@@ -33,8 +33,21 @@ libc = "0.2"
 
 [features]
 llm = ["dep:reqwest"]
+neural = ["dep:candle-core", "dep:candle-nn", "dep:safetensors"]
 
 [dependencies.reqwest]
+workspace = true
+optional = true
+
+[dependencies.candle-core]
+workspace = true
+optional = true
+
+[dependencies.candle-nn]
+workspace = true
+optional = true
+
+[dependencies.safetensors]
 workspace = true
 optional = true
 
