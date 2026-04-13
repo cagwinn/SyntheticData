@@ -4,7 +4,7 @@
 //! test amounts and gradually escalates over time.
 
 use chrono::NaiveDate;
-use rand::Rng;
+use rand::{Rng, RngExt};
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use serde::{Deserialize, Serialize};
@@ -248,11 +248,7 @@ impl FraudScheme for GradualEmbezzlementScheme {
         self.detection_status
     }
 
-    fn advance(
-        &mut self,
-        context: &SchemeContext,
-        rng: &mut dyn rand::RngCore,
-    ) -> Vec<SchemeAction> {
+    fn advance(&mut self, context: &SchemeContext, rng: &mut dyn rand::Rng) -> Vec<SchemeAction> {
         let mut actions = Vec::new();
 
         // Start scheme if not started

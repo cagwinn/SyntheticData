@@ -8,7 +8,7 @@
 //! - Encoding issues (character corruption)
 
 use datasynth_core::utils::weighted_select;
-use rand::Rng;
+use rand::{Rng, RngExt};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 

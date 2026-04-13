@@ -3,7 +3,7 @@
 //! This module generates fraud indicators (red flags) with appropriate
 //! correlation probabilities for both fraudulent and legitimate transactions.
 
-use rand::Rng;
+use rand::{Rng, RngExt};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 

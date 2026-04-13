@@ -16,7 +16,7 @@ impl LaplaceMechanism {
     pub fn new(epsilon: f64) -> Self {
         Self {
             epsilon,
-            rng: ChaCha8Rng::from_os_rng(),
+            rng: rand::make_rng::<ChaCha8Rng>(),
         }
     }
 
@@ -78,7 +78,7 @@ impl GaussianMechanism {
         Self {
             epsilon,
             delta,
-            rng: ChaCha8Rng::from_os_rng(),
+            rng: rand::make_rng::<ChaCha8Rng>(),
         }
     }
 

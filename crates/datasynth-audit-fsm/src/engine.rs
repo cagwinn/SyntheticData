@@ -6,7 +6,7 @@
 use std::collections::HashMap;
 
 use chrono::{Duration, NaiveDateTime};
-use rand::Rng;
+use rand::RngExt;
 use rand_chacha::ChaCha8Rng;
 use rand_distr::{Distribution, LogNormal};
 

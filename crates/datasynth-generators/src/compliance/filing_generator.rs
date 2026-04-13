@@ -4,7 +4,7 @@
 //! with status progression and deadline tracking.
 
 use chrono::{Datelike, Duration, NaiveDate};
-use rand::Rng;
+use rand::RngExt;
 use rand_chacha::ChaCha8Rng;
 
 use datasynth_core::models::compliance::{FilingFrequency, FilingType, RegulatoryFiling};

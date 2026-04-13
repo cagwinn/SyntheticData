@@ -5,7 +5,7 @@
 //! - Conditional missing values (MAR - Missing At Random)
 //! - Systematic missing values (MNAR - Missing Not At Random)
 
-use rand::Rng;
+use rand::{Rng, RngExt};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 

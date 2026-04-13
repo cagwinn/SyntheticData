@@ -4,7 +4,7 @@
 //! such as fraud concealment patterns where a fictitious vendor
 //! is typically accompanied by document manipulation and approval bypass.
 
-use rand::Rng;
+use rand::{Rng, RngExt};
 use serde::{Deserialize, Serialize};
 
 use datasynth_core::models::AnomalyType;

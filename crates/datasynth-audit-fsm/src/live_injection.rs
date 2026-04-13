@@ -55,7 +55,7 @@ pub fn inject_live_anomalies(
             }
 
             // Probabilistic injection.
-            let roll: f64 = rand::Rng::random(&mut rng);
+            let roll: f64 = rand::RngExt::random(&mut rng);
             if roll >= config.injection_probability {
                 continue;
             }
@@ -65,7 +65,7 @@ pub fn inject_live_anomalies(
             event.anomaly_type = Some(config.anomaly_type);
 
             // Build a deterministic anomaly id.
-            let id_bytes: [u8; 16] = rand::Rng::random(&mut rng);
+            let id_bytes: [u8; 16] = rand::RngExt::random(&mut rng);
             let anomaly_id = Uuid::from_bytes(id_bytes);
 
             let description = format!(

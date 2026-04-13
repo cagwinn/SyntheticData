@@ -1,6 +1,7 @@
 //! Audit event types and builder for the FSM event trail.
 
 use chrono::NaiveDateTime;
+use rand::RngExt;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use uuid::Uuid;

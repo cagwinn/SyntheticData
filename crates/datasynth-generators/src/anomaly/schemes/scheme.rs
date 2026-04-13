@@ -1,7 +1,7 @@
 //! Core fraud scheme trait and types.
 
 use chrono::NaiveDate;
-use rand::Rng;
+use rand::{Rng, RngExt};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -346,11 +346,7 @@ pub trait FraudScheme: Send + Sync {
     fn detection_status(&self) -> SchemeDetectionStatus;
 
     /// Advances the scheme and returns actions to execute.
-    fn advance(
-        &mut self,
-        context: &SchemeContext,
-        rng: &mut dyn rand::RngCore,
-    ) -> Vec<SchemeAction>;
+    fn advance(&mut self, context: &SchemeContext, rng: &mut dyn rand::Rng) -> Vec<SchemeAction>;
 
     /// Returns the cumulative detection probability.
     fn detection_probability(&self) -> f64;

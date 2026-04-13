@@ -8,7 +8,7 @@
 
 use chrono::NaiveDate;
 use datasynth_core::CountryPack;
-use rand::Rng;
+use rand::{Rng, RngExt};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 

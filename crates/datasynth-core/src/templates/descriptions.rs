@@ -5,7 +5,7 @@
 
 use crate::models::BusinessProcess;
 use rand::seq::IndexedRandom;
-use rand::Rng;
+use rand::{Rng, RngExt};
 use serde::{Deserialize, Serialize};
 
 /// Pattern for header text generation.

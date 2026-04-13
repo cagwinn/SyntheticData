@@ -4,7 +4,7 @@
 //! employee IDs, system accounts, and service accounts.
 
 use rand::seq::IndexedRandom;
-use rand::Rng;
+use rand::{Rng, RngExt};
 use serde::{Deserialize, Serialize};
 
 /// User ID pattern types.

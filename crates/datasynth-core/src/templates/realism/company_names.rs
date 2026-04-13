@@ -4,7 +4,7 @@
 //! naming patterns and legal suffixes.
 
 use rand::seq::IndexedRandom;
-use rand::Rng;
+use rand::{Rng, RngExt};
 use serde::{Deserialize, Serialize};
 
 /// Industry sector for company naming.

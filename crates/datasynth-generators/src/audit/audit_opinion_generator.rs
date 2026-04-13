@@ -32,7 +32,7 @@ use datasynth_standards::audit::opinion::{
     IcfrOpinion, IcfrOpinionType, KeyAuditMatter, MaterialWeakness as OpinionMaterialWeakness,
     ModificationBasis, OpinionModification, OpinionType, PcaobOpinionElements, RiskLevel,
 };
-use rand::Rng;
+use rand::RngExt;
 use rand_chacha::ChaCha8Rng;
 use tracing::info;
 use uuid::Uuid;

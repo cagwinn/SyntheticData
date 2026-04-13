@@ -34,7 +34,7 @@ use datasynth_core::models::audit::sampling_plan::{
 };
 use datasynth_core::models::journal_entry::{JournalEntry, JournalEntryLine};
 use datasynth_core::utils::seeded_rng;
-use rand::Rng;
+use rand::RngExt;
 use rand_chacha::ChaCha8Rng;
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;

@@ -5,7 +5,7 @@
 //! differences which lead to correcting entries).
 
 use chrono::NaiveDate;
-use rand::Rng;
+use rand::{Rng, RngExt};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 

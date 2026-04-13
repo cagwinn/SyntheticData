@@ -64,7 +64,7 @@ impl RfxGenerator {
             .min(qualified_vendor_ids.len() as u32) as usize;
 
         let invited_vendors: Vec<String> = qualified_vendor_ids
-            .choose_multiple(&mut self.rng, invited_count)
+            .sample(&mut self.rng, invited_count)
             .cloned()
             .collect();
 

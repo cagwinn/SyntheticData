@@ -3,6 +3,7 @@
 //! Provides Rust types for deserializing audit methodology YAML blueprints
 //! and generation overlay YAML files.
 
+use rand::RngExt;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use std::collections::HashMap;

@@ -1,6 +1,6 @@
 //! Shared generator utilities.
 
-use rand::Rng;
+use rand::{Rng, RngExt};
 
 /// Select from weighted options. Weights don't need to sum to 1.0.
 pub fn weighted_select<'a, T, R: Rng>(rng: &mut R, options: &'a [(T, f64)]) -> &'a T {

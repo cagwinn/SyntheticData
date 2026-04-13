@@ -4,7 +4,7 @@
 //! such as vendor tenure, employee experience, and account types.
 
 use chrono::NaiveDate;
-use rand::Rng;
+use rand::{Rng, RngExt};
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use serde::{Deserialize, Serialize};
