@@ -856,6 +856,14 @@ fn main() -> Result<()> {
                 tracing::warn!("Memory limit reached, writing minimal output");
             }
 
+            // Re-set the decimal serialization mode for the writing phase.
+            // The orchestrator's NumericModeGuard resets it when generate() returns,
+            // so we need to re-apply it here before any JSON files are written.
+            // (Fix for issue #102 — numeric_mode was a silent no-op before this.)
+            datasynth_core::serde_decimal::set_numeric_native(
+                generator_config.output.numeric_mode == datasynth_config::NumericMode::Native,
+            );
+
             // Write all generated data (journal entries, master data, document flows,
             // subledgers, HR, manufacturing, sourcing, banking, audit, tax, ESG, etc.)
             if let Err(e) = output_writer::write_all_output_with_layout(
@@ -865,6 +873,9 @@ fn main() -> Result<()> {
             ) {
                 tracing::warn!("Some output files may not have been written: {}", e);
             }
+
+            // Reset the flag so subsequent non-generation serializations use default mode.
+            datasynth_core::serde_decimal::set_numeric_native(false);
 
             // Write FEC (Fichier des Écritures Comptables) when French GAAP – 18 mandatory columns
             if matches!(

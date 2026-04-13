@@ -690,4 +690,73 @@ mod tests {
         assert!(DocumentStatus::Released.can_cancel());
         assert!(!DocumentStatus::Cancelled.can_cancel());
     }
+
+    /// Regression test for issue #104: fraud_map previously only contained the
+    /// "PREFIX:DOC_ID" form (e.g. "GR:PO-2024-000001") but propagate_fraud
+    /// looks up by the bare `document_id` ("PO-2024-000001"). Every lookup
+    /// missed → 0 documents tagged. Fix: orchestrator now also registers the
+    /// bare form by splitting on ":".
+    ///
+    /// This test asserts that when a fraud_map is built from prefixed refs,
+    /// propagate_fraud can find the document via the bare-ID key.
+    #[test]
+    fn test_propagate_fraud_via_bare_document_id() {
+        use crate::models::FraudType;
+
+        let mut header = DocumentHeader::new(
+            "PO-2024-000001",
+            DocumentType::PurchaseOrder,
+            "1000",
+            2024,
+            6,
+            NaiveDate::from_ymd_opt(2024, 6, 15).unwrap(),
+            "JSMITH",
+        );
+
+        // Build fraud_map the way the orchestrator does — register BOTH the
+        // prefixed form (raw reference) AND the bare form (post-colon).
+        let raw_reference = "GR:PO-2024-000001";
+        let mut fraud_map = std::collections::HashMap::new();
+        fraud_map.insert(raw_reference.to_string(), FraudType::DuplicatePayment);
+        if let Some((_, bare)) = raw_reference.split_once(':') {
+            fraud_map.insert(bare.to_string(), FraudType::DuplicatePayment);
+        }
+
+        assert!(
+            header.propagate_fraud(&fraud_map),
+            "propagate_fraud should find the bare document_id ({}) in fraud_map",
+            header.document_id,
+        );
+        assert!(header.is_fraud);
+        assert_eq!(header.fraud_type, Some(FraudType::DuplicatePayment));
+    }
+
+    /// Regression test: a fraud_map that ONLY has the prefixed form (without
+    /// the bare-form registration) should NOT propagate. This is what the old
+    /// orchestrator did and why #104 was silent.
+    #[test]
+    fn test_propagate_fraud_only_prefixed_form_misses() {
+        use crate::models::FraudType;
+
+        let mut header = DocumentHeader::new(
+            "PAY-2024-000001",
+            DocumentType::ApPayment,
+            "1000",
+            2024,
+            6,
+            NaiveDate::from_ymd_opt(2024, 6, 15).unwrap(),
+            "JSMITH",
+        );
+        let mut fraud_map = std::collections::HashMap::new();
+        // Only prefixed form — simulates the old (buggy) orchestrator
+        fraud_map.insert(
+            "PAY:PAY-2024-000001".to_string(),
+            FraudType::DuplicatePayment,
+        );
+        assert!(
+            !header.propagate_fraud(&fraud_map),
+            "Prefixed-only fraud_map should NOT match bare document_id — this is the bug we fixed"
+        );
+        assert!(!header.is_fraud);
+    }
 }

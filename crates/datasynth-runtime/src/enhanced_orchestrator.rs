@@ -2352,14 +2352,32 @@ impl EnhancedOrchestrator {
         // instead of tracing through document_references.json.
         {
             use std::collections::HashMap;
-            // Build a map from document_id -> (is_fraud, fraud_type) from fraudulent JEs
+            // Build a map from document_id -> (is_fraud, fraud_type) from fraudulent JEs.
+            //
+            // Document-flow JE generators write `je.header.reference` as "PREFIX:DOC_ID"
+            // (e.g., "GR:PO-2024-000001", "VI:INV-xyz", "PAY:PAY-abc") — see
+            // `document_flow_je_generator.rs` lines 454/519/591/660/724/794. The
+            // `DocumentHeader::propagate_fraud` lookup uses the bare document_id, so
+            // we register BOTH the prefixed form (raw reference) AND the bare form
+            // (post-colon portion) in the map. Also register the JE's document_id
+            // UUID so documents that set `journal_entry_id` match via that path.
+            //
+            // Fix for issue #104 — fraud was registered only as "GR:foo" but documents
+            // looked up "foo", silently producing 0 propagations.
             let mut fraud_map: HashMap<String, datasynth_core::FraudType> = HashMap::new();
             for je in &entries {
                 if je.header.is_fraud {
                     if let Some(ref fraud_type) = je.header.fraud_type {
-                        // Extract referenced document ID from the JE reference field
                         if let Some(ref reference) = je.header.reference {
+                            // Register the full reference ("GR:PO-2024-000001")
                             fraud_map.insert(reference.clone(), *fraud_type);
+                            // Also register the bare document ID ("PO-2024-000001")
+                            // by stripping the "PREFIX:" if present.
+                            if let Some(bare) = reference.split_once(':').map(|(_, rest)| rest) {
+                                if !bare.is_empty() {
+                                    fraud_map.insert(bare.to_string(), *fraud_type);
+                                }
+                            }
                         }
                         // Also tag via journal_entry_id on document headers
                         fraud_map.insert(je.header.document_id.to_string(), *fraud_type);

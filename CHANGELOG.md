@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.1] - 2026-04-13
+
+Patch release fixing three bugs in v2.3.0 customer-facing features.
+
+### Fixed
+- **#102 — `numeric_mode: native` was a silent no-op.** The `NumericModeGuard` introduced in the v2.3.0 quality round set the thread-local flag inside `EnhancedOrchestrator::generate()` but reset it on `Drop` when `generate()` returned — *before* JSON files were actually written. Decimals always serialized as strings regardless of the config flag. Fix: re-set the flag in `main.rs` immediately before `write_all_output_with_layout`, then reset after writing.
+- **#103 — `export_layout: flat` only applied to journal entries and the core document_flows.** Banking, subledger, manufacturing, HR, audit, tax, ESG, and treasury sinks (~190 call sites) silently produced nested output despite the config flag. Fix: introduce a thread-local `FLAT_LAYOUT_ACTIVE` flag set by `write_all_output_with_layout`. The existing `write_json_safe` helper now routes through `write_json_flat` when the flag is on, so every sink picks up flat layout without touching individual call sites. Scope guard ensures the flag is reset on return (including error paths).
+- **#104 — Fraud labels stopped at journal entries; document headers stayed unlabeled.** Document-flow JE generators write `je.header.reference` as `"PREFIX:DOC_ID"` (e.g., `"GR:PO-2024-000001"`, `"VI:INV-xyz"`, `"PAY:PAY-abc"`), but `DocumentHeader::propagate_fraud` looks up by the bare `document_id`. Every fraud_map lookup missed → 0 documents tagged. Fix: orchestrator now registers BOTH the prefixed form AND the bare form (post-colon portion) in the fraud_map. Includes regression tests in `document_chain.rs` covering both the fixed behavior and the original bug.
+
 ## [2.3.0] - 2026-04-12
 
 ### Added

@@ -4,12 +4,25 @@
 //! in the output directory. Uses CSV for flat tabular data (journal entry
 //! lines) and JSON for types with nested structures (Vecs, sub-structs).
 
+use std::cell::Cell;
 use std::io::Write;
 use std::path::Path;
 
 use datasynth_core::documents::PaymentType;
 use datasynth_runtime::enhanced_orchestrator::EnhancedGenerationResult;
 use tracing::{info, warn};
+
+thread_local! {
+    /// Thread-local flat-layout flag. When true, every `write_json_safe` call
+    /// routes through `write_json_flat` so nested `{header, lines}` shapes get
+    /// flattened. Set by `write_all_output_with_layout` at the top of its body,
+    /// reset on exit.
+    ///
+    /// Fixes issue #103: `export_layout: flat` previously only applied to JEs
+    /// and the core document_flows. Now it applies to every sink without
+    /// touching 194 call sites.
+    static FLAT_LAYOUT_ACTIVE: Cell<bool> = const { Cell::new(false) };
+}
 
 /// Write a JSON file for any serializable slice. Skips empty slices.
 ///
@@ -217,6 +230,21 @@ pub fn write_all_output_with_layout(
 ) -> Result<(), Box<dyn std::error::Error>> {
     std::fs::create_dir_all(output_dir)?;
     info!("Writing comprehensive output to: {}", output_dir.display());
+
+    // Set flat-layout flag for all `write_json_safe` calls in this pass.
+    // Scope guard ensures we reset on return (including error paths).
+    struct FlatLayoutGuard;
+    impl Drop for FlatLayoutGuard {
+        fn drop(&mut self) {
+            FLAT_LAYOUT_ACTIVE.with(|c| c.set(false));
+        }
+    }
+    let _flat_guard = if export_layout == datasynth_config::ExportLayout::Flat {
+        FLAT_LAYOUT_ACTIVE.with(|c| c.set(true));
+        Some(FlatLayoutGuard)
+    } else {
+        None
+    };
 
     // ========================================================================
     // Journal Entries (flat CSV + JSON)
@@ -2086,8 +2114,16 @@ pub fn write_all_output_with_layout(
 }
 
 /// Write JSON with error handling - logs a warning on failure but does not abort.
+///
+/// When the `FLAT_LAYOUT_ACTIVE` thread-local is true (set by
+/// `write_all_output_with_layout` when `export_layout: flat`), this routes
+/// through `write_json_flat` so nested `{header, lines|items|allocations}`
+/// shapes are automatically flattened. For structures without that shape,
+/// `write_json_flat` passes through unchanged.
 fn write_json_safe<T: serde::Serialize>(data: &[T], path: &Path, label: &str) {
-    if let Err(e) = write_json(data, path, label) {
+    if FLAT_LAYOUT_ACTIVE.with(|c| c.get()) {
+        write_json_flat(data, path, label);
+    } else if let Err(e) = write_json(data, path, label) {
         warn!("Failed to write {}: {}", label, e);
     }
 }
