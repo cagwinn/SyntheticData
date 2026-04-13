@@ -213,7 +213,7 @@ procedures:
         description: >
           Evaluate whether to accept or continue the client relationship
           and the specific audit engagement, considering ethical requirements
-          and the firm's quality management policies.
+          and the auditor's quality management policies.
         binding: requirement
         command: evaluate_client_acceptance
         emits: ClientAcceptanceEvaluated

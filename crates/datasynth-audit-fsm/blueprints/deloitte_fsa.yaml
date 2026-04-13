@@ -257,7 +257,7 @@ procedures:
         actor: lead_audit_partner
         description: >
           Evaluate whether to accept or continue the client relationship,
-          considering independence, ethical requirements, and the firm's
+          considering independence, ethical requirements, and the auditor's
           risk management framework.
         binding: requirement
         command: evaluate_client_acceptance

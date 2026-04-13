@@ -4,8 +4,8 @@ methodology:
   name: EY GAM Lite Financial Statement Audit
   version: '2025.1'
   framework: ISA
-  description: ISA-complete financial statement audit methodology based on EY Global
-    Audit Methodology (GAM). Lite version with 37 ISA procedures + 8 EY-specific procedures.
+  description: ISA-complete financial statement audit methodology based on the Global
+    Audit Methodology (GAM). Lite version with 37 ISA procedures + 8 methodology-specific procedures.
     For the full GAM (1,182 procedures), load gam_blueprint_enriched.yaml.
 discriminators:
   tiers:
@@ -39,7 +39,7 @@ actors:
   - Independent quality review
   - Concurring on significant judgments
 - id: ey_specialist
-  name: EY Internal Specialist
+  name: Internal Specialist
   responsibilities:
   - Providing specialized expertise
   - Valuation, tax, IT, forensic support
@@ -445,26 +445,26 @@ evidence_catalog:
   - under_review
   - finalized
 - id: canvas_risk_assessment
-  name: EY Canvas Risk Assessment Form
+  name: Risk Assessment Form
   type: workpaper
   lifecycle:
   - draft
   - under_review
   - finalized
 - id: helix_analytics_output
-  name: EY Helix Analytics Dashboard
+  name: the auditor Helix Analytics Dashboard
   type: workpaper
   lifecycle:
   - draft
   - finalized
 - id: atlas_methodology_memo
-  name: Atlas Methodology Reference Memo
+  name: the methodology library Methodology Reference Memo
   type: memo
   lifecycle:
   - draft
   - finalized
 - id: specialist_work_product
-  name: EY Specialist Work Product
+  name: the auditor Specialist Work Product
   type: assessment
   lifecycle:
   - draft
@@ -606,7 +606,7 @@ phases:
     - procedure: ey_global_methodology_compliance
       state: completed
 - id: quality_review
-  name: EY Quality Review
+  name: the auditor Quality Review
   order: 7
 procedures:
 - id: proc_isa_200
@@ -18757,7 +18757,7 @@ procedures:
   - eqcr_multi_point_review
 - id: ey_canvas_risk_assessment
   phase: planning
-  title: EY Canvas Risk Assessment
+  title: the auditor the audit platform Risk Assessment
   discriminators:
     tiers:
     - core
@@ -18796,7 +18796,7 @@ procedures:
     order: 1
     action: document
     actor: engagement_manager
-    description: Document entity understanding in EY Canvas guided workflow
+    description: Document entity understanding in the auditor the audit platform guided workflow
     binding: requirement
     command: document_ey_canvas_risk_assessment_step_1
     emits: EyCanvasRiskAssessmentStep1Completed
@@ -18809,7 +18809,7 @@ procedures:
     order: 2
     action: assess
     actor: engagement_partner
-    description: Perform Canvas-guided inherent risk assessment per assertion
+    description: Perform the audit platform-guided inherent risk assessment per assertion
     binding: requirement
     command: assess_ey_canvas_risk_assessment_step_2
     emits: EyCanvasRiskAssessmentStep2Completed
@@ -18823,7 +18823,7 @@ procedures:
     order: 3
     action: evaluate
     actor: engagement_partner
-    description: Evaluate significant risk factors using Canvas risk matrix
+    description: Evaluate significant risk factors using the audit platform risk matrix
     binding: requirement
     command: evaluate_ey_canvas_risk_assessment_step_3
     emits: EyCanvasRiskAssessmentStep3Completed
@@ -18837,7 +18837,7 @@ procedures:
     order: 4
     action: determine
     actor: engagement_partner
-    description: Determine audit strategy based on Canvas risk outputs
+    description: Determine audit strategy based on the audit platform risk outputs
     binding: requirement
     command: determine_ey_canvas_risk_assessment_step_4
     emits: EyCanvasRiskAssessmentStep4Completed
@@ -18852,7 +18852,7 @@ procedures:
   knowledge_refs: []
 - id: ey_atlas_methodology_consultation
   phase: planning
-  title: EY Atlas Methodology Consultation
+  title: the auditor the methodology library Methodology Consultation
   discriminators:
     tiers:
     - core
@@ -18891,7 +18891,7 @@ procedures:
     order: 1
     action: review
     actor: engagement_manager
-    description: Review applicable EY Atlas methodology guidance for engagement
+    description: Review applicable the auditor the methodology library methodology guidance for engagement
     binding: requirement
     command: review_ey_atlas_methodology_consultation_step_1
     emits: EyAtlasMethodologyConsultationStep1Completed
@@ -18905,7 +18905,7 @@ procedures:
     order: 2
     action: identify
     actor: engagement_manager
-    description: Identify industry-specific Atlas guidance and templates
+    description: Identify industry-specific the methodology library guidance and templates
     binding: requirement
     command: identify_ey_atlas_methodology_consultation_step_2
     emits: EyAtlasMethodologyConsultationStep2Completed
@@ -18918,7 +18918,7 @@ procedures:
     order: 3
     action: document
     actor: engagement_manager
-    description: Document methodology decisions and Atlas references
+    description: Document methodology decisions and the methodology library references
     binding: requirement
     command: document_ey_atlas_methodology_consultation_step_3
     emits: EyAtlasMethodologyConsultationStep3Completed
@@ -18932,7 +18932,7 @@ procedures:
   knowledge_refs: []
 - id: ey_helix_data_analytics
   phase: evidence_gathering
-  title: EY Helix Data Analytics
+  title: the auditor Helix Data Analytics
   discriminators:
     tiers:
     - core
@@ -18971,7 +18971,7 @@ procedures:
     order: 1
     action: perform
     actor: engagement_manager
-    description: Execute EY Helix automated analytics on full GL population
+    description: Execute the auditor Helix automated analytics on full GL population
     binding: requirement
     command: perform_ey_helix_data_analytics_step_1
     emits: EyHelixDataAnalyticsStep1Completed
@@ -19027,7 +19027,7 @@ procedures:
   knowledge_refs: []
 - id: ey_specialist_coordination
   phase: risk_response
-  title: EY Internal Specialist Coordination
+  title: Internal Specialist Coordination
   discriminators:
     tiers:
     - core
@@ -19066,7 +19066,7 @@ procedures:
     order: 1
     action: identify
     actor: engagement_partner
-    description: Identify need for EY internal specialists (valuation, tax, IT, forensic)
+    description: Identify need for the auditor internal specialists (valuation, tax, IT, forensic)
     binding: requirement
     command: identify_ey_specialist_coordination_step_1
     emits: EySpecialistCoordinationStep1Completed
@@ -19079,7 +19079,7 @@ procedures:
     order: 2
     action: agree
     actor: engagement_partner
-    description: Agree scope and deliverables with EY internal specialist
+    description: Agree scope and deliverables with the auditor internal specialist
     binding: requirement
     command: agree_ey_specialist_coordination_step_2
     emits: EySpecialistCoordinationStep2Completed
@@ -19092,7 +19092,7 @@ procedures:
     order: 3
     action: evaluate
     actor: engagement_partner
-    description: Evaluate competence, capabilities and objectivity of EY specialist
+    description: Evaluate competence, capabilities and objectivity of the auditor specialist
     binding: requirement
     command: evaluate_ey_specialist_coordination_step_3
     emits: EySpecialistCoordinationStep3Completed
@@ -19119,7 +19119,7 @@ procedures:
   knowledge_refs: []
 - id: ey_engagement_quality_review
   phase: reporting
-  title: EY Engagement Quality Review
+  title: the auditor Engagement Quality Review
   discriminators:
     tiers:
     - core
@@ -19224,7 +19224,7 @@ procedures:
   knowledge_refs: []
 - id: ey_canvas_materiality_workflow
   phase: planning
-  title: EY Canvas Materiality Determination
+  title: the auditor the audit platform Materiality Determination
   discriminators:
     tiers:
     - core
@@ -19263,7 +19263,7 @@ procedures:
     order: 1
     action: determine
     actor: engagement_partner
-    description: Select materiality benchmark using Canvas guided workflow
+    description: Select materiality benchmark using the audit platform guided workflow
     binding: requirement
     command: determine_ey_canvas_materiality_workflow_step_1
     emits: EyCanvasMaterialityWorkflowStep1Completed
@@ -19277,7 +19277,7 @@ procedures:
     order: 2
     action: calculate
     actor: engagement_manager
-    description: Calculate overall materiality, PM, and SAD using Canvas
+    description: Calculate overall materiality, PM, and SAD using the audit platform
     binding: requirement
     command: calculate_ey_canvas_materiality_workflow_step_2
     emits: EyCanvasMaterialityWorkflowStep2Completed
@@ -19290,7 +19290,7 @@ procedures:
     order: 3
     action: document
     actor: engagement_manager
-    description: Document materiality rationale in Canvas form
+    description: Document materiality rationale in the audit platform form
     binding: requirement
     command: document_ey_canvas_materiality_workflow_step_3
     emits: EyCanvasMaterialityWorkflowStep3Completed
@@ -19304,7 +19304,7 @@ procedures:
   knowledge_refs: []
 - id: ey_global_methodology_compliance
   phase: reporting
-  title: EY Global Methodology Compliance Review
+  title: the auditor Global Methodology Compliance Review
   discriminators:
     tiers:
     - core
@@ -19343,7 +19343,7 @@ procedures:
     order: 1
     action: verify
     actor: engagement_manager
-    description: Verify compliance with EY Global Audit Methodology (GAM) requirements
+    description: Verify compliance with the auditor Global Audit Methodology (GAM) requirements
     binding: requirement
     command: verify_ey_global_methodology_compliance_step_1
     emits: EyGlobalMethodologyComplianceStep1Completed
@@ -19383,7 +19383,7 @@ procedures:
   knowledge_refs: []
 - id: ey_digital_audit_procedures
   phase: evidence_gathering
-  title: EY Digital Audit Procedures
+  title: the auditor Digital Audit Procedures
   discriminators:
     tiers:
     - core
@@ -19422,7 +19422,7 @@ procedures:
     order: 1
     action: perform
     actor: engagement_manager
-    description: Execute automated journal entry testing via EY digital tools
+    description: Execute automated journal entry testing via the auditor digital tools
     binding: requirement
     command: perform_ey_digital_audit_procedures_step_1
     emits: EyDigitalAuditProceduresStep1Completed
