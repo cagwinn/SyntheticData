@@ -7,7 +7,7 @@
 //! - Cross-system duplicates (different identifiers, same entity)
 
 use chrono::{Duration, NaiveDate};
-use rand::Rng;
+use rand::{Rng, RngExt};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 

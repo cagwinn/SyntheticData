@@ -979,7 +979,7 @@ impl O2CGenerator {
             let selected_materials: Vec<&Material> = materials
                 .materials
                 .iter()
-                .choose_multiple(&mut self.rng, num_items)
+                .sample(&mut self.rng, num_items)
                 .into_iter()
                 .collect();
 

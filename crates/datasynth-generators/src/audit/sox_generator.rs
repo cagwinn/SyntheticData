@@ -23,7 +23,7 @@ use datasynth_standards::regulatory::sox::{
     MaterialWeakness, RemediationAction, RemediationStatus, ScopeConclusion, ScopedEntity,
     SignificantDeficiency, Sox302Certification, Sox404Assessment,
 };
-use rand::Rng;
+use rand::RngExt;
 use rand_chacha::ChaCha8Rng;
 use rust_decimal::Decimal;
 use uuid::Uuid;

@@ -4,7 +4,7 @@
 //! trust dynamics, and realistic behavioral patterns.
 
 use chrono::NaiveDate;
-use rand::Rng;
+use rand::{Rng, RngExt};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

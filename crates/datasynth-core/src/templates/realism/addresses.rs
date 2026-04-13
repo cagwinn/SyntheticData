@@ -4,7 +4,7 @@
 //! formatting and regional conventions.
 
 use rand::seq::IndexedRandom;
-use rand::Rng;
+use rand::{Rng, RngExt};
 use serde::{Deserialize, Serialize};
 
 /// Geographic region for address generation.

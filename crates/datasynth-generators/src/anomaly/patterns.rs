@@ -5,7 +5,7 @@
 
 use chrono::{Datelike, NaiveDate, Weekday};
 use datasynth_core::utils::weighted_select;
-use rand::Rng;
+use rand::{Rng, RngExt};
 use std::collections::HashMap;
 
 /// Temporal pattern for anomaly injection.

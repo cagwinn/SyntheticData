@@ -51,9 +51,8 @@ impl SpendAnalysisGenerator {
         for (cat_id, cat_name) in categories {
             // Assign random vendors to this category
             let vendor_count = self.rng.random_range(3..=vendor_ids.len().min(15));
-            let mut cat_vendors: Vec<&String> = vendor_ids
-                .choose_multiple(&mut self.rng, vendor_count)
-                .collect();
+            let mut cat_vendors: Vec<&String> =
+                vendor_ids.sample(&mut self.rng, vendor_count).collect();
             cat_vendors.shuffle(&mut self.rng);
 
             // Generate spend shares using Pareto-like distribution

@@ -3,7 +3,7 @@
 //! Provides ERP-style reference number generation with multiple format
 //! options and realistic patterns.
 
-use rand::Rng;
+use rand::{Rng, RngExt};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};

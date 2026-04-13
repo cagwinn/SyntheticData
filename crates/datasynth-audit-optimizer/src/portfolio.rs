@@ -364,7 +364,7 @@ pub fn simulate_portfolio(config: &PortfolioConfig) -> Result<PortfolioReport, A
     let mut rng = ChaCha8Rng::seed_from_u64(12345);
     for (industry, findings) in &findings_by_industry {
         if findings.len() >= 2 {
-            let roll: f64 = rand::Rng::random(&mut rng);
+            let roll: f64 = rand::RngExt::random(&mut rng);
             if roll < config.correlation.systemic_finding_probability {
                 systemic.push(SystemicFinding {
                     finding_type: "systemic_control_deficiency".to_string(),

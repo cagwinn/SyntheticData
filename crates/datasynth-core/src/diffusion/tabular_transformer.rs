@@ -488,7 +488,7 @@ fn train_epoch(
     device: &Device,
 ) -> Result<f64, SynthError> {
     use candle_nn::Optimizer;
-    use rand::Rng;
+    use rand::RngExt;
 
     let n_samples = data
         .dim(0)

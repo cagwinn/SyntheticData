@@ -3,7 +3,7 @@
 //! Strategies determine how anomalies are applied to existing data.
 
 use chrono::Datelike;
-use rand::Rng;
+use rand::{Rng, RngExt};
 use rust_decimal::Decimal;
 
 use datasynth_core::models::{

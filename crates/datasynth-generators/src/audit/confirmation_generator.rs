@@ -8,7 +8,7 @@ use std::collections::HashMap;
 
 use chrono::Duration;
 use datasynth_core::utils::seeded_rng;
-use rand::Rng;
+use rand::RngExt;
 use rand_chacha::ChaCha8Rng;
 use rust_decimal::prelude::FromPrimitive;
 use rust_decimal::Decimal;

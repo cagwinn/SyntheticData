@@ -4,7 +4,7 @@
 //! then simulates their lifecycle across a configurable number of months.
 
 use chrono::NaiveDate;
-use rand::Rng;
+use rand::RngExt;
 use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
 

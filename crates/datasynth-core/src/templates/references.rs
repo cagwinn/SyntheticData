@@ -4,7 +4,7 @@
 //! purchase orders, sales orders, etc.
 
 use crate::models::BusinessProcess;
-use rand::Rng;
+use rand::{Rng, RngExt};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -297,20 +297,18 @@ impl ReferenceGenerator {
         // External references often have different formats
         let formats = [
             // Vendor invoice formats
-            |rng: &mut dyn rand::RngCore| {
-                format!("INV{:08}", rng.random_range(10000000u64..99999999))
-            },
-            |rng: &mut dyn rand::RngCore| {
+            |rng: &mut dyn rand::Rng| format!("INV{:08}", rng.random_range(10000000u64..99999999)),
+            |rng: &mut dyn rand::Rng| {
                 format!("{:010}", rng.random_range(1000000000u64..9999999999))
             },
-            |rng: &mut dyn rand::RngCore| {
+            |rng: &mut dyn rand::Rng| {
                 format!(
                     "V{}-{:06}",
                     rng.random_range(100..999),
                     rng.random_range(1..999999)
                 )
             },
-            |rng: &mut dyn rand::RngCore| {
+            |rng: &mut dyn rand::Rng| {
                 format!(
                     "{}{:07}",
                     (b'A' + rng.random_range(0..26)) as char,

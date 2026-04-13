@@ -4,7 +4,7 @@
 //! specific periods (month-end, quarter-end, year-end, post-holiday).
 
 use chrono::{Datelike, NaiveDate, Weekday};
-use rand::Rng;
+use rand::{Rng, RngExt};
 use serde::{Deserialize, Serialize};
 
 use datasynth_core::models::AnomalyType;

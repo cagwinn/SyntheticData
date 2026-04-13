@@ -4,7 +4,7 @@
 //! appropriate naming patterns and industry-specific terminology.
 
 use rand::seq::IndexedRandom;
-use rand::Rng;
+use rand::{Rng, RngExt};
 use serde::{Deserialize, Serialize};
 
 use super::company_names::LegalSuffix;

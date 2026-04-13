@@ -5,7 +5,7 @@
 
 use crate::models::UserPersona;
 use chrono::{DateTime, Datelike, Duration, NaiveTime, Timelike, Utc, Weekday};
-use rand::Rng;
+use rand::{Rng, RngExt};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 

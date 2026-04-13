@@ -1042,7 +1042,7 @@ impl CustomerGenerator {
 
             // Select random customers for household
             let selected: Vec<usize> = retail_indices
-                .choose_multiple(&mut self.rng, size)
+                .sample(&mut self.rng, size)
                 .copied()
                 .collect();
 

@@ -6,7 +6,7 @@
 //! for reproducible, collision-free UUID generation.
 
 use chrono::{DateTime, Duration, Utc};
-use rand::{Rng, SeedableRng};
+use rand::{RngExt, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 use uuid::Uuid;
 

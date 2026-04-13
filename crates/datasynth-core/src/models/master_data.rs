@@ -5,7 +5,7 @@
 //! behavioral patterns, and intercompany support for enterprise simulation.
 
 use rand::seq::IndexedRandom;
-use rand::Rng;
+use rand::{Rng, RngExt};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

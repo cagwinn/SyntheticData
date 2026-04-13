@@ -5,7 +5,7 @@
 //! reserve release, and channel stuffing.
 
 use chrono::{Datelike, NaiveDate};
-use rand::Rng;
+use rand::RngExt;
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use serde::{Deserialize, Serialize};
@@ -229,11 +229,7 @@ impl FraudScheme for RevenueManipulationScheme {
         self.detection_status
     }
 
-    fn advance(
-        &mut self,
-        context: &SchemeContext,
-        rng: &mut dyn rand::RngCore,
-    ) -> Vec<SchemeAction> {
+    fn advance(&mut self, context: &SchemeContext, rng: &mut dyn rand::Rng) -> Vec<SchemeAction> {
         let mut actions = Vec::new();
 
         // Start if not started

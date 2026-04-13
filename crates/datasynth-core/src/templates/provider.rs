@@ -4,7 +4,7 @@
 //! along with implementations that combine embedded and file-based templates.
 
 use rand::seq::IndexedRandom;
-use rand::RngCore;
+use rand::Rng;
 use std::sync::Arc;
 
 use super::loader::{MergeStrategy, TemplateData, TemplateLoader};
@@ -17,41 +17,41 @@ use crate::models::BusinessProcess;
 /// to work with either embedded templates, file-based templates, or a
 /// combination of both.
 ///
-/// Methods use `&mut dyn RngCore` to allow the trait to be dyn-compatible.
+/// Methods use `&mut dyn Rng` to allow the trait to be dyn-compatible.
 pub trait TemplateProvider: Send + Sync {
     /// Get a random person first name for the given culture and gender.
     fn get_person_first_name(
         &self,
         culture: NameCulture,
         is_male: bool,
-        rng: &mut dyn RngCore,
+        rng: &mut dyn Rng,
     ) -> String;
 
     /// Get a random person last name for the given culture.
-    fn get_person_last_name(&self, culture: NameCulture, rng: &mut dyn RngCore) -> String;
+    fn get_person_last_name(&self, culture: NameCulture, rng: &mut dyn Rng) -> String;
 
     /// Get a random vendor name for the given category.
-    fn get_vendor_name(&self, category: &str, rng: &mut dyn RngCore) -> String;
+    fn get_vendor_name(&self, category: &str, rng: &mut dyn Rng) -> String;
 
     /// Get a random customer name for the given industry.
-    fn get_customer_name(&self, industry: &str, rng: &mut dyn RngCore) -> String;
+    fn get_customer_name(&self, industry: &str, rng: &mut dyn Rng) -> String;
 
     /// Get a random material description for the given type.
-    fn get_material_description(&self, material_type: &str, rng: &mut dyn RngCore) -> String;
+    fn get_material_description(&self, material_type: &str, rng: &mut dyn Rng) -> String;
 
     /// Get a random asset description for the given category.
-    fn get_asset_description(&self, category: &str, rng: &mut dyn RngCore) -> String;
+    fn get_asset_description(&self, category: &str, rng: &mut dyn Rng) -> String;
 
     /// Get a random line text for the given process and account type.
     fn get_line_text(
         &self,
         process: BusinessProcess,
         account_type: &str,
-        rng: &mut dyn RngCore,
+        rng: &mut dyn Rng,
     ) -> String;
 
     /// Get a random header text template for the given process.
-    fn get_header_template(&self, process: BusinessProcess, rng: &mut dyn RngCore) -> String;
+    fn get_header_template(&self, process: BusinessProcess, rng: &mut dyn Rng) -> String;
 }
 
 /// Default template provider using embedded templates with optional file overrides.
@@ -275,7 +275,7 @@ impl TemplateProvider for DefaultTemplateProvider {
         &self,
         culture: NameCulture,
         is_male: bool,
-        rng: &mut dyn RngCore,
+        rng: &mut dyn Rng,
     ) -> String {
         let key = Self::culture_to_key(culture);
 
@@ -316,7 +316,7 @@ impl TemplateProvider for DefaultTemplateProvider {
         embedded.choose(rng).unwrap_or(&"Unknown").to_string()
     }
 
-    fn get_person_last_name(&self, culture: NameCulture, rng: &mut dyn RngCore) -> String {
+    fn get_person_last_name(&self, culture: NameCulture, rng: &mut dyn Rng) -> String {
         let key = Self::culture_to_key(culture);
 
         // Try file templates first
@@ -339,7 +339,7 @@ impl TemplateProvider for DefaultTemplateProvider {
         embedded.choose(rng).unwrap_or(&"Unknown").to_string()
     }
 
-    fn get_vendor_name(&self, category: &str, rng: &mut dyn RngCore) -> String {
+    fn get_vendor_name(&self, category: &str, rng: &mut dyn Rng) -> String {
         // Try file templates first
         if let Some(ref data) = self.template_data {
             if let Some(names) = data.vendor_names.categories.get(category) {
@@ -370,7 +370,7 @@ impl TemplateProvider for DefaultTemplateProvider {
             .to_string()
     }
 
-    fn get_customer_name(&self, industry: &str, rng: &mut dyn RngCore) -> String {
+    fn get_customer_name(&self, industry: &str, rng: &mut dyn Rng) -> String {
         // Try file templates first
         if let Some(ref data) = self.template_data {
             if let Some(names) = data.customer_names.industries.get(industry) {
@@ -401,7 +401,7 @@ impl TemplateProvider for DefaultTemplateProvider {
             .to_string()
     }
 
-    fn get_material_description(&self, material_type: &str, rng: &mut dyn RngCore) -> String {
+    fn get_material_description(&self, material_type: &str, rng: &mut dyn Rng) -> String {
         // Try file templates first
         if let Some(ref data) = self.template_data {
             if let Some(descs) = data.material_descriptions.by_type.get(material_type) {
@@ -417,7 +417,7 @@ impl TemplateProvider for DefaultTemplateProvider {
         format!("{material_type} material")
     }
 
-    fn get_asset_description(&self, category: &str, rng: &mut dyn RngCore) -> String {
+    fn get_asset_description(&self, category: &str, rng: &mut dyn Rng) -> String {
         // Try file templates first
         if let Some(ref data) = self.template_data {
             if let Some(descs) = data.asset_descriptions.by_category.get(category) {
@@ -437,7 +437,7 @@ impl TemplateProvider for DefaultTemplateProvider {
         &self,
         process: BusinessProcess,
         account_type: &str,
-        rng: &mut dyn RngCore,
+        rng: &mut dyn Rng,
     ) -> String {
         let key = Self::process_to_key(process);
 
@@ -464,7 +464,7 @@ impl TemplateProvider for DefaultTemplateProvider {
         format!("{} posting", key.to_uppercase())
     }
 
-    fn get_header_template(&self, process: BusinessProcess, rng: &mut dyn RngCore) -> String {
+    fn get_header_template(&self, process: BusinessProcess, rng: &mut dyn Rng) -> String {
         let key = Self::process_to_key(process);
 
         // Try file templates first

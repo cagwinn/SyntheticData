@@ -5,7 +5,7 @@
 
 use chrono::Duration;
 use datasynth_core::utils::seeded_rng;
-use rand::Rng;
+use rand::RngExt;
 use rand_chacha::ChaCha8Rng;
 
 use datasynth_core::models::audit::{

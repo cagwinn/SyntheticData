@@ -26,6 +26,7 @@ use datasynth_core::models::audit::scots::{
 };
 use datasynth_core::models::JournalEntry;
 use datasynth_core::utils::seeded_rng;
+use rand::RngExt;
 use rand_chacha::ChaCha8Rng;
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
@@ -357,8 +358,6 @@ impl ScotsGenerator {
         spec: &ScotSpec,
         entries: &[JournalEntry],
     ) -> (usize, Decimal) {
-        use rand::Rng;
-
         // Count JEs and sum their debit amounts for matching accounts
         let matching_entries: Vec<&JournalEntry> = entries
             .iter()

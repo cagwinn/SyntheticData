@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use rand::Rng;
+use rand::RngExt;
 use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
 use rand_distr::{Beta, Distribution, LogNormal, Normal};

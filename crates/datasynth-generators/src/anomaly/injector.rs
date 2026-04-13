@@ -13,7 +13,7 @@
 
 use chrono::NaiveDate;
 use datasynth_core::utils::seeded_rng;
-use rand::Rng;
+use rand::RngExt;
 use rand_chacha::ChaCha8Rng;
 use rust_decimal::Decimal;
 use std::collections::HashMap;
