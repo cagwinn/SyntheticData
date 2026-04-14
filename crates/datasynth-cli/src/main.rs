@@ -874,6 +874,7 @@ fn main() -> Result<()> {
                 &result,
                 &output,
                 generator_config.output.export_layout,
+                &generator_config.output.formats,
             ) {
                 tracing::warn!("Some output files may not have been written: {}", e);
             }

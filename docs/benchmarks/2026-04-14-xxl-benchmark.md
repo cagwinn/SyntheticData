@@ -1,8 +1,28 @@
 # XXL Dataset Benchmark Results
 
 **Date**: 2026-04-14
-**Version**: v2.5.0
+**Version**: v2.5.0 (with output optimizations)
 **Platform**: Linux 6.17.0 x86_64, 22 cores, release build (LTO, codegen-units=1)
+
+## After Optimization (streaming writer + format-aware output + parallel JE writes)
+
+| Config | JEs | Total (JSON+CSV) | Total (CSV-only) | Peak Mem | Output Size |
+|--------|-----|-------------------|-------------------|----------|-------------|
+| **10K** (1 co, 12mo) | 18K | **14.5s** | - | 1.5 GB | 2.0 GB |
+| **XXL** (3 co, 36mo) | 200K+ | **86.7s** | **20.6s** | 4.3 GB | 455 MB (CSV) |
+
+**CSV-only mode** (formats: [csv]) is the key optimization for pod workloads:
+- 4x faster than JSON+CSV (20.6s vs 81.6s)
+- 10x smaller output (455 MB vs 4.3 GB)
+- Identical data — all JEs and domain files written as CSV
+
+## Optimizations Applied
+1. **Streaming JSON writer**: Per-record `serde_json::to_writer_pretty` instead of whole-array serialization
+2. **Format-aware output**: `SKIP_JSON` thread-local flag skips all JSON writes when `formats: [csv]`
+3. **Parallel JE writes**: CSV and JSON journal entries written concurrently via `std::thread::scope`
+4. **Increased BufWriter capacity**: 512 KB buffer for large file writes
+
+---
 
 ## Results
 

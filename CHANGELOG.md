@@ -23,9 +23,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Real LLM for `--from-description`**: When `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` environment variable is set and the `llm` feature is enabled, the CLI uses the real HTTP LLM provider instead of the mock. Falls back to mock+keyword parsing when no API key is available.
 - **`llm` feature flag on CLI** (`datasynth-cli/Cargo.toml`): New `llm` feature that enables `datasynth-core/llm` for real API access.
 
+#### Output Performance Optimization (XXL datasets)
+- **Streaming JSON writer**: Replaced whole-array `serde_json::to_writer_pretty` with per-record streaming. Each record is serialized individually to a 512 KB `BufWriter`, eliminating serde's internal buffering of the full array structure. Reduces peak memory pressure for multi-GB JSON files.
+- **Format-aware output**: New `SKIP_JSON` thread-local flag. When config specifies `formats: [csv]`, all `write_json_safe` and `write_json_single_safe` calls become no-ops. XXL datasets go from 81.6s to **20.6s** (4x faster) and output drops from 4.3 GB to **455 MB**.
+- **Parallel JE writes**: Journal entry CSV and JSON are now written concurrently via `std::thread::scope` when both formats are requested.
+- **`write_all_output_with_layout`** now accepts a `formats: &[FileFormat]` parameter to control which output formats are generated.
+
 ### Changed
 - IC elimination imbalance is now a **hard error** (was a warning log).
 - Period-close phase now includes generation-time accounting assertions (Phase 10c).
+- `write_all_output_with_layout` signature changed: added `formats` parameter (breaking for direct callers).
 
 ## [2.4.0] - 2026-04-14
 

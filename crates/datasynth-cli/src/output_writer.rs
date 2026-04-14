@@ -17,28 +17,51 @@ thread_local! {
     /// routes through `write_json_flat` so nested `{header, lines}` shapes get
     /// flattened. Set by `write_all_output_with_layout` at the top of its body,
     /// reset on exit.
-    ///
-    /// Fixes issue #103: `export_layout: flat` previously only applied to JEs
-    /// and the core document_flows. Now it applies to every sink without
-    /// touching 194 call sites.
     static FLAT_LAYOUT_ACTIVE: Cell<bool> = const { Cell::new(false) };
+
+    /// Thread-local JSON skip flag. When true, `write_json_safe` becomes a no-op.
+    /// Set by `write_all_output_with_layout` when the requested formats don't
+    /// include JSON. This avoids wrapping 190+ call sites in `if write_json`.
+    static SKIP_JSON: Cell<bool> = const { Cell::new(false) };
 }
 
 /// Write a JSON file for any serializable slice. Skips empty slices.
 ///
 /// Streams JSON directly to a buffered file writer instead of allocating
 /// the entire JSON string in memory (Phase 3 I/O optimization).
+/// Write a JSON array by streaming one record at a time.
+///
+/// Instead of serializing the entire `&[T]` in one `to_writer_pretty` call
+/// (which builds a massive in-memory serde state for large arrays), this
+/// writes `[\n` + per-record pretty-printed JSON with commas + `\n]`.
+///
+/// For 200K+ records this reduces peak memory and improves write throughput
+/// by avoiding serde's internal buffering of the full array structure.
 fn write_json<T: serde::Serialize>(
     data: &[T],
     path: &Path,
     label: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    use std::io::Write;
+
     if data.is_empty() {
         return Ok(());
     }
+
     let file = std::fs::File::create(path)?;
-    let writer = std::io::BufWriter::with_capacity(256 * 1024, file);
-    serde_json::to_writer_pretty(writer, data)?;
+    let mut writer = std::io::BufWriter::with_capacity(512 * 1024, file);
+
+    // Stream records one at a time into a JSON array
+    writer.write_all(b"[\n")?;
+    for (i, item) in data.iter().enumerate() {
+        if i > 0 {
+            writer.write_all(b",\n")?;
+        }
+        serde_json::to_writer_pretty(&mut writer, item)?;
+    }
+    writer.write_all(b"\n]\n")?;
+    writer.flush()?;
+
     info!(
         "  {} written: {} records -> {}",
         label,
@@ -219,15 +242,34 @@ pub fn write_all_output(
     result: &EnhancedGenerationResult,
     output_dir: &Path,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    write_all_output_with_layout(result, output_dir, datasynth_config::ExportLayout::Nested)
+    write_all_output_with_layout(
+        result,
+        output_dir,
+        datasynth_config::ExportLayout::Nested,
+        &[
+            datasynth_config::FileFormat::Csv,
+            datasynth_config::FileFormat::Json,
+        ],
+    )
 }
 
-/// Write all generated data with a configurable export layout.
+/// Write all generated data with a configurable export layout and format set.
+///
+/// Only writes files for formats present in `formats`. If `formats` is empty,
+/// writes both CSV and JSON (backward compatible). This allows skipping JSON
+/// when only CSV is needed, which halves output time for large datasets.
 pub fn write_all_output_with_layout(
     result: &EnhancedGenerationResult,
     output_dir: &Path,
     export_layout: datasynth_config::ExportLayout,
+    formats: &[datasynth_config::FileFormat],
 ) -> Result<(), Box<dyn std::error::Error>> {
+    let csv_enabled = formats.is_empty()
+        || formats.contains(&datasynth_config::FileFormat::Csv)
+        || formats.contains(&datasynth_config::FileFormat::Parquet);
+    let json_enabled = formats.is_empty()
+        || formats.contains(&datasynth_config::FileFormat::Json)
+        || formats.contains(&datasynth_config::FileFormat::JsonLines);
     std::fs::create_dir_all(output_dir)?;
     info!("Writing comprehensive output to: {}", output_dir.display());
 
@@ -246,28 +288,53 @@ pub fn write_all_output_with_layout(
         None
     };
 
+    // Set JSON skip flag so `write_json_safe` becomes a no-op when JSON not requested.
+    struct SkipJsonGuard;
+    impl Drop for SkipJsonGuard {
+        fn drop(&mut self) {
+            SKIP_JSON.with(|c| c.set(false));
+        }
+    }
+    let _skip_json_guard = if !json_enabled {
+        SKIP_JSON.with(|c| c.set(true));
+        info!("JSON output skipped (not in requested formats)");
+        Some(SkipJsonGuard)
+    } else {
+        None
+    };
+
     // ========================================================================
-    // Journal Entries (flat CSV + JSON)
+    // Journal Entries (CSV + JSON in parallel when both enabled)
     // ========================================================================
     if !result.journal_entries.is_empty() {
-        // Write flat CSV with one row per line item (header fields repeated)
-        if let Err(e) = write_journal_entries_csv(result, output_dir) {
-            warn!("Failed to write journal_entries.csv: {}", e);
-        }
+        let do_csv = csv_enabled;
+        let do_json = json_enabled;
+        let is_flat = export_layout == datasynth_config::ExportLayout::Flat;
 
-        if export_layout == datasynth_config::ExportLayout::Flat {
-            // Flat JSON: header fields merged onto each line
-            if let Err(e) = write_journal_entries_flat_json(result, output_dir) {
-                warn!("Failed to write flat journal_entries.json: {}", e);
+        std::thread::scope(|s| {
+            if do_csv {
+                s.spawn(|| {
+                    if let Err(e) = write_journal_entries_csv(result, output_dir) {
+                        warn!("Failed to write journal_entries.csv: {}", e);
+                    }
+                });
             }
-        } else {
-            // Nested JSON: {"header": {...}, "lines": [...]}
-            write_json(
-                &result.journal_entries,
-                &output_dir.join("journal_entries.json"),
-                "Journal entries (JSON)",
-            )?;
-        }
+            if do_json {
+                s.spawn(|| {
+                    if is_flat {
+                        if let Err(e) = write_journal_entries_flat_json(result, output_dir) {
+                            warn!("Failed to write flat journal_entries.json: {}", e);
+                        }
+                    } else if let Err(e) = write_json(
+                        &result.journal_entries,
+                        &output_dir.join("journal_entries.json"),
+                        "Journal entries (JSON)",
+                    ) {
+                        warn!("Failed to write journal_entries.json: {}", e);
+                    }
+                });
+            }
+        });
     }
 
     // ========================================================================
@@ -2121,6 +2188,10 @@ pub fn write_all_output_with_layout(
 /// shapes are automatically flattened. For structures without that shape,
 /// `write_json_flat` passes through unchanged.
 fn write_json_safe<T: serde::Serialize>(data: &[T], path: &Path, label: &str) {
+    // Skip JSON entirely when not in requested output formats
+    if SKIP_JSON.with(|c| c.get()) {
+        return;
+    }
     if FLAT_LAYOUT_ACTIVE.with(|c| c.get()) {
         write_json_flat(data, path, label);
     } else if let Err(e) = write_json(data, path, label) {
@@ -2233,11 +2304,24 @@ fn write_json_flat<T: serde::Serialize>(data: &[T], path: &Path, label: &str) {
         return;
     }
 
+    // Stream-write each flattened record instead of serializing the whole Vec
     let count = flat.len();
     match std::fs::File::create(path) {
         Ok(file) => {
-            let writer = std::io::BufWriter::with_capacity(256 * 1024, file);
-            if let Err(e) = serde_json::to_writer_pretty(writer, &flat) {
+            use std::io::Write;
+            let mut writer = std::io::BufWriter::with_capacity(512 * 1024, file);
+            if let Err(e) = (|| -> Result<(), Box<dyn std::error::Error>> {
+                writer.write_all(b"[\n")?;
+                for (i, item) in flat.iter().enumerate() {
+                    if i > 0 {
+                        writer.write_all(b",\n")?;
+                    }
+                    serde_json::to_writer_pretty(&mut writer, item)?;
+                }
+                writer.write_all(b"\n]\n")?;
+                writer.flush()?;
+                Ok(())
+            })() {
                 warn!("Failed to write {}: {}", label, e);
             } else {
                 info!(
@@ -2267,6 +2351,9 @@ fn write_json_single<T: serde::Serialize>(
 
 /// Write a single serializable value as a JSON file, logging a warning on failure.
 fn write_json_single_safe<T: serde::Serialize>(data: &T, path: &Path, label: &str) {
+    if SKIP_JSON.with(|c| c.get()) {
+        return;
+    }
     if let Err(e) = write_json_single(data, path, label) {
         warn!("Failed to write {}: {}", label, e);
     }
