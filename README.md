@@ -12,6 +12,26 @@ Generated data respects accounting identities (debits = credits, Assets = Liabil
 
 Commercial offering and SDKs: https://vynfi.com
 
+### Example Datasets on Hugging Face
+
+Pre-generated datasets are available at [huggingface.co/VynFi](https://huggingface.co/VynFi) for immediate use:
+
+| Dataset | Records | Description | Use Cases |
+|---------|---------|-------------|-----------|
+| [vynfi-aml-100k](https://huggingface.co/datasets/VynFi/vynfi-aml-100k) | 749K transactions | Banking transactions with ground-truth AML labels, 14 pre-computed velocity features, 59 columns. 5 companies, 6 months, 0.05% suspicious rate + 5% false positives. | AML model training, transaction monitoring benchmarking, false-positive calibration |
+| [vynfi-audit-p2p](https://huggingface.co/datasets/VynFi/vynfi-audit-p2p) | 234 documents | Full P2P chain (POs, goods receipts, vendor invoices, payments) with cross-references and fraud labels. 3% fraud rate. | Three-way match gap detection, audit analytics, document flow graph reconstruction |
+| [vynfi-ocel-manufacturing](https://huggingface.co/datasets/VynFi/vynfi-ocel-manufacturing) | 344 events | OCEL-compatible event log from P2P, O2C, and manufacturing flows. 7 activity types, 3 companies. | Process mining (pm4py, ProM, Celonis), variant analysis, conformance checking |
+
+```python
+# Quick start with any dataset
+from datasets import load_dataset
+ds = load_dataset("VynFi/vynfi-aml-100k", split="train")
+df = ds.to_pandas()
+print(f"{len(df)} transactions, {df['is_suspicious'].sum()} suspicious")
+```
+
+All datasets are Apache 2.0 licensed, entirely synthetic (no real PII), and generated via [VynFi](https://vynfi.com).
+
 ---
 
 ## Table of Contents
