@@ -2587,6 +2587,65 @@ impl EnhancedOrchestrator {
             self.emit_phase_items("ocpm", "OcpmEvent", &event_log.events);
         }
 
+        // Phase 18c: Back-annotate OCPM event IDs onto JournalEntry headers (fixes #117)
+        if let Some(ref event_log) = ocpm.event_log {
+            // Build reverse index: document_ref → (event_id, case_id, object_ids)
+            let mut doc_index: std::collections::HashMap<&str, Vec<usize>> =
+                std::collections::HashMap::new();
+            for (idx, event) in event_log.events.iter().enumerate() {
+                if let Some(ref doc_ref) = event.document_ref {
+                    doc_index.entry(doc_ref.as_str()).or_default().push(idx);
+                }
+            }
+
+            if !doc_index.is_empty() {
+                let mut annotated = 0usize;
+                for entry in &mut entries {
+                    let doc_id_str = entry.header.document_id.to_string();
+                    // Collect matching event indices from document_id and reference
+                    let mut matched_indices: Vec<usize> = Vec::new();
+                    if let Some(indices) = doc_index.get(doc_id_str.as_str()) {
+                        matched_indices.extend(indices);
+                    }
+                    if let Some(ref reference) = entry.header.reference {
+                        let bare_ref = reference
+                            .find(':')
+                            .map(|i| &reference[i + 1..])
+                            .unwrap_or(reference.as_str());
+                        if let Some(indices) = doc_index.get(bare_ref) {
+                            for &idx in indices {
+                                if !matched_indices.contains(&idx) {
+                                    matched_indices.push(idx);
+                                }
+                            }
+                        }
+                    }
+                    // Apply matches to JE header
+                    if !matched_indices.is_empty() {
+                        for &idx in &matched_indices {
+                            let event = &event_log.events[idx];
+                            if !entry.header.ocpm_event_ids.contains(&event.event_id) {
+                                entry.header.ocpm_event_ids.push(event.event_id);
+                            }
+                            for obj_ref in &event.object_refs {
+                                if !entry.header.ocpm_object_ids.contains(&obj_ref.object_id) {
+                                    entry.header.ocpm_object_ids.push(obj_ref.object_id);
+                                }
+                            }
+                            if entry.header.ocpm_case_id.is_none() {
+                                entry.header.ocpm_case_id = event.case_id;
+                            }
+                        }
+                        annotated += 1;
+                    }
+                }
+                debug!(
+                    "Phase 18c: Back-annotated {} JEs with OCPM event/object/case IDs",
+                    annotated
+                );
+            }
+        }
+
         // Phase 19: Sales Quotes, Management KPIs, Budgets
         let sales_kpi_budgets =
             self.phase_sales_kpi_budgets(&coa, &financial_reporting, &mut stats)?;

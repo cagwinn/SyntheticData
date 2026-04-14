@@ -2142,74 +2142,92 @@ fn write_json_auto<T: serde::Serialize>(data: &[T], path: &Path, label: &str, fl
 /// For structures like `{"header": {...}, "items": [...], "field": val}`, this
 /// merges header fields and top-level scalar fields onto each item. If the struct
 /// has no `header` key, it writes the data as-is (passthrough).
+///
+/// Uses heap-allocated intermediates to avoid stack overflow with large records
+/// in constrained environments (e.g., distroless containers with glibc 2.36).
+/// Fixes #116.
 fn write_json_flat<T: serde::Serialize>(data: &[T], path: &Path, label: &str) {
     if data.is_empty() {
         return;
     }
 
-    let flat: Vec<serde_json::Value> = data
-        .iter()
-        .flat_map(|item| {
-            let val = match serde_json::to_value(item) {
-                Ok(v) => v,
-                Err(e) => {
-                    warn!("Failed to serialize record for flat export: {}", e);
-                    return vec![];
-                }
-            };
+    // Pre-allocate on heap — avoid flat_map closure accumulating on the stack
+    let mut flat: Vec<serde_json::Value> = Vec::with_capacity(data.len());
 
-            if let serde_json::Value::Object(ref map) = val {
-                // Find the header object
-                let header = map.get("header").cloned();
-                // Find the items/lines array (first array field that isn't in the header)
-                let items_key = ["items", "lines", "allocations", "line_items"]
-                    .iter()
-                    .find(|k| map.contains_key(**k))
-                    .copied();
-
-                if let (Some(serde_json::Value::Object(header_map)), Some(items_key)) =
-                    (header, items_key)
-                {
-                    // Collect top-level scalar fields (not header, not items/lines)
-                    let mut top_fields = serde_json::Map::new();
-                    for (k, v) in map {
-                        if k != "header" && k != items_key && !v.is_array() && !v.is_object() {
-                            top_fields.insert(k.clone(), v.clone());
-                        }
-                    }
-
-                    if let Some(serde_json::Value::Array(items)) = map.get(items_key) {
-                        return items
-                            .iter()
-                            .map(|item_val| {
-                                let mut merged = serde_json::Map::new();
-                                // Line/item fields first (take precedence over header)
-                                if let serde_json::Value::Object(ref m) = *item_val {
-                                    merged.extend(m.clone());
-                                }
-                                // Then header fields (don't overwrite line fields)
-                                for (k, v) in &header_map {
-                                    if !merged.contains_key(k) {
-                                        merged.insert(k.clone(), v.clone());
-                                    }
-                                }
-                                // Then top-level scalars
-                                for (k, v) in &top_fields {
-                                    if !merged.contains_key(k) {
-                                        merged.insert(k.clone(), v.clone());
-                                    }
-                                }
-                                serde_json::Value::Object(merged)
-                            })
-                            .collect();
-                    }
-                }
+    for item in data {
+        let val = match serde_json::to_value(item) {
+            Ok(v) => v,
+            Err(e) => {
+                warn!("Failed to serialize record for flat export: {}", e);
+                continue;
             }
+        };
 
+        let serde_json::Value::Object(map) = val else {
+            flat.push(val);
+            continue;
+        };
+
+        // Find the header object and items array key
+        let items_key = ["items", "lines", "allocations", "line_items"]
+            .iter()
+            .find(|k| map.contains_key(**k))
+            .copied();
+
+        let header = map.get("header");
+        let has_structure =
+            matches!(header, Some(serde_json::Value::Object(_))) && items_key.is_some();
+
+        if !has_structure {
             // Passthrough: no header/items structure
-            vec![val]
-        })
-        .collect();
+            flat.push(serde_json::Value::Object(map));
+            continue;
+        }
+
+        let items_key = items_key.expect("checked above");
+        // Extract header map (borrow, don't clone the whole thing)
+        let header_map = match map.get("header") {
+            Some(serde_json::Value::Object(h)) => h,
+            _ => {
+                flat.push(serde_json::Value::Object(map));
+                continue;
+            }
+        };
+
+        // Collect top-level scalar field keys+values (small — just scalars)
+        let top_fields: Vec<(&String, &serde_json::Value)> = map
+            .iter()
+            .filter(|(k, v)| {
+                k.as_str() != "header" && k.as_str() != items_key && !v.is_array() && !v.is_object()
+            })
+            .collect();
+
+        if let Some(serde_json::Value::Array(items)) = map.get(items_key) {
+            flat.reserve(items.len());
+            for item_val in items {
+                let mut merged = serde_json::Map::new();
+                // Line/item fields first (take precedence)
+                if let serde_json::Value::Object(m) = item_val {
+                    merged.extend(m.iter().map(|(k, v)| (k.clone(), v.clone())));
+                }
+                // Header fields (don't overwrite line fields)
+                for (k, v) in header_map {
+                    if !merged.contains_key(k) {
+                        merged.insert(k.clone(), v.clone());
+                    }
+                }
+                // Top-level scalars
+                for &(k, v) in &top_fields {
+                    if !merged.contains_key(k) {
+                        merged.insert(k.clone(), v.clone());
+                    }
+                }
+                flat.push(serde_json::Value::Object(merged));
+            }
+        } else {
+            flat.push(serde_json::Value::Object(map));
+        }
+    }
 
     if flat.is_empty() {
         return;
