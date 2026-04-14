@@ -66,10 +66,12 @@ pub use financial_reporting::{
 pub use fraud_packs::{FraudPackAnalysis, FraudPackAnalyzer, FraudPackData, FraudPackThresholds};
 pub use hr_payroll::{
     ExpenseReportData, HrPayrollEvaluation, HrPayrollEvaluator, HrPayrollThresholds,
-    PayrollHoursData, PayrollLineItemData, PayrollRunData, TimeEntryData,
+    PayrollGLProofData, PayrollGLProofEvaluation, PayrollGLProofEvaluator, PayrollHoursData,
+    PayrollLineItemData, PayrollRunData, TimeEntryData,
 };
 pub use intercompany::{
-    ICMatchingData, ICMatchingEvaluation, ICMatchingEvaluator, UnmatchedICItem,
+    ICEliminationLineData, ICMatchingData, ICMatchingEvaluation, ICMatchingEvaluator,
+    ICNetZeroData, ICNetZeroEvaluation, ICNetZeroEvaluator, UnmatchedICItem,
 };
 pub use inventory_cogs::{
     ICEliminationData, ICEliminationEvaluation, ICEliminationEvaluator, InventoryCOGSData,
@@ -77,7 +79,8 @@ pub use inventory_cogs::{
 };
 pub use je_risk_scoring::{JeRiskScoringResult, RiskAttributeStats, RiskDistribution};
 pub use manufacturing::{
-    CycleCountData, ManufacturingEvaluation, ManufacturingEvaluator, ManufacturingThresholds,
+    CycleCountData, ManufacturingEvaluation, ManufacturingEvaluator, ManufacturingGLProofData,
+    ManufacturingGLProofEvaluation, ManufacturingGLProofEvaluator, ManufacturingThresholds,
     ProductionOrderData, QualityInspectionData, RoutingOperationData,
 };
 pub use multi_period::{
@@ -125,8 +128,9 @@ pub use tax::{
     TaxEvaluation, TaxEvaluator, TaxLineData, TaxReturnData, TaxThresholds, WithholdingData,
 };
 pub use treasury::{
-    CashPositionData, CovenantData, HedgeEffectivenessData, NettingData, TreasuryEvaluation,
-    TreasuryEvaluator, TreasuryThresholds,
+    CashPositionData, CovenantData, HedgeEffectivenessData, NettingData, TreasuryCashProofData,
+    TreasuryCashProofEvaluation, TreasuryCashProofEvaluator, TreasuryEvaluation, TreasuryEvaluator,
+    TreasuryThresholds,
 };
 pub use trend_analysis::{analyze_trends, TrendConsistencyCheck, TrendPlausibilityResult};
 
@@ -199,6 +203,9 @@ pub struct CoherenceEvaluation {
     /// Intercompany elimination completeness results.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ic_elimination: Option<inventory_cogs::ICEliminationEvaluation>,
+    /// Intercompany net-zero reconciliation (debits=credits per entry, IC balances=0 post-elimination).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ic_net_zero: Option<ICNetZeroEvaluation>,
     /// Interest expense GL vs instrument-level reconciliation results.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub interest_expense_proof: Option<treasury_tax::InterestExpenseProofEvaluation>,
@@ -257,6 +264,7 @@ impl CoherenceEvaluation {
             multi_period: None,
             inventory_cogs: None,
             ic_elimination: None,
+            ic_net_zero: None,
             interest_expense_proof: None,
             etr_reconciliation: None,
             hedge_effectiveness: None,

@@ -292,6 +292,98 @@ impl Default for ManufacturingEvaluator {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Manufacturing GL Proof (v2.5 — cross-domain coherence)
+// ---------------------------------------------------------------------------
+
+/// Data for validating that manufacturing GL postings match production data.
+///
+/// Compares: sum of WIP/FG/COGS JE postings vs. production order cost totals.
+#[derive(Debug, Clone)]
+pub struct ManufacturingGLProofData {
+    /// Total cost posted to WIP GL accounts (1420) across all JEs.
+    pub gl_wip_total: rust_decimal::Decimal,
+    /// Total cost posted to Finished Goods GL accounts (1410).
+    pub gl_fg_total: rust_decimal::Decimal,
+    /// Total COGS posted to GL (5000).
+    pub gl_cogs_total: rust_decimal::Decimal,
+    /// Total actual cost from production orders.
+    pub production_order_total_cost: rust_decimal::Decimal,
+    /// Number of production orders.
+    pub production_order_count: usize,
+    /// Number of JEs with manufacturing document types.
+    pub manufacturing_je_count: usize,
+}
+
+/// Results of manufacturing GL proof validation.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ManufacturingGLProofEvaluation {
+    /// Whether WIP→FG→COGS flow is coherent (cost flows through correctly).
+    pub flow_coherent: bool,
+    /// Difference between production order costs and GL postings.
+    pub cost_gl_difference: rust_decimal::Decimal,
+    /// Whether every production order has corresponding GL postings.
+    pub all_orders_posted: bool,
+    /// Issues found.
+    pub issues: Vec<String>,
+}
+
+/// Validates manufacturing cost flow through the GL.
+pub struct ManufacturingGLProofEvaluator {
+    tolerance: rust_decimal::Decimal,
+}
+
+impl ManufacturingGLProofEvaluator {
+    /// Create with custom tolerance.
+    pub fn new(tolerance: rust_decimal::Decimal) -> Self {
+        Self { tolerance }
+    }
+
+    /// Validate manufacturing GL proof.
+    pub fn evaluate(
+        &self,
+        data: &ManufacturingGLProofData,
+    ) -> EvalResult<ManufacturingGLProofEvaluation> {
+        let mut issues = Vec::new();
+
+        // The cost flow should be: Raw Material → WIP → FG → COGS
+        // Total production cost should approximately equal GL postings
+        let cost_gl_difference =
+            (data.production_order_total_cost - data.gl_cogs_total - data.gl_fg_total).abs();
+
+        if cost_gl_difference > self.tolerance && data.production_order_count > 0 {
+            issues.push(format!(
+                "Manufacturing cost/GL gap: production orders total={}, FG+COGS GL total={}, diff={}",
+                data.production_order_total_cost,
+                data.gl_fg_total + data.gl_cogs_total,
+                cost_gl_difference
+            ));
+        }
+
+        let all_orders_posted = data.manufacturing_je_count >= data.production_order_count
+            || data.production_order_count == 0;
+        if !all_orders_posted {
+            issues.push(format!(
+                "Not all production orders have GL postings: {} orders vs {} manufacturing JEs",
+                data.production_order_count, data.manufacturing_je_count
+            ));
+        }
+
+        Ok(ManufacturingGLProofEvaluation {
+            flow_coherent: issues.is_empty(),
+            cost_gl_difference,
+            all_orders_posted,
+            issues,
+        })
+    }
+}
+
+impl Default for ManufacturingGLProofEvaluator {
+    fn default() -> Self {
+        Self::new(rust_decimal::Decimal::new(100, 0)) // $100 tolerance for rounding across many orders
+    }
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {

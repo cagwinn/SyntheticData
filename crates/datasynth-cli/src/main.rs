@@ -1764,16 +1764,49 @@ fn main() -> Result<()> {
             complexity,
             from_description,
         } => {
-            // If --from-description is provided, use the LLM-powered full config generator
+            // If --from-description is provided, use LLM-powered config generation
             if let Some(desc) = from_description {
-                let provider = datasynth_core::llm::MockLlmProvider::new(42);
+                // Try real LLM provider if API key is available, fall back to mock+keywords
+                #[cfg(feature = "llm")]
+                let provider: Box<dyn datasynth_core::llm::LlmProvider> = {
+                    let api_key = std::env::var("ANTHROPIC_API_KEY")
+                        .or_else(|_| std::env::var("OPENAI_API_KEY"));
+                    if let Ok(key) = api_key {
+                        let config = datasynth_core::llm::LlmConfig {
+                            provider: if std::env::var("ANTHROPIC_API_KEY").is_ok() {
+                                datasynth_core::llm::LlmProviderType::Anthropic
+                            } else {
+                                datasynth_core::llm::LlmProviderType::OpenAi
+                            },
+                            api_key_env: key,
+                            ..Default::default()
+                        };
+                        match datasynth_core::llm::HttpLlmProvider::new(config) {
+                            Ok(p) => {
+                                tracing::info!("Using real LLM provider for config generation");
+                                Box::new(p)
+                            }
+                            Err(e) => {
+                                tracing::warn!("Failed to init LLM provider: {e}, using fallback");
+                                Box::new(datasynth_core::llm::MockLlmProvider::new(42))
+                            }
+                        }
+                    } else {
+                        Box::new(datasynth_core::llm::MockLlmProvider::new(42))
+                    }
+                };
+                #[cfg(not(feature = "llm"))]
+                let provider: Box<dyn datasynth_core::llm::LlmProvider> =
+                    Box::new(datasynth_core::llm::MockLlmProvider::new(42));
+
                 let yaml = datasynth_core::llm::nl_config::NlConfigGenerator::generate_full(
-                    &desc, &provider,
+                    &desc,
+                    provider.as_ref(),
                 )
                 .map_err(|e| anyhow::anyhow!("{e}"))?;
                 std::fs::write(&output, &yaml)?;
                 tracing::info!(
-                    "AI-generated configuration written to: {}",
+                    "Configuration generated from description and written to: {}",
                     output.display()
                 );
                 return Ok(());

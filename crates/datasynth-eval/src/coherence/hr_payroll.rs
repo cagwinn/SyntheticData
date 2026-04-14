@@ -389,3 +389,91 @@ mod tests {
         assert_eq!(result.expense_approval_consistency, 0.5);
     }
 }
+
+// ---------------------------------------------------------------------------
+// Payroll GL Proof (v2.5 — cross-domain coherence)
+// ---------------------------------------------------------------------------
+
+/// Data for validating that payroll GL postings match HR payroll data.
+#[derive(Debug, Clone)]
+pub struct PayrollGLProofData {
+    /// Total gross pay from payroll runs.
+    pub payroll_gross_total: rust_decimal::Decimal,
+    /// Total salary/wages posted to GL account 6100.
+    pub gl_salary_total: rust_decimal::Decimal,
+    /// Total benefits from payroll runs.
+    pub payroll_benefits_total: rust_decimal::Decimal,
+    /// Total benefits posted to GL account 6200.
+    pub gl_benefits_total: rust_decimal::Decimal,
+    /// Number of employees on payroll.
+    pub employee_count: usize,
+    /// Number of payroll JEs in GL.
+    pub payroll_je_count: usize,
+}
+
+/// Results of payroll GL proof.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PayrollGLProofEvaluation {
+    /// Whether salary GL postings match payroll gross totals.
+    pub salary_reconciled: bool,
+    /// Difference between payroll gross and GL salary postings.
+    pub salary_difference: rust_decimal::Decimal,
+    /// Whether benefit GL postings match payroll benefit totals.
+    pub benefits_reconciled: bool,
+    /// Difference between payroll benefits and GL benefit postings.
+    pub benefits_difference: rust_decimal::Decimal,
+    /// Issues found.
+    pub issues: Vec<String>,
+}
+
+/// Validates payroll↔HR↔GL three-way proof.
+pub struct PayrollGLProofEvaluator {
+    tolerance: rust_decimal::Decimal,
+}
+
+impl PayrollGLProofEvaluator {
+    /// Create with custom tolerance.
+    pub fn new(tolerance: rust_decimal::Decimal) -> Self {
+        Self { tolerance }
+    }
+
+    /// Validate payroll GL proof.
+    pub fn evaluate(
+        &self,
+        data: &PayrollGLProofData,
+    ) -> crate::error::EvalResult<PayrollGLProofEvaluation> {
+        let mut issues = Vec::new();
+
+        let salary_difference = (data.payroll_gross_total - data.gl_salary_total).abs();
+        let salary_reconciled = salary_difference <= self.tolerance;
+        if !salary_reconciled && data.employee_count > 0 {
+            issues.push(format!(
+                "Payroll gross ({}) != GL salary postings ({}), diff={}",
+                data.payroll_gross_total, data.gl_salary_total, salary_difference
+            ));
+        }
+
+        let benefits_difference = (data.payroll_benefits_total - data.gl_benefits_total).abs();
+        let benefits_reconciled = benefits_difference <= self.tolerance;
+        if !benefits_reconciled && data.employee_count > 0 {
+            issues.push(format!(
+                "Payroll benefits ({}) != GL benefit postings ({}), diff={}",
+                data.payroll_benefits_total, data.gl_benefits_total, benefits_difference
+            ));
+        }
+
+        Ok(PayrollGLProofEvaluation {
+            salary_reconciled,
+            salary_difference,
+            benefits_reconciled,
+            benefits_difference,
+            issues,
+        })
+    }
+}
+
+impl Default for PayrollGLProofEvaluator {
+    fn default() -> Self {
+        Self::new(rust_decimal::Decimal::new(100, 0)) // $100 tolerance
+    }
+}

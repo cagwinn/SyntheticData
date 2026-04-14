@@ -130,6 +130,117 @@ impl Default for ICMatchingEvaluator {
     }
 }
 
+// ---------------------------------------------------------------------------
+// IC Net-Zero Reconciliation Validator (v2.5 — fixes consolidation gap)
+// ---------------------------------------------------------------------------
+
+/// Input for IC net-zero reconciliation validation.
+#[derive(Debug, Clone)]
+pub struct ICNetZeroData {
+    /// Per-elimination-entry debit/credit totals.
+    pub elimination_entries: Vec<ICEliminationLineData>,
+    /// IC receivable balance remaining after all eliminations.
+    pub post_elimination_ic_receivables: Decimal,
+    /// IC payable balance remaining after all eliminations.
+    pub post_elimination_ic_payables: Decimal,
+}
+
+/// Debit/credit summary for a single elimination entry.
+#[derive(Debug, Clone)]
+pub struct ICEliminationLineData {
+    /// Entry identifier.
+    pub entry_id: String,
+    /// Elimination type (e.g., "ICBalances", "ICRevenueExpense").
+    pub elimination_type: String,
+    /// Sum of debit lines in this entry.
+    pub total_debits: Decimal,
+    /// Sum of credit lines in this entry.
+    pub total_credits: Decimal,
+}
+
+/// Results of IC net-zero reconciliation validation.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ICNetZeroEvaluation {
+    /// Total elimination entries checked.
+    pub total_entries: usize,
+    /// Number of entries where debits != credits.
+    pub unbalanced_entries: usize,
+    /// Whether every individual elimination entry is balanced.
+    pub all_entries_balanced: bool,
+    /// Sum of all elimination debits.
+    pub aggregate_debits: Decimal,
+    /// Sum of all elimination credits.
+    pub aggregate_credits: Decimal,
+    /// Aggregate imbalance (debits - credits).
+    pub aggregate_imbalance: Decimal,
+    /// Residual IC balance after elimination (receivables - payables; should be zero).
+    pub residual_ic_balance: Decimal,
+    /// Whether IC balances net to zero after elimination.
+    pub net_zero_achieved: bool,
+    /// Entry IDs that failed the balance check.
+    pub failed_entries: Vec<String>,
+}
+
+/// Validates that IC elimination entries net to zero (the consolidation principle).
+///
+/// Checks two levels:
+/// 1. **Per-entry**: Each elimination entry's debits must equal its credits.
+/// 2. **Aggregate**: After all eliminations, IC receivable and payable balances must net to zero.
+pub struct ICNetZeroEvaluator {
+    /// Tolerance for floating-point comparison.
+    tolerance: Decimal,
+}
+
+impl ICNetZeroEvaluator {
+    /// Create with a specific tolerance.
+    pub fn new(tolerance: Decimal) -> Self {
+        Self { tolerance }
+    }
+
+    /// Evaluate IC net-zero reconciliation.
+    pub fn evaluate(&self, data: &ICNetZeroData) -> EvalResult<ICNetZeroEvaluation> {
+        let mut failed_entries = Vec::new();
+        let mut aggregate_debits = Decimal::ZERO;
+        let mut aggregate_credits = Decimal::ZERO;
+
+        for entry in &data.elimination_entries {
+            aggregate_debits += entry.total_debits;
+            aggregate_credits += entry.total_credits;
+
+            let diff = (entry.total_debits - entry.total_credits).abs();
+            if diff > self.tolerance {
+                failed_entries.push(entry.entry_id.clone());
+            }
+        }
+
+        let aggregate_imbalance = (aggregate_debits - aggregate_credits).abs();
+        let all_entries_balanced = failed_entries.is_empty();
+
+        let residual_ic_balance =
+            (data.post_elimination_ic_receivables - data.post_elimination_ic_payables).abs();
+        let net_zero_achieved =
+            residual_ic_balance <= self.tolerance && aggregate_imbalance <= self.tolerance;
+
+        Ok(ICNetZeroEvaluation {
+            total_entries: data.elimination_entries.len(),
+            unbalanced_entries: failed_entries.len(),
+            all_entries_balanced,
+            aggregate_debits,
+            aggregate_credits,
+            aggregate_imbalance,
+            residual_ic_balance,
+            net_zero_achieved,
+            failed_entries,
+        })
+    }
+}
+
+impl Default for ICNetZeroEvaluator {
+    fn default() -> Self {
+        Self::new(Decimal::new(1, 2)) // 0.01 tolerance
+    }
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
@@ -197,5 +308,71 @@ mod tests {
         let result = evaluator.evaluate(&data).unwrap();
 
         assert_eq!(result.match_rate, 1.0); // No IC = 100% matched
+    }
+
+    #[test]
+    fn test_ic_net_zero_balanced() {
+        let data = ICNetZeroData {
+            elimination_entries: vec![
+                ICEliminationLineData {
+                    entry_id: "ELIM-001".to_string(),
+                    elimination_type: "ICBalances".to_string(),
+                    total_debits: Decimal::new(500000, 2),
+                    total_credits: Decimal::new(500000, 2),
+                },
+                ICEliminationLineData {
+                    entry_id: "ELIM-002".to_string(),
+                    elimination_type: "ICRevenueExpense".to_string(),
+                    total_debits: Decimal::new(250000, 2),
+                    total_credits: Decimal::new(250000, 2),
+                },
+            ],
+            post_elimination_ic_receivables: Decimal::ZERO,
+            post_elimination_ic_payables: Decimal::ZERO,
+        };
+
+        let evaluator = ICNetZeroEvaluator::default();
+        let result = evaluator.evaluate(&data).unwrap();
+
+        assert!(result.all_entries_balanced);
+        assert!(result.net_zero_achieved);
+        assert_eq!(result.unbalanced_entries, 0);
+        assert_eq!(result.residual_ic_balance, Decimal::ZERO);
+    }
+
+    #[test]
+    fn test_ic_net_zero_unbalanced_entry() {
+        let data = ICNetZeroData {
+            elimination_entries: vec![ICEliminationLineData {
+                entry_id: "ELIM-BAD".to_string(),
+                elimination_type: "ICBalances".to_string(),
+                total_debits: Decimal::new(500000, 2),
+                total_credits: Decimal::new(495000, 2), // 50.00 difference
+            }],
+            post_elimination_ic_receivables: Decimal::new(5000, 2),
+            post_elimination_ic_payables: Decimal::ZERO,
+        };
+
+        let evaluator = ICNetZeroEvaluator::default();
+        let result = evaluator.evaluate(&data).unwrap();
+
+        assert!(!result.all_entries_balanced);
+        assert!(!result.net_zero_achieved);
+        assert_eq!(result.unbalanced_entries, 1);
+    }
+
+    #[test]
+    fn test_ic_net_zero_no_eliminations() {
+        let data = ICNetZeroData {
+            elimination_entries: vec![],
+            post_elimination_ic_receivables: Decimal::ZERO,
+            post_elimination_ic_payables: Decimal::ZERO,
+        };
+
+        let evaluator = ICNetZeroEvaluator::default();
+        let result = evaluator.evaluate(&data).unwrap();
+
+        assert!(result.all_entries_balanced);
+        assert!(result.net_zero_achieved);
     }
 }

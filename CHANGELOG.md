@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.5.0] - 2026-04-14
+
+### Added
+
+#### Cross-Domain Coherence Hardening
+- **IC net-zero reconciliation validator** (`datasynth-eval/src/coherence/intercompany.rs`): `ICNetZeroEvaluator` validates that every elimination entry balances (debits = credits) and that post-elimination IC receivable/payable balances net to zero. Registered in `CoherenceEvaluation.ic_net_zero`.
+- **IC elimination runtime assertion** (`enhanced_orchestrator.rs`): Upgraded the existing IC elimination balance check from a warning log to a hard error. Generation now fails if elimination JEs are unbalanced beyond 0.01 tolerance.
+- **Period-close accounting equation assertion** (`enhanced_orchestrator.rs`): Phase 10c validates after period-close that every non-anomaly JE is individually balanced (debits = credits). Anomaly-injected JEs are excluded since they are intentionally unbalanced for fraud simulation.
+- **Balance sheet equation check per company**: After period-close, validates A = L + E per company code from GL account prefixes (1xxx = assets, 2xxx/3xxx = liabilities + equity). Warns on imbalance (multi-period timing differences may exist).
+- **Manufacturing GL proof evaluator** (`coherence/manufacturing.rs`): `ManufacturingGLProofEvaluator` validates that production order costs flow correctly through WIP (1420) → FG (1410) → COGS (5000) GL accounts.
+- **Payroll GL proof evaluator** (`coherence/hr_payroll.rs`): `PayrollGLProofEvaluator` validates that payroll gross totals match GL salary account (6100) postings and benefit totals match GL benefit account (6200) postings.
+- **Treasury cash proof evaluator** (`coherence/treasury.rs`): `TreasuryCashProofEvaluator` validates that treasury cash positions match GL cash accounts (1000/1010/1020), cash flow statement ending balance, and bank reconciliation adjusted balance.
+- **Golden-path integration test** (`tests/full_pipeline_integration.rs`): `test_golden_path_coherence` generates a multi-module dataset and asserts every non-anomaly JE balances and the aggregate trial balance foots.
+
+#### Developer Experience
+- **Real LLM for `--from-description`**: When `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` environment variable is set and the `llm` feature is enabled, the CLI uses the real HTTP LLM provider instead of the mock. Falls back to mock+keyword parsing when no API key is available.
+- **`llm` feature flag on CLI** (`datasynth-cli/Cargo.toml`): New `llm` feature that enables `datasynth-core/llm` for real API access.
+
+### Changed
+- IC elimination imbalance is now a **hard error** (was a warning log).
+- Period-close phase now includes generation-time accounting assertions (Phase 10c).
+
 ## [2.4.0] - 2026-04-14
 
 ### Fixed

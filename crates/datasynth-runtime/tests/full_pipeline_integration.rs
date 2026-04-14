@@ -729,3 +729,92 @@ fn test_balance_configuration() {
         result.journal_entries.len()
     );
 }
+
+/// Golden-path integration test: generate a medium-complexity dataset with
+/// multiple modules enabled, then validate that every non-anomaly JE is
+/// individually balanced (debits = credits) and that the aggregate TB foots.
+///
+/// This is the v2.5 end-to-end coherence gate.
+#[test]
+fn test_golden_path_coherence() {
+    let mut config = minimal_config();
+    config.global.seed = Some(99999);
+    config.global.period_months = 3;
+
+    // Enable a broad set of modules
+    config.master_data.vendors.count = 10;
+    config.master_data.customers.count = 10;
+    config.master_data.materials.count = 5;
+    config.master_data.fixed_assets.count = 3;
+    config.master_data.employees.count = 5;
+    config.document_flows.p2p.enabled = true;
+    config.document_flows.o2c.enabled = true;
+    config.internal_controls.enabled = true;
+
+    let phase_config = PhaseConfig {
+        generate_master_data: true,
+        generate_document_flows: true,
+        ..PhaseConfig::default()
+    };
+
+    let mut orchestrator =
+        EnhancedOrchestrator::new(config, phase_config).expect("Failed to create orchestrator");
+    let result = orchestrator
+        .generate()
+        .expect("Golden-path generation should succeed");
+
+    let entries = &result.journal_entries;
+    assert!(
+        !entries.is_empty(),
+        "Golden-path should produce journal entries"
+    );
+
+    // Assert: every non-anomaly JE is individually balanced
+    let tolerance = Decimal::new(1, 2); // 0.01
+    let mut unbalanced = 0;
+    for je in entries {
+        if je.header.is_fraud || je.header.is_anomaly {
+            continue;
+        }
+        let diff = (je.total_debit() - je.total_credit()).abs();
+        if diff > tolerance {
+            unbalanced += 1;
+            if unbalanced <= 3 {
+                eprintln!(
+                    "UNBALANCED JE {}: debit={}, credit={}, diff={}",
+                    je.header.document_id,
+                    je.total_debit(),
+                    je.total_credit(),
+                    diff
+                );
+            }
+        }
+    }
+    assert_eq!(
+        unbalanced, 0,
+        "{unbalanced} non-anomaly JEs are unbalanced (debits != credits)"
+    );
+
+    // Assert: aggregate trial balance foots (total debits = total credits for non-anomaly JEs)
+    let total_debit: Decimal = entries
+        .iter()
+        .filter(|je| !je.header.is_fraud && !je.header.is_anomaly)
+        .map(|je| je.total_debit())
+        .sum();
+    let total_credit: Decimal = entries
+        .iter()
+        .filter(|je| !je.header.is_fraud && !je.header.is_anomaly)
+        .map(|je| je.total_credit())
+        .sum();
+    let tb_diff = (total_debit - total_credit).abs();
+    assert!(
+        tb_diff <= tolerance,
+        "Trial balance does not foot: debits={total_debit}, credits={total_credit}, diff={tb_diff}"
+    );
+
+    println!(
+        "Golden-path coherence PASSED: {} JEs, TB footing diff={}",
+        entries.len(),
+        tb_diff
+    );
+}

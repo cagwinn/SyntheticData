@@ -17,6 +17,7 @@ path = "src/main.rs"
 [features]
 default = ["streaming"]
 streaming = ["dep:reqwest", "datasynth-runtime/streaming"]
+llm = ["datasynth-core/llm"]
 
 [dependencies]
 datasynth-core = { workspace = true }

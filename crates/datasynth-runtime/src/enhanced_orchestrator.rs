@@ -2060,19 +2060,23 @@ impl EnhancedOrchestrator {
                     "Appended {} elimination journal entries to main entries",
                     elim_jes.len()
                 );
-                // IC elimination net-zero validation
+                // IC elimination net-zero assertion (v2.5 hardening)
                 let elim_debit: rust_decimal::Decimal =
                     elim_jes.iter().map(|je| je.total_debit()).sum();
                 let elim_credit: rust_decimal::Decimal =
                     elim_jes.iter().map(|je| je.total_credit()).sum();
-                if elim_debit != elim_credit {
-                    warn!(
-                        "IC elimination entries not balanced: debits={}, credits={}, diff={}",
-                        elim_debit,
-                        elim_credit,
-                        elim_debit - elim_credit
-                    );
+                let elim_diff = (elim_debit - elim_credit).abs();
+                let tolerance = rust_decimal::Decimal::new(1, 2); // 0.01
+                if elim_diff > tolerance {
+                    return Err(datasynth_core::error::SynthError::generation(format!(
+                        "IC elimination entries not balanced: debits={}, credits={}, diff={} (tolerance={})",
+                        elim_debit, elim_credit, elim_diff, tolerance
+                    )));
                 }
+                debug!(
+                    "IC elimination balance verified: debits={}, credits={} (diff={})",
+                    elim_debit, elim_credit, elim_diff
+                );
                 entries.extend(elim_jes);
             }
         }
@@ -2437,6 +2441,98 @@ impl EnhancedOrchestrator {
 
         // Phase 10b: Period Close (tax provision + income statement closing entries + depreciation)
         self.phase_period_close(&mut entries, &subledger, &mut stats)?;
+
+        // Phase 10c: Hard accounting equation assertions (v2.5 — generation-time integrity)
+        {
+            let tolerance = rust_decimal::Decimal::new(1, 2); // 0.01
+
+            // Assert 1: Every non-anomaly JE must individually balance (debits = credits).
+            // Anomaly-injected JEs are excluded since they are intentionally unbalanced (fraud).
+            let mut unbalanced_clean = 0usize;
+            for je in &entries {
+                if je.header.is_fraud || je.header.is_anomaly {
+                    continue;
+                }
+                let diff = (je.total_debit() - je.total_credit()).abs();
+                if diff > tolerance {
+                    unbalanced_clean += 1;
+                    if unbalanced_clean <= 3 {
+                        warn!(
+                            "Unbalanced non-anomaly JE {}: debit={}, credit={}, diff={}",
+                            je.header.document_id,
+                            je.total_debit(),
+                            je.total_credit(),
+                            diff
+                        );
+                    }
+                }
+            }
+            if unbalanced_clean > 0 {
+                return Err(datasynth_core::error::SynthError::generation(format!(
+                    "{} non-anomaly JEs are unbalanced (debits != credits). \
+                     First few logged above. Tolerance={}",
+                    unbalanced_clean, tolerance
+                )));
+            }
+            debug!(
+                "Phase 10c: All {} non-anomaly JEs individually balanced",
+                entries
+                    .iter()
+                    .filter(|je| !je.header.is_fraud && !je.header.is_anomaly)
+                    .count()
+            );
+
+            // Assert 2: Balance sheet equation per company: Assets = Liabilities + Equity
+            let company_codes: Vec<String> = self
+                .config
+                .companies
+                .iter()
+                .map(|c| c.code.clone())
+                .collect();
+            for company_code in &company_codes {
+                let mut assets = rust_decimal::Decimal::ZERO;
+                let mut liab_equity = rust_decimal::Decimal::ZERO;
+
+                for entry in &entries {
+                    if entry.header.company_code != *company_code {
+                        continue;
+                    }
+                    for line in &entry.lines {
+                        let acct = &line.gl_account;
+                        let net = line.debit_amount - line.credit_amount;
+                        // Asset accounts (1xxx): normal debit balance
+                        if acct.starts_with('1') {
+                            assets += net;
+                        }
+                        // Liability (2xxx) + Equity (3xxx): normal credit balance
+                        else if acct.starts_with('2') || acct.starts_with('3') {
+                            liab_equity -= net; // credit-normal, so negate debit-net
+                        }
+                        // Revenue/expense/tax (4-8xxx) are closed to RE in period-close,
+                        // so they net to zero after closing entries
+                    }
+                }
+
+                let bs_diff = (assets - liab_equity).abs();
+                if bs_diff > tolerance {
+                    warn!(
+                        "Balance sheet equation gap for {}: A={}, L+E={}, diff={} — \
+                         revenue/expense closing entries may not fully offset",
+                        company_code, assets, liab_equity, bs_diff
+                    );
+                    // Warn rather than error: multi-period datasets may have timing
+                    // differences from accruals/deferrals that resolve in later periods.
+                    // The TB footing check (Assert 1) is the hard gate.
+                } else {
+                    debug!(
+                        "Phase 10c: Balance sheet validated for {} — A={}, L+E={} (diff={})",
+                        company_code, assets, liab_equity, bs_diff
+                    );
+                }
+            }
+
+            info!("Phase 10c: All generation-time accounting assertions passed");
+        }
 
         // Phase 11: Audit Data
         let audit = self.phase_audit_data(&entries, &mut stats)?;

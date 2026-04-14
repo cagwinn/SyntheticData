@@ -369,3 +369,102 @@ mod tests {
         assert!(result.passes);
     }
 }
+
+// ---------------------------------------------------------------------------
+// Treasury↔Cash Flow↔Bank Reconciliation Proof (v2.5 — cross-domain coherence)
+// ---------------------------------------------------------------------------
+
+/// Data for validating that treasury cash positions match GL and cash flow statement.
+#[derive(Debug, Clone)]
+pub struct TreasuryCashProofData {
+    /// Total cash position from treasury module.
+    pub treasury_cash_total: rust_decimal::Decimal,
+    /// Total cash from GL accounts (1000 + 1010 + 1020).
+    pub gl_cash_total: rust_decimal::Decimal,
+    /// Cash and equivalents from balance sheet (if available).
+    pub balance_sheet_cash: Option<rust_decimal::Decimal>,
+    /// Ending cash from cash flow statement (if available).
+    pub cash_flow_ending_cash: Option<rust_decimal::Decimal>,
+    /// Bank reconciliation adjusted balance total.
+    pub bank_recon_adjusted_total: Option<rust_decimal::Decimal>,
+}
+
+/// Results of treasury↔cash flow↔bank reconciliation proof.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TreasuryCashProofEvaluation {
+    /// Whether treasury cash matches GL cash accounts.
+    pub treasury_gl_reconciled: bool,
+    /// Difference between treasury and GL cash.
+    pub treasury_gl_difference: rust_decimal::Decimal,
+    /// Whether cash flow ending balance matches GL cash.
+    pub cash_flow_reconciled: Option<bool>,
+    /// Whether bank reconciliation matches GL cash.
+    pub bank_recon_reconciled: Option<bool>,
+    /// Issues found.
+    pub issues: Vec<String>,
+}
+
+/// Validates that cash balances agree across treasury, GL, cash flow statement, and bank recon.
+pub struct TreasuryCashProofEvaluator {
+    tolerance: rust_decimal::Decimal,
+}
+
+impl TreasuryCashProofEvaluator {
+    /// Create with custom tolerance.
+    pub fn new(tolerance: rust_decimal::Decimal) -> Self {
+        Self { tolerance }
+    }
+
+    /// Validate treasury cash proof.
+    pub fn evaluate(
+        &self,
+        data: &TreasuryCashProofData,
+    ) -> crate::error::EvalResult<TreasuryCashProofEvaluation> {
+        let mut issues = Vec::new();
+
+        let treasury_gl_difference = (data.treasury_cash_total - data.gl_cash_total).abs();
+        let treasury_gl_reconciled = treasury_gl_difference <= self.tolerance;
+        if !treasury_gl_reconciled {
+            issues.push(format!(
+                "Treasury cash ({}) != GL cash accounts ({}), diff={}",
+                data.treasury_cash_total, data.gl_cash_total, treasury_gl_difference
+            ));
+        }
+
+        let cash_flow_reconciled = data.cash_flow_ending_cash.map(|cf| {
+            let diff = (cf - data.gl_cash_total).abs();
+            if diff > self.tolerance {
+                issues.push(format!(
+                    "Cash flow ending balance ({}) != GL cash ({}), diff={}",
+                    cf, data.gl_cash_total, diff
+                ));
+            }
+            diff <= self.tolerance
+        });
+
+        let bank_recon_reconciled = data.bank_recon_adjusted_total.map(|br| {
+            let diff = (br - data.gl_cash_total).abs();
+            if diff > self.tolerance {
+                issues.push(format!(
+                    "Bank recon adjusted balance ({}) != GL cash ({}), diff={}",
+                    br, data.gl_cash_total, diff
+                ));
+            }
+            diff <= self.tolerance
+        });
+
+        Ok(TreasuryCashProofEvaluation {
+            treasury_gl_reconciled,
+            treasury_gl_difference,
+            cash_flow_reconciled,
+            bank_recon_reconciled,
+            issues,
+        })
+    }
+}
+
+impl Default for TreasuryCashProofEvaluator {
+    fn default() -> Self {
+        Self::new(rust_decimal::Decimal::new(100, 0)) // $100 tolerance
+    }
+}
