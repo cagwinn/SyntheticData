@@ -1,4 +1,4 @@
-# DataSynth v2.3.0
+# DataSynth v2.5.0
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-green.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/rust-1.88%2B-orange.svg)](https://www.rust-lang.org)
@@ -8,7 +8,7 @@ Synthetic enterprise data generation for ML training, audit analytics, and syste
 
 DataSynth generates statistically realistic, fully interconnected enterprise financial data. It produces coherent General Ledger journal entries, document flows, subledger records, banking transactions, process mining event logs, and graph exports across 20+ enterprise process families.
 
-Generated data respects accounting identities (debits = credits, Assets = Liabilities + Equity), follows empirical distributions (Benford's Law, log-normal mixtures), and maintains referential integrity across 100+ output tables.
+Generated data respects accounting identities (debits = credits, Assets = Liabilities + Equity), follows empirical distributions (Benford's Law, log-normal mixtures), and maintains referential integrity across 100+ output tables. Generation-time assertions enforce these invariants — generation fails if any non-anomaly JE is unbalanced or IC eliminations don't net to zero.
 
 Commercial offering and SDKs: https://vynfi.com
 
@@ -50,6 +50,12 @@ cargo build --release
 ./target/release/datasynth-data init --industry manufacturing --complexity medium -o config.yaml
 ./target/release/datasynth-data validate --config config.yaml
 ./target/release/datasynth-data generate --config config.yaml --output ./output
+
+# AI-powered config generation (requires OPENAI_API_KEY, ANTHROPIC_API_KEY, or OPENROUTER_API_KEY)
+cargo build --release -p datasynth-cli --features llm
+OPENAI_API_KEY=sk-... ./target/release/datasynth-data init \
+  --from-description "12 months of mid-market retail data with fraud detection and SOX controls" \
+  -o config.yaml
 ```
 
 ---
@@ -82,7 +88,39 @@ CRA drives sampling, sampling correlates with misstatement rates, misstatements 
 
 ---
 
-## What's New in v2.3.0
+## What's New in v2.5.0
+
+### AI Capabilities (v2.4.0)
+- **Neural diffusion backend** (`neural` feature) — Candle-powered score network for learning real data distributions via denoising score matching. Implements `DiffusionBackend` trait, slots into `HybridGenerator` for blended rule+neural output.
+- **LLM-powered config generation** — `datasynth-data init --from-description "..."` generates full YAML configs from natural language. Supports OpenAI, Anthropic, and OpenRouter APIs (`llm` feature).
+- **AI evaluation tuning loop** — `AiTuner` wraps `AutoTuner` + LLM for intelligent gap analysis and config patching.
+- **Contextual anomaly designer** — LLM designs fraud schemes adapted to company profile and control weaknesses. 4 built-in fallback templates + `SchemeLibrary` cache.
+- **Tabular transformer** — Masked column prediction for conditional generation.
+- **GNN graph generator** — Message-passing GNN learns plausible entity relationship structures for realistic network generation.
+- **ONNX adversarial testing** (`adversarial` feature) — Load customer fraud detection models, probe decision boundaries.
+
+### Cross-Domain Coherence Hardening (v2.5.0)
+- **Generation-time accounting assertions** — Every non-anomaly JE is individually balanced (debits = credits). Balance sheet equation checked per company. IC elimination imbalance is now a hard error.
+- **5 new cross-domain proof evaluators** — IC net-zero reconciliation, manufacturing GL cost flow (WIP->FG->COGS), payroll/HR/GL three-way proof, treasury/cash flow/bank reconciliation proof.
+- **Golden-path integration test** — Full pipeline with all modules, validates every JE balances and TB foots.
+
+### XXL Performance (v2.5.0)
+- **4x faster output** for CSV-only workloads (`formats: [csv]`) — skips JSON serialization entirely
+- **Streaming JSON writer** — per-record serialization instead of whole-array, reduces peak memory for multi-GB files
+- **Parallel JE writes** — CSV and JSON written concurrently via `std::thread::scope`
+- **Benchmarked at scale**: 200K+ JEs across 3 companies, 36 months in 20.6s (CSV-only)
+
+### Banking/AML (v2.3.0)
+- **20 AML typologies** including structuring, layering, mule networks, synthetic identity, trade-based ML, crypto integration, sanctions evasion, romance scam, casino/real estate integration
+- **Multi-party criminal networks** with preferential attachment topology, NetworkContext roles
+- **Temporal behavior**: account lifecycle phases, velocity features, device behavioral realism
+- **Cross-layer coherence**: Payment/BankTransaction bridge with fraud label propagation
+
+See [CHANGELOG.md](CHANGELOG.md) for complete version history.
+
+---
+
+## Previous: v2.3.0
 
 ### SDK/API Consumer Experience
 - **`numeric_mode: native`** — decimals serialize as JSON numbers instead of strings (opt-in config)
@@ -794,10 +832,14 @@ Includes Renyi DP and zCDP composition accounting, privacy budget management, fe
 
 | Metric | Value |
 |--------|-------|
-| Single-threaded throughput | 200,000+ journal entries/second |
+| Generation throughput | ~14,000 JEs/sec (core generation phase) |
+| XXL dataset (200K+ JEs, 3 companies, 36 months) | 20.6s CSV-only, 87s JSON+CSV |
+| CSV-only speedup | 4x faster than JSON+CSV (skips serialization) |
+| Peak memory at scale | ~4.3 GB for 200K+ JEs |
+| Output size (CSV-only) | ~455 MB for 200K+ JEs |
 | Parallel scaling | Linear with available CPU cores |
-| Memory model | Streaming generation with configurable backpressure |
 | Determinism | Fully reproducible via seeded ChaCha8 RNG |
+| Format-aware output | `formats: [csv]` skips all JSON writes |
 
 ---
 

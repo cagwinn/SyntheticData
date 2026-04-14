@@ -29,10 +29,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Parallel JE writes**: Journal entry CSV and JSON are now written concurrently via `std::thread::scope` when both formats are requested.
 - **`write_all_output_with_layout`** now accepts a `formats: &[FileFormat]` parameter to control which output formats are generated.
 
+#### LLM Provider Enhancements
+- **OpenRouter support**: Auto-detects `sk-or-*` keys passed via `OPENAI_API_KEY` and routes to `https://openrouter.ai/api`. Also supports explicit `OPENROUTER_API_KEY` env var.
+- **Fixed `api_key_env` handling**: CLI now correctly passes the env var *name* (not the key value) to `HttpLlmProvider`, matching the provider's `std::env::var(&api_key_env)` pattern.
+
 ### Changed
 - IC elimination imbalance is now a **hard error** (was a warning log).
 - Period-close phase now includes generation-time accounting assertions (Phase 10c).
 - `write_all_output_with_layout` signature changed: added `formats` parameter (breaking for direct callers).
+
+### Dependencies
+- `rand` 0.9 → 0.10 (with `rand_chacha` 0.10, `rand_distr` 0.6 — 95 files migrated to `RngExt` trait)
+- `petgraph` 0.7 → 0.8
+- `tokio` 1.50 → 1.51, `uuid` 1.22 → 1.23, `parquet` 58.0 → 58.1, `proptest` 1.10 → 1.11
+- `zip` 8.2 → 8.5, `libc` 0.2.183 → 0.2.185, `itoa` 1.0.17 → 1.0.18, `opentelemetry-otlp` 0.31.0 → 0.31.1
+- `softprops/action-gh-release` 2 → 3 (CI)
 
 ## [2.4.0] - 2026-04-14
 
