@@ -5,7 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.4.0] - 2026-04-13
+## [2.4.0] - 2026-04-14
+
+### Fixed
+- **#116 — `exportLayout: flat` crashes in distroless container.** The `write_json_flat` function (v2.3.1 fix for #103) used a `flat_map` closure that accumulated `serde_json::Value` clones on the stack per iteration, causing stack overflow under glibc 2.36 in `gcr.io/distroless/cc-debian12` containers. Replaced with a `for` loop pushing directly to a heap-allocated `Vec`, borrowing header fields instead of cloning, and pre-reserving capacity for items arrays.
+- **#117 — OCPM event IDs not back-annotated onto JournalEntry headers.** The OCPM phase generated events referencing JE document IDs but never wrote the reverse mapping back onto JE headers. Added Phase 18c in the orchestrator: builds a reverse index from `OcpmEvent.document_ref` to event indices, then populates `header.ocpm_event_ids`, `ocpm_object_ids`, and `ocpm_case_id` on each matching JE by matching on both `document_id` and colon-prefixed `reference` fields.
 
 ### Added
 
