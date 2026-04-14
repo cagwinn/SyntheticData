@@ -1767,19 +1767,46 @@ fn main() -> Result<()> {
         } => {
             // If --from-description is provided, use LLM-powered config generation
             if let Some(desc) = from_description {
-                // Try real LLM provider if API key is available, fall back to mock+keywords
+                // Try real LLM provider if API key is available, fall back to mock+keywords.
+                // Supports ANTHROPIC_API_KEY, OPENAI_API_KEY, and OPENROUTER_API_KEY.
                 #[cfg(feature = "llm")]
                 let provider: Box<dyn datasynth_core::llm::LlmProvider> = {
-                    let api_key = std::env::var("ANTHROPIC_API_KEY")
-                        .or_else(|_| std::env::var("OPENAI_API_KEY"));
-                    if let Ok(key) = api_key {
-                        let config = datasynth_core::llm::LlmConfig {
-                            provider: if std::env::var("ANTHROPIC_API_KEY").is_ok() {
-                                datasynth_core::llm::LlmProviderType::Anthropic
+                    // api_key_env is the NAME of the env var (HttpLlmProvider reads it at request time)
+                    let (env_var_name, provider_type, base_url) =
+                        if std::env::var("ANTHROPIC_API_KEY").is_ok() {
+                            (
+                                "ANTHROPIC_API_KEY",
+                                datasynth_core::llm::LlmProviderType::Anthropic,
+                                None,
+                            )
+                        } else if std::env::var("OPENROUTER_API_KEY").is_ok() {
+                            (
+                                "OPENROUTER_API_KEY",
+                                datasynth_core::llm::LlmProviderType::OpenAi,
+                                Some("https://openrouter.ai/api".to_string()),
+                            )
+                        } else if let Ok(k) = std::env::var("OPENAI_API_KEY") {
+                            let base = if k.starts_with("sk-or-") {
+                                Some("https://openrouter.ai/api".to_string())
                             } else {
-                                datasynth_core::llm::LlmProviderType::OpenAi
-                            },
-                            api_key_env: key,
+                                None
+                            };
+                            (
+                                "OPENAI_API_KEY",
+                                datasynth_core::llm::LlmProviderType::OpenAi,
+                                base,
+                            )
+                        } else {
+                            ("", datasynth_core::llm::LlmProviderType::Mock, None)
+                        };
+
+                    if env_var_name.is_empty() {
+                        Box::new(datasynth_core::llm::MockLlmProvider::new(42))
+                    } else {
+                        let config = datasynth_core::llm::LlmConfig {
+                            provider: provider_type,
+                            api_key_env: env_var_name.to_string(),
+                            base_url,
                             ..Default::default()
                         };
                         match datasynth_core::llm::HttpLlmProvider::new(config) {
@@ -1792,8 +1819,6 @@ fn main() -> Result<()> {
                                 Box::new(datasynth_core::llm::MockLlmProvider::new(42))
                             }
                         }
-                    } else {
-                        Box::new(datasynth_core::llm::MockLlmProvider::new(42))
                     }
                 };
                 #[cfg(not(feature = "llm"))]
