@@ -1,0 +1,39 @@
+# SOX Material Weakness Scenario
+#
+# Three-way match control (C003) degrades to 60% effectiveness for 3 months
+# during an ERP migration. Combined with SoD violations as temporary access
+# grants are not revoked.
+
+scenarios:
+  enabled: true
+  scenarios:
+    - name: sox_material_weakness
+      description: >
+        During an ERP migration, the three-way match control degrades to 60%
+        effectiveness. Temporary elevated access creates SoD violations.
+        Results in a SOX 404 material weakness finding.
+      tags: [controls, sox, material_weakness, erp_migration]
+      probability_weight: 0.05
+      interventions:
+        - type: parameter_shift
+          target: internal_controls.exception_rate
+          value: "0.15"
+          timing:
+            start_month: 7
+            duration_months: 3
+            onset: sudden
+          label: "Control degradation during ERP migration"
+        - type: parameter_shift
+          target: internal_controls.sod_violation_rate
+          value: "0.08"
+          timing:
+            start_month: 7
+            duration_months: 4
+            onset: sudden
+          label: "SoD violations from temporary access"
+      constraints:
+        preserve_accounting_identity: true
+        preserve_period_close: true
+      output:
+        paired: true
+        diff_formats: [summary, record_level, aggregate]

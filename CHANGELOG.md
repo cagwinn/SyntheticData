@@ -5,6 +5,48 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.0] - 2026-04-14
+
+### Added
+
+#### Simulation Platform
+
+##### Scenario Pack Library (11 pre-built YAML scenarios)
+New `scenarios/` directory with ready-to-use counterfactual simulation definitions:
+
+**Fraud (5):**
+- `vendor_collusion_ring` — coordinated vendor bids with kickbacks via ghost invoices
+- `management_override` — quarter-end revenue acceleration with reversals
+- `ghost_employee` — fictitious employees on payroll, escalating over 6 months
+- `procurement_kickback` — inflated contracts from testing to escalation phase
+- `channel_stuffing` — pushing inventory to distributors with side return agreements
+
+**Control Failures (2):**
+- `sox_material_weakness` — ERP migration degrades three-way match + SoD violations
+- `it_control_breakdown` — ITGC failure enables ghost vendor payments via DB manipulation
+
+**Macro Shocks (3):**
+- `recession_2008_replay` — GDP contraction, revenue decline, vendor defaults
+- `supply_chain_disruption_q3` — strategic vendor defaults force spot purchasing at premium
+- `interest_rate_shock_300bp` — +300bp rate hike impacting debt service and hedges
+
+**Operational (1):**
+- `erp_migration_cutover` — parallel running causes duplicate entries and control gaps
+
+Each scenario defines interventions with timing (onset, duration), probability weights for IFRS 9-style probability-weighted outcomes, and constraint preservation flags (accounting identity, document chains, balance coherence). All produce paired baseline/counterfactual datasets.
+
+##### Verified Simulation Platform Components
+The following v3.0 components were verified as production-ready (implemented in prior releases, now formally validated as the simulation platform):
+- **ScenarioEngine** (509 lines) — orchestrates paired baseline/counterfactual generation with causal DAG propagation, config mutation, and scenario manifests
+- **Scenario CLI** — `datasynth-data scenario list|validate|generate|diff` fully wired
+- **GenerationSession** (460+ lines) — stateful session with `.dss` checkpoint serialization, multi-period generation, `generate_delta()` for incremental appends
+- **Session CLI** — `--append` flag with `session.dss` checkpoint resume
+- **CausalPropagationEngine** — DAG-based intervention propagation with transfer functions
+- **ConfigMutator** — applies propagated interventions to config while preserving constraints
+- **InterventionManager** — validates and manages intervention lifecycle
+- **Compliance Framework** — StandardRegistry, JurisdictionProfile, ComplianceFinding generators, wired into orchestrator as `phase_compliance_regulations()`
+- **Default Causal DAG** — YAML-defined financial process DAG (`causal_dag_default.yaml`)
+
 ## [2.5.0] - 2026-04-14
 
 ### Added

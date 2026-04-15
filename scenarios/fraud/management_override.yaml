@@ -1,0 +1,39 @@
+# Management Override of Controls
+#
+# Senior management bypasses approval controls to accelerate revenue
+# recognition and defer expenses near quarter-end. Reversals follow
+# in the first week of the next quarter.
+
+scenarios:
+  enabled: true
+  scenarios:
+    - name: management_override_revenue
+      description: >
+        Management accelerates revenue recognition near quarter-end to meet
+        analyst expectations, booking sales before delivery criteria are met.
+        Reversals appear in the first week of the new quarter.
+      tags: [fraud, revenue, management_override, quarter_stuffing]
+      probability_weight: 0.15
+      interventions:
+        - type: parameter_shift
+          target: transactions.anomaly_rate
+          value: "0.06"
+          timing:
+            start_month: 3
+            duration_months: 1
+            onset: sudden
+          label: "Q1 quarter-end revenue acceleration"
+        - type: parameter_shift
+          target: transactions.anomaly_rate
+          value: "0.06"
+          timing:
+            start_month: 6
+            duration_months: 1
+            onset: sudden
+          label: "Q2 quarter-end revenue acceleration"
+      constraints:
+        preserve_accounting_identity: true
+        preserve_document_chains: true
+      output:
+        paired: true
+        diff_formats: [summary, aggregate]

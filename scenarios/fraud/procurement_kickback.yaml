@@ -1,0 +1,39 @@
+# Procurement Kickback Scheme
+#
+# A purchasing manager accepts kickbacks from a preferred vendor in exchange
+# for inflated contract prices and sole-source awards. Testing phase with
+# small amounts escalates to larger fraudulent invoices.
+
+scenarios:
+  enabled: true
+  scenarios:
+    - name: procurement_kickback
+      description: >
+        Purchasing manager accepts kickbacks from a colluding vendor. Contract
+        prices are inflated 10-20%. Sole-source awards bypass competitive
+        bidding. Escalates from small test amounts to significant fraud.
+      tags: [fraud, procurement, kickback, vendor]
+      probability_weight: 0.12
+      interventions:
+        - type: parameter_shift
+          target: fraud.injection_rate
+          value: "0.04"
+          timing:
+            start_month: 1
+            duration_months: 3
+            onset: gradual
+          label: "Testing phase — small inflated invoices"
+        - type: parameter_shift
+          target: fraud.injection_rate
+          value: "0.08"
+          timing:
+            start_month: 4
+            duration_months: 8
+            onset: gradual
+          label: "Escalation phase — larger fabricated services"
+      constraints:
+        preserve_accounting_identity: true
+        preserve_document_chains: true
+      output:
+        paired: true
+        diff_formats: [summary, record_level]

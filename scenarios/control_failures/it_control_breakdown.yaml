@@ -1,0 +1,39 @@
+# IT General Control Breakdown
+#
+# Weak change management allows direct database modifications that bypass
+# application-level controls. An IT administrator creates ghost vendor
+# payments through direct SQL inserts.
+
+scenarios:
+  enabled: true
+  scenarios:
+    - name: it_control_breakdown
+      description: >
+        IT general controls (change management, access management) fail
+        during a period of understaffing. Unauthorized database changes
+        bypass application audit trails. Ghost vendor payments created
+        via direct table inserts.
+      tags: [controls, itgc, change_management, access_control]
+      probability_weight: 0.05
+      interventions:
+        - type: parameter_shift
+          target: internal_controls.exception_rate
+          value: "0.12"
+          timing:
+            start_month: 5
+            duration_months: 4
+            onset: gradual
+          label: "ITGC deterioration from understaffing"
+        - type: parameter_shift
+          target: transactions.anomaly_rate
+          value: "0.03"
+          timing:
+            start_month: 6
+            duration_months: 3
+            onset: sudden
+          label: "Ghost vendor payments via DB manipulation"
+      constraints:
+        preserve_accounting_identity: true
+      output:
+        paired: true
+        diff_formats: [summary, record_level]

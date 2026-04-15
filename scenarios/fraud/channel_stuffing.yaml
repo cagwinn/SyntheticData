@@ -1,0 +1,46 @@
+# Channel Stuffing / Revenue Front-Loading
+#
+# Sales team pushes excess inventory to distributors near quarter-end
+# with side agreements for returns. Revenue is recognized prematurely.
+
+scenarios:
+  enabled: true
+  scenarios:
+    - name: channel_stuffing
+      description: >
+        Sales team pushes excess inventory to distributors near quarter-end
+        with undisclosed side agreements allowing returns. Revenue recognized
+        prematurely; credit notes and returns spike in week 1 of next quarter.
+      tags: [fraud, revenue, channel_stuffing, sales]
+      probability_weight: 0.10
+      interventions:
+        - type: parameter_shift
+          target: transactions.anomaly_rate
+          value: "0.07"
+          timing:
+            start_month: 3
+            duration_months: 1
+            onset: sudden
+          label: "Q1 end channel stuffing"
+        - type: parameter_shift
+          target: transactions.anomaly_rate
+          value: "0.07"
+          timing:
+            start_month: 6
+            duration_months: 1
+            onset: sudden
+          label: "Q2 end channel stuffing"
+        - type: parameter_shift
+          target: transactions.anomaly_rate
+          value: "0.10"
+          timing:
+            start_month: 12
+            duration_months: 1
+            onset: sudden
+          label: "Year-end aggressive channel stuffing"
+      constraints:
+        preserve_accounting_identity: true
+        preserve_document_chains: true
+      output:
+        paired: true
+        diff_formats: [summary, aggregate]

@@ -1,0 +1,30 @@
+# Interest Rate Shock (+300bp)
+#
+# Central bank raises rates 300 basis points over 6 months.
+# Impacts: debt service costs, hedge ineffectiveness, customer defaults.
+
+scenarios:
+  enabled: true
+  scenarios:
+    - name: interest_rate_shock_300bp
+      description: >
+        Central bank raises rates 300 basis points over 6 months.
+        Debt service costs increase. Variable-rate instruments reprice.
+        Hedge ineffectiveness spikes. Customer default rates increase.
+      tags: [macro, interest_rate, stress_test, treasury]
+      probability_weight: 0.10
+      interventions:
+        - type: parameter_shift
+          target: distributions.amounts.components[1].mu
+          value: "9.0"
+          timing:
+            start_month: 3
+            duration_months: 6
+            onset: gradual
+          label: "Interest expense increase from rate hikes"
+      constraints:
+        preserve_accounting_identity: true
+        preserve_period_close: true
+      output:
+        paired: true
+        diff_formats: [summary, aggregate]

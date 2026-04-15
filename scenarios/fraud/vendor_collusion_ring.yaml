@@ -1,0 +1,43 @@
+# Vendor Collusion Ring Scenario
+#
+# Three vendors operated by the same beneficial owner submit coordinated bids.
+# Winning vendor rotates. Prices are 15-25% above market. Kickbacks flow
+# through ghost invoices on losing vendors.
+#
+# Expected signals: bid clustering, round-robin wins, address similarity,
+# payment timing correlation, ghost invoices without matching GR/PO.
+
+scenarios:
+  enabled: true
+  scenarios:
+    - name: vendor_collusion_ring
+      description: >
+        Three vendors operated by the same beneficial owner submit coordinated
+        bids to procurement. Winning vendor rotates. Prices are 15-25% above
+        market. Kickbacks flow through ghost invoices on losing vendors.
+      tags: [fraud, procurement, collusion, bid_rigging]
+      probability_weight: 0.10
+      interventions:
+        - type: parameter_shift
+          target: transactions.anomaly_rate
+          value: "0.08"
+          timing:
+            start_month: 3
+            duration_months: 9
+            onset: gradual
+          label: "Increased anomaly rate from collusion activity"
+        - type: parameter_shift
+          target: fraud.injection_rate
+          value: "0.05"
+          timing:
+            start_month: 3
+            duration_months: 9
+            onset: sudden
+          label: "Kickback invoice fraud injection"
+      constraints:
+        preserve_accounting_identity: true
+        preserve_document_chains: true
+        preserve_period_close: true
+      output:
+        paired: true
+        diff_formats: [summary, record_level]

@@ -1,0 +1,30 @@
+# Ghost Employee Payroll Scheme
+#
+# A payroll manager creates fictitious employees who receive regular salary
+# payments. Deposits go to accounts controlled by the perpetrator.
+
+scenarios:
+  enabled: true
+  scenarios:
+    - name: ghost_employee_payroll
+      description: >
+        Payroll manager creates fictitious employees receiving regular salary
+        payments. Amounts are below review thresholds. Deposited to accounts
+        controlled by the perpetrator. Escalates over 6 months.
+      tags: [fraud, payroll, ghost_employee, embezzlement]
+      probability_weight: 0.08
+      interventions:
+        - type: parameter_shift
+          target: transactions.anomaly_rate
+          value: "0.04"
+          timing:
+            start_month: 2
+            duration_months: 10
+            onset: gradual
+          label: "Ghost employee salary payments"
+      constraints:
+        preserve_accounting_identity: true
+        preserve_period_close: true
+      output:
+        paired: true
+        diff_formats: [summary, record_level]

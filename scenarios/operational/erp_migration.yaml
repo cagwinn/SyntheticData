@@ -1,0 +1,39 @@
+# ERP Migration Cutover
+#
+# System migration causes a 2-month period of elevated error rates,
+# duplicate entries from parallel running, and delayed period close.
+
+scenarios:
+  enabled: true
+  scenarios:
+    - name: erp_migration_cutover
+      description: >
+        Major ERP migration causes parallel running for 2 months. Elevated
+        error rates from data conversion issues. Duplicate entries from
+        both systems posting. Period close delayed by reconciliation.
+      tags: [operational, erp_migration, system_change, process]
+      probability_weight: 0.08
+      interventions:
+        - type: parameter_shift
+          target: transactions.anomaly_rate
+          value: "0.10"
+          timing:
+            start_month: 8
+            duration_months: 2
+            onset: sudden
+          label: "Elevated errors during parallel running"
+        - type: parameter_shift
+          target: internal_controls.exception_rate
+          value: "0.08"
+          timing:
+            start_month: 8
+            duration_months: 3
+            onset: sudden
+          label: "Control gaps during migration"
+      constraints:
+        preserve_accounting_identity: true
+        preserve_document_chains: true
+        preserve_period_close: true
+      output:
+        paired: true
+        diff_formats: [summary, record_level]

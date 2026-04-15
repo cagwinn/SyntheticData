@@ -1,0 +1,39 @@
+# Supply Chain Disruption
+#
+# Three strategic vendors default in Q3, forcing spot purchasing at
+# premium prices. Production delays cascade to delivery delays.
+
+scenarios:
+  enabled: true
+  scenarios:
+    - name: supply_chain_disruption_q3
+      description: >
+        Three strategic vendors default in Q3, triggering spot purchasing
+        at 20-30% premium prices. Production delays cascade to late
+        deliveries. COGS increases, margin compression follows.
+      tags: [macro, supply_chain, vendor_default, stress_test]
+      probability_weight: 0.15
+      interventions:
+        - type: parameter_shift
+          target: distributions.amounts.components[0].mu
+          value: "6.5"
+          timing:
+            start_month: 7
+            duration_months: 4
+            onset: sudden
+          label: "Spot purchasing at premium prices"
+        - type: parameter_shift
+          target: transactions.anomaly_rate
+          value: "0.03"
+          timing:
+            start_month: 7
+            duration_months: 5
+            onset: gradual
+          label: "Late posting errors from supply chain chaos"
+      constraints:
+        preserve_accounting_identity: true
+        preserve_document_chains: true
+        preserve_period_close: true
+      output:
+        paired: true
+        diff_formats: [summary, record_level, aggregate]
