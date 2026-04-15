@@ -1,0 +1,11 @@
+[book]
+authors = ["Michael Ivertowski"]
+language = "en"
+src = "src"
+title = "DataSynth Documentation"
+description = "Comprehensive guide for DataSynth — synthetic enterprise data generation"
+
+[output.html]
+default-theme = "light"
+preferred-dark-theme = "ayu"
+git-repository-url = "https://github.com/mivertowski/SyntheticData"

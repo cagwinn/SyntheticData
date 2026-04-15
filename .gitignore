@@ -28,8 +28,8 @@ crates/datasynth-ui/package-lock.json
 crates/datasynth-ui/playwright-report/
 crates/datasynth-ui/test-results/
 
-# mdBook build output
-docs/book/
+# mdBook build output (source is tracked, build output is not)
+docs/book/book/
 
 # LaTeX temporary files
 *.aux
