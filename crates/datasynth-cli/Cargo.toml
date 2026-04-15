@@ -18,6 +18,7 @@ path = "src/main.rs"
 default = ["streaming"]
 streaming = ["dep:reqwest", "datasynth-runtime/streaming"]
 llm = ["datasynth-core/llm"]
+adversarial = ["datasynth-eval/adversarial"]
 
 [dependencies]
 datasynth-core = { workspace = true }
@@ -38,6 +39,7 @@ tokio = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 serde = { workspace = true }
+csv = { workspace = true }
 serde_yaml = { workspace = true }
 serde_json = { workspace = true }
 itoa = { workspace = true }

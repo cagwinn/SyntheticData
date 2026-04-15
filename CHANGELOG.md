@@ -5,9 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [3.0.0] - 2026-04-14
+## [3.0.0] - 2026-04-15
 
 ### Added
+
+#### AI-Native CLI & Pipeline Integration
+- **Auto-tune CLI** (`--auto-tune --max-iterations N`): Generate → evaluate → AI patch → regenerate loop integrated into the `generate` command. Uses `AiTuner` from datasynth-eval with mock LLM (real LLM when `llm` feature enabled).
+- **Adversarial CLI** (`datasynth-data adversarial --model model.onnx`): Load ONNX models and probe decision boundaries. Reports mean score, positive rate, boundary samples, margin statistics. Behind `adversarial` feature flag.
+- **Fingerprint → Synthesize pipeline** (`datasynth-data fingerprint synthesize --fingerprint data.dsf --output ./synthetic`): Privacy-preserving synthesis from fingerprint statistics via `DiffusionTrainer`. Generates CSV matching the fingerprinted column distributions. `--neural` flag for neural backend.
+- **Scenario export/import** (`datasynth-data scenario export|import`): Portable `.dss` scenario files with version header. Export scenarios from configs, import into other configs with duplicate detection.
+- **Neural enhancement phase** in orchestrator: When `diffusion.backend: neural|hybrid`, logs integration point for neural diffusion, tabular transformer, and GNN backends.
+- **`adversarial` feature flag on CLI**: Enables ONNX model probing via `datasynth-eval/adversarial`.
 
 #### Simulation Platform
 

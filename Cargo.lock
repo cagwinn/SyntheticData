@@ -1313,6 +1313,7 @@ dependencies = [
  "anyhow",
  "assert_cmd",
  "clap",
+ "csv",
  "datasynth-audit-fsm",
  "datasynth-audit-optimizer",
  "datasynth-banking",

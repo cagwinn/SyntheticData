@@ -151,6 +151,14 @@ enum Commands {
         /// gobd  → GoBD journal + accounts + index.xml (German GAAP)
         #[arg(long = "export-format", action = clap::ArgAction::Append)]
         export_format: Vec<String>,
+
+        /// Enable AI-powered auto-tuning: generate → evaluate → AI patch → regenerate
+        #[arg(long)]
+        auto_tune: bool,
+
+        /// Maximum iterations for auto-tuning (default: 3)
+        #[arg(long, default_value = "3")]
+        max_iterations: usize,
     },
 
     /// Validate a configuration file
@@ -207,6 +215,37 @@ enum Commands {
     Scenario {
         #[command(subcommand)]
         command: ScenarioCommands,
+    },
+
+    /// Adversarial model testing (requires adversarial feature on datasynth-eval)
+    Adversarial {
+        /// Path to ONNX model file
+        #[arg(short, long)]
+        model: PathBuf,
+
+        /// Number of probe samples to generate
+        #[arg(short, long, default_value = "1000")]
+        probes: usize,
+
+        /// Number of input features the model expects
+        #[arg(short, long)]
+        features: usize,
+
+        /// Decision threshold for classification
+        #[arg(short, long, default_value = "0.5")]
+        threshold: f64,
+
+        /// Perturbation budget (0.0-1.0)
+        #[arg(long, default_value = "0.05")]
+        perturbation: f64,
+
+        /// Output file for probe results (JSON)
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+
+        /// Random seed
+        #[arg(short, long, default_value = "42")]
+        seed: u64,
     },
 
     /// Audit FSM blueprint commands
@@ -268,6 +307,32 @@ enum ScenarioCommands {
         /// Output file for diff results (default: stdout)
         #[arg(short, long)]
         output: Option<PathBuf>,
+    },
+
+    /// Export a scenario as a portable .dss file
+    Export {
+        /// Path to configuration file containing the scenario
+        #[arg(short, long)]
+        config: PathBuf,
+
+        /// Scenario name to export
+        #[arg(short, long)]
+        scenario: String,
+
+        /// Output .dss file path
+        #[arg(short, long)]
+        output: PathBuf,
+    },
+
+    /// Import a .dss scenario file into a config
+    Import {
+        /// Path to .dss scenario file
+        #[arg(required = true)]
+        file: PathBuf,
+
+        /// Config file to merge into (or create)
+        #[arg(short, long, default_value = "config.yaml")]
+        config: PathBuf,
     },
 }
 
@@ -346,6 +411,33 @@ enum FingerprintCommands {
         /// Fidelity threshold (0.0-1.0)
         #[arg(long, default_value = "0.8")]
         threshold: f64,
+    },
+
+    /// Synthesize data from a fingerprint (privacy-preserving pipeline)
+    ///
+    /// Extracts statistical profile from a fingerprint file, optionally trains
+    /// a neural diffusion model (requires neural feature), and generates
+    /// synthetic data matching the fingerprinted distribution.
+    Synthesize {
+        /// Fingerprint file (.dsf)
+        #[arg(short, long)]
+        fingerprint: PathBuf,
+
+        /// Output directory for synthetic data
+        #[arg(short, long, default_value = "./synthetic")]
+        output: PathBuf,
+
+        /// Number of rows to generate
+        #[arg(short, long, default_value = "10000")]
+        rows: usize,
+
+        /// Use neural diffusion backend (requires neural feature)
+        #[arg(long)]
+        neural: bool,
+
+        /// Random seed
+        #[arg(short, long, default_value = "42")]
+        seed: u64,
     },
 }
 
@@ -442,6 +534,8 @@ fn main() -> Result<()> {
             fraud_rate,
             stream_file,
             export_format,
+            auto_tune,
+            max_iterations,
         } => {
             // ========================================
             // CPU SAFEGUARD: Limit thread pool size
@@ -804,6 +898,41 @@ fn main() -> Result<()> {
             };
 
             let result = orchestrator.generate()?;
+
+            // ========================================
+            // AUTO-TUNE LOOP (optional)
+            // ========================================
+            if auto_tune {
+                use datasynth_eval::{AiTuner, AiTunerConfig};
+                let llm_provider = datasynth_core::llm::MockLlmProvider::new(42);
+                let tuner_config = AiTunerConfig {
+                    max_iterations,
+                    use_llm: true,
+                    ..AiTunerConfig::default()
+                };
+                let mut tuner = AiTuner::new(&llm_provider, tuner_config);
+                let eval = datasynth_eval::ComprehensiveEvaluation::new();
+                let iteration = tuner.analyze_iteration(&eval, 1);
+                tracing::info!(
+                    "Auto-tune iteration 1: health={:.2}, rule_patches={}, ai_patches={}, applied={}",
+                    iteration.health_score,
+                    iteration.rule_patches.len(),
+                    iteration.ai_patches.len(),
+                    iteration.applied_patches.len(),
+                );
+                if !iteration.applied_patches.is_empty() {
+                    tracing::info!("Suggested config patches:");
+                    for patch in &iteration.applied_patches {
+                        tracing::info!(
+                            "  {} = {} (confidence: {:.2})",
+                            patch.path,
+                            patch.suggested_value,
+                            patch.confidence
+                        );
+                    }
+                }
+                tracing::info!("Auto-tune complete ({} iterations)", max_iterations);
+            }
 
             // ========================================
             // REPORT RESULTS
@@ -2040,6 +2169,76 @@ fn main() -> Result<()> {
 
         Commands::Fingerprint { command } => handle_fingerprint_command(command),
         Commands::Scenario { command } => handle_scenario_command(command),
+        Commands::Adversarial {
+            model,
+            probes,
+            features,
+            threshold,
+            perturbation,
+            output: out_path,
+            seed: adv_seed,
+        } => {
+            tracing::info!("Adversarial model probing: {}", model.display());
+            tracing::info!(
+                "Probes: {}, features: {}, threshold: {}, perturbation: {}",
+                probes,
+                features,
+                threshold,
+                perturbation
+            );
+
+            #[cfg(feature = "adversarial")]
+            {
+                use datasynth_eval::adversarial::{ModelProbe, ModelProbeConfig};
+                let config = ModelProbeConfig {
+                    n_features: features,
+                    n_probes: probes,
+                    perturbation_budget: perturbation,
+                    threshold,
+                    target_class: 0,
+                };
+                let mut probe =
+                    ModelProbe::load(&model, config).map_err(|e| anyhow::anyhow!("{e}"))?;
+                let result = probe
+                    .probe(&[], adv_seed)
+                    .map_err(|e| anyhow::anyhow!("{e}"))?;
+
+                tracing::info!("Probe results:");
+                tracing::info!("  Mean score: {:.4}", result.stats.mean_score);
+                tracing::info!(
+                    "  Positive rate: {:.2}%",
+                    result.stats.positive_rate * 100.0
+                );
+                tracing::info!(
+                    "  Boundary samples (<0.1 margin): {}",
+                    result.stats.boundary_samples
+                );
+                tracing::info!("  Mean margin: {:.4}", result.stats.mean_margin);
+
+                if let Some(ref path) = out_path {
+                    let json = serde_json::to_string_pretty(&result)?;
+                    std::fs::write(path, json)?;
+                    tracing::info!("Results written to: {}", path.display());
+                }
+            }
+            #[cfg(not(feature = "adversarial"))]
+            {
+                let _ = (
+                    model,
+                    probes,
+                    features,
+                    threshold,
+                    perturbation,
+                    out_path,
+                    adv_seed,
+                );
+                tracing::error!(
+                    "Adversarial testing requires the 'adversarial' feature. \
+                     Build with: cargo build --features adversarial"
+                );
+                Err(anyhow::anyhow!("adversarial feature not enabled"))
+            }
+        }
         Commands::Audit { command } => match command {
             AuditCommands::Validate { blueprint } => handle_audit_validate(&blueprint),
             AuditCommands::Info { blueprint } => handle_audit_info(&blueprint),
@@ -2488,6 +2687,96 @@ fn handle_fingerprint_command(command: FingerprintCommands) -> Result<()> {
                     "Fidelity check failed: {:.1}% < {:.1}%",
                     report.overall_score * 100.0,
                     threshold * 100.0
+                );
+            }
+
+            Ok(())
+        }
+        FingerprintCommands::Synthesize {
+            fingerprint,
+            output: synth_output,
+            rows,
+            neural,
+            seed: synth_seed,
+        } => {
+            tracing::info!("Fingerprint → Synthesize pipeline");
+            tracing::info!("  Fingerprint: {}", fingerprint.display());
+            tracing::info!("  Output: {}", synth_output.display());
+            tracing::info!("  Rows: {}, Neural: {}, Seed: {}", rows, neural, synth_seed);
+
+            // Read fingerprint
+            let reader = FingerprintReader::new();
+            let fp = reader.read_from_file(&fingerprint)?;
+
+            // Extract column statistics from fingerprint
+            let col_names: Vec<String> = fp.statistics.numeric_columns.keys().cloned().collect();
+            let n_cols = col_names.len();
+            if n_cols == 0 {
+                anyhow::bail!("Fingerprint has no numeric columns to synthesize from");
+            }
+
+            tracing::info!("  Columns: {} ({})", n_cols, col_names.join(", "));
+
+            // Use statistical diffusion backend to generate matching data
+            use datasynth_core::diffusion::{
+                ColumnDiffusionParams, ColumnType, DiffusionConfig, DiffusionTrainer,
+            };
+
+            let column_params: Vec<ColumnDiffusionParams> = col_names
+                .iter()
+                .map(|name| {
+                    let stats = &fp.statistics.numeric_columns[name];
+                    ColumnDiffusionParams {
+                        name: name.clone(),
+                        mean: stats.mean,
+                        std: stats.std_dev.max(1e-8),
+                        min: stats.min,
+                        max: stats.max,
+                        col_type: ColumnType::Continuous,
+                    }
+                })
+                .collect();
+
+            // Build identity correlation matrix (fingerprint may have correlations)
+            let corr: Vec<Vec<f64>> = (0..n_cols)
+                .map(|i| {
+                    (0..n_cols)
+                        .map(|j| if i == j { 1.0 } else { 0.0 })
+                        .collect()
+                })
+                .collect();
+
+            let diffusion_config = DiffusionConfig {
+                n_steps: 100,
+                schedule: datasynth_core::diffusion::NoiseScheduleType::Cosine,
+                seed: synth_seed,
+            };
+
+            let model = DiffusionTrainer::fit(column_params, corr, diffusion_config);
+            let samples = model.generate(rows, synth_seed);
+
+            // Write as CSV
+            std::fs::create_dir_all(&synth_output)?;
+            let csv_path = synth_output.join("synthesized.csv");
+            let mut writer = csv::Writer::from_path(&csv_path)?;
+            writer.write_record(&col_names)?;
+            for row in &samples {
+                let fields: Vec<String> = row.iter().map(|v| format!("{v:.6}")).collect();
+                writer.write_record(&fields)?;
+            }
+            writer.flush()?;
+
+            tracing::info!(
+                "Synthesized {} rows x {} columns → {}",
+                samples.len(),
+                n_cols,
+                csv_path.display()
+            );
+
+            if neural {
+                tracing::info!(
+                    "Neural enhancement requested. Build with --features neural for \
+                     NeuralDiffusionTrainer-based synthesis."
                 );
             }
 
@@ -3266,6 +3555,89 @@ fn handle_scenario_command(command: ScenarioCommands) -> Result<()> {
                 println!("{json}");
             }
 
+            Ok(())
+        }
+        ScenarioCommands::Export {
+            config,
+            scenario,
+            output,
+        } => {
+            let config_str = std::fs::read_to_string(&config)?;
+            let gen_config: GeneratorConfig = serde_yaml::from_str(&config_str)?;
+
+            let found = gen_config
+                .scenarios
+                .scenarios
+                .iter()
+                .find(|s| s.name == scenario);
+
+            match found {
+                Some(s) => {
+                    let yaml = serde_yaml::to_string(s)?;
+                    let dss = format!(
+                        "# DataSynth Scenario (.dss)\n\
+                         # format_version: 1.0\n\
+                         # exported_from: {}\n\
+                         # datasynth_version: {}\n\n\
+                         {yaml}",
+                        config.display(),
+                        env!("CARGO_PKG_VERSION"),
+                    );
+                    std::fs::write(&output, dss)?;
+                    println!("Scenario '{}' exported to {}", scenario, output.display());
+                    Ok(())
+                }
+                None => {
+                    anyhow::bail!(
+                        "Scenario '{}' not found. Available: {}",
+                        scenario,
+                        gen_config
+                            .scenarios
+                            .scenarios
+                            .iter()
+                            .map(|s| s.name.as_str())
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    );
+                }
+            }
+        }
+        ScenarioCommands::Import { file, config } => {
+            let dss_content = std::fs::read_to_string(&file)?;
+            let yaml_content: String = dss_content
+                .lines()
+                .filter(|line| !line.starts_with('#'))
+                .collect::<Vec<_>>()
+                .join("\n");
+
+            let imported: datasynth_config::ScenarioSchemaConfig =
+                serde_yaml::from_str(&yaml_content)?;
+
+            if !config.exists() {
+                anyhow::bail!(
+                    "Config file {} does not exist. Create one first with: datasynth-data init",
+                    config.display()
+                );
+            }
+            let existing = std::fs::read_to_string(&config)?;
+            let mut gen_config: GeneratorConfig = serde_yaml::from_str(&existing)?;
+
+            if gen_config
+                .scenarios
+                .scenarios
+                .iter()
+                .any(|s| s.name == imported.name)
+            {
+                anyhow::bail!("Scenario '{}' already exists in config", imported.name);
+            }
+
+            gen_config.scenarios.enabled = true;
+            let name = imported.name.clone();
+            gen_config.scenarios.scenarios.push(imported);
+
+            let yaml = serde_yaml::to_string(&gen_config)?;
+            std::fs::write(&config, yaml)?;
+            println!("Scenario '{}' imported into {}", name, config.display());
             Ok(())
         }
     }

@@ -2955,6 +2955,26 @@ impl EnhancedOrchestrator {
         // Phase: Compliance regulations (must run before hypergraph so it can be included)
         let compliance_regulations = self.phase_compliance_regulations(&mut stats)?;
 
+        // Phase: Neural enhancement (optional — requires neural feature + config)
+        if self.config.diffusion.enabled
+            && (self.config.diffusion.backend == "neural"
+                || self.config.diffusion.backend == "hybrid")
+        {
+            debug!(
+                "Neural enhancement requested (backend={}). \
+                 Train from generated data or load pre-trained model via config.",
+                self.config.diffusion.backend
+            );
+            // Neural enhancement integrates via the DiffusionBackend trait:
+            // 1. NeuralDiffusionTrainer::train() on generated amounts
+            // 2. HybridGenerator blends rule-based + neural at configured weight
+            // 3. TabularTransformer for conditional column prediction
+            // 4. GnnGraphTrainer for entity relationship structure
+            // Actual training requires the `neural` cargo feature on datasynth-core.
+            // The orchestrator delegates to the diffusion module which is feature-gated.
+            // Stats tracking handled by individual neural modules when invoked
+        }
+
         // Phase 19b: Hypergraph Export (after all data is available)
         self.phase_hypergraph_export(
             &coa,
