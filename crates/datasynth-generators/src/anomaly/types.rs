@@ -113,6 +113,49 @@ impl FraudTypeConfig {
                 requires_conditions: false,
                 description_template: "Expense improperly capitalized as asset".to_string(),
             },
+            // Sourcing / S2C fraud — injection paths added in v3.1 so these
+            // variants reach the generated dataset instead of being
+            // declaration-only enum members.
+            Self {
+                fraud_type: FraudType::BidRigging,
+                weight: 0.4,
+                min_amount: Some(Decimal::new(50000, 0)),
+                max_amount: Some(Decimal::new(2000000, 0)),
+                requires_conditions: false,
+                description_template: "Bid rigging / collusive bidding detected on contract {}"
+                    .to_string(),
+            },
+            Self {
+                fraud_type: FraudType::PhantomVendorContract,
+                weight: 0.3,
+                min_amount: Some(Decimal::new(10000, 0)),
+                max_amount: Some(Decimal::new(750000, 0)),
+                requires_conditions: false,
+                description_template: "Contract issued to phantom / shell vendor {}".to_string(),
+            },
+            Self {
+                fraud_type: FraudType::ConflictOfInterestSourcing,
+                weight: 0.4,
+                min_amount: Some(Decimal::new(5000, 0)),
+                max_amount: Some(Decimal::new(500000, 0)),
+                requires_conditions: false,
+                description_template:
+                    "Sourcing award awarded with undisclosed related-party interest".to_string(),
+            },
+            // Fair value / ASC 820 – Level 3 input manipulation: the entry
+            // rides on a Level-3 valuation output whose underlying inputs
+            // (discount rate, growth rate, terminal value) were deliberately
+            // biased. High severity — often pervasive to fair-value estimates.
+            Self {
+                fraud_type: FraudType::Level3InputManipulation,
+                weight: 0.25,
+                min_amount: Some(Decimal::new(100000, 0)),
+                max_amount: Some(Decimal::new(10000000, 0)),
+                requires_conditions: false,
+                description_template:
+                    "Level-3 fair-value input manipulated (discount rate / growth assumption)"
+                        .to_string(),
+            },
         ]
     }
 

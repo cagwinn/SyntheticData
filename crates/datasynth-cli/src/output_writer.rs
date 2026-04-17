@@ -1620,6 +1620,109 @@ pub fn write_all_output_with_layout(
                 }
             }
         }
+
+        // Banking evaluation (KYC completeness + AML detectability).
+        // Matches the payload served by /v1/jobs/{id}/analytics so
+        // archive-mode consumers see the same four files the endpoint returns.
+        if !result.banking.customers.is_empty() {
+            use datasynth_core::models::banking::BankingCustomerType;
+            use datasynth_eval::banking::{
+                AmlDetectabilityAnalyzer, AmlTransactionData, BankingEvaluation,
+                KycCompletenessAnalyzer, KycProfileData, TypologyData,
+            };
+            use std::collections::HashMap;
+            std::fs::create_dir_all(&analytics_dir)?;
+
+            let kyc_data: Vec<KycProfileData> = result
+                .banking
+                .customers
+                .iter()
+                .map(|c| KycProfileData {
+                    profile_id: c.customer_id.to_string(),
+                    has_name: true,
+                    has_dob: c.date_of_birth.is_some(),
+                    has_address: c.address_line1.is_some(),
+                    has_id_document: c.national_id.is_some() || c.passport_number.is_some(),
+                    has_risk_rating: true,
+                    has_beneficial_owner: !c.beneficial_owners.is_empty(),
+                    is_entity: c.customer_type == BankingCustomerType::Business,
+                    is_verified: c.kyc_truthful,
+                })
+                .collect();
+
+            let mut banking_eval = BankingEvaluation::new();
+            if let Ok(kyc_res) = KycCompletenessAnalyzer::new().analyze(&kyc_data) {
+                banking_eval.kyc = Some(kyc_res);
+            }
+
+            let suspicious: Vec<&_> = result
+                .banking
+                .transactions
+                .iter()
+                .filter(|t| t.is_suspicious)
+                .collect();
+            if !suspicious.is_empty() {
+                let aml_data: Vec<AmlTransactionData> = suspicious
+                    .iter()
+                    .map(|t| AmlTransactionData {
+                        transaction_id: t.transaction_id.to_string(),
+                        typology: t
+                            .suspicion_reason
+                            .as_ref()
+                            .map(|r| format!("{:?}", r))
+                            .unwrap_or_default(),
+                        case_id: t.case_id.clone().unwrap_or_default(),
+                        amount: t.amount.try_into().unwrap_or(0.0),
+                        is_flagged: t.is_suspicious,
+                    })
+                    .collect();
+
+                let mut typology_map: HashMap<String, (usize, HashMap<String, bool>)> =
+                    HashMap::new();
+                for txn in &aml_data {
+                    if !txn.typology.is_empty() {
+                        let entry = typology_map
+                            .entry(txn.typology.clone())
+                            .or_insert_with(|| (0, HashMap::new()));
+                        entry.0 += 1;
+                        entry.1.insert(txn.case_id.clone(), true);
+                    }
+                }
+                let typology_data: Vec<TypologyData> = typology_map
+                    .iter()
+                    .map(|(name, (count, cases))| TypologyData {
+                        name: name.clone(),
+                        scenario_count: *count,
+                        case_ids_consistent: cases.len() <= *count,
+                    })
+                    .collect();
+
+                if let Ok(aml_res) =
+                    AmlDetectabilityAnalyzer::new().analyze(&aml_data, &typology_data)
+                {
+                    banking_eval.aml = Some(aml_res);
+                }
+            }
+            banking_eval.check_thresholds();
+
+            match serde_json::to_string_pretty(&banking_eval) {
+                Ok(json) => {
+                    if let Err(e) =
+                        std::fs::write(analytics_dir.join("banking_evaluation.json"), json)
+                    {
+                        warn!("Failed to write banking evaluation: {}", e);
+                    } else {
+                        info!(
+                            "  Banking evaluation written ({} profiles, {} issues, passes={})",
+                            result.banking.customers.len(),
+                            banking_eval.issues.len(),
+                            banking_eval.passes
+                        );
+                    }
+                }
+                Err(e) => warn!("Failed to serialize banking evaluation: {}", e),
+            }
+        }
     }
 
     // ========================================================================

@@ -31,7 +31,6 @@ parquet = { workspace = true, optional = true }
 [features]
 default = []
 claude-content = []
-gam-blueprint = []
 parquet-export = ["dep:arrow", "dep:parquet"]
 
 [dev-dependencies]

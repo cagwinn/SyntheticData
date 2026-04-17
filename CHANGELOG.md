@@ -15,6 +15,78 @@ showing ~0 feature importance for canonical forensic signals, a single
 financial-services DAG serving all industries, and ~47 % OCPM coverage on
 journal entries.
 
+A follow-up audit surfaced additional unwired or orphaned functionality — stub
+fingerprint extractors, declared-but-unread config fields, missing output
+files, enum variants with no injection path, and phantom feature flags. This
+release closes those as well.
+
+### Fingerprint extraction
+
+- **`AnomalyExtractor` now emits real anomaly fingerprints**: reads
+  `is_anomaly` / `is_fraud` / `anomaly_type` / `fraud_type` / `posting_date`
+  columns from the source, aggregates overall rate, category distribution,
+  per-type profiles, and monthly temporal clustering (seasonality strength,
+  trend direction, month-end concentration). Falls back cleanly to an empty
+  fingerprint with `has_labels = false` when no label columns are present.
+- **`RulesExtractor` now emits real business-rules fingerprints**: detects
+  balance rules (sum-of-debits = sum-of-credits per document with
+  compliance rate), range constraints for every numeric column, and an
+  approval-threshold ladder at p50/p90/p99 of the amount distribution.
+- **CLI fingerprint signing is now wired**: the full HMAC-SHA256
+  `DsfSigner` already existed in `fingerprint/io/signing.rs` (347 lines) but
+  the CLI was calling `write_to_file()`. Added `--sign-key-hex` /
+  `--sign-key-file` / `--sign-key-id` CLI options with
+  `DATASYNTH_FINGERPRINT_KEY` env-var fallback; deleted the misleading "not
+  yet implemented" warning.
+
+### Orchestrator wiring
+
+- **Audit opinions + key audit matters** (ISA 700/701) are now generated
+  automatically during `generate_audit_data` by invoking the existing
+  `AuditOpinionGenerator`. The `EnhancedGenerationResult.audit_opinions`
+  and `.key_audit_matters` fields are populated, and the output_writer
+  already serializes them to `audit/audit_opinions.json` and
+  `audit/key_audit_matters.json`.
+- **`analytics/banking_evaluation.json`** is now written alongside the
+  existing benford/amount/process analytics, so the archive matches the
+  `/v1/jobs/{id}/analytics` endpoint payload that the SDK feedback flagged
+  as inconsistent. Runs the KYC completeness + AML detectability analyzers
+  from `datasynth-eval::banking` on the banking snapshot.
+- **Custom causal DAGs**: `scenarios.causal_model.preset = "custom"` now
+  actually loads nodes/edges from the config (was silently ignored). Rejects
+  configs where both `nodes` and `edges` are empty.
+- **`business_processes.*_weight`** is now honoured: the JE generator's
+  hard-coded 0.35/0.30/0.20/0.10/0.05 distribution is replaced by a
+  `set_business_process_weights()` call driven by config, routed through
+  `weighted_select`. Defaults unchanged.
+- **Intervention config mutator is exhaustive**: every
+  `InterventionEntityEvent` subtype (EmployeeDeparture, KeyPersonRisk,
+  NewVendorOnboarding, MergerAcquisition, VendorCollusion,
+  CustomerConsolidation) now resolves to a concrete set of config paths.
+  Previously all but `VendorDefault` + `CustomerChurn` silently no-opped.
+- **Neural hybrid diffusion** wires `diffusion.neural.hybrid_weight`,
+  `hybrid_strategy`, and `neural_columns` through the neural-enhancement
+  phase: validates the strategy string against
+  `weighted_average / column_select / threshold`, clamps the weight to
+  `[0, 1]`, and records the resolved values in
+  `stats.neural_hybrid_{weight,strategy,routed_column_count}` for
+  downstream visibility. Leaves the neural backend itself feature-gated.
+
+### Fraud type coverage
+
+- **Sourcing & fair-value fraud variants now inject**: `BidRigging`,
+  `PhantomVendorContract`, `ConflictOfInterestSourcing`, and
+  `Level3InputManipulation` were declared in `FraudType` with severity
+  entries but had **zero injection sites**. Added
+  `FraudTypeConfig::all_defaults()` entries for each with realistic amount
+  ranges so `select_fraud()` reaches them.
+
+### Removed / cleaned up
+
+- Deleted the `gam-blueprint` feature flag in `datasynth-audit-fsm` — it
+  gated a single test-only helper identical to
+  `BlueprintWithPreconditions::load_from_file`. The helper is removed.
+
 ### Added
 
 #### Fraud semantics

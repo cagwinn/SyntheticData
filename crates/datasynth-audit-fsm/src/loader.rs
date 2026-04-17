@@ -1249,18 +1249,6 @@ impl BlueprintWithPreconditions {
 ///
 /// The GAM blueprint is too large (~13 MB) for `include_str!()` embedding.
 /// Users must provide the path to their local copy of
-/// `gam_blueprint_enriched.yaml`.
-///
-/// # Errors
-///
-/// Returns an error if the file cannot be read or if the YAML is invalid.
-#[cfg(feature = "gam-blueprint")]
-pub fn load_gam_from_path(
-    path: &std::path::Path,
-) -> Result<BlueprintWithPreconditions, AuditFsmError> {
-    BlueprintWithPreconditions::load_from_file(path.to_path_buf())
-}
-
 /// Validate a blueprint using explicit preconditions (for testing/mutation).
 pub fn validate_blueprint_with_preconditions(
     bp: &AuditBlueprint,

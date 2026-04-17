@@ -72,7 +72,19 @@ pub struct JournalEntryGenerator {
     business_day_calculator: Option<BusinessDayCalculator>,
     processing_lag_calculator: Option<ProcessingLagCalculator>,
     temporal_patterns_config: Option<TemporalPatternsConfig>,
+    // Business-process weights for the O2C/P2P/R2R/H2R/A2R volume mix. Must
+    // sum to 1.0 (validated by config schema). Default matches the legacy
+    // hard-coded 0.35/0.30/0.20/0.10/0.05 distribution.
+    business_process_weights: [(BusinessProcess, f64); 5],
 }
+
+const DEFAULT_BUSINESS_PROCESS_WEIGHTS: [(BusinessProcess, f64); 5] = [
+    (BusinessProcess::O2C, 0.35),
+    (BusinessProcess::P2P, 0.30),
+    (BusinessProcess::R2R, 0.20),
+    (BusinessProcess::H2R, 0.10),
+    (BusinessProcess::A2R, 0.05),
+];
 
 /// State for tracking batch processing behavior.
 ///
@@ -238,7 +250,28 @@ impl JournalEntryGenerator {
             ))),
             processing_lag_calculator: None,
             temporal_patterns_config: None,
+            business_process_weights: DEFAULT_BUSINESS_PROCESS_WEIGHTS,
         }
+    }
+
+    /// Override the business-process volume mix. Weights map directly to the
+    /// `business_processes.*_weight` YAML config; they do not have to sum to
+    /// exactly 1.0 (they're normalized via `weighted_select`).
+    pub fn set_business_process_weights(
+        &mut self,
+        o2c: f64,
+        p2p: f64,
+        r2r: f64,
+        h2r: f64,
+        a2r: f64,
+    ) {
+        self.business_process_weights = [
+            (BusinessProcess::O2C, o2c),
+            (BusinessProcess::P2P, p2p),
+            (BusinessProcess::R2R, r2r),
+            (BusinessProcess::H2R, h2r),
+            (BusinessProcess::A2R, a2r),
+        ];
     }
 
     /// Create from a full GeneratorConfig.
@@ -1961,20 +1994,7 @@ impl JournalEntryGenerator {
     }
 
     fn select_business_process(&mut self) -> BusinessProcess {
-        let roll: f64 = self.rng.random();
-
-        // Default weights: O2C=35%, P2P=30%, R2R=20%, H2R=10%, A2R=5%
-        if roll < 0.35 {
-            BusinessProcess::O2C
-        } else if roll < 0.65 {
-            BusinessProcess::P2P
-        } else if roll < 0.85 {
-            BusinessProcess::R2R
-        } else if roll < 0.95 {
-            BusinessProcess::H2R
-        } else {
-            BusinessProcess::A2R
-        }
+        *datasynth_core::utils::weighted_select(&mut self.rng, &self.business_process_weights)
     }
 
     #[inline]

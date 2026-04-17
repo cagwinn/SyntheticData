@@ -103,17 +103,38 @@ impl InterventionManager {
             }
             InterventionType::EntityEvent(ee) => {
                 use datasynth_core::InterventionEntityEvent;
+                // Exhaustive match so the compiler catches new subtypes that
+                // forget to declare which config paths they affect.
                 match ee.subtype {
-                    InterventionEntityEvent::VendorDefault => {
-                        vec![
-                            "vendor_network.dependencies.max_single_vendor_concentration"
-                                .to_string(),
-                        ]
-                    }
+                    InterventionEntityEvent::VendorDefault => vec![
+                        "vendor_network.dependencies.max_single_vendor_concentration".to_string(),
+                    ],
                     InterventionEntityEvent::CustomerChurn => {
                         vec!["customer_segmentation.lifecycle.churned_rate".to_string()]
                     }
-                    _ => vec![],
+                    InterventionEntityEvent::EmployeeDeparture
+                    | InterventionEntityEvent::KeyPersonRisk => vec![
+                        "internal_controls.exception_rate".to_string(),
+                        "internal_controls.sod_violation_rate".to_string(),
+                    ],
+                    InterventionEntityEvent::NewVendorOnboarding => vec![
+                        "vendor_network.tiers.tier1.count_max".to_string(),
+                        "vendor_network.clusters.standard_operational".to_string(),
+                    ],
+                    InterventionEntityEvent::MergerAcquisition => vec![
+                        "companies".to_string(),
+                        "intercompany.relationship_density".to_string(),
+                    ],
+                    InterventionEntityEvent::VendorCollusion => vec![
+                        "fraud.enabled".to_string(),
+                        "fraud.fraud_type_distribution.suspense_account_abuse".to_string(),
+                        "vendor_network.clusters.problematic".to_string(),
+                    ],
+                    InterventionEntityEvent::CustomerConsolidation => vec![
+                        "customer_segmentation.value_segments.enterprise.customer_share"
+                            .to_string(),
+                        "customer_segmentation.value_segments.smb.customer_share".to_string(),
+                    ],
                 }
             }
             InterventionType::ProcessChange(_) => {

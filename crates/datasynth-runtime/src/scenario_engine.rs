@@ -63,10 +63,45 @@ impl ScenarioEngine {
     /// Presets: `default` (financial-process default), `manufacturing`
     /// (supply-chain propagation), `retail` (O2C / seasonality),
     /// `financial_services` (correspondent banking + AML), `minimal` (3-node
-    /// smoke-test DAG).
+    /// smoke-test DAG), and `custom` (user-provided `nodes` + `edges` in the
+    /// config).
     fn load_causal_dag(config: &GeneratorConfig) -> Result<CausalDAG, ScenarioError> {
         let causal_config = &config.scenarios.causal_model;
         let mut dag: CausalDAG = match causal_config.preset.as_str() {
+            "custom" => {
+                if causal_config.nodes.is_empty() || causal_config.edges.is_empty() {
+                    return Err(ScenarioError::Serialization(
+                        "causal_model.preset = \"custom\" requires both `nodes` and `edges` \
+                         to be populated in the config"
+                            .to_string(),
+                    ));
+                }
+                let nodes: Vec<datasynth_core::causal_dag::CausalNode> = causal_config
+                    .nodes
+                    .iter()
+                    .enumerate()
+                    .map(|(i, v)| {
+                        serde_json::from_value(v.clone()).map_err(|e| {
+                            ScenarioError::Serialization(format!("causal_model.nodes[{i}]: {e}"))
+                        })
+                    })
+                    .collect::<Result<_, _>>()?;
+                let edges: Vec<datasynth_core::causal_dag::CausalEdge> = causal_config
+                    .edges
+                    .iter()
+                    .enumerate()
+                    .map(|(i, v)| {
+                        serde_json::from_value(v.clone()).map_err(|e| {
+                            ScenarioError::Serialization(format!("causal_model.edges[{i}]: {e}"))
+                        })
+                    })
+                    .collect::<Result<_, _>>()?;
+                CausalDAG {
+                    nodes,
+                    edges,
+                    topological_order: Vec::new(),
+                }
+            }
             "default" | "" => {
                 let yaml = include_str!("causal_dag_default.yaml");
                 serde_yaml::from_str(yaml).map_err(|e| {

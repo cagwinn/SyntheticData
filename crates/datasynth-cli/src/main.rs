@@ -360,9 +360,27 @@ enum FingerprintCommands {
         #[arg(long)]
         privacy_k: Option<u32>,
 
-        /// Sign the fingerprint
+        /// Sign the fingerprint with HMAC-SHA256.
+        ///
+        /// The key is read from (in order): `--sign-key-hex` if set,
+        /// `--sign-key-file` if set, the `DATASYNTH_FINGERPRINT_KEY`
+        /// environment variable (hex-encoded), or a randomly-generated
+        /// ephemeral key (the hex value is logged so it can be kept for
+        /// later verification).
         #[arg(long)]
         sign: bool,
+
+        /// Hex-encoded HMAC-SHA256 signing key. Precedence: this > file > env > generated.
+        #[arg(long, requires = "sign")]
+        sign_key_hex: Option<String>,
+
+        /// File containing a hex-encoded HMAC-SHA256 signing key (whitespace stripped).
+        #[arg(long, requires = "sign")]
+        sign_key_file: Option<PathBuf>,
+
+        /// Key identifier stored alongside the signature (defaults to "default").
+        #[arg(long, default_value = "default")]
+        sign_key_id: String,
     },
 
     /// Validate a fingerprint file
@@ -2262,6 +2280,41 @@ fn main() -> Result<()> {
     }
 }
 
+/// Resolve a fingerprint-signing key by walking the configured sources in
+/// order: explicit hex, key file, `DATASYNTH_FINGERPRINT_KEY` env var, then
+/// a randomly-generated ephemeral key (which is logged at WARN so users can
+/// capture it for later verification).
+fn resolve_signing_key(
+    hex: Option<&str>,
+    file: Option<&std::path::Path>,
+    key_id: &str,
+) -> Result<datasynth_fingerprint::io::signing::SigningKey> {
+    use datasynth_fingerprint::io::signing::SigningKey;
+
+    if let Some(h) = hex {
+        return SigningKey::from_hex(key_id, h.trim())
+            .map_err(|e| anyhow::anyhow!("invalid --sign-key-hex: {e}"));
+    }
+    if let Some(path) = file {
+        let raw = std::fs::read_to_string(path)
+            .map_err(|e| anyhow::anyhow!("reading sign-key-file {}: {e}", path.display()))?;
+        return SigningKey::from_hex(key_id, raw.trim())
+            .map_err(|e| anyhow::anyhow!("invalid key in {}: {e}", path.display()));
+    }
+    if let Ok(env_hex) = std::env::var("DATASYNTH_FINGERPRINT_KEY") {
+        return SigningKey::from_hex(key_id, env_hex.trim())
+            .map_err(|e| anyhow::anyhow!("invalid DATASYNTH_FINGERPRINT_KEY: {e}"));
+    }
+    // Fall back to ephemeral key — log it so the operator can verify later.
+    let key = SigningKey::generate(key_id);
+    tracing::warn!(
+        "No signing key provided; generated an ephemeral HMAC-SHA256 key. \
+         Save this hex-encoded key to verify the fingerprint later: {}",
+        key.to_hex()
+    );
+    Ok(key)
+}
+
 /// Handle fingerprint subcommands.
 fn handle_fingerprint_command(command: FingerprintCommands) -> Result<()> {
     match command {
@@ -2272,6 +2325,9 @@ fn handle_fingerprint_command(command: FingerprintCommands) -> Result<()> {
             privacy_epsilon,
             privacy_k,
             sign,
+            sign_key_hex,
+            sign_key_file,
+            sign_key_id,
         } => {
             tracing::info!("Extracting fingerprint from: {}", input.display());
 
@@ -2325,22 +2381,26 @@ fn handle_fingerprint_command(command: FingerprintCommands) -> Result<()> {
             let extractor = FingerprintExtractor::with_config(extraction_config);
             let fingerprint = extractor.extract(&data_source)?;
 
-            // Write fingerprint
+            // Write fingerprint (signed if --sign).
             let writer = FingerprintWriter::new();
             if sign {
-                // NOTE: DsfSigner / signing infrastructure is not yet implemented.
-                // The --sign flag is accepted for forward-compatibility but no signature
-                // is embedded in the output .dsf file.  A future release will add
-                // Ed25519-based signing via a `DsfSigner` type in datasynth-fingerprint.
-                tracing::warn!(
-                    "--sign was specified but fingerprint signing infrastructure (DsfSigner) \
-                     is not yet implemented; writing unsigned fingerprint. \
-                     Remove --sign or track issue #TODO for signing support."
+                use datasynth_fingerprint::io::signing::DsfSigner;
+                let key = resolve_signing_key(
+                    sign_key_hex.as_deref(),
+                    sign_key_file.as_deref(),
+                    &sign_key_id,
+                )?;
+                let signer = DsfSigner::new(key);
+                writer.write_to_file_signed(&fingerprint, &output, &signer)?;
+                tracing::info!(
+                    "Signed fingerprint (key_id={}) written to: {}",
+                    signer.key_id(),
+                    output.display()
                 );
+            } else {
+                writer.write_to_file(&fingerprint, &output)?;
+                tracing::info!("Fingerprint written to: {}", output.display());
             }
-            writer.write_to_file(&fingerprint, &output)?;
-
-            tracing::info!("Fingerprint written to: {}", output.display());
             tracing::info!(
                 "Privacy audit: {} actions recorded",
                 fingerprint.privacy_audit.actions.len()

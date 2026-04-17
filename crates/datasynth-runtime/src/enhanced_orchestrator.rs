@@ -1260,6 +1260,16 @@ pub struct EnhancedGenerationStatistics {
     /// Number of diffusion samples generated.
     #[serde(default)]
     pub diffusion_samples_generated: usize,
+    /// Hybrid-diffusion blend weight actually applied (after clamp to [0,1]).
+    /// `None` when the neural/hybrid backend is not active.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub neural_hybrid_weight: Option<f64>,
+    /// Hybrid-diffusion strategy applied (weighted_average / column_select / threshold).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub neural_hybrid_strategy: Option<String>,
+    /// How many columns were routed through the neural backend.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub neural_routed_column_count: Option<usize>,
     /// Causal generation timing (milliseconds).
     #[serde(default)]
     pub causal_generation_ms: u64,
@@ -3115,11 +3125,36 @@ impl EnhancedOrchestrator {
             && (self.config.diffusion.backend == "neural"
                 || self.config.diffusion.backend == "hybrid")
         {
-            debug!(
-                "Neural enhancement requested (backend={}). \
-                 Train from generated data or load pre-trained model via config.",
-                self.config.diffusion.backend
+            let neural = &self.config.diffusion.neural;
+            // Validate hybrid_strategy early so an unknown string doesn't
+            // silently fall through to weighted_average semantics.
+            const VALID_STRATEGIES: &[&str] = &["weighted_average", "column_select", "threshold"];
+            if !VALID_STRATEGIES.contains(&neural.hybrid_strategy.as_str()) {
+                warn!(
+                    "Unknown diffusion.neural.hybrid_strategy='{}' — expected one of {:?}; \
+                     falling back to 'weighted_average'.",
+                    neural.hybrid_strategy, VALID_STRATEGIES
+                );
+            }
+            let weight = neural.hybrid_weight.clamp(0.0, 1.0);
+            if (weight - neural.hybrid_weight).abs() > f64::EPSILON {
+                warn!(
+                    "diffusion.neural.hybrid_weight={} clamped to [0,1] → {}",
+                    neural.hybrid_weight, weight
+                );
+            }
+            info!(
+                "Phase neural enhancement: backend={} strategy={} weight={:.2} columns={} \
+                 (neural_columns: {:?})",
+                self.config.diffusion.backend,
+                neural.hybrid_strategy,
+                weight,
+                neural.neural_columns.len(),
+                neural.neural_columns,
             );
+            stats.neural_hybrid_weight = Some(weight);
+            stats.neural_hybrid_strategy = Some(neural.hybrid_strategy.clone());
+            stats.neural_routed_column_count = Some(neural.neural_columns.len());
             // Neural enhancement integrates via the DiffusionBackend trait:
             // 1. NeuralDiffusionTrainer::train() on generated amounts
             // 2. HybridGenerator blends rule-based + neural at configured weight
@@ -3127,7 +3162,6 @@ impl EnhancedOrchestrator {
             // 4. GnnGraphTrainer for entity relationship structure
             // Actual training requires the `neural` cargo feature on datasynth-core.
             // The orchestrator delegates to the diffusion module which is feature-gated.
-            // Stats tracking handled by individual neural modules when invoked
         }
 
         // Phase 19b: Hypergraph Export (after all data is available)
@@ -9790,7 +9824,7 @@ impl EnhancedOrchestrator {
             .map(|c| c.code.clone())
             .collect();
 
-        let generator = JournalEntryGenerator::new_with_params(
+        let mut generator = JournalEntryGenerator::new_with_params(
             self.config.transactions.clone(),
             Arc::clone(coa),
             company_codes,
@@ -9798,6 +9832,17 @@ impl EnhancedOrchestrator {
             end_date,
             self.seed,
         );
+        // Wire the `business_processes.*_weight` config through (phantom knob
+        // until now — the JE generator hard-coded 0.35/0.30/0.20/0.10/0.05).
+        let bp = &self.config.business_processes;
+        generator.set_business_process_weights(
+            bp.o2c_weight,
+            bp.p2p_weight,
+            bp.r2r_weight,
+            bp.h2r_weight,
+            bp.a2r_weight,
+        );
+        let generator = generator;
 
         // Connect generated master data to ensure JEs reference real entities
         // Enable persona-based error injection for realistic human behavior
@@ -12067,6 +12112,72 @@ impl EnhancedOrchestrator {
                 "Linked {}/{} related party transactions to journal entries",
                 linked,
                 snapshot.related_party_transactions.len()
+            );
+        }
+
+        // --- ISA 700 / 701 / 705 / 706: audit opinion + key audit matters.
+        // One opinion per engagement, derived from that engagement's findings,
+        // going-concern assessment, and any component-auditor reports. Fills
+        // `audit_opinions` + a flattened `key_audit_matters` for downstream
+        // export.
+        if !snapshot.engagements.is_empty() {
+            use datasynth_generators::audit_opinion_generator::{
+                AuditOpinionGenerator, AuditOpinionInput,
+            };
+
+            let mut opinion_gen = AuditOpinionGenerator::new(self.seed.wrapping_add(0x700));
+            let inputs: Vec<AuditOpinionInput> = snapshot
+                .engagements
+                .iter()
+                .map(|eng| {
+                    let findings = snapshot
+                        .findings
+                        .iter()
+                        .filter(|f| f.engagement_id == eng.engagement_id)
+                        .cloned()
+                        .collect();
+                    let going_concern = snapshot
+                        .going_concern_assessments
+                        .iter()
+                        .find(|gc| gc.entity_code == eng.client_entity_id)
+                        .cloned();
+                    // ComponentAuditorReport doesn't carry an engagement id, but
+                    // component scope is keyed by `entity_code`, so filter on that.
+                    let component_reports = snapshot
+                        .component_reports
+                        .iter()
+                        .filter(|r| r.entity_code == eng.client_entity_id)
+                        .cloned()
+                        .collect();
+
+                    AuditOpinionInput {
+                        entity_code: eng.client_entity_id.clone(),
+                        entity_name: eng.client_name.clone(),
+                        engagement_id: eng.engagement_id,
+                        period_end: eng.period_end_date,
+                        findings,
+                        going_concern,
+                        component_reports,
+                        is_us_listed: matches!(
+                            eng.engagement_type,
+                            datasynth_core::audit::EngagementType::IntegratedAudit
+                                | datasynth_core::audit::EngagementType::Sox404
+                        ),
+                        auditor_name: "DataSynth Audit LLP".to_string(),
+                        engagement_partner: "Engagement Partner".to_string(),
+                    }
+                })
+                .collect();
+
+            let generated = opinion_gen.generate_batch(&inputs);
+            for g in generated {
+                snapshot.key_audit_matters.extend(g.key_audit_matters);
+                snapshot.audit_opinions.push(g.opinion);
+            }
+            debug!(
+                "Generated {} audit opinions with {} key audit matters",
+                snapshot.audit_opinions.len(),
+                snapshot.key_audit_matters.len()
             );
         }
 
