@@ -42,8 +42,7 @@ pub fn write_fec_csv(
 
     writeln!(w, "{FEC_HEADER}")?;
 
-    let mut ecriture_num: u64 = 1;
-    for je in entries {
+    for (ecriture_num, je) in (1_u64..).zip(entries.iter()) {
         let code_journal = escape_fec_field(je.header.document_type.as_str());
         let libelle_journal = je
             .header
@@ -119,7 +118,6 @@ pub fn write_fec_csv(
                 currency,
             )?;
         }
-        ecriture_num += 1;
     }
 
     w.flush()?;

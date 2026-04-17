@@ -142,7 +142,7 @@ impl NetworkTopologyGenerator {
 
         // Mark hubs (top 10% by degree)
         let mut degrees: Vec<(usize, usize)> = nodes.iter().map(|n| (n.id, n.degree)).collect();
-        degrees.sort_by(|a, b| b.1.cmp(&a.1));
+        degrees.sort_by_key(|b| std::cmp::Reverse(b.1));
         let hub_count = (total_nodes / 10).max(1);
         for (id, _) in degrees.iter().take(hub_count) {
             nodes[*id].is_hub = true;
