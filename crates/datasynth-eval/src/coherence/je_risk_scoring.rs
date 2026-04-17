@@ -412,7 +412,7 @@ mod tests {
             "alice",
             TransactionSource::Automated,
         );
-        let counts = build_user_posting_counts(&[entry.clone()]);
+        let counts = build_user_posting_counts(std::slice::from_ref(&entry));
         let (_score, triggered) = score_entry(&entry, &counts);
         assert!(
             triggered.contains(&RiskAttribute::WeekendHoliday),
@@ -462,7 +462,7 @@ mod tests {
         let counts = build_user_posting_counts(&entries);
         for entry in &entries {
             let (score, _) = score_entry(entry, &counts);
-            assert!(score >= 0.0 && score <= 1.0, "Score {score} out of [0,1]");
+            assert!((0.0..=1.0).contains(&score), "Score {score} out of [0,1]");
         }
     }
 

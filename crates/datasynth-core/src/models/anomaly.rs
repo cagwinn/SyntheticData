@@ -589,6 +589,10 @@ pub enum ProcessIssueType {
     WeekendPosting,
     /// Rushed period-end posting.
     RushedPeriodEnd,
+    /// Entry posted after the period-end close date (ISA 240.32).
+    /// Distinct from `RushedPeriodEnd` which flags pre-close volume spikes —
+    /// this variant specifically marks post-close adjustments.
+    PostClosePosting,
 
     // Control Issues
     /// Manual override of system control.
@@ -633,6 +637,7 @@ impl ProcessIssueType {
             ProcessIssueType::LatePosting => 2,
             ProcessIssueType::AfterHoursPosting => 2,
             ProcessIssueType::WeekendPosting => 2,
+            ProcessIssueType::PostClosePosting => 4,
             ProcessIssueType::SkippedApproval => 4,
             ProcessIssueType::ManualOverride => 4,
             ProcessIssueType::SystemBypass => 5,

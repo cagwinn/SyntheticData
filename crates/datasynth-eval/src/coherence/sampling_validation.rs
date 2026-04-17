@@ -342,13 +342,14 @@ mod tests {
     #[test]
     fn test_temporal_coverage() {
         // 3 periods, anomalies only in 2
-        let mut entries: Vec<JournalEntry> = Vec::new();
-        // period 1: anomaly (above materiality)
-        entries.push(make_entry(dec!(200_000), true, "C001", 1));
-        // period 2: anomaly
-        entries.push(make_entry(dec!(50_000), true, "C001", 2));
-        // period 3: no anomaly
-        entries.push(make_entry(dec!(50_000), false, "C001", 3));
+        let entries: Vec<JournalEntry> = vec![
+            // period 1: anomaly (above materiality)
+            make_entry(dec!(200_000), true, "C001", 1),
+            // period 2: anomaly
+            make_entry(dec!(50_000), true, "C001", 2),
+            // period 3: no anomaly
+            make_entry(dec!(50_000), false, "C001", 3),
+        ];
         let result = validate_sampling(&entries, dec!(100_000), dec!(60_000));
         // 2 out of 3 periods have anomalies
         assert!((result.temporal_coverage - 2.0 / 3.0).abs() < 1e-9);

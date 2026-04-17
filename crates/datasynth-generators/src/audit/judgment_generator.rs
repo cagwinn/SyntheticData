@@ -1119,11 +1119,10 @@ mod tests {
             );
             found_materiality = true;
         }
-        // At minimum the function should not panic
-        assert!(
-            found_materiality || true,
-            "context-aware judgment generated successfully"
-        );
+        // The assertion is deliberately permissive — we just want to verify
+        // the function does not panic. If a materiality judgment *is* produced,
+        // the per-judgment assertions above enforce the content contract.
+        let _ = found_materiality;
     }
 
     #[test]

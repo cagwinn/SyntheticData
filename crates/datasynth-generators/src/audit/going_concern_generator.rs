@@ -525,7 +525,7 @@ mod tests {
         }
         let ratio = clean as f64 / total as f64;
         assert!(
-            ratio >= 0.80 && ratio <= 0.98,
+            (0.80..=0.98).contains(&ratio),
             "Clean ratio = {:.2}, expected ~0.90",
             ratio
         );
@@ -545,7 +545,7 @@ mod tests {
                 }
                 GoingConcernConclusion::MaterialUncertaintyExists => {
                     assert!(
-                        n >= 1 && n <= 2,
+                        (1..=2).contains(&n),
                         "seed={}: MaterialUncertainty but {} indicators",
                         seed,
                         n

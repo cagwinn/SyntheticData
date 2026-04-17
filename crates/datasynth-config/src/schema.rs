@@ -1698,14 +1698,49 @@ pub enum CompressionAlgorithm {
 }
 
 /// Fraud simulation configuration.
+///
+/// ## Document-level vs. line-level fraud
+///
+/// `fraud_rate` applies to individual journal-entry lines (line-level).
+/// `document_fraud_rate` (optional) applies to source documents
+/// (purchase orders, vendor invoices, customer invoices, payments), and when
+/// `propagate_to_lines` is true, every JE derived from a fraudulent document
+/// also gets `is_fraud = true`. This lets users express either:
+///
+///  * pure line-level fraud (`document_fraud_rate = None`): legacy behaviour;
+///  * pure document-level fraud (`fraud_rate ≈ 0` and `document_fraud_rate` set):
+///    fraud rings expressed at document granularity — realistic for PO/invoice
+///    fraud schemes where one fraudulent document spawns multiple derived JEs;
+///  * hybrid (both set): document-level scheme fraud plus unrelated line-level
+///    slip-ups.
+///
+/// `propagate_to_document` does the inverse: when a JE is tagged as fraud by
+/// the anomaly injector, its source document is also marked fraudulent.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FraudConfig {
     /// Enable fraud scenario generation
     #[serde(default)]
     pub enabled: bool,
-    /// Overall fraud rate (0.0 to 1.0)
+    /// Line-level fraud rate: fraction of individual JE lines flagged as fraud (0.0 to 1.0).
     #[serde(default = "default_fraud_rate")]
     pub fraud_rate: f64,
+    /// Document-level fraud rate: fraction of source documents (PO, vendor
+    /// invoice, customer invoice, payment) flagged as fraud. `None` disables
+    /// document-level injection; `Some(r)` marks ~r × document-count as fraud
+    /// independently of the line-level rate.
+    #[serde(default)]
+    pub document_fraud_rate: Option<f64>,
+    /// When true, flagging a document as fraudulent cascades `is_fraud = true`
+    /// and `fraud_type` to every journal entry derived from that document,
+    /// and records `fraud_source_document_id` on the JE header.
+    /// Default: `true`.
+    #[serde(default = "default_true")]
+    pub propagate_to_lines: bool,
+    /// When true, tagging a JE as fraud via line-level anomaly injection also
+    /// marks the JE's source document as fraudulent (if it can be resolved).
+    /// Default: `true`.
+    #[serde(default = "default_true")]
+    pub propagate_to_document: bool,
     /// Fraud type distribution
     #[serde(default)]
     pub fraud_type_distribution: FraudTypeDistribution,
@@ -1736,6 +1771,9 @@ impl Default for FraudConfig {
         Self {
             enabled: false,
             fraud_rate: default_fraud_rate(),
+            document_fraud_rate: None,
+            propagate_to_lines: true,
+            propagate_to_document: true,
             fraud_type_distribution: FraudTypeDistribution::default(),
             clustering_enabled: false,
             clustering_factor: default_clustering_factor(),
@@ -3855,16 +3893,19 @@ pub struct OcpmProcessConfig {
     pub out_of_order_probability: f64,
 }
 
+// Defaults deliberately produce variant counts and Inductive-Miner fitness
+// in the range seen in real ERP data (dozens of variants, ~0.7–0.9 fitness).
+// Lowering them all to 0 yields a single-variant happy-path log.
 fn default_rework_probability() -> f64 {
-    0.05
+    0.15
 }
 
 fn default_skip_probability() -> f64 {
-    0.02
+    0.10
 }
 
 fn default_out_of_order_probability() -> f64 {
-    0.03
+    0.08
 }
 
 impl Default for OcpmProcessConfig {

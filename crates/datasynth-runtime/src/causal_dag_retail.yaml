@@ -1,0 +1,277 @@
+# Retail Causal DAG
+#
+# Focus: Order-to-Cash (O2C) dynamics — how seasonality, promotion intensity,
+# foot traffic, and shrinkage drive revenue recognition, DSO, and return-rate
+# risk. Designed for scenario packs covering seasonal shocks, promotion-heavy
+# quarters, and shrinkage outbreaks.
+
+nodes:
+  # ── Macro / External ───────────────────────────────────────────
+  - id: gdp_growth
+    label: "GDP Growth Rate"
+    category: macro
+    baseline_value: 0.025
+    bounds: [-0.10, 0.15]
+    interventionable: true
+    config_bindings: []
+
+  - id: consumer_confidence_index
+    label: "Consumer Confidence Index"
+    category: macro
+    baseline_value: 100.0
+    bounds: [40.0, 160.0]
+    interventionable: true
+    config_bindings: []
+
+  - id: seasonal_demand_multiplier
+    label: "Seasonal Demand Multiplier"
+    category: macro
+    baseline_value: 1.0
+    bounds: [0.5, 2.5]
+    interventionable: true
+    config_bindings:
+      - temporal_patterns.period_end.month_end.peak_multiplier
+
+  # ── O2C operational ────────────────────────────────────────────
+  - id: foot_traffic
+    label: "Store Foot Traffic"
+    category: operational
+    baseline_value: 1.0
+    bounds: [0.2, 3.0]
+    interventionable: false
+    config_bindings: []
+
+  - id: conversion_rate
+    label: "Browser → Buyer Conversion"
+    category: operational
+    baseline_value: 0.22
+    bounds: [0.05, 0.55]
+    interventionable: false
+    config_bindings: []
+
+  - id: basket_size
+    label: "Average Basket Size"
+    category: operational
+    baseline_value: 1.0
+    bounds: [0.4, 2.5]
+    interventionable: true
+    config_bindings: []
+
+  - id: promotion_intensity
+    label: "Promotion Intensity"
+    category: operational
+    baseline_value: 0.10
+    bounds: [0.0, 0.60]
+    interventionable: true
+    config_bindings:
+      - distributions.amounts.components[0].mu
+
+  - id: stockout_rate
+    label: "Stockout Rate"
+    category: operational
+    baseline_value: 0.05
+    bounds: [0.0, 0.40]
+    interventionable: false
+    config_bindings: []
+
+  - id: online_share
+    label: "Online Sales Share"
+    category: operational
+    baseline_value: 0.30
+    bounds: [0.0, 1.0]
+    interventionable: true
+    config_bindings: []
+
+  # ── Controls ───────────────────────────────────────────────────
+  - id: return_authorization_compliance
+    label: "Return-Auth Control Compliance"
+    category: control
+    baseline_value: 0.95
+    bounds: [0.5, 1.0]
+    interventionable: true
+    config_bindings:
+      - internal_controls.exception_rate
+
+  - id: shrinkage_control_strength
+    label: "Shrinkage Control Strength"
+    category: control
+    baseline_value: 0.80
+    bounds: [0.0, 1.0]
+    interventionable: true
+    config_bindings: []
+
+  # ── Outcomes / Financial ───────────────────────────────────────
+  - id: return_rate
+    label: "Product Return Rate"
+    category: outcome
+    baseline_value: 0.08
+    bounds: [0.0, 0.50]
+    interventionable: false
+    config_bindings: []
+
+  - id: shrinkage_rate
+    label: "Inventory Shrinkage Rate"
+    category: outcome
+    baseline_value: 0.015
+    bounds: [0.0, 0.15]
+    interventionable: false
+    config_bindings: []
+
+  - id: revenue_growth
+    label: "Revenue Growth"
+    category: financial
+    baseline_value: 0.04
+    bounds: [-0.30, 0.40]
+    interventionable: false
+    config_bindings:
+      - distributions.drift.amount_mean_drift
+
+  - id: gross_margin
+    label: "Gross Margin"
+    category: financial
+    baseline_value: 0.38
+    bounds: [-0.2, 0.8]
+    interventionable: false
+    config_bindings: []
+
+  - id: days_sales_outstanding
+    label: "Days Sales Outstanding"
+    category: financial
+    baseline_value: 15.0
+    bounds: [1.0, 120.0]
+    interventionable: false
+    config_bindings: []
+
+  - id: revenue_cutoff_risk
+    label: "Revenue Cut-off Risk"
+    category: outcome
+    baseline_value: 0.03
+    bounds: [0.0, 0.50]
+    interventionable: false
+    config_bindings: []
+
+  - id: misstatement_risk
+    label: "Material Misstatement Risk"
+    category: outcome
+    baseline_value: 0.02
+    bounds: [0.0, 1.0]
+    interventionable: false
+    config_bindings: []
+
+edges:
+  # Macro → demand
+  - from: consumer_confidence_index
+    to: foot_traffic
+    transfer: { type: linear, coefficient: 0.010, intercept: 0.0 }
+    lag_months: 0
+    strength: 0.7
+    mechanism: "Confident consumers visit more stores"
+
+  - from: consumer_confidence_index
+    to: basket_size
+    transfer: { type: linear, coefficient: 0.005, intercept: 0.5 }
+    lag_months: 0
+    strength: 0.5
+    mechanism: "Higher confidence drives bigger baskets"
+
+  - from: gdp_growth
+    to: revenue_growth
+    transfer: { type: linear, coefficient: 1.5, intercept: 0.0 }
+    lag_months: 1
+    strength: 0.6
+    mechanism: "GDP growth lifts retail revenue with retail-sector amplification"
+
+  - from: seasonal_demand_multiplier
+    to: foot_traffic
+    transfer: { type: linear, coefficient: 1.0, intercept: 0.0 }
+    lag_months: 0
+    strength: 0.8
+    mechanism: "Holiday seasons push peak traffic"
+
+  # Demand → sales
+  - from: foot_traffic
+    to: stockout_rate
+    transfer: { type: threshold, threshold: 1.4, magnitude: 0.08, saturation: 0.35 }
+    lag_months: 0
+    strength: 0.7
+    mechanism: "Peak demand above planned capacity → stockouts"
+
+  - from: promotion_intensity
+    to: basket_size
+    transfer: { type: linear, coefficient: 0.8, intercept: 1.0 }
+    lag_months: 0
+    strength: 0.6
+    mechanism: "Promotions lift basket size via attach rate"
+
+  - from: promotion_intensity
+    to: gross_margin
+    transfer: { type: linear, coefficient: -0.6, intercept: 0.38 }
+    lag_months: 0
+    strength: 0.7
+    mechanism: "Discounting compresses margin"
+
+  # Returns and shrinkage
+  - from: return_authorization_compliance
+    to: return_rate
+    transfer: { type: inverse_logistic, capacity: 0.30, midpoint: 0.80, steepness: 10.0 }
+    lag_months: 0
+    strength: 0.6
+    mechanism: "Lax return-auth controls inflate returns"
+
+  - from: promotion_intensity
+    to: return_rate
+    transfer: { type: linear, coefficient: 0.20, intercept: 0.05 }
+    lag_months: 1
+    strength: 0.5
+    mechanism: "Discounted purchases are returned more often"
+
+  - from: shrinkage_control_strength
+    to: shrinkage_rate
+    transfer: { type: inverse_logistic, capacity: 0.10, midpoint: 0.60, steepness: 8.0 }
+    lag_months: 0
+    strength: 0.8
+    mechanism: "Strong controls suppress shrinkage (theft, admin loss)"
+
+  # Revenue/cash cycle
+  - from: online_share
+    to: days_sales_outstanding
+    transfer: { type: linear, coefficient: -10.0, intercept: 15.0 }
+    lag_months: 0
+    strength: 0.5
+    mechanism: "Online card sales settle faster than invoiced B2B"
+
+  - from: return_rate
+    to: revenue_growth
+    transfer: { type: linear, coefficient: -0.5, intercept: 0.04 }
+    lag_months: 1
+    strength: 0.6
+    mechanism: "Returns directly reduce net revenue"
+
+  - from: shrinkage_rate
+    to: gross_margin
+    transfer: { type: linear, coefficient: -1.5, intercept: 0.38 }
+    lag_months: 0
+    strength: 0.7
+    mechanism: "Shrinkage consumes margin"
+
+  # Audit risk
+  - from: promotion_intensity
+    to: revenue_cutoff_risk
+    transfer: { type: threshold, threshold: 0.30, magnitude: 0.10, saturation: 0.35 }
+    lag_months: 0
+    strength: 0.5
+    mechanism: "Heavy promos at period-end raise cut-off questions"
+
+  - from: return_rate
+    to: revenue_cutoff_risk
+    transfer: { type: linear, coefficient: 0.5, intercept: 0.03 }
+    lag_months: 0
+    strength: 0.5
+    mechanism: "High post-period returns suggest early revenue recognition"
+
+  - from: revenue_cutoff_risk
+    to: misstatement_risk
+    transfer: { type: linear, coefficient: 1.0, intercept: 0.01 }
+    lag_months: 0
+    strength: 0.8
+    mechanism: "Cut-off issues are a primary retail misstatement driver"

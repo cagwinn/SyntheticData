@@ -261,7 +261,7 @@ mod tests {
                     );
                     let life = adj.useful_life_years.unwrap();
                     assert!(
-                        life >= 5 && life <= 20,
+                        (5..=20).contains(&life),
                         "Useful life of {} years is outside expected range for '{}' in '{}'",
                         life,
                         adj.asset_or_liability,

@@ -168,7 +168,21 @@ impl BankingOrchestrator {
         let transaction_labels = TransactionLabelExtractor::extract_with_features(&transactions);
         let customer_labels = EntityLabelExtractor::extract_customers(&customers);
         let account_labels = EntityLabelExtractor::extract_accounts(&accounts);
-        let relationship_labels = RelationshipLabelExtractor::extract_from_customers(&customers);
+        let mut relationship_labels =
+            RelationshipLabelExtractor::extract_from_customers(&customers);
+        // Derive additional edges from transaction activity (populates
+        // is_mule_link / is_shell_link for edges in coordinated networks and
+        // for repeat suspicious counterparty pairs).
+        relationship_labels.extend(RelationshipLabelExtractor::extract_from_transactions(
+            &transactions,
+        ));
+        // Build clique edges across every coordinated criminal network so the
+        // AML relationship graph reflects network topology, not just observed
+        // direct counterparty activity.
+        relationship_labels.extend(RelationshipLabelExtractor::extract_from_network_contexts(
+            &transactions,
+            &accounts,
+        ));
 
         // Compute statistics
         let suspicious_count = transactions.iter().filter(|t| t.is_suspicious).count();

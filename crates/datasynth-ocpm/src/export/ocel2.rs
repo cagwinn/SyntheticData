@@ -5,6 +5,7 @@
 //!
 //! OCEL 2.0 Specification: https://www.ocel-standard.org/
 
+use chrono::SecondsFormat;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs::File;
@@ -158,7 +159,9 @@ impl From<&ObjectAttributeValue> for Ocel2Value {
                 Ocel2Value::Float(d.to_string().parse().unwrap_or(0.0))
             }
             ObjectAttributeValue::Date(d) => Ocel2Value::String(d.to_string()),
-            ObjectAttributeValue::DateTime(dt) => Ocel2Value::String(dt.to_rfc3339()),
+            ObjectAttributeValue::DateTime(dt) => {
+                Ocel2Value::String(dt.to_rfc3339_opts(SecondsFormat::Micros, true))
+            }
             ObjectAttributeValue::Boolean(b) => Ocel2Value::Boolean(*b),
             ObjectAttributeValue::Reference(id) => Ocel2Value::String(id.to_string()),
             ObjectAttributeValue::Null => Ocel2Value::Null,
@@ -344,7 +347,7 @@ impl Ocel2Exporter {
                 );
                 attributes.insert(
                     "created_at".into(),
-                    Ocel2Value::String(obj.created_at.to_rfc3339()),
+                    Ocel2Value::String(obj.created_at.to_rfc3339_opts(SecondsFormat::Micros, true)),
                 );
 
                 if self.include_anomalies {
@@ -434,7 +437,7 @@ impl Ocel2Exporter {
                 Ocel2Event {
                     id: event.event_id.to_string(),
                     event_type: event.activity_id.clone(),
-                    time: event.timestamp.to_rfc3339(),
+                    time: event.timestamp.to_rfc3339_opts(SecondsFormat::Micros, true),
                     attributes,
                     relationships,
                 }

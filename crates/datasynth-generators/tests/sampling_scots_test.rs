@@ -167,7 +167,7 @@ fn sampling_plan_first_key_item_always_above_te() {
 
     for seed in [1u64, 7, 42, 99, 123] {
         let mut gen = SamplingPlanGenerator::new(seed);
-        let (plans, _) = gen.generate_for_cras(&[cra.clone()], Some(TEST_TE));
+        let (plans, _) = gen.generate_for_cras(std::slice::from_ref(&cra), Some(TEST_TE));
         assert!(!plans.is_empty());
         let ki0 = &plans[0].key_items[0];
         assert_eq!(

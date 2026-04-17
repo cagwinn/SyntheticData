@@ -889,7 +889,7 @@ mod tests {
         for conf in &confs {
             let bal = conf.book_balance;
             assert!(
-                bal >= Decimal::new(10_000_00, 2) && bal <= Decimal::new(5_000_000_00, 2),
+                bal >= Decimal::new(1_000_000, 2) && bal <= Decimal::new(500_000_000, 2),
                 "expected synthetic balance in 10k-5M range, got {bal}"
             );
         }

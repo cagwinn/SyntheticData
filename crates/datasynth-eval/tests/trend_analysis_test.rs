@@ -156,7 +156,7 @@ fn test_moderate_revenue_growth_passes() {
     for p in 1u8..=6 {
         entries.push(make_je(p, "1100", "4000", amount));
         // 20% growth: multiply by 1.2 (use integer arithmetic to stay in Decimal)
-        amount = amount * dec!(1.2);
+        amount *= dec!(1.2);
     }
     let result = analyze_trends(&entries);
     let check = result

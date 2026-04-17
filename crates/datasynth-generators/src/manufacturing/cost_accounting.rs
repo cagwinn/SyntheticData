@@ -625,16 +625,13 @@ mod tests {
 
         let fg: Vec<_> = jes
             .iter()
-            .filter(|je| {
-                je.description()
-                    .map_or(false, |d| d.contains("FG transfer"))
-            })
+            .filter(|je| je.description().is_some_and(|d| d.contains("FG transfer")))
             .collect();
         assert!(!fg.is_empty(), "Should generate FG transfer JEs");
 
         let var: Vec<_> = jes
             .iter()
-            .filter(|je| je.description().map_or(false, |d| d.contains("variance")))
+            .filter(|je| je.description().is_some_and(|d| d.contains("variance")))
             .collect();
         assert!(!var.is_empty(), "Should generate variance JEs");
 

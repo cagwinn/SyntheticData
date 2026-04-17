@@ -59,6 +59,11 @@ impl ScenarioEngine {
     }
 
     /// Load the causal DAG from config presets or custom definition.
+    ///
+    /// Presets: `default` (financial-process default), `manufacturing`
+    /// (supply-chain propagation), `retail` (O2C / seasonality),
+    /// `financial_services` (correspondent banking + AML), `minimal` (3-node
+    /// smoke-test DAG).
     fn load_causal_dag(config: &GeneratorConfig) -> Result<CausalDAG, ScenarioError> {
         let causal_config = &config.scenarios.causal_model;
         let mut dag: CausalDAG = match causal_config.preset.as_str() {
@@ -66,6 +71,28 @@ impl ScenarioEngine {
                 let yaml = include_str!("causal_dag_default.yaml");
                 serde_yaml::from_str(yaml).map_err(|e| {
                     ScenarioError::Serialization(format!("failed to parse default causal DAG: {e}"))
+                })?
+            }
+            "manufacturing" => {
+                let yaml = include_str!("causal_dag_manufacturing.yaml");
+                serde_yaml::from_str(yaml).map_err(|e| {
+                    ScenarioError::Serialization(format!(
+                        "failed to parse manufacturing causal DAG: {e}"
+                    ))
+                })?
+            }
+            "retail" => {
+                let yaml = include_str!("causal_dag_retail.yaml");
+                serde_yaml::from_str(yaml).map_err(|e| {
+                    ScenarioError::Serialization(format!("failed to parse retail causal DAG: {e}"))
+                })?
+            }
+            "financial_services" => {
+                let yaml = include_str!("causal_dag_financial_services.yaml");
+                serde_yaml::from_str(yaml).map_err(|e| {
+                    ScenarioError::Serialization(format!(
+                        "failed to parse financial_services causal DAG: {e}"
+                    ))
                 })?
             }
             "minimal" => {

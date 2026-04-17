@@ -3,7 +3,9 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::models::{BankingCustomer, BeneficialOwner, CustomerRelationship};
+use crate::models::{
+    BankAccount, BankingCustomer, BeneficialOwner, CustomerRelationship, NetworkRole,
+};
 
 /// Relationship type for labeling.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -178,45 +180,168 @@ impl RelationshipLabelExtractor {
         label
     }
 
-    /// Extract transaction-based relationships.
+    /// Extract transaction-based relationships between accounts and counterparties.
+    ///
+    /// Aggregates transactions by `(account_id, counterparty_id)` pairs and emits
+    /// one [`RelationshipLabel`] per pair with ≥ 2 transactions. Transactions
+    /// participating in a coordinated criminal network (via
+    /// [`crate::models::NetworkContext`]) mark the edge as mule or shell based
+    /// on the role; uncoordinated-but-suspicious transactions still flag
+    /// `is_mule_link`.
     pub fn extract_from_transactions(
         transactions: &[crate::models::BankTransaction],
     ) -> Vec<RelationshipLabel> {
         use std::collections::HashMap;
 
-        // Group by account-counterparty pairs
-        let mut pairs: HashMap<(Uuid, String), (u32, f64, bool)> = HashMap::new();
+        #[derive(Default)]
+        struct PairInfo {
+            count: u32,
+            volume: f64,
+            suspicious: bool,
+            mule: bool,
+            shell: bool,
+            case_id: Option<String>,
+            network_id: Option<String>,
+        }
+
+        // Group by (source account, counterparty id) pairs. We can only link
+        // transactions where the counterparty is an identified entity in our
+        // population — external merchants / unknown peers would generate
+        // spurious edges if keyed by name, so they're skipped.
+        let mut pairs: HashMap<(Uuid, Uuid), PairInfo> = HashMap::new();
 
         for txn in transactions {
-            let key = (txn.account_id, txn.counterparty.name.clone());
-            let entry = pairs.entry(key).or_insert((0, 0.0, false));
-            entry.0 += 1;
-            entry.1 += txn.amount.try_into().unwrap_or(0.0);
+            let Some(cp_id) = txn.counterparty.counterparty_id else {
+                continue;
+            };
+            let key = (txn.account_id, cp_id);
+            let entry = pairs.entry(key).or_default();
+            entry.count += 1;
+            entry.volume += txn.amount.try_into().unwrap_or(0.0);
             if txn.is_suspicious {
-                entry.2 = true;
+                entry.suspicious = true;
+            }
+            if let Some(ref nc) = txn.network_context {
+                entry.network_id = Some(nc.network_id.clone());
+                match nc.network_role {
+                    NetworkRole::ShellEntity => entry.shell = true,
+                    NetworkRole::Smurf
+                    | NetworkRole::Middleman
+                    | NetworkRole::CashOut
+                    | NetworkRole::Recruiter => entry.mule = true,
+                    NetworkRole::Coordinator | NetworkRole::Beneficiary => {
+                        // Coordinator/beneficiary links are usually mule-adjacent;
+                        // mark as mule link to surface them in AML graphs.
+                        entry.mule = true;
+                    }
+                }
+            }
+            if entry.case_id.is_none() {
+                if let Some(ref c) = txn.case_id {
+                    entry.case_id = Some(c.clone());
+                }
             }
         }
 
         pairs
             .into_iter()
-            .filter(|(_, (count, _, _))| *count >= 2) // Only significant relationships
-            .map(
-                |((account_id, _counterparty), (count, volume, suspicious))| {
-                    let mut label = RelationshipLabel::new(
-                        account_id,
-                        Uuid::new_v4(), // Counterparty UUID would come from counterparty pool
-                        RelationshipType::TransactionCounterparty,
-                    )
-                    .with_transactions(count, volume);
+            .filter(|(_, info)| info.count >= 2)
+            .map(|((account_id, cp_id), info)| {
+                let mut label = RelationshipLabel::new(
+                    account_id,
+                    cp_id,
+                    RelationshipType::TransactionCounterparty,
+                )
+                .with_transactions(info.count, info.volume);
 
-                    if suspicious {
-                        label.is_mule_link = true;
-                    }
-
-                    label
-                },
-            )
+                if let Some(ref case) = info.case_id {
+                    label = label.with_case(case);
+                }
+                if info.shell {
+                    label = label.as_shell_link();
+                } else if info.mule || info.suspicious {
+                    label = label.as_mule_link();
+                }
+                label
+            })
             .collect()
+    }
+
+    /// Build customer-to-customer relationship edges from coordinated criminal
+    /// networks (e.g., structuring rings, mule chains, shell pyramids).
+    ///
+    /// Groups transactions by `network_context.network_id`, resolves each
+    /// source account to its owning customer, and emits pairwise clique edges
+    /// between every pair of participants. This is what closes the "AML
+    /// networks are extremely sparse (density 0.0014, zero mule/shell links)"
+    /// gap: before this method, `NetworkGenerator` output never made it into
+    /// the relationship graph.
+    ///
+    /// An edge is marked as a shell link if either endpoint played
+    /// `ShellEntity`; otherwise as a mule link (since all coordinated criminal
+    /// networks are mule-like structures).
+    pub fn extract_from_network_contexts(
+        transactions: &[crate::models::BankTransaction],
+        accounts: &[BankAccount],
+    ) -> Vec<RelationshipLabel> {
+        use std::collections::{HashMap, HashSet};
+
+        let account_to_customer: HashMap<Uuid, Uuid> = accounts
+            .iter()
+            .map(|a| (a.account_id, a.primary_owner_id))
+            .collect();
+
+        // network_id -> { customer_id -> observed role }
+        let mut networks: HashMap<String, HashMap<Uuid, NetworkRole>> = HashMap::new();
+        for txn in transactions {
+            let Some(ref nc) = txn.network_context else {
+                continue;
+            };
+            let Some(&customer_id) = account_to_customer.get(&txn.account_id) else {
+                continue;
+            };
+            networks
+                .entry(nc.network_id.clone())
+                .or_default()
+                .entry(customer_id)
+                .or_insert(nc.network_role);
+        }
+
+        let mut labels = Vec::new();
+        let mut seen: HashSet<(Uuid, Uuid)> = HashSet::new();
+        for (network_id, members) in networks {
+            if members.len() < 2 {
+                continue;
+            }
+            let members_vec: Vec<(Uuid, NetworkRole)> = members.into_iter().collect();
+            for i in 0..members_vec.len() {
+                for j in (i + 1)..members_vec.len() {
+                    let (a_id, a_role) = members_vec[i];
+                    let (b_id, b_role) = members_vec[j];
+                    // Canonicalize pair order so we don't emit both (A,B) and (B,A).
+                    let (src, tgt) = if a_id <= b_id {
+                        (a_id, b_id)
+                    } else {
+                        (b_id, a_id)
+                    };
+                    if !seen.insert((src, tgt)) {
+                        continue;
+                    }
+                    let is_shell = matches!(a_role, NetworkRole::ShellEntity)
+                        || matches!(b_role, NetworkRole::ShellEntity);
+                    let mut label =
+                        RelationshipLabel::new(src, tgt, RelationshipType::TransactionCounterparty)
+                            .with_case(&network_id);
+                    if is_shell {
+                        label = label.as_shell_link();
+                    } else {
+                        label = label.as_mule_link();
+                    }
+                    labels.push(label);
+                }
+            }
+        }
+        labels
     }
 
     /// Get relationship label summary.
@@ -307,5 +432,252 @@ mod tests {
             label.relationship_type,
             RelationshipType::BeneficialOwnership
         );
+    }
+
+    mod extract_from_transactions {
+        use super::*;
+        use crate::models::{
+            BankTransaction, CounterpartyRef, CounterpartyType, NetworkContext, NetworkRole,
+        };
+        use chrono::Utc;
+        use datasynth_core::banking::{Direction, TransactionCategory, TransactionChannel};
+        use rust_decimal::Decimal;
+
+        fn mk_txn(account_id: Uuid, cp_id: Option<Uuid>, amount: i64) -> BankTransaction {
+            let counterparty = CounterpartyRef {
+                counterparty_type: CounterpartyType::Peer,
+                counterparty_id: cp_id,
+                name: "Peer".into(),
+                account_identifier: None,
+                bank_identifier: None,
+                country: None,
+            };
+            BankTransaction::new(
+                Uuid::new_v4(),
+                account_id,
+                Decimal::from(amount),
+                "USD",
+                Direction::Outbound,
+                TransactionChannel::Wire,
+                TransactionCategory::TransferOut,
+                counterparty,
+                "ref",
+                Utc::now(),
+            )
+        }
+
+        #[test]
+        fn uses_real_counterparty_id_not_new_v4() {
+            let src = Uuid::new_v4();
+            let cp = Uuid::new_v4();
+            let txns = vec![mk_txn(src, Some(cp), 100), mk_txn(src, Some(cp), 200)];
+            let labels = RelationshipLabelExtractor::extract_from_transactions(&txns);
+            assert_eq!(labels.len(), 1);
+            assert_eq!(labels[0].source_id, src);
+            assert_eq!(labels[0].target_id, cp); // not a random v4
+            assert_eq!(labels[0].transaction_count, 2);
+        }
+
+        #[test]
+        fn skips_counterparties_without_id() {
+            let src = Uuid::new_v4();
+            let txns = vec![mk_txn(src, None, 100), mk_txn(src, None, 200)];
+            let labels = RelationshipLabelExtractor::extract_from_transactions(&txns);
+            assert!(labels.is_empty());
+        }
+
+        #[test]
+        fn suspicious_transaction_marks_mule_link() {
+            let src = Uuid::new_v4();
+            let cp = Uuid::new_v4();
+            let mut t1 = mk_txn(src, Some(cp), 100);
+            t1.is_suspicious = true;
+            let t2 = mk_txn(src, Some(cp), 200);
+            let labels = RelationshipLabelExtractor::extract_from_transactions(&[t1, t2]);
+            assert_eq!(labels.len(), 1);
+            assert!(labels[0].is_mule_link);
+            assert!(!labels[0].is_shell_link);
+        }
+
+        #[test]
+        fn shell_entity_role_marks_shell_link() {
+            let src = Uuid::new_v4();
+            let cp = Uuid::new_v4();
+            let mut t1 = mk_txn(src, Some(cp), 1_000);
+            t1.network_context = Some(NetworkContext {
+                network_id: "net-1".into(),
+                network_role: NetworkRole::ShellEntity,
+                co_occurring_typologies: vec![],
+                network_size: 5,
+            });
+            let t2 = mk_txn(src, Some(cp), 1_000);
+            let labels = RelationshipLabelExtractor::extract_from_transactions(&[t1, t2]);
+            assert_eq!(labels.len(), 1);
+            assert!(labels[0].is_shell_link);
+            assert_eq!(labels[0].relationship_type, RelationshipType::ShellLink);
+        }
+
+        #[test]
+        fn smurf_role_marks_mule_link() {
+            let src = Uuid::new_v4();
+            let cp = Uuid::new_v4();
+            let mut t1 = mk_txn(src, Some(cp), 500);
+            t1.network_context = Some(NetworkContext {
+                network_id: "net-2".into(),
+                network_role: NetworkRole::Smurf,
+                co_occurring_typologies: vec![],
+                network_size: 3,
+            });
+            let t2 = mk_txn(src, Some(cp), 500);
+            let labels = RelationshipLabelExtractor::extract_from_transactions(&[t1, t2]);
+            assert_eq!(labels.len(), 1);
+            assert!(labels[0].is_mule_link);
+            assert!(!labels[0].is_shell_link);
+        }
+
+        #[test]
+        fn single_transaction_pair_is_filtered_out() {
+            let src = Uuid::new_v4();
+            let cp = Uuid::new_v4();
+            let labels = RelationshipLabelExtractor::extract_from_transactions(&[mk_txn(
+                src,
+                Some(cp),
+                100,
+            )]);
+            assert!(labels.is_empty());
+        }
+    }
+
+    mod extract_from_network_contexts {
+        use super::*;
+        use crate::models::{
+            BankAccount, BankTransaction, CounterpartyRef, CounterpartyType, NetworkContext,
+            NetworkRole,
+        };
+        use chrono::{NaiveDate, Utc};
+        use datasynth_core::banking::{
+            BankAccountType, Direction, TransactionCategory, TransactionChannel,
+        };
+        use rust_decimal::Decimal;
+
+        fn mk_account(owner: Uuid) -> BankAccount {
+            BankAccount::new(
+                Uuid::new_v4(),
+                "ACC-001".to_string(),
+                BankAccountType::Checking,
+                owner,
+                "USD",
+                NaiveDate::from_ymd_opt(2024, 1, 1).expect("valid date"),
+            )
+        }
+
+        fn mk_ctx_txn(account_id: Uuid, network_id: &str, role: NetworkRole) -> BankTransaction {
+            let cp = CounterpartyRef {
+                counterparty_type: CounterpartyType::Peer,
+                counterparty_id: Some(Uuid::new_v4()),
+                name: "Peer".into(),
+                account_identifier: None,
+                bank_identifier: None,
+                country: None,
+            };
+            let mut txn = BankTransaction::new(
+                Uuid::new_v4(),
+                account_id,
+                Decimal::from(1000),
+                "USD",
+                Direction::Outbound,
+                TransactionChannel::Wire,
+                TransactionCategory::TransferOut,
+                cp,
+                "ref",
+                Utc::now(),
+            );
+            txn.network_context = Some(NetworkContext {
+                network_id: network_id.to_string(),
+                network_role: role,
+                co_occurring_typologies: vec![],
+                network_size: 3,
+            });
+            txn
+        }
+
+        #[test]
+        fn ring_produces_clique_edges() {
+            // 3-participant ring → C(3,2) = 3 edges
+            let c1 = Uuid::new_v4();
+            let c2 = Uuid::new_v4();
+            let c3 = Uuid::new_v4();
+            let a1 = mk_account(c1);
+            let a2 = mk_account(c2);
+            let a3 = mk_account(c3);
+            let accounts = vec![a1.clone(), a2.clone(), a3.clone()];
+            let txns = vec![
+                mk_ctx_txn(a1.account_id, "NET-1", NetworkRole::Coordinator),
+                mk_ctx_txn(a2.account_id, "NET-1", NetworkRole::Smurf),
+                mk_ctx_txn(a3.account_id, "NET-1", NetworkRole::Smurf),
+            ];
+            let labels =
+                RelationshipLabelExtractor::extract_from_network_contexts(&txns, &accounts);
+            assert_eq!(labels.len(), 3);
+            assert!(labels.iter().all(|l| l.is_mule_link));
+            assert!(labels.iter().all(|l| l.case_id.as_deref() == Some("NET-1")));
+        }
+
+        #[test]
+        fn shell_role_marks_shell_link() {
+            let c1 = Uuid::new_v4();
+            let c2 = Uuid::new_v4();
+            let a1 = mk_account(c1);
+            let a2 = mk_account(c2);
+            let accounts = vec![a1.clone(), a2.clone()];
+            let txns = vec![
+                mk_ctx_txn(a1.account_id, "NET-2", NetworkRole::Coordinator),
+                mk_ctx_txn(a2.account_id, "NET-2", NetworkRole::ShellEntity),
+            ];
+            let labels =
+                RelationshipLabelExtractor::extract_from_network_contexts(&txns, &accounts);
+            assert_eq!(labels.len(), 1);
+            assert!(labels[0].is_shell_link);
+            assert!(!labels[0].is_mule_link);
+        }
+
+        #[test]
+        fn distinct_networks_isolated() {
+            let c1 = Uuid::new_v4();
+            let c2 = Uuid::new_v4();
+            let c3 = Uuid::new_v4();
+            let a1 = mk_account(c1);
+            let a2 = mk_account(c2);
+            let a3 = mk_account(c3);
+            let accounts = vec![a1.clone(), a2.clone(), a3.clone()];
+            let txns = vec![
+                mk_ctx_txn(a1.account_id, "NET-A", NetworkRole::Smurf),
+                mk_ctx_txn(a2.account_id, "NET-A", NetworkRole::Smurf),
+                mk_ctx_txn(a3.account_id, "NET-B", NetworkRole::CashOut),
+            ];
+            let labels =
+                RelationshipLabelExtractor::extract_from_network_contexts(&txns, &accounts);
+            // Only NET-A has ≥ 2 members; NET-B is skipped.
+            assert_eq!(labels.len(), 1);
+            assert_eq!(labels[0].case_id.as_deref(), Some("NET-A"));
+        }
+
+        #[test]
+        fn no_duplicate_edges_for_repeat_transactions() {
+            let c1 = Uuid::new_v4();
+            let c2 = Uuid::new_v4();
+            let a1 = mk_account(c1);
+            let a2 = mk_account(c2);
+            let accounts = vec![a1.clone(), a2.clone()];
+            let txns = vec![
+                mk_ctx_txn(a1.account_id, "NET-3", NetworkRole::Coordinator),
+                mk_ctx_txn(a1.account_id, "NET-3", NetworkRole::Coordinator),
+                mk_ctx_txn(a2.account_id, "NET-3", NetworkRole::Smurf),
+                mk_ctx_txn(a2.account_id, "NET-3", NetworkRole::Smurf),
+            ];
+            let labels =
+                RelationshipLabelExtractor::extract_from_network_contexts(&txns, &accounts);
+            assert_eq!(labels.len(), 1);
+        }
     }
 }

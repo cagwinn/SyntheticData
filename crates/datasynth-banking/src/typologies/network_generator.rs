@@ -278,7 +278,7 @@ mod tests {
         let customers: Vec<_> = (0..6)
             .map(|i| make_customer(&format!("Smurf{i}")))
             .collect();
-        let accounts: Vec<_> = customers.iter().map(|c| make_account(c)).collect();
+        let accounts: Vec<_> = customers.iter().map(make_account).collect();
 
         let txns = gen.generate_structuring_ring(
             &customers,
@@ -301,7 +301,7 @@ mod tests {
     fn test_mule_chain() {
         let mut gen = NetworkGenerator::new(42);
         let customers: Vec<_> = (0..4).map(|i| make_customer(&format!("Mule{i}"))).collect();
-        let accounts: Vec<_> = customers.iter().map(|c| make_account(c)).collect();
+        let accounts: Vec<_> = customers.iter().map(make_account).collect();
 
         let txns = gen.generate_mule_chain(
             &customers,

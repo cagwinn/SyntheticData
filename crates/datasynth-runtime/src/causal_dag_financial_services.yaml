@@ -1,0 +1,292 @@
+# Financial Services Causal DAG
+#
+# Focus: Correspondent banking dynamics, regulatory cycles, and AML/KYC
+# controls. Designed for scenario packs that probe regulatory tightening,
+# correspondent-bank concentration, and AML alert fatigue.
+
+nodes:
+  # ── Macro / External ───────────────────────────────────────────
+  - id: gdp_growth
+    label: "GDP Growth Rate"
+    category: macro
+    baseline_value: 0.025
+    bounds: [-0.10, 0.15]
+    interventionable: true
+    config_bindings: []
+
+  - id: policy_rate
+    label: "Central-Bank Policy Rate"
+    category: macro
+    baseline_value: 0.05
+    bounds: [0.0, 0.20]
+    interventionable: true
+    config_bindings: []
+
+  - id: regulatory_pressure_index
+    label: "Regulatory Pressure Index"
+    category: macro
+    baseline_value: 1.0
+    bounds: [0.5, 3.0]
+    interventionable: true
+    config_bindings: []
+
+  - id: sanctions_environment
+    label: "Sanctions Environment Intensity"
+    category: macro
+    baseline_value: 1.0
+    bounds: [0.5, 3.5]
+    interventionable: true
+    config_bindings:
+      - typologies.sanctions_evasion_rate
+
+  # ── Operational ────────────────────────────────────────────────
+  - id: correspondent_concentration
+    label: "Correspondent-Bank Concentration"
+    category: operational
+    baseline_value: 0.35
+    bounds: [0.05, 0.90]
+    interventionable: true
+    config_bindings:
+      - vendor_network.dependencies.max_single_vendor_concentration
+
+  - id: transaction_volume_multiplier
+    label: "Transaction Volume Multiplier"
+    category: operational
+    baseline_value: 1.0
+    bounds: [0.2, 3.0]
+    interventionable: true
+    config_bindings:
+      - transactions.volume_multiplier
+
+  - id: cross_border_share
+    label: "Cross-Border Transaction Share"
+    category: operational
+    baseline_value: 0.22
+    bounds: [0.0, 1.0]
+    interventionable: true
+    config_bindings: []
+
+  - id: high_risk_geography_share
+    label: "High-Risk Geography Share"
+    category: operational
+    baseline_value: 0.05
+    bounds: [0.0, 0.50]
+    interventionable: true
+    config_bindings: []
+
+  - id: onboarding_volume
+    label: "New-Customer Onboarding Volume"
+    category: operational
+    baseline_value: 1.0
+    bounds: [0.1, 5.0]
+    interventionable: true
+    config_bindings: []
+
+  # ── Controls ───────────────────────────────────────────────────
+  - id: kyc_score
+    label: "KYC Compliance Score"
+    category: control
+    baseline_value: 0.92
+    bounds: [0.3, 1.0]
+    interventionable: true
+    config_bindings: []
+
+  - id: aml_screening_strength
+    label: "AML Screening Strength"
+    category: control
+    baseline_value: 0.85
+    bounds: [0.0, 1.0]
+    interventionable: true
+    config_bindings:
+      - typologies.detectability
+
+  - id: ctr_filing_discipline
+    label: "CTR/SAR Filing Discipline"
+    category: control
+    baseline_value: 0.95
+    bounds: [0.5, 1.0]
+    interventionable: true
+    config_bindings: []
+
+  # ── Outcomes / Financial ───────────────────────────────────────
+  - id: aml_true_positive_rate
+    label: "AML True-Positive Rate"
+    category: outcome
+    baseline_value: 0.05
+    bounds: [0.0, 0.40]
+    interventionable: false
+    config_bindings: []
+
+  - id: aml_false_positive_rate
+    label: "AML False-Positive Rate"
+    category: outcome
+    baseline_value: 0.12
+    bounds: [0.0, 0.80]
+    interventionable: false
+    config_bindings:
+      - typologies.false_positive_rate
+
+  - id: liquidity_coverage_ratio
+    label: "Liquidity Coverage Ratio"
+    category: financial
+    baseline_value: 1.25
+    bounds: [0.5, 3.0]
+    interventionable: true
+    config_bindings: []
+
+  - id: npl_ratio
+    label: "Non-Performing-Loan Ratio"
+    category: outcome
+    baseline_value: 0.02
+    bounds: [0.0, 0.30]
+    interventionable: false
+    config_bindings: []
+
+  - id: ecl_provision_rate
+    label: "IFRS-9 ECL Provision Rate"
+    category: financial
+    baseline_value: 0.02
+    bounds: [0.0, 0.50]
+    interventionable: false
+    config_bindings: []
+
+  - id: regulatory_fine_exposure
+    label: "Regulatory Fine Exposure"
+    category: outcome
+    baseline_value: 0.01
+    bounds: [0.0, 0.50]
+    interventionable: false
+    config_bindings: []
+
+  - id: misstatement_risk
+    label: "Material Misstatement Risk"
+    category: outcome
+    baseline_value: 0.02
+    bounds: [0.0, 1.0]
+    interventionable: false
+    config_bindings: []
+
+edges:
+  # Macro → operational
+  - from: policy_rate
+    to: transaction_volume_multiplier
+    transfer: { type: inverse_logistic, capacity: 1.8, midpoint: 0.08, steepness: 25.0 }
+    lag_months: 2
+    strength: 0.6
+    mechanism: "Higher rates suppress credit-driven transactions"
+
+  - from: sanctions_environment
+    to: high_risk_geography_share
+    transfer: { type: linear, coefficient: 0.03, intercept: 0.02 }
+    lag_months: 1
+    strength: 0.6
+    mechanism: "Sanctions tightening surfaces more high-risk exposures"
+
+  - from: regulatory_pressure_index
+    to: kyc_score
+    transfer: { type: linear, coefficient: 0.03, intercept: 0.89 }
+    lag_months: 3
+    strength: 0.5
+    mechanism: "Regulatory pressure lifts KYC investment over time"
+
+  - from: regulatory_pressure_index
+    to: aml_screening_strength
+    transfer: { type: linear, coefficient: 0.08, intercept: 0.77 }
+    lag_months: 3
+    strength: 0.6
+    mechanism: "Regulatory pressure tightens AML screening thresholds"
+
+  # Operational → risk
+  - from: correspondent_concentration
+    to: liquidity_coverage_ratio
+    transfer: { type: inverse_logistic, capacity: 2.5, midpoint: 0.70, steepness: 10.0 }
+    lag_months: 0
+    strength: 0.6
+    mechanism: "Over-concentration in a single correspondent cuts LCR"
+
+  - from: cross_border_share
+    to: aml_false_positive_rate
+    transfer: { type: linear, coefficient: 0.35, intercept: 0.05 }
+    lag_months: 0
+    strength: 0.6
+    mechanism: "Cross-border mix raises alert noise"
+
+  - from: high_risk_geography_share
+    to: aml_true_positive_rate
+    transfer: { type: linear, coefficient: 0.80, intercept: 0.02 }
+    lag_months: 0
+    strength: 0.7
+    mechanism: "High-risk geographies host more actual laundering attempts"
+
+  - from: onboarding_volume
+    to: kyc_score
+    transfer: { type: inverse_logistic, capacity: 1.0, midpoint: 2.5, steepness: 3.0 }
+    lag_months: 0
+    strength: 0.5
+    mechanism: "Onboarding surges strain KYC capacity"
+
+  # Controls → outcomes
+  - from: kyc_score
+    to: aml_true_positive_rate
+    transfer: { type: logistic, capacity: 0.30, midpoint: 0.70, steepness: 10.0 }
+    lag_months: 0
+    strength: 0.6
+    mechanism: "Stronger KYC surfaces more genuine suspicious activity"
+
+  - from: aml_screening_strength
+    to: aml_false_positive_rate
+    transfer: { type: threshold, threshold: 0.90, magnitude: 0.20, saturation: 0.70 }
+    lag_months: 0
+    strength: 0.7
+    mechanism: "Over-calibrated AML screening produces alert fatigue"
+
+  - from: aml_screening_strength
+    to: aml_true_positive_rate
+    transfer: { type: logistic, capacity: 0.35, midpoint: 0.60, steepness: 8.0 }
+    lag_months: 0
+    strength: 0.7
+    mechanism: "Stronger AML screening catches more true positives"
+
+  - from: ctr_filing_discipline
+    to: regulatory_fine_exposure
+    transfer: { type: inverse_logistic, capacity: 0.40, midpoint: 0.80, steepness: 12.0 }
+    lag_months: 2
+    strength: 0.6
+    mechanism: "Weak filing discipline invites BSA/AML fines"
+
+  # Credit risk chain
+  - from: policy_rate
+    to: npl_ratio
+    transfer: { type: logistic, capacity: 0.20, midpoint: 0.08, steepness: 25.0 }
+    lag_months: 6
+    strength: 0.6
+    mechanism: "Higher rates drive defaults with lag"
+
+  - from: gdp_growth
+    to: npl_ratio
+    transfer: { type: inverse_logistic, capacity: 0.15, midpoint: -0.01, steepness: 30.0 }
+    lag_months: 4
+    strength: 0.7
+    mechanism: "Recessions push NPLs up"
+
+  - from: npl_ratio
+    to: ecl_provision_rate
+    transfer: { type: linear, coefficient: 1.2, intercept: 0.005 }
+    lag_months: 0
+    strength: 0.8
+    mechanism: "NPLs are the primary ECL driver"
+
+  # Misstatement
+  - from: ecl_provision_rate
+    to: misstatement_risk
+    transfer: { type: linear, coefficient: 0.8, intercept: 0.01 }
+    lag_months: 0
+    strength: 0.6
+    mechanism: "ECL provisioning is judgement-heavy and a known misstatement hotspot"
+
+  - from: regulatory_fine_exposure
+    to: misstatement_risk
+    transfer: { type: linear, coefficient: 0.5, intercept: 0.02 }
+    lag_months: 0
+    strength: 0.5
+    mechanism: "Contingent-liability disclosure risk around pending fines"

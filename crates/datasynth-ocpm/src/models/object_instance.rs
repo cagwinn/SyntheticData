@@ -20,9 +20,11 @@ pub struct ObjectInstance {
     pub external_id: String,
     /// Current lifecycle state
     pub current_state: String,
-    /// Creation timestamp
+    /// Creation timestamp (serialized with microsecond precision).
+    #[serde(with = "crate::serde_util::rfc3339_micros")]
     pub created_at: DateTime<Utc>,
-    /// Completion timestamp (if terminal state reached)
+    /// Completion timestamp (if terminal state reached).
+    #[serde(with = "crate::serde_util::rfc3339_micros_opt", default)]
     pub completed_at: Option<DateTime<Utc>>,
     /// Company code
     pub company_code: String,
@@ -126,8 +128,8 @@ pub enum ObjectAttributeValue {
     Decimal(Decimal),
     /// Date value
     Date(NaiveDate),
-    /// DateTime value
-    DateTime(DateTime<Utc>),
+    /// DateTime value (serialized with microsecond precision).
+    DateTime(#[serde(with = "crate::serde_util::rfc3339_micros")] DateTime<Utc>),
     /// Boolean value
     Boolean(bool),
     /// Reference to another object

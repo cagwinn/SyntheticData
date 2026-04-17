@@ -56,6 +56,20 @@ impl DocumentRef {
             None
         }
     }
+
+    /// Return the inner document identifier, if any. `Manual` returns `None`.
+    pub fn document_id(&self) -> Option<&str> {
+        match self {
+            Self::PurchaseOrder(id)
+            | Self::VendorInvoice(id)
+            | Self::CustomerInvoice(id)
+            | Self::GoodsReceipt(id)
+            | Self::Delivery(id)
+            | Self::Payment(id)
+            | Self::Receipt(id) => Some(id.as_str()),
+            Self::Manual => None,
+        }
+    }
 }
 
 /// Source of a journal entry transaction.
@@ -291,6 +305,18 @@ pub struct JournalEntryHeader {
     /// Fraud type if applicable
     pub fraud_type: Option<FraudType>,
 
+    /// Whether `is_fraud` was propagated from a source document (document-level
+    /// fraud injection) rather than injected directly onto this line.
+    /// Used by downstream consumers to distinguish scheme-level from
+    /// slip-level fraud patterns.
+    #[serde(default)]
+    pub is_fraud_propagated: bool,
+
+    /// When `is_fraud_propagated` is true, the external document ID
+    /// (PO number, invoice number, etc.) that was the origin of the fraud.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fraud_source_document_id: Option<String>,
+
     // --- Anomaly Tracking Fields ---
     /// Whether this entry has an injected anomaly
     #[serde(default)]
@@ -407,6 +433,8 @@ impl JournalEntryHeader {
             ledger: "0L".to_string(),
             is_fraud: false,
             fraud_type: None,
+            is_fraud_propagated: false,
+            fraud_source_document_id: None,
             // Anomaly tracking
             is_anomaly: false,
             anomaly_id: None,
@@ -467,6 +495,8 @@ impl JournalEntryHeader {
             ledger: "0L".to_string(),
             is_fraud: false,
             fraud_type: None,
+            is_fraud_propagated: false,
+            fraud_source_document_id: None,
             // Anomaly tracking
             is_anomaly: false,
             anomaly_id: None,
@@ -496,6 +526,37 @@ impl JournalEntryHeader {
             ocpm_object_ids: Vec::new(),
             ocpm_case_id: None,
         }
+    }
+
+    /// Look up this header's source document id in a fraud map (keyed by
+    /// document id → fraud type) and, if found, mark this header as
+    /// propagated fraud. Returns `true` when the header was tagged.
+    ///
+    /// Unlike direct line-level fraud injection, this sets
+    /// `is_fraud_propagated = true` and records `fraud_source_document_id`
+    /// so downstream consumers can distinguish scheme-level fraud (many
+    /// correlated lines tagged by one document) from slip-level fraud (a
+    /// single tagged line with no document origin).
+    pub fn propagate_fraud_from_documents(
+        &mut self,
+        fraud_map: &std::collections::HashMap<String, crate::models::FraudType>,
+    ) -> bool {
+        let doc_id = match self
+            .source_document
+            .as_ref()
+            .and_then(DocumentRef::document_id)
+        {
+            Some(id) => id,
+            None => return false,
+        };
+        if let Some(ft) = fraud_map.get(doc_id) {
+            self.is_fraud = true;
+            self.fraud_type = Some(*ft);
+            self.is_fraud_propagated = true;
+            self.fraud_source_document_id = Some(doc_id.to_string());
+            return true;
+        }
+        false
     }
 }
 

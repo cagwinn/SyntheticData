@@ -126,7 +126,7 @@ fn test_tax_provision_accounts() {
             je.header
                 .header_text
                 .as_ref()
-                .map_or(false, |t| t.contains("Tax provision"))
+                .is_some_and(|t| t.contains("Tax provision"))
         })
         .collect();
 
@@ -186,7 +186,7 @@ fn test_closing_entry_retained_earnings() {
             je.header
                 .header_text
                 .as_ref()
-                .map_or(false, |t| t.contains("Income statement close"))
+                .is_some_and(|t| t.contains("Income statement close"))
         })
         .collect();
 
@@ -282,7 +282,7 @@ fn test_period_close_amount_consistency() {
             je.header
                 .header_text
                 .as_ref()
-                .map_or(false, |t| t.contains("Tax provision"))
+                .is_some_and(|t| t.contains("Tax provision"))
         })
         .collect();
 
@@ -292,7 +292,7 @@ fn test_period_close_amount_consistency() {
             je.header
                 .header_text
                 .as_ref()
-                .map_or(false, |t| t.contains("Income statement close"))
+                .is_some_and(|t| t.contains("Income statement close"))
         })
         .collect();
 

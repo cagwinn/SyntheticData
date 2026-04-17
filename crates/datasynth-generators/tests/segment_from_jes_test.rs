@@ -40,15 +40,14 @@ fn make_je(
 fn test_segments_from_two_companies() {
     let mut gen = SegmentGenerator::new(42);
 
-    let mut jes = Vec::new();
-
-    // Company CORP: revenue 100K (1xxx debit / 4xxx credit), COGS 60K (5xxx debit / 2xxx credit)
-    jes.push(make_je("JE-1", "CORP", "1010", "4000", dec!(100_000)));
-    jes.push(make_je("JE-2", "CORP", "5000", "2000", dec!(60_000)));
-
-    // Company SUB1: revenue 50K, COGS 30K
-    jes.push(make_je("JE-3", "SUB1", "1010", "4000", dec!(50_000)));
-    jes.push(make_je("JE-4", "SUB1", "5000", "2000", dec!(30_000)));
+    let jes = vec![
+        // Company CORP: revenue 100K (1xxx debit / 4xxx credit), COGS 60K (5xxx debit / 2xxx credit)
+        make_je("JE-1", "CORP", "1010", "4000", dec!(100_000)),
+        make_je("JE-2", "CORP", "5000", "2000", dec!(60_000)),
+        // Company SUB1: revenue 50K, COGS 30K
+        make_je("JE-3", "SUB1", "1010", "4000", dec!(50_000)),
+        make_je("JE-4", "SUB1", "5000", "2000", dec!(30_000)),
+    ];
 
     let companies = vec![
         ("CORP".to_string(), "Corp HQ".to_string()),

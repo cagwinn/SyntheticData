@@ -1,0 +1,261 @@
+# Manufacturing Causal DAG
+#
+# Focus: supply-chain propagation — how supplier reliability, raw-material
+# prices, and production yield drive downstream quality, margin, and audit
+# risk. Designed for scenario packs that probe supply-chain shocks
+# (commodity spike, tier-1 supplier failure, quality escape).
+
+nodes:
+  # ── Macro / External ───────────────────────────────────────────
+  - id: gdp_growth
+    label: "GDP Growth Rate"
+    category: macro
+    baseline_value: 0.025
+    bounds: [-0.10, 0.15]
+    interventionable: true
+    config_bindings: []
+
+  - id: commodity_price_index
+    label: "Commodity Price Index"
+    category: macro
+    baseline_value: 1.0
+    bounds: [0.5, 3.0]
+    interventionable: true
+    config_bindings:
+      - distributions.drift.economic_cycle.amplitude
+
+  - id: labor_cost_index
+    label: "Labor Cost Index"
+    category: macro
+    baseline_value: 1.0
+    bounds: [0.7, 2.0]
+    interventionable: true
+    config_bindings: []
+
+  # ── Supply-chain operational ───────────────────────────────────
+  - id: supplier_reliability
+    label: "Tier-1 Supplier Reliability"
+    category: operational
+    baseline_value: 0.92
+    bounds: [0.4, 1.0]
+    interventionable: true
+    config_bindings:
+      - vendor_network.clusters.reliable_strategic
+
+  - id: raw_material_cost
+    label: "Raw Material Unit Cost"
+    category: operational
+    baseline_value: 1.0
+    bounds: [0.5, 3.0]
+    interventionable: true
+    config_bindings: []
+
+  - id: lead_time_days
+    label: "Average Lead Time (days)"
+    category: operational
+    baseline_value: 14.0
+    bounds: [1.0, 180.0]
+    interventionable: true
+    config_bindings: []
+
+  - id: bom_accuracy
+    label: "Bill-of-Materials Accuracy"
+    category: operational
+    baseline_value: 0.97
+    bounds: [0.7, 1.0]
+    interventionable: true
+    config_bindings: []
+
+  - id: production_yield
+    label: "First-Pass Production Yield"
+    category: operational
+    baseline_value: 0.95
+    bounds: [0.5, 1.0]
+    interventionable: false
+    config_bindings: []
+
+  - id: scrap_rate
+    label: "Scrap / Rework Rate"
+    category: operational
+    baseline_value: 0.03
+    bounds: [0.0, 0.30]
+    interventionable: false
+    config_bindings: []
+
+  - id: inventory_days_on_hand
+    label: "Inventory Days on Hand"
+    category: operational
+    baseline_value: 45.0
+    bounds: [5.0, 365.0]
+    interventionable: false
+    config_bindings: []
+
+  # ── Controls ───────────────────────────────────────────────────
+  - id: quality_inspection_rate
+    label: "Incoming-Goods Inspection Coverage"
+    category: control
+    baseline_value: 0.80
+    bounds: [0.0, 1.0]
+    interventionable: true
+    config_bindings:
+      - internal_controls.exception_rate
+
+  - id: three_way_match_compliance
+    label: "Three-Way-Match Compliance"
+    category: control
+    baseline_value: 0.98
+    bounds: [0.6, 1.0]
+    interventionable: true
+    config_bindings: []
+
+  # ── Outcomes / Financial ───────────────────────────────────────
+  - id: quality_escape_rate
+    label: "Customer-Facing Quality Escape"
+    category: outcome
+    baseline_value: 0.01
+    bounds: [0.0, 0.20]
+    interventionable: false
+    config_bindings: []
+
+  - id: warranty_cost_rate
+    label: "Warranty Cost as % of Revenue"
+    category: financial
+    baseline_value: 0.015
+    bounds: [0.0, 0.20]
+    interventionable: false
+    config_bindings: []
+
+  - id: gross_margin
+    label: "Gross Margin"
+    category: financial
+    baseline_value: 0.28
+    bounds: [-0.3, 0.8]
+    interventionable: false
+    config_bindings: []
+
+  - id: inventory_obsolescence_risk
+    label: "Inventory Obsolescence Risk"
+    category: outcome
+    baseline_value: 0.04
+    bounds: [0.0, 0.50]
+    interventionable: false
+    config_bindings: []
+
+  - id: misstatement_risk
+    label: "Material Misstatement Risk"
+    category: outcome
+    baseline_value: 0.02
+    bounds: [0.0, 1.0]
+    interventionable: false
+    config_bindings: []
+
+edges:
+  # Macro → supply-chain
+  - from: commodity_price_index
+    to: raw_material_cost
+    transfer: { type: linear, coefficient: 1.0, intercept: 0.0 }
+    lag_months: 0
+    strength: 0.9
+    mechanism: "Commodity prices pass through directly to raw-material costs"
+
+  - from: gdp_growth
+    to: supplier_reliability
+    transfer: { type: logistic, capacity: 1.0, midpoint: -0.02, steepness: 25.0 }
+    lag_months: 2
+    strength: 0.6
+    mechanism: "Recessions degrade supplier reliability as tier-2 suppliers fail"
+
+  - from: labor_cost_index
+    to: gross_margin
+    transfer: { type: linear, coefficient: -0.15, intercept: 0.28 }
+    lag_months: 1
+    strength: 0.5
+    mechanism: "Wage inflation compresses margin"
+
+  # Supply chain → production
+  - from: supplier_reliability
+    to: lead_time_days
+    transfer: { type: inverse_logistic, capacity: 60.0, midpoint: 0.75, steepness: 15.0 }
+    lag_months: 0
+    strength: 0.7
+    mechanism: "Unreliable suppliers → longer lead times"
+
+  - from: supplier_reliability
+    to: production_yield
+    transfer: { type: logistic, capacity: 1.0, midpoint: 0.70, steepness: 10.0 }
+    lag_months: 0
+    strength: 0.6
+    mechanism: "Defective inputs cascade into yield loss"
+
+  - from: bom_accuracy
+    to: production_yield
+    transfer: { type: logistic, capacity: 1.0, midpoint: 0.85, steepness: 15.0 }
+    lag_months: 0
+    strength: 0.5
+    mechanism: "BOM errors produce mis-built units"
+
+  - from: production_yield
+    to: scrap_rate
+    transfer: { type: linear, coefficient: -0.5, intercept: 0.5 }
+    lag_months: 0
+    strength: 0.8
+    mechanism: "Lower yield directly increases scrap/rework"
+
+  - from: lead_time_days
+    to: inventory_days_on_hand
+    transfer: { type: linear, coefficient: 2.0, intercept: 15.0 }
+    lag_months: 1
+    strength: 0.6
+    mechanism: "Longer lead times push safety stock up"
+
+  # Production → financial outcomes
+  - from: scrap_rate
+    to: gross_margin
+    transfer: { type: linear, coefficient: -1.2, intercept: 0.28 }
+    lag_months: 0
+    strength: 0.6
+    mechanism: "Scrap directly erodes margin"
+
+  - from: raw_material_cost
+    to: gross_margin
+    transfer: { type: linear, coefficient: -0.18, intercept: 0.28 }
+    lag_months: 1
+    strength: 0.7
+    mechanism: "Higher input cost compresses margin"
+
+  - from: inventory_days_on_hand
+    to: inventory_obsolescence_risk
+    transfer: { type: threshold, threshold: 90.0, magnitude: 0.15, saturation: 0.40 }
+    lag_months: 0
+    strength: 0.7
+    mechanism: "Slow-moving inventory raises obsolescence provisions"
+
+  # Controls → quality outcomes
+  - from: quality_inspection_rate
+    to: quality_escape_rate
+    transfer: { type: inverse_logistic, capacity: 0.15, midpoint: 0.60, steepness: 8.0 }
+    lag_months: 0
+    strength: 0.8
+    mechanism: "Inspection catches defects before shipment"
+
+  - from: quality_escape_rate
+    to: warranty_cost_rate
+    transfer: { type: linear, coefficient: 0.75, intercept: 0.005 }
+    lag_months: 2
+    strength: 0.8
+    mechanism: "Escaped defects trigger warranty claims"
+
+  # Controls → audit risk
+  - from: three_way_match_compliance
+    to: misstatement_risk
+    transfer: { type: inverse_logistic, capacity: 0.20, midpoint: 0.85, steepness: 12.0 }
+    lag_months: 0
+    strength: 0.7
+    mechanism: "3-way-match failures elevate P2P misstatement risk"
+
+  - from: inventory_obsolescence_risk
+    to: misstatement_risk
+    transfer: { type: linear, coefficient: 0.5, intercept: 0.02 }
+    lag_months: 0
+    strength: 0.4
+    mechanism: "Obsolescence write-downs expose valuation judgment"

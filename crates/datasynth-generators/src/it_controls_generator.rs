@@ -548,7 +548,7 @@ mod tests {
         let failed = logs.iter().filter(|l| l.action == "failed_login").count() as f64;
         let rate = failed / total;
         assert!(
-            rate >= 0.02 && rate <= 0.15,
+            (0.02..=0.15).contains(&rate),
             "expected 2-15% failed login rate, got {:.1}%",
             rate * 100.0
         );

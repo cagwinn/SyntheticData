@@ -19,7 +19,9 @@ pub struct OcpmEvent {
     pub activity_id: String,
     /// Activity name (for convenience)
     pub activity_name: String,
-    /// Event timestamp
+    /// Event timestamp (serialized with microsecond precision — pandas
+    /// `to_datetime(..., utc=True)` silently drops nanoseconds).
+    #[serde(with = "crate::serde_util::rfc3339_micros")]
     pub timestamp: DateTime<Utc>,
     /// Lifecycle transition (Start, Complete, Abort, etc.)
     pub lifecycle: EventLifecycle,

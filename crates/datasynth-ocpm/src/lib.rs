@@ -36,6 +36,7 @@
 pub mod export;
 pub mod generator;
 pub mod models;
+pub mod serde_util;
 
 pub use export::*;
 pub use generator::*;

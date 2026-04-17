@@ -234,7 +234,7 @@ fn multiple_companies_produce_one_je_each() {
         ob_from_balances(code, b)
     };
 
-    let obs = vec![make("C001"), make("C002"), make("C003")];
+    let obs = [make("C001"), make("C002"), make("C003")];
     let jes: Vec<_> = obs
         .iter()
         .flat_map(|ob| opening_balance_to_jes(ob, &coa))

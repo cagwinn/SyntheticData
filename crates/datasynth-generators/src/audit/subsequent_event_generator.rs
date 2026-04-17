@@ -468,7 +468,7 @@ mod tests {
             let ratio = adjusting as f64 / total as f64;
             // Allow wide tolerance: 25%–60%
             assert!(
-                ratio >= 0.25 && ratio <= 0.60,
+                (0.25..=0.60).contains(&ratio),
                 "adjusting ratio = {:.2}, expected ~0.40",
                 ratio
             );

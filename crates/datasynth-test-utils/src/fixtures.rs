@@ -189,6 +189,8 @@ pub fn balanced_journal_entry(amount: Decimal) -> JournalEntry {
             ledger: "0L".to_string(),
             is_fraud: false,
             fraud_type: None,
+            is_fraud_propagated: false,
+            fraud_source_document_id: None,
             batch_id: None,
             is_manual: true,
             is_post_close: false,

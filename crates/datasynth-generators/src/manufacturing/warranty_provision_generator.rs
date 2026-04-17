@@ -340,7 +340,7 @@ mod tests {
                 sample_size: Decimal::from(20),
                 defect_count: 0,
                 defect_rate: 0.0,
-                result: result.clone(),
+                result,
                 characteristics: smallvec::smallvec![],
                 disposition: None,
                 notes: None,

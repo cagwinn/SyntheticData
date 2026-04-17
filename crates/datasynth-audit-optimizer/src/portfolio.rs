@@ -550,7 +550,7 @@ mod tests {
             !report.resource_utilization.is_empty(),
             "expected non-empty resource utilization"
         );
-        for (_role, util) in &report.resource_utilization {
+        for util in report.resource_utilization.values() {
             assert!(*util > 0.0, "utilization should be positive");
         }
     }

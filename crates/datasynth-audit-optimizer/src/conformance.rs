@@ -473,7 +473,7 @@ mod tests {
         let gen = compute_generalization(&bwp, &overlay, &bp, 42, &ctx);
 
         assert!(
-            gen >= 0.0 && gen <= 1.0,
+            (0.0..=1.0).contains(&gen),
             "Generalization should be in [0, 1], got {}",
             gen
         );

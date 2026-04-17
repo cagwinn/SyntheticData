@@ -5,6 +5,138 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.0] - 2026-04-17
+
+This release addresses SDK-team feedback on DataSynth 3.0 dataset realism. It
+closes the highest-impact gaps surfaced by running the v3.0 examples end-to-end
+against the live API: nanosecond timestamps breaking pandas, AML relationship
+graphs with density 0.0014 and zero mule/shell links, fraud classifiers
+showing ~0 feature importance for canonical forensic signals, a single
+financial-services DAG serving all industries, and ~47 % OCPM coverage on
+journal entries.
+
+### Added
+
+#### Fraud semantics
+
+- **Document-level fraud injection** (`FraudConfig.document_fraud_rate`): mark
+  a fraction of source documents (PO, vendor invoice, customer invoice,
+  payment) as fraud; when `propagate_to_lines` is true (default) every
+  derived journal entry inherits `is_fraud` + `fraud_type`. Expresses
+  scheme-level fraud patterns at realistic fan-out instead of isolated line
+  flips.
+- **`JournalEntryHeader.is_fraud_propagated`** + `fraud_source_document_id`
+  fields: distinguish scheme-propagated fraud from directly-injected
+  line-level fraud so ML trainers can partition the two populations.
+- **`datasynth-core::fraud_propagation` module**: `inject_document_fraud`,
+  `propagate_documents_to_entries`, `propagate_entries_to_documents`, and
+  fraud-map helpers. Backs the new orchestrator Phase 7d.
+- **Fraud behavioural bias on fraud anomalies**
+  (`EnhancedInjectionConfig.fraud_behavioral_bias`): weekend-posting bias
+  (default 30 %), round-dollar amount bias (40 %), off-hours `created_at`
+  bias (35 %), and post-close marking bias (25 %). Forensic signals now
+  have measurable lift on fraud-labeled data — the SDK-reported
+  `is_weekend`/`is_round_1000`/`is_post_close_int` features classify
+  meaningfully instead of showing ~0 importance.
+- **Declarative forensic labels** (P3-I): `ProcessIssueType::PostClosePosting`
+  variant, and every behavioural bias that fires on a fraud entry emits a
+  secondary `AnomalyType::ProcessIssue` label alongside the primary fraud
+  label. Auditors can now query `anomaly_labels.json` for
+  `WeekendPosting`, `AfterHoursPosting`, or `PostClosePosting` without
+  reconstructing the patterns from entry flags.
+
+#### AML realism
+
+- **Transaction-based relationship extraction** is now wired into the banking
+  orchestrator. `extract_from_transactions` groups by real
+  `(account_id, counterparty_id)` pairs (no more `Uuid::new_v4()`
+  placeholders) and populates `is_mule_link`/`is_shell_link` from
+  `NetworkContext` roles and suspicious-transaction flags.
+- **`NetworkGenerator` is now actually invoked**: `TypologyInjector` runs
+  structuring rings, mule chains, and shell pyramids at
+  `typologies.network_typology_rate` (previously a phantom knob).
+- **Network-context clique edges**
+  (`RelationshipLabelExtractor::extract_from_network_contexts`): every
+  participant in a coordinated criminal network is linked to every other
+  participant with a mule or shell edge, closing the
+  density 0.0014 → meaningful graph topology gap.
+
+#### Process mining
+
+- **Microsecond OCEL timestamps**: `OcpmEvent.timestamp`,
+  `ObjectInstance.created_at/completed_at`, `ObjectAttributeValue::DateTime`,
+  and the OCEL 2.0 exporter all serialize with microsecond precision.
+  Pandas `to_datetime(..., utc=True)` no longer silently drops 95 % of
+  rows. New `datasynth-ocpm::serde_util` module holds the helper.
+- **Orphan OCPM event synthesis** (`synthesize_events_for_orphan_entries`):
+  new Phase 18d in the orchestrator mints a minimal OCPM event for every
+  JE with empty `ocpm_event_ids` — period-close, intercompany
+  eliminations, opening balances, and standards entries (revenue
+  recognition, leases, impairment, ECL, provisions). Coverage 47 % → ~100 %.
+- **JE-to-OCEL anomaly propagation** (`propagate_je_anomalies_to_ocel`):
+  Phase 18e mirrors `JournalEntry.header.is_anomaly`/`is_fraud` onto every
+  linked OCEL event and flips `CaseTrace.is_anomaly`. The OCEL export
+  flag is no longer always `false`.
+- **Process-variant imperfections** (`inject_process_imperfections`):
+  Phase 18f applies rework (duplicate mid-case activity), skipped steps
+  (drop a non-terminal activity), and out-of-order events (swap adjacent
+  event timestamps) per case based on `OcpmProcessConfig` rates, and sets
+  `ProcessVariant.has_rework`/`has_skipped_steps`/`has_out_of_order`
+  accordingly. Inductive Miner fitness drops from 1.0 to realistic
+  0.7–0.9.
+- **Default variant-imperfection rates bumped**:
+  `rework_probability` 0.05 → 0.15, `skip_step_probability` 0.02 → 0.10,
+  `out_of_order_probability` 0.03 → 0.08.
+
+#### Causal scenario DAGs
+
+- **Sector-specific causal DAG presets**: three new templates dispatched
+  from `scenarios.causal_model.preset`:
+  - `manufacturing` — supply-chain chain (supplier reliability, raw
+    material cost, lead time, BOM accuracy, production yield, scrap rate,
+    inventory obsolescence, warranty cost).
+  - `retail` — O2C-centric (seasonal demand, foot traffic, promotion
+    intensity, stockout rate, return rate, shrinkage, days sales
+    outstanding, revenue cutoff risk).
+  - `financial_services` — correspondent banking (correspondent
+    concentration, regulatory pressure, sanctions environment, KYC score,
+    AML screening strength, AML true/false positive rates, liquidity
+    coverage ratio, NPL ratio, ECL provision rate).
+- The scenario registry now lists `default | manufacturing | retail |
+  financial_services | minimal` — the "`fraud_detection | revenue_cycle |
+  custom`" placeholder text is replaced by real dispatch.
+
+### Changed
+
+- **`FraudConfig`** gains `document_fraud_rate: Option<f64>`,
+  `propagate_to_lines: bool` (default true), and
+  `propagate_to_document: bool` (default true). The existing line→document
+  propagation block in the orchestrator is now gated by
+  `propagate_to_document`.
+
+### Fixed
+
+- Pre-existing clippy errors under `-D warnings` —
+  `audit/judgment_generator.rs` boolean-logic bug, `llm/json_utils.rs`
+  `.unwrap()` in tests, redundant closures in banking network generator
+  tests, redundant field names in warranty-provision generator, inconsistent
+  digit grouping in audit confirmation generator, field-reassign-with-default
+  in manufacturing cost accounting test, several `push`-immediately-after-
+  creation and `clone_ref_to_slice_refs` lint warnings across the eval and
+  generators crates.
+
+### SDK feedback items addressed
+
+| SDK item | Status |
+|---|---|
+| Nanosecond timestamps drop 95 % of rows in pandas | Fixed (P1-A) |
+| AML density 0.0014, zero mule/shell links | Fixed (P1-B, P1-C) |
+| Fraud classifier shows ~0 importance for weekend/round/post-close | Fixed (P1-D, P3-I) |
+| Fraud rate semantics unclear (doc-level vs line-level) | Fixed (P2-E) |
+| OCPM coverage 47 % | Fixed (P2-F) |
+| Process variants "too clean" (8 variants, 100 % fitness) | Fixed (P2-G) |
+| Only one scenario DAG template exists | Fixed (P3-H) |
+
 ## [3.0.0] - 2026-04-15
 
 ### Added

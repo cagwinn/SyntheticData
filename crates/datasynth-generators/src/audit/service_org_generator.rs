@@ -342,7 +342,7 @@ mod tests {
         let mut gen = ServiceOrgGenerator::new(42);
         let snapshot = gen.generate(&entity_codes(1), period_end());
         assert!(
-            snapshot.service_organizations.len() >= 1 && snapshot.service_organizations.len() <= 3,
+            !snapshot.service_organizations.is_empty() && snapshot.service_organizations.len() <= 3,
             "expected 1-3 service orgs, got {}",
             snapshot.service_organizations.len()
         );

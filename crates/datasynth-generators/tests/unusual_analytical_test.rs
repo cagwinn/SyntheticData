@@ -19,6 +19,7 @@ fn period_end() -> NaiveDate {
     NaiveDate::from_ymd_opt(2024, 6, 30).unwrap()
 }
 
+#[allow(clippy::too_many_arguments)]
 fn make_entry(
     company_code: &str,
     posting_date: NaiveDate,
@@ -301,7 +302,7 @@ fn unusual_items_overall_flag_rate_5_to_80_percent() {
     // We accept any non-trivial rate up to 80%; the test just confirms the
     // generator is working (not returning 0 or 100% blindly).
     assert!(
-        rate >= 0.0 && rate <= 0.80,
+        (0.0..=0.80).contains(&rate),
         "Overall flag rate {:.2} outside 0–80% range",
         rate
     );

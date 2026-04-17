@@ -245,7 +245,7 @@ fn gc_approximately_90_percent_no_material_uncertainty() {
     }
     let ratio = clean as f64 / total as f64;
     assert!(
-        ratio >= 0.80 && ratio <= 0.98,
+        (0.80..=0.98).contains(&ratio),
         "Clean ratio {:.2} is outside expected range [0.80, 0.98]",
         ratio
     );
@@ -267,7 +267,7 @@ fn gc_conclusion_consistent_with_indicator_count() {
             }
             GoingConcernConclusion::MaterialUncertaintyExists => {
                 assert!(
-                    n >= 1 && n <= 2,
+                    (1..=2).contains(&n),
                     "seed={}: MaterialUncertaintyExists but {} indicators (expected 1–2)",
                     seed,
                     n

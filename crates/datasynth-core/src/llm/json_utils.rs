@@ -34,7 +34,7 @@ mod tests {
     #[test]
     fn test_extract_json_object() {
         let input = r#"Here: {"a": 1, "b": {"c": 2}} done"#;
-        let obj = extract_json_object(input).unwrap();
+        let obj = extract_json_object(input).expect("extract_json_object returned None");
         assert!(obj.starts_with('{') && obj.ends_with('}'));
         assert!(obj.contains("\"c\": 2"));
     }
@@ -42,7 +42,7 @@ mod tests {
     #[test]
     fn test_extract_json_array() {
         let input = r#"Result: [{"x": 1}, {"y": [2, 3]}] end"#;
-        let arr = extract_json_array(input).unwrap();
+        let arr = extract_json_array(input).expect("extract_json_array returned None");
         assert!(arr.starts_with('[') && arr.ends_with(']'));
     }
 

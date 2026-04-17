@@ -709,7 +709,7 @@ mod tests {
                 if let Some(first_char) = abs_str.chars().find(|c| c.is_ascii_digit() && *c != '0')
                 {
                     let digit = first_char.to_digit(10).unwrap_or(0) as usize;
-                    if digit >= 1 && digit <= 9 {
+                    if (1..=9).contains(&digit) {
                         digit_counts[digit] += 1;
                     }
                 }

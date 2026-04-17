@@ -2341,6 +2341,105 @@ impl EnhancedOrchestrator {
         // Emit journal entries to stream sink (after all JE-generating phases)
         self.emit_phase_items("journal_entries", "JournalEntry", &entries);
 
+        // Phase 7d: Document-level fraud injection + propagation to derived JEs.
+        //
+        // This runs BEFORE line-level anomaly injection so that JEs tagged by
+        // document-level fraud are exempt from subsequent line-level flag
+        // overwrites, and so downstream consumers see a coherent picture.
+        //
+        // Gated by `fraud.document_fraud_rate` — `None` or `0.0` is a no-op.
+        {
+            let doc_rate = self.config.fraud.document_fraud_rate.unwrap_or(0.0);
+            if self.config.fraud.enabled && doc_rate > 0.0 {
+                use datasynth_core::fraud_propagation::{
+                    inject_document_fraud, propagate_documents_to_entries,
+                };
+                use datasynth_core::utils::weighted_select;
+                use datasynth_core::FraudType;
+                use rand_chacha::rand_core::SeedableRng;
+
+                let dist = &self.config.fraud.fraud_type_distribution;
+                let fraud_type_weights: [(FraudType, f64); 8] = [
+                    (FraudType::SuspenseAccountAbuse, dist.suspense_account_abuse),
+                    (FraudType::FictitiousEntry, dist.fictitious_transaction),
+                    (FraudType::RevenueManipulation, dist.revenue_manipulation),
+                    (FraudType::ImproperCapitalization, dist.expense_capitalization),
+                    (FraudType::SplitTransaction, dist.split_transaction),
+                    (FraudType::TimingAnomaly, dist.timing_anomaly),
+                    (FraudType::UnauthorizedAccess, dist.unauthorized_access),
+                    (FraudType::DuplicatePayment, dist.duplicate_payment),
+                ];
+                let weights_sum: f64 = fraud_type_weights.iter().map(|(_, w)| *w).sum();
+                let pick = |rng: &mut rand_chacha::ChaCha8Rng| -> FraudType {
+                    if weights_sum <= 0.0 {
+                        FraudType::FictitiousEntry
+                    } else {
+                        *weighted_select(rng, &fraud_type_weights)
+                    }
+                };
+
+                let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(self.seed + 5100);
+                let mut doc_tagged = 0usize;
+                macro_rules! inject_into {
+                    ($collection:expr) => {{
+                        let mut hs: Vec<&mut datasynth_core::models::documents::DocumentHeader> =
+                            $collection.iter_mut().map(|d| &mut d.header).collect();
+                        doc_tagged += inject_document_fraud(&mut hs, doc_rate, &mut rng, pick);
+                    }};
+                }
+                inject_into!(document_flows.purchase_orders);
+                inject_into!(document_flows.goods_receipts);
+                inject_into!(document_flows.vendor_invoices);
+                inject_into!(document_flows.payments);
+                inject_into!(document_flows.sales_orders);
+                inject_into!(document_flows.deliveries);
+                inject_into!(document_flows.customer_invoices);
+                if doc_tagged > 0 {
+                    info!(
+                        "Injected document-level fraud on {doc_tagged} documents at rate {doc_rate}"
+                    );
+                }
+
+                if self.config.fraud.propagate_to_lines && doc_tagged > 0 {
+                    let mut headers: Vec<datasynth_core::models::documents::DocumentHeader> =
+                        Vec::new();
+                    headers.extend(
+                        document_flows
+                            .purchase_orders
+                            .iter()
+                            .map(|d| d.header.clone()),
+                    );
+                    headers.extend(
+                        document_flows
+                            .goods_receipts
+                            .iter()
+                            .map(|d| d.header.clone()),
+                    );
+                    headers.extend(
+                        document_flows
+                            .vendor_invoices
+                            .iter()
+                            .map(|d| d.header.clone()),
+                    );
+                    headers.extend(document_flows.payments.iter().map(|d| d.header.clone()));
+                    headers.extend(document_flows.sales_orders.iter().map(|d| d.header.clone()));
+                    headers.extend(document_flows.deliveries.iter().map(|d| d.header.clone()));
+                    headers.extend(
+                        document_flows
+                            .customer_invoices
+                            .iter()
+                            .map(|d| d.header.clone()),
+                    );
+                    let propagated = propagate_documents_to_entries(&headers, &mut entries);
+                    if propagated > 0 {
+                        info!(
+                            "Propagated document-level fraud to {propagated} derived journal entries"
+                        );
+                    }
+                }
+            }
+        }
+
         // Phase 8: Anomaly Injection (after all JE-generating phases)
         let anomaly_labels = self.phase_anomaly_injection(&mut entries, &actions, &mut stats)?;
 
@@ -2354,7 +2453,11 @@ impl EnhancedOrchestrator {
         // Propagate fraud labels from journal entries to source documents.
         // This allows consumers to identify fraudulent POs, invoices, etc. directly
         // instead of tracing through document_references.json.
-        {
+        //
+        // Gated by `fraud.propagate_to_document` (default true) — disable when
+        // downstream consumers want document fraud flags to reflect only
+        // document-level injection, not line-level.
+        if self.config.fraud.propagate_to_document {
             use std::collections::HashMap;
             // Build a map from document_id -> (is_fraud, fraud_type) from fraudulent JEs.
             //
@@ -2667,7 +2770,7 @@ impl EnhancedOrchestrator {
         }
 
         // Phase 18b: OCPM Events (after all process data is available)
-        let ocpm = self.phase_ocpm_events(
+        let mut ocpm = self.phase_ocpm_events(
             &document_flows,
             &sourcing,
             &hr,
@@ -2739,6 +2842,55 @@ impl EnhancedOrchestrator {
                     "Phase 18c: Back-annotated {} JEs with OCPM event/object/case IDs",
                     annotated
                 );
+            }
+        }
+
+        // Phase 18d: Synthesize OCPM events for orphan JEs (period-close,
+        // IC eliminations, opening balances, standards-driven entries) so
+        // every JournalEntry carries at least one `ocpm_event_ids` link.
+        if let Some(ref mut event_log) = ocpm.event_log {
+            let synthesized =
+                datasynth_ocpm::synthesize_events_for_orphan_entries(&mut entries, event_log);
+            if synthesized > 0 {
+                info!(
+                    "Phase 18d: Synthesized {synthesized} OCPM events for orphan journal entries"
+                );
+            }
+
+            // Phase 18e: Mirror JE anomaly / fraud flags onto the linked OCEL
+            // events and their owning CaseTrace. Without this, every exported
+            // OCEL event has `is_anomaly = false` even when the underlying JE
+            // was flagged.
+            let anomaly_events =
+                datasynth_ocpm::propagate_je_anomalies_to_ocel(&entries, event_log);
+            if anomaly_events > 0 {
+                info!("Phase 18e: Propagated anomaly flags onto {anomaly_events} OCEL events");
+            }
+
+            // Phase 18f: Inject process-variant imperfections (rework, skipped
+            // steps, out-of-order events) so conformance checkers see
+            // realistic variant counts and fitness < 1.0. Uses the P2P
+            // process rates as the single source of truth.
+            let p2p_cfg = &self.config.ocpm.p2p_process;
+            let any_imperfection = p2p_cfg.rework_probability > 0.0
+                || p2p_cfg.skip_step_probability > 0.0
+                || p2p_cfg.out_of_order_probability > 0.0;
+            if any_imperfection {
+                use rand_chacha::rand_core::SeedableRng;
+                let imp_cfg = datasynth_ocpm::ImperfectionConfig {
+                    rework_rate: p2p_cfg.rework_probability,
+                    skip_rate: p2p_cfg.skip_step_probability,
+                    out_of_order_rate: p2p_cfg.out_of_order_probability,
+                };
+                let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(self.seed + 5200);
+                let stats =
+                    datasynth_ocpm::inject_process_imperfections(event_log, &imp_cfg, &mut rng);
+                if stats.rework + stats.skipped + stats.out_of_order > 0 {
+                    info!(
+                        "Phase 18f: Injected process imperfections — rework={} skipped={} out_of_order={}",
+                        stats.rework, stats.skipped, stats.out_of_order
+                    );
+                }
             }
         }
 

@@ -10,7 +10,9 @@ mod event_generator;
 mod h2r_generator;
 mod mfg_generator;
 mod o2c_generator;
+mod orphan_synthesis;
 mod p2p_generator;
+mod process_imperfection;
 mod s2c_generator;
 
 pub use audit_generator::*;
@@ -20,5 +22,7 @@ pub use event_generator::*;
 pub use h2r_generator::*;
 pub use mfg_generator::*;
 pub use o2c_generator::*;
+pub use orphan_synthesis::*;
 pub use p2p_generator::*;
+pub use process_imperfection::*;
 pub use s2c_generator::*;

@@ -9,7 +9,10 @@ use crate::models::{
     AmlScenario, BankAccount, BankTransaction, BankingCustomer, CaseNarrative, CaseRecommendation,
 };
 
-use super::{FunnelInjector, LayeringInjector, MuleInjector, SpoofingEngine, StructuringInjector};
+use super::{
+    FunnelInjector, LayeringInjector, MuleInjector, NetworkGenerator, SpoofingEngine,
+    StructuringInjector,
+};
 use crate::seed_offsets::TYPOLOGY_INJECTOR_SEED_OFFSET;
 
 /// Main AML typology injector.
@@ -20,6 +23,7 @@ pub struct TypologyInjector {
     funnel_injector: FunnelInjector,
     layering_injector: LayeringInjector,
     mule_injector: MuleInjector,
+    network_generator: NetworkGenerator,
     spoofing_engine: SpoofingEngine,
     scenarios: Vec<AmlScenario>,
     scenario_counter: u32,
@@ -35,6 +39,7 @@ impl TypologyInjector {
             funnel_injector: FunnelInjector::new(seed),
             layering_injector: LayeringInjector::new(seed),
             mule_injector: MuleInjector::new(seed),
+            network_generator: NetworkGenerator::new(seed),
             spoofing_engine: SpoofingEngine::new(config.spoofing.clone(), seed),
             scenarios: Vec::new(),
             scenario_counter: 0,
@@ -93,9 +98,175 @@ impl TypologyInjector {
             }
         }
 
+        // Phase 6c: Coordinated criminal network injection (activates
+        // `network_typology_rate` — previously a phantom config). Emits
+        // structuring rings, mule chains, and shell pyramids where every
+        // participating transaction carries a `network_context`, which the
+        // relationship-label extractor uses to build mule/shell edges.
+        self.inject_network_typologies(customers, accounts, transactions);
+
         // Apply spoofing to sophisticated typologies
         if self.config.spoofing.enabled {
             self.apply_spoofing(customers, transactions);
+        }
+    }
+
+    /// Inject coordinated multi-party criminal networks (rings, chains,
+    /// pyramids). Sized by `typologies.network_typology_rate`.
+    fn inject_network_typologies(
+        &mut self,
+        customers: &mut [BankingCustomer],
+        accounts: &mut [BankAccount],
+        transactions: &mut Vec<BankTransaction>,
+    ) {
+        let rate = self.config.typologies.network_typology_rate;
+        if !rate.is_finite() || rate <= 0.0 {
+            return;
+        }
+
+        let total_customers = customers.len();
+        let participants = (total_customers as f64 * rate).round() as usize;
+        // Need enough people for at least one small ring.
+        if participants < 4 {
+            return;
+        }
+
+        // Average network size (participants per ring/chain/pyramid).
+        let avg_network_size: usize = 7;
+        let num_networks = (participants / avg_network_size).max(1);
+
+        let start_date = crate::parse_start_date(&self.config.population.start_date);
+        let end_date =
+            start_date + chrono::Months::new(self.config.population.period_months.max(1));
+
+        // Eligible customers — must have at least one account.
+        let eligible_indices: Vec<usize> = customers
+            .iter()
+            .enumerate()
+            .filter(|(_, c)| !c.account_ids.is_empty())
+            .map(|(i, _)| i)
+            .collect();
+        if eligible_indices.len() < 4 {
+            return;
+        }
+        // Shuffled once; we take a disjoint batch per network by walking
+        // forward with a moving window, avoiding a full clone per iteration.
+        let mut idx_pool = eligible_indices;
+        idx_pool.shuffle(&mut self.rng);
+        let mut cursor = 0usize;
+
+        for _ in 0..num_networks {
+            let batch_size = self
+                .rng
+                .random_range(5..=avg_network_size.saturating_add(3))
+                .min(idx_pool.len());
+            if batch_size < 3 {
+                continue;
+            }
+            if cursor + batch_size > idx_pool.len() {
+                // Reshuffle and rewind when the pool is exhausted so
+                // subsequent networks still see a random ordering.
+                idx_pool.shuffle(&mut self.rng);
+                cursor = 0;
+            }
+            let selected: Vec<usize> = idx_pool[cursor..cursor + batch_size].to_vec();
+            cursor += batch_size;
+
+            let batch_customers: Vec<BankingCustomer> =
+                selected.iter().map(|&i| customers[i].clone()).collect();
+            let sophistication = self.select_sophistication();
+
+            // Pick network kind via weighted selection so the 40/35/25 mix
+            // between rings / chains / pyramids lives in one place.
+            #[derive(Clone, Copy)]
+            enum NetworkKind {
+                Ring,
+                Chain,
+                Pyramid,
+            }
+            let kind = *datasynth_core::utils::weighted_select(
+                &mut self.rng,
+                &[
+                    (NetworkKind::Ring, 0.40),
+                    (NetworkKind::Chain, 0.35),
+                    (NetworkKind::Pyramid, 0.25),
+                ],
+            );
+            let (new_txns, typology, stage) = match kind {
+                NetworkKind::Ring => (
+                    self.network_generator.generate_structuring_ring(
+                        &batch_customers,
+                        accounts,
+                        start_date,
+                        end_date,
+                        sophistication,
+                    ),
+                    AmlTypology::Structuring,
+                    LaunderingStage::Placement,
+                ),
+                NetworkKind::Chain => (
+                    self.network_generator.generate_mule_chain(
+                        &batch_customers,
+                        accounts,
+                        start_date,
+                        end_date,
+                        sophistication,
+                    ),
+                    AmlTypology::MoneyMule,
+                    LaunderingStage::Layering,
+                ),
+                NetworkKind::Pyramid => (
+                    self.network_generator.generate_shell_pyramid(
+                        &batch_customers,
+                        accounts,
+                        start_date,
+                        end_date,
+                        sophistication,
+                    ),
+                    AmlTypology::Layering,
+                    LaunderingStage::Integration,
+                ),
+            };
+
+            if new_txns.is_empty() {
+                continue;
+            }
+
+            // Build the scenario, then mark participating customers/accounts.
+            let scenario_id = self.next_scenario_id();
+            let mut scenario = AmlScenario::new(&scenario_id, typology, start_date, end_date)
+                .with_sophistication(sophistication);
+            scenario.add_stage(stage);
+
+            for txn in &new_txns {
+                scenario.add_transaction(txn.transaction_id, txn.amount);
+            }
+            for &i in &selected {
+                let cust = &mut customers[i];
+                scenario.add_customer(cust.customer_id);
+                if matches!(typology, AmlTypology::MoneyMule) {
+                    cust.is_mule = true;
+                }
+                for acct_id in cust.account_ids.clone() {
+                    scenario.add_account(acct_id);
+                    if let Some(acct) = accounts.iter_mut().find(|a| a.account_id == acct_id) {
+                        if matches!(typology, AmlTypology::MoneyMule) {
+                            acct.is_mule_account = true;
+                        }
+                        if acct.case_id.is_none() {
+                            acct.case_id = Some(scenario_id.clone());
+                        }
+                    }
+                }
+            }
+
+            scenario.narrative = CaseNarrative::new(
+                "Coordinated multi-party network detected: participants share a common case identifier and transaction patterns consistent with a criminal ring.",
+            )
+            .with_recommendation(CaseRecommendation::FileSar);
+
+            transactions.extend(new_txns);
+            self.scenarios.push(scenario);
         }
     }
 

@@ -90,10 +90,10 @@ fn document_ref_parse_from_reference_string() {
     assert!(matches!(pay, Some(DocumentRef::Payment(_))));
 
     let fa = DocumentRef::parse("FA-2024-000001");
-    assert!(matches!(fa, None)); // AssetTag is not a document ref
+    assert!(fa.is_none()); // AssetTag is not a document ref
 
     let doc = DocumentRef::parse("DOC-2024-000001");
-    assert!(matches!(doc, None)); // Internal doc is not a specific document ref
+    assert!(doc.is_none()); // Internal doc is not a specific document ref
 }
 
 #[test]

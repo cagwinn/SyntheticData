@@ -41,9 +41,11 @@ fn test_production_order_has_cost_breakdown() {
 fn test_cost_breakdown_labor_from_hours_and_rate() {
     let mut gen = ProductionOrderGenerator::new(99);
     let config = ProductionOrderConfig::default();
-    let mut costing = ManufacturingCostingConfig::default();
-    costing.labor_rate_per_hour = 50.0;
-    costing.overhead_rate = 1.0;
+    let costing = ManufacturingCostingConfig {
+        labor_rate_per_hour: 50.0,
+        overhead_rate: 1.0,
+        ..Default::default()
+    };
     let routing = RoutingConfig::default();
     let materials = vec![("MAT-001".to_string(), "Part X".to_string())];
     let start = chrono::NaiveDate::from_ymd_opt(2025, 1, 1).unwrap();
@@ -112,7 +114,7 @@ fn test_wip_entry_on_order_start() {
     let jes = ManufacturingCostAccounting::generate_all_jes(&orders, &[], "USD");
     let wip_jes: Vec<_> = jes
         .iter()
-        .filter(|je| je.description().map_or(false, |d| d.contains("material")))
+        .filter(|je| je.description().is_some_and(|d| d.contains("material")))
         .collect();
     assert!(!wip_jes.is_empty());
     for je in &wip_jes {
@@ -126,10 +128,7 @@ fn test_fg_transfer_on_completion() {
     let jes = ManufacturingCostAccounting::generate_all_jes(&orders, &[], "USD");
     let fg_jes: Vec<_> = jes
         .iter()
-        .filter(|je| {
-            je.description()
-                .map_or(false, |d| d.contains("FG transfer"))
-        })
+        .filter(|je| je.description().is_some_and(|d| d.contains("FG transfer")))
         .collect();
     assert!(!fg_jes.is_empty());
     for je in &fg_jes {
@@ -143,7 +142,7 @@ fn test_variance_jes_generated() {
     let jes = ManufacturingCostAccounting::generate_all_jes(&orders, &[], "USD");
     let var_jes: Vec<_> = jes
         .iter()
-        .filter(|je| je.description().map_or(false, |d| d.contains("variance")))
+        .filter(|je| je.description().is_some_and(|d| d.contains("variance")))
         .collect();
     assert!(!var_jes.is_empty());
     for je in &var_jes {
