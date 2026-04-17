@@ -158,25 +158,23 @@ impl JudgmentGenerator {
                     );
                 }
             }
-            JudgmentType::RiskAssessment => {
-                if context.high_risk_count > 0 {
-                    let areas_text = if context.high_risk_areas.is_empty() {
-                        format!("{} areas", context.high_risk_count)
-                    } else {
-                        context.high_risk_areas.join(", ")
-                    };
-                    judgment.conclusion = format!(
-                        "Assessed {} area(s) as high risk: {}. Extended substantive testing \
-                         is planned for these areas.",
-                        context.high_risk_count, areas_text
-                    );
-                    judgment.rationale = format!(
-                        "Inherent risk factors are present in {} area(s) ({}). \
-                         The combined approach with extended procedures is appropriate \
-                         given the elevated risk assessment.",
-                        context.high_risk_count, areas_text
-                    );
-                }
+            JudgmentType::RiskAssessment if context.high_risk_count > 0 => {
+                let areas_text = if context.high_risk_areas.is_empty() {
+                    format!("{} areas", context.high_risk_count)
+                } else {
+                    context.high_risk_areas.join(", ")
+                };
+                judgment.conclusion = format!(
+                    "Assessed {} area(s) as high risk: {}. Extended substantive testing \
+                     is planned for these areas.",
+                    context.high_risk_count, areas_text
+                );
+                judgment.rationale = format!(
+                    "Inherent risk factors are present in {} area(s) ({}). \
+                     The combined approach with extended procedures is appropriate \
+                     given the elevated risk assessment.",
+                    context.high_risk_count, areas_text
+                );
             }
             JudgmentType::GoingConcern => {
                 if context.going_concern_doubt {
@@ -1166,10 +1164,9 @@ mod tests {
 
         let judgment = generator.generate_judgment(&engagement, &["STAFF001".into()]);
 
-        // Judgment should have consultation (either required or by probability)
-        // Note: Some judgment types don't require consultation, so check if added
-        if judgment.consultation.is_some() {
-            let consultation = judgment.consultation.as_ref().unwrap();
+        // Judgment should have consultation (either required or by probability).
+        // Some judgment types don't require it, so check-then-read.
+        if let Some(consultation) = judgment.consultation.as_ref() {
             assert!(!consultation.consultant.is_empty());
             assert!(!consultation.issue_presented.is_empty());
         }

@@ -308,110 +308,99 @@ impl FraudScheme for VendorKickbackScheme {
 
         let stage = &self.stages[self.current_stage_index];
 
-        // Generate actions based on stage
+        // Generate actions based on stage. Guards fold the per-stage
+        // probability check into the match arm so the inner `if` disappears
+        // (clippy::collapsible_match).
         match self.current_stage_index {
-            0 => {
-                // Setup stage - create fictitious vendor if needed
-                if rng.random::<f64>() < 0.1 {
-                    let action = SchemeAction::new(
-                        self.scheme_id,
-                        stage.stage_number,
-                        SchemeActionType::CreateFictitiousVendor,
-                        context.current_date,
-                    )
-                    .with_counterparty(&self.vendor_id)
-                    .with_user(&self.perpetrator_id)
-                    .with_difficulty(stage.detection_difficulty)
-                    .with_description("Establish vendor relationship for kickback scheme");
+            // Setup stage — create fictitious vendor if the probability fires.
+            0 if rng.random::<f64>() < 0.1 => {
+                let action = SchemeAction::new(
+                    self.scheme_id,
+                    stage.stage_number,
+                    SchemeActionType::CreateFictitiousVendor,
+                    context.current_date,
+                )
+                .with_counterparty(&self.vendor_id)
+                .with_user(&self.perpetrator_id)
+                .with_difficulty(stage.detection_difficulty)
+                .with_description("Establish vendor relationship for kickback scheme");
 
-                    actions.push(action);
-                }
+                actions.push(action);
             }
-            1 => {
-                // Price inflation stage
-                if rng.random::<f64>() < 0.2 {
-                    let base_amount = stage.random_amount(rng);
-                    let inflation = self.calculate_inflation(base_amount);
-                    let total_amount = base_amount + inflation;
+            // Price inflation stage.
+            1 if rng.random::<f64>() < 0.2 => {
+                let base_amount = stage.random_amount(rng);
+                let inflation = self.calculate_inflation(base_amount);
+                let total_amount = base_amount + inflation;
 
+                let mut action = SchemeAction::new(
+                    self.scheme_id,
+                    stage.stage_number,
+                    SchemeActionType::InflateInvoice,
+                    context.current_date,
+                )
+                .with_amount(total_amount)
+                .with_counterparty(&self.vendor_id)
+                .with_user(&self.perpetrator_id)
+                .with_difficulty(stage.detection_difficulty)
+                .with_description(format!(
+                    "Inflated invoice - base: {base_amount}, inflation: {inflation}"
+                ));
+
+                for technique in &stage.concealment_techniques {
+                    action = action.with_technique(*technique);
+                }
+
+                self.inflated_transaction_count += 1;
+                actions.push(action);
+            }
+            // Kickback payment stage.
+            2 if self.total_impact > Decimal::ZERO && rng.random::<f64>() < 0.15 => {
+                // Calculate kickback based on accumulated inflation.
+                let kickback_amount = if self.total_kickbacks < self.total_impact * dec!(0.5) {
+                    let max_kickback = self.total_impact
+                        * Decimal::from_f64_retain(self.kickback_percent * self.inflation_percent)
+                            .unwrap_or(dec!(0.075));
+                    let remaining = max_kickback - self.total_kickbacks;
+                    stage.random_amount(rng).min(remaining).max(dec!(500))
+                } else {
+                    dec!(0)
+                };
+
+                if kickback_amount > Decimal::ZERO {
                     let mut action = SchemeAction::new(
                         self.scheme_id,
                         stage.stage_number,
-                        SchemeActionType::InflateInvoice,
+                        SchemeActionType::MakeKickbackPayment,
                         context.current_date,
                     )
-                    .with_amount(total_amount)
-                    .with_counterparty(&self.vendor_id)
+                    .with_amount(kickback_amount)
                     .with_user(&self.perpetrator_id)
                     .with_difficulty(stage.detection_difficulty)
-                    .with_description(format!(
-                        "Inflated invoice - base: {base_amount}, inflation: {inflation}"
-                    ));
+                    .with_description(format!("Kickback payment from vendor {}", self.vendor_id));
 
                     for technique in &stage.concealment_techniques {
                         action = action.with_technique(*technique);
                     }
 
-                    self.inflated_transaction_count += 1;
+                    self.total_kickbacks += kickback_amount;
                     actions.push(action);
                 }
             }
-            2 => {
-                // Kickback payment stage
-                if self.total_impact > Decimal::ZERO && rng.random::<f64>() < 0.15 {
-                    // Calculate kickback based on accumulated inflation
-                    let kickback_amount = if self.total_kickbacks < self.total_impact * dec!(0.5) {
-                        let max_kickback = self.total_impact
-                            * Decimal::from_f64_retain(
-                                self.kickback_percent * self.inflation_percent,
-                            )
-                            .unwrap_or(dec!(0.075));
-                        let remaining = max_kickback - self.total_kickbacks;
-                        stage.random_amount(rng).min(remaining).max(dec!(500))
-                    } else {
-                        dec!(0)
-                    };
+            // Concealment stage.
+            3 if rng.random::<f64>() < 0.05 => {
+                let action = SchemeAction::new(
+                    self.scheme_id,
+                    stage.stage_number,
+                    SchemeActionType::CoverUp,
+                    context.current_date,
+                )
+                .with_user(&self.perpetrator_id)
+                .with_difficulty(stage.detection_difficulty)
+                .with_description("Cover up kickback scheme evidence")
+                .with_technique(ConcealmentTechnique::DataAlteration);
 
-                    if kickback_amount > Decimal::ZERO {
-                        let mut action = SchemeAction::new(
-                            self.scheme_id,
-                            stage.stage_number,
-                            SchemeActionType::MakeKickbackPayment,
-                            context.current_date,
-                        )
-                        .with_amount(kickback_amount)
-                        .with_user(&self.perpetrator_id)
-                        .with_difficulty(stage.detection_difficulty)
-                        .with_description(format!(
-                            "Kickback payment from vendor {}",
-                            self.vendor_id
-                        ));
-
-                        for technique in &stage.concealment_techniques {
-                            action = action.with_technique(*technique);
-                        }
-
-                        self.total_kickbacks += kickback_amount;
-                        actions.push(action);
-                    }
-                }
-            }
-            3 => {
-                // Concealment stage
-                if rng.random::<f64>() < 0.05 {
-                    let action = SchemeAction::new(
-                        self.scheme_id,
-                        stage.stage_number,
-                        SchemeActionType::CoverUp,
-                        context.current_date,
-                    )
-                    .with_user(&self.perpetrator_id)
-                    .with_difficulty(stage.detection_difficulty)
-                    .with_description("Cover up kickback scheme evidence")
-                    .with_technique(ConcealmentTechnique::DataAlteration);
-
-                    actions.push(action);
-                }
+                actions.push(action);
             }
             _ => {}
         }

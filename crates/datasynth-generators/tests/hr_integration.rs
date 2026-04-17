@@ -195,8 +195,7 @@ fn test_hr_pipeline_coherence() {
         );
 
         // If approved, approved_by should reference a real employee
-        if report.approved_by.is_some() {
-            let approver = report.approved_by.as_ref().unwrap();
+        if let Some(approver) = report.approved_by.as_ref() {
             assert!(
                 employee_id_set.contains(approver.as_str()),
                 "Expense approved_by references unknown employee: {}",

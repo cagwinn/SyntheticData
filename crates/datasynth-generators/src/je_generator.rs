@@ -1627,18 +1627,16 @@ impl JournalEntryGenerator {
                     );
                 }
             }
-            4 => {
-                // Late posting marker (document date much earlier than posting date)
-                // This doesn't create an imbalance
-                if entry.header.document_date == entry.header.posting_date {
-                    let days_late = self.rng.random_range(5..15);
-                    entry.header.document_date =
-                        entry.header.posting_date - chrono::Duration::days(days_late);
-                    entry.header.header_text = Some(
-                        entry.header.header_text.clone().unwrap_or_default()
-                            + " [HUMAN_ERROR:LATE_POSTING]",
-                    );
-                }
+            // Late posting marker (document date much earlier than posting
+            // date). Doesn't create an imbalance.
+            4 if entry.header.document_date == entry.header.posting_date => {
+                let days_late = self.rng.random_range(5..15);
+                entry.header.document_date =
+                    entry.header.posting_date - chrono::Duration::days(days_late);
+                entry.header.header_text = Some(
+                    entry.header.header_text.clone().unwrap_or_default()
+                        + " [HUMAN_ERROR:LATE_POSTING]",
+                );
             }
             _ => {}
         }

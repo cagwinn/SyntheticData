@@ -87,10 +87,10 @@ pub async fn handle_metrics_socket(socket: WebSocket, state: AppState) {
                         info!("Metrics WebSocket closed by client");
                         break;
                     }
-                    Some(Ok(Message::Ping(data))) => {
-                        if sender.send(Message::Pong(data)).await.is_err() {
-                            break;
-                        }
+                    Some(Ok(Message::Ping(data)))
+                        if sender.send(Message::Pong(data.clone())).await.is_err() =>
+                    {
+                        break;
                     }
                     Some(Err(e)) => {
                         warn!("Metrics WebSocket error: {}", e);
@@ -177,10 +177,10 @@ pub async fn handle_events_socket(socket: WebSocket, state: AppState) {
                         info!("Events WebSocket closed by client");
                         break;
                     }
-                    Some(Ok(Message::Ping(data))) => {
-                        if sender.send(Message::Pong(data)).await.is_err() {
-                            break;
-                        }
+                    Some(Ok(Message::Ping(data)))
+                        if sender.send(Message::Pong(data.clone())).await.is_err() =>
+                    {
+                        break;
                     }
                     Some(Err(e)) => {
                         warn!("Events WebSocket error: {}", e);

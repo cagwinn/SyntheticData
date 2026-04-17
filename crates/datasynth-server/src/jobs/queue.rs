@@ -149,7 +149,7 @@ impl JobQueue {
     pub async fn list(&self) -> Vec<JobSummary> {
         let jobs = self.jobs.read().await;
         let mut summaries: Vec<_> = jobs.values().map(JobSummary::from).collect();
-        summaries.sort_by(|a, b| b.submitted_at.cmp(&a.submitted_at));
+        summaries.sort_by_key(|b| std::cmp::Reverse(b.submitted_at));
         summaries
     }
 

@@ -506,9 +506,8 @@ fn test_long_term_provisions_may_have_discount_rate() {
             None,
         );
         for p in &snap.provisions {
-            if p.discount_rate.is_some() {
+            if let Some(rate) = p.discount_rate {
                 found_discounted = true;
-                let rate = p.discount_rate.unwrap();
                 assert!(
                     rate >= dec!(0.03) && rate <= dec!(0.05),
                     "Discount rate {rate} out of expected 3–5% range"

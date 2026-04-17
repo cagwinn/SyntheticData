@@ -191,7 +191,7 @@ impl InventoryValuationGenerator {
         }
 
         // Sort lines by write-down descending (most impaired first).
-        lines.sort_by(|a, b| b.write_down_amount.cmp(&a.write_down_amount));
+        lines.sort_by_key(|b| std::cmp::Reverse(b.write_down_amount));
 
         let total_carrying_value = total_cost - total_write_down;
 

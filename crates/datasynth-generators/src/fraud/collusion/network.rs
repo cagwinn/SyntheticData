@@ -579,22 +579,26 @@ impl CollusionRing {
             RingStatus::Forming if self.active_months >= 2 && self.transaction_count >= 3 => {
                 self.status = RingStatus::Active;
             }
-            RingStatus::Active if self.active_months >= 6 && self.detection_risk < 0.3 => {
-                // Consider escalation if successful
-                if rng.random::<f64>() < 0.3 {
-                    self.status = RingStatus::Escalating;
-                    self.behavior.avg_transaction_amount = self
-                        .behavior
-                        .avg_transaction_amount
-                        .saturating_mul(Decimal::from_str_exact("1.5").unwrap_or(Decimal::ONE));
-                }
+            // Consider escalation if successful.
+            RingStatus::Active
+                if self.active_months >= 6
+                    && self.detection_risk < 0.3
+                    && rng.random::<f64>() < 0.3 =>
+            {
+                self.status = RingStatus::Escalating;
+                self.behavior.avg_transaction_amount = self
+                    .behavior
+                    .avg_transaction_amount
+                    .saturating_mul(Decimal::from_str_exact("1.5").unwrap_or(Decimal::ONE));
             }
-            RingStatus::Dormant if self.active_months.is_multiple_of(3) => {
-                // Chance to reactivate
-                if rng.random::<f64>() < 0.4 && self.detection_risk < 0.4 {
-                    self.status = RingStatus::Active;
-                    self.detection_risk *= 0.8; // Risk reduced during dormancy
-                }
+            // Chance to reactivate. Risk is reduced during dormancy.
+            RingStatus::Dormant
+                if self.active_months.is_multiple_of(3)
+                    && rng.random::<f64>() < 0.4
+                    && self.detection_risk < 0.4 =>
+            {
+                self.status = RingStatus::Active;
+                self.detection_risk *= 0.8;
             }
             _ => {}
         }

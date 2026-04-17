@@ -219,7 +219,7 @@ impl ApprovalThreshold {
     pub fn add_level(&mut self, level: ThresholdLevel) {
         self.thresholds.push(level);
         // Keep sorted by amount
-        self.thresholds.sort_by(|a, b| a.amount.cmp(&b.amount));
+        self.thresholds.sort_by_key(|a| a.amount);
     }
 }
 

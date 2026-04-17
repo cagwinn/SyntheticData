@@ -122,7 +122,7 @@ impl VariantAnalyzer {
 
         // Top variants
         let mut sorted: Vec<&VariantData> = variants.iter().collect();
-        sorted.sort_by(|a, b| b.case_count.cmp(&a.case_count));
+        sorted.sort_by_key(|b| std::cmp::Reverse(b.case_count));
         let top_variants: Vec<(String, f64)> = sorted
             .iter()
             .take(5)

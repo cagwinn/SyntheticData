@@ -309,7 +309,7 @@ impl TaxLineGenerator {
         }
 
         // Sort by rate descending to pick the standard (highest) rate
-        candidates.sort_by(|a, b| b.rate.cmp(&a.rate));
+        candidates.sort_by_key(|b| std::cmp::Reverse(b.rate));
 
         Some(candidates[0].clone())
     }

@@ -280,8 +280,7 @@ impl EnhancementReport {
     /// Finalize the report (calculate scores, sort, etc.).
     pub fn finalize(&mut self) {
         // Sort recommendations by priority
-        self.recommendations
-            .sort_by(|a, b| a.priority.cmp(&b.priority));
+        self.recommendations.sort_by_key(|a| a.priority);
 
         // Calculate health score
         let critical_count = *self.priority_summary.get("Critical").unwrap_or(&0);

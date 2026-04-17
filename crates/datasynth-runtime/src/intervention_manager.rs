@@ -69,25 +69,20 @@ impl InterventionManager {
     /// Validate intervention-specific bounds.
     fn validate_bounds(intervention_type: &InterventionType) -> Result<(), InterventionError> {
         match intervention_type {
-            InterventionType::ControlFailure(cf) => {
-                if !(0.0..=1.0).contains(&cf.severity) {
-                    return Err(InterventionError::BoundsViolation(format!(
-                        "control failure severity must be between 0.0 and 1.0, got {}",
-                        cf.severity
-                    )));
-                }
+            InterventionType::ControlFailure(cf) if !(0.0..=1.0).contains(&cf.severity) => {
+                Err(InterventionError::BoundsViolation(format!(
+                    "control failure severity must be between 0.0 and 1.0, got {}",
+                    cf.severity
+                )))
             }
-            InterventionType::MacroShock(ms) => {
-                if ms.severity < 0.0 {
-                    return Err(InterventionError::BoundsViolation(format!(
-                        "macro shock severity must be >= 0.0, got {}",
-                        ms.severity
-                    )));
-                }
+            InterventionType::MacroShock(ms) if ms.severity < 0.0 => {
+                Err(InterventionError::BoundsViolation(format!(
+                    "macro shock severity must be >= 0.0, got {}",
+                    ms.severity
+                )))
             }
-            _ => {}
+            _ => Ok(()),
         }
-        Ok(())
     }
 
     /// Resolve which config paths an intervention affects.

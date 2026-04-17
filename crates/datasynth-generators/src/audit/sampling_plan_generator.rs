@@ -538,7 +538,7 @@ impl SamplingPlanGenerator {
 
         // Sort lines descending by amount for key item selection
         let mut sorted_lines: Vec<_> = matching_lines.to_vec();
-        sorted_lines.sort_by(|a, b| b.2.cmp(&a.2));
+        sorted_lines.sort_by_key(|b| std::cmp::Reverse(b.2));
 
         // Select key items: lines where amount > tolerable_error, capped at 20
         let mut key_items: Vec<KeyItem> = Vec::new();
@@ -574,11 +574,7 @@ impl SamplingPlanGenerator {
             .filter(|(je, _, _)| !seen_ids.contains(&je.header.document_id.to_string()))
             .collect();
         let actual_rep_size = rep_sample_size.min(remaining.len());
-        let step = if actual_rep_size > 0 {
-            remaining.len() / actual_rep_size
-        } else {
-            0
-        };
+        let step = remaining.len().checked_div(actual_rep_size).unwrap_or(0);
         let start = if step > 0 {
             self.rng.random_range(0..step)
         } else {

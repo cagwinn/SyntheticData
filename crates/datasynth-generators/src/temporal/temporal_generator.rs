@@ -398,9 +398,9 @@ mod tests {
             let (valid_from, valid_to) = generator.generate_valid_time();
             assert!(valid_from.date() >= base_date - Duration::days(365));
 
-            if valid_to.is_some() {
+            if let Some(valid_to) = valid_to {
                 has_closed = true;
-                assert!(valid_to.unwrap() > valid_from);
+                assert!(valid_to > valid_from);
             } else {
                 has_open = true;
             }

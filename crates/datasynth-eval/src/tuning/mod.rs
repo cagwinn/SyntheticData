@@ -206,7 +206,7 @@ impl TuningAnalyzer {
         }
 
         // Sort by priority
-        opportunities.sort_by(|a, b| a.priority.cmp(&b.priority));
+        opportunities.sort_by_key(|a| a.priority);
 
         opportunities
     }
