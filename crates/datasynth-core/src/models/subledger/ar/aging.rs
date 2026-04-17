@@ -141,7 +141,7 @@ impl ARAgingReport {
         }
 
         // Sort by total balance descending
-        customer_details.sort_by(|a, b| b.total_balance.cmp(&a.total_balance));
+        customer_details.sort_by_key(|b| std::cmp::Reverse(b.total_balance));
 
         // Calculate totals
         let total_ar_balance: Decimal = bucket_totals.values().sum();
@@ -271,7 +271,7 @@ impl CustomerAging {
         }
 
         // Sort invoices by days overdue descending
-        invoice_details.sort_by(|a, b| b.days_overdue.cmp(&a.days_overdue));
+        invoice_details.sort_by_key(|b| std::cmp::Reverse(b.days_overdue));
 
         let weighted_avg_days = if total_balance > Decimal::ZERO {
             (total_days_weighted / total_balance).round_dp(1)

@@ -68,7 +68,7 @@ impl InventoryValuationReport {
         }
 
         // Sort by value descending
-        materials.sort_by(|a, b| b.total_value.cmp(&a.total_value));
+        materials.sort_by_key(|b| std::cmp::Reverse(b.total_value));
 
         Self {
             company_code,
@@ -145,7 +145,7 @@ impl ABCAnalysis {
         let b_threshold = dec!(95);
 
         let mut sorted: Vec<_> = valuations.iter().collect();
-        sorted.sort_by(|a, b| b.total_value.cmp(&a.total_value));
+        sorted.sort_by_key(|b| std::cmp::Reverse(b.total_value));
 
         let mut a_items = Vec::new();
         let mut b_items = Vec::new();

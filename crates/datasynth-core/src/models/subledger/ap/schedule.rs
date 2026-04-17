@@ -129,7 +129,7 @@ impl APAgingReport {
             vendor_details.push(aging);
         }
 
-        vendor_details.sort_by(|a, b| b.total_balance.cmp(&a.total_balance));
+        vendor_details.sort_by_key(|b| std::cmp::Reverse(b.total_balance));
 
         let total_ap_balance: Decimal = bucket_totals.values().sum();
         let total_current = bucket_totals

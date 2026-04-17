@@ -2363,7 +2363,10 @@ impl EnhancedOrchestrator {
                     (FraudType::SuspenseAccountAbuse, dist.suspense_account_abuse),
                     (FraudType::FictitiousEntry, dist.fictitious_transaction),
                     (FraudType::RevenueManipulation, dist.revenue_manipulation),
-                    (FraudType::ImproperCapitalization, dist.expense_capitalization),
+                    (
+                        FraudType::ImproperCapitalization,
+                        dist.expense_capitalization,
+                    ),
                     (FraudType::SplitTransaction, dist.split_transaction),
                     (FraudType::TimingAnomaly, dist.timing_anomaly),
                     (FraudType::UnauthorizedAccess, dist.unauthorized_access),
