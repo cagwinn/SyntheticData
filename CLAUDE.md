@@ -479,6 +479,52 @@ cross_process_links:
 - approval thresholds: ascending order
 - distribution sums: 1.0 (±0.01)
 
+### Fraud rate math (line-level vs document-level)
+
+`fraud.fraud_rate` flags individual JE lines. `fraud.document_fraud_rate`
+(optional) flags source documents (POs, invoices, payments, deliveries)
+— when `fraud.propagate_to_lines = true` (default), every JE derived
+from a fraudulent document inherits `is_fraud = true` and
+`is_fraud_propagated = true`.
+
+Observed line-level fraud prevalence is approximately:
+
+```
+P(line is_fraud) ≈ fraud_rate + (doc_fraud_rate × fraction_of_lines_from_docs)
+```
+
+For a typical P2P/O2C job where ~30 % of JE lines come from
+document-derived postings, setting `fraud_rate = 0.02` +
+`document_fraud_rate = 0.05` yields ~3.5 % total line-level fraud —
+not 2 %. To target a specific line-level fraud prevalence X:
+
+```
+fraud_rate = X - (doc_fraud_rate × ~0.30)
+```
+
+Config keys accept both snake_case and camelCase (e.g. `fraud_rate` or
+`fraudRate`, `document_fraud_rate` or `documentFraudRate`,
+`propagate_to_lines` or `propagateToLines`) so SDK clients that follow
+camelCase conventions don't silently fall through to defaults.
+
+### Behavioral biases on fraud entries
+
+Every JE flagged `is_fraud = true` — regardless of path (anomaly
+injector, document-level fraud propagation, je_generator intrinsic
+fraud, create_self_approval, create_sod_violation) — passes through
+`datasynth_core::fraud_bias::apply_fraud_behavioral_bias` which applies:
+
+| Bias | Default | Effect |
+|------|---------|--------|
+| `weekend_bias` | 0.30 | Shift posting_date to Sat/Sun |
+| `round_dollar_bias` | 0.40 | Rescale entry to land max line on $1K/$5K/$10K/$25K/$50K/$100K (balance preserved) |
+| `off_hours_bias` | 0.35 | Shift created_at to 22:00–05:59 UTC |
+| `post_close_bias` | 0.25 | Set `is_post_close = true` |
+
+Lift on these signals is smoke-tested in
+`crates/datasynth-runtime/tests/fraud_bias_smoke.rs`; CI failure means
+bias wiring regressed on one of the fraud paths.
+
 ## Anomaly Categories
 
 - **Fraud**: FictitiousTransaction, RevenueManipulation, SplitTransaction, RoundTripping, GhostEmployee, DuplicatePayment

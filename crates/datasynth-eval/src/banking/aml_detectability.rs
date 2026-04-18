@@ -8,11 +8,16 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 /// AML transaction data for a typology instance.
+///
+/// The `typology` string should be the canonical lowercase name
+/// produced by `AmlTypology::canonical_name()` — see
+/// [`EXPECTED_TYPOLOGIES`] for the allowed values. Using PascalCase
+/// (e.g. the Debug format of the enum) will fail the coverage match.
 #[derive(Debug, Clone)]
 pub struct AmlTransactionData {
     /// Transaction identifier.
     pub transaction_id: String,
-    /// Typology name (e.g., "structuring", "layering", "mule_network").
+    /// Canonical typology name, e.g. "structuring", "mule", "fraud".
     pub typology: String,
     /// Case identifier (shared across related transactions).
     pub case_id: String,
@@ -87,10 +92,21 @@ pub struct AmlDetectabilityAnalysis {
 }
 
 /// Expected typology names for coverage calculation.
+///
+/// Matches the banking module catalog in CLAUDE.md:
+///   structuring, funnel, layering, mule, round_tripping, fraud, spoofing
+///
+/// Typology names written into `TypologyData.name` MUST use the canonical
+/// form produced by `AmlTypology::canonical_name()`; the evaluator does
+/// exact-string matching. The old list used `mule_network` which no
+/// variant maps to — callers using `format!("{:?}", typology)` (PascalCase
+/// Debug format) never matched, so `typology_coverage` was 0.0 in v3.1
+/// regardless of how many typologies fired.
 const EXPECTED_TYPOLOGIES: &[&str] = &[
     "structuring",
+    "funnel",
     "layering",
-    "mule_network",
+    "mule",
     "round_tripping",
     "fraud",
     "spoofing",

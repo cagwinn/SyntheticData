@@ -271,6 +271,14 @@ impl TypologyInjector {
     }
 
     /// Select a typology based on configured rates.
+    ///
+    /// The weighted set covers all seven catalog typologies (structuring
+    /// / funnel / layering / mule / round_tripping / fraud / spoofing)
+    /// so `AmlDetectabilityAnalyzer.typology_coverage` can reach its
+    /// 0.80 threshold in normal generation. Before v3.1.1, RoundTripping
+    /// and Spoofing were missing from the draw — the evaluator always
+    /// reported "Typology coverage 0.000 < 0.800" regardless of how many
+    /// suspicious transactions were generated.
     fn select_typology(&mut self) -> AmlTypology {
         let rates = [
             (
@@ -283,6 +291,11 @@ impl TypologyInjector {
             ),
             (AmlTypology::Layering, self.config.typologies.layering_rate),
             (AmlTypology::MoneyMule, self.config.typologies.mule_rate),
+            (
+                AmlTypology::RoundTripping,
+                self.config.typologies.round_tripping_rate,
+            ),
+            (AmlTypology::Spoofing, self.config.typologies.spoofing_rate),
             (
                 AmlTypology::AccountTakeover,
                 self.config.typologies.fraud_rate * 0.3,

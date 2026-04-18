@@ -19,6 +19,7 @@ use rust_decimal::Decimal;
 use std::collections::HashMap;
 use tracing::debug;
 
+use datasynth_core::fraud_bias::{apply_fraud_behavioral_bias, FraudBehavioralBiasConfig};
 use datasynth_core::models::{
     AnomalyCausalReason, AnomalyDetectionDifficulty, AnomalyRateConfig, AnomalySummary,
     AnomalyType, ErrorType, FraudType, JournalEntry, LabeledAnomaly, NearMissLabel,
@@ -95,39 +96,6 @@ pub struct EnhancedInjectionConfig {
     /// post-close adjustments) show measurable lift on fraud vs legitimate
     /// populations. Defaults enable all four biases.
     pub fraud_behavioral_bias: FraudBehavioralBiasConfig,
-}
-
-/// Behavioral bias applied to fraud entries to surface canonical forensic
-/// signals. Without these biases, a fraud detector trained on DataSynth output
-/// sees ~0 feature importance for weekend/round/off-hours/post-close flags
-/// because fraud entries inherit the normal temporal and amount distributions.
-#[derive(Debug, Clone)]
-pub struct FraudBehavioralBiasConfig {
-    /// Master switch — when false, no behavioral bias is applied.
-    pub enabled: bool,
-    /// Probability that a fraud entry's posting date is shifted to a weekend.
-    /// Normal data has ~10 % weekend activity; 0.30 yields ~3× lift on fraud.
-    pub weekend_bias: f64,
-    /// Probability that a fraud entry's amount is rounded to a "suspicious"
-    /// round-dollar value ($1 K, $5 K, $10 K, $25 K, $50 K, $100 K).
-    pub round_dollar_bias: f64,
-    /// Probability that a fraud entry's `created_at` is shifted to off-hours
-    /// (22:00–05:59 UTC). Baseline after-hours probability is ~5 %.
-    pub off_hours_bias: f64,
-    /// Probability that a fraud entry is marked `is_post_close = true`.
-    pub post_close_bias: f64,
-}
-
-impl Default for FraudBehavioralBiasConfig {
-    fn default() -> Self {
-        Self {
-            enabled: true,
-            weekend_bias: 0.30,
-            round_dollar_bias: 0.40,
-            off_hours_bias: 0.35,
-            post_close_bias: 0.25,
-        }
-    }
 }
 
 impl Default for AnomalyInjectorConfig {
@@ -851,6 +819,10 @@ impl AnomalyInjector {
         // Set approver = requester
         entry.header.created_by = user_id.to_string();
 
+        // Apply canonical behavioral biases so self-approval frauds have
+        // the same forensic lift as other fraud paths.
+        self.apply_fraud_behavioral_bias(entry);
+
         self.labels.push(label.clone());
         Some(label)
     }
@@ -891,6 +863,9 @@ impl AnomalyInjector {
         entry.header.anomaly_id = Some(label.anomaly_id.clone());
         entry.header.anomaly_type = Some("SegregationOfDutiesViolation".to_string());
         entry.header.fraud_type = Some(FraudType::SegregationOfDutiesViolation);
+
+        // Apply canonical behavioral biases.
+        self.apply_fraud_behavioral_bias(entry);
 
         self.labels.push(label.clone());
         Some(label)
@@ -1072,113 +1047,42 @@ impl AnomalyInjector {
     /// signals (weekend posting, round dollars, off-hours timestamps,
     /// post-close adjustments) have measurable lift over legitimate data.
     ///
-    /// Each bias is applied independently per the configured probabilities.
-    /// Amount rounding is only applied to two-line entries where the balance
-    /// can be preserved by rounding both the debit and credit to the same
-    /// value.
-    ///
-    /// Returns the [`ProcessIssueType`] variants corresponding to each bias
-    /// that fired. Callers emit these as secondary ProcessIssue labels so
-    /// auditors can filter for specific forensic patterns.
+    /// Delegates to [`datasynth_core::fraud_bias::apply_fraud_behavioral_bias`]
+    /// and updates per-bias counters on `stats`. Returns the [`ProcessIssueType`]
+    /// variants corresponding to each bias that fired so callers can emit
+    /// secondary labels.
     fn apply_fraud_behavioral_bias(
         &mut self,
         entry: &mut JournalEntry,
     ) -> Vec<datasynth_core::models::ProcessIssueType> {
-        use chrono::{Datelike, Duration, TimeZone, Utc, Weekday};
         use datasynth_core::models::ProcessIssueType;
 
-        let mut fired: Vec<ProcessIssueType> = Vec::new();
-
-        let cfg = &self.config.enhanced.fraud_behavioral_bias;
-        if !cfg.enabled {
-            return fired;
+        let cfg = self.config.enhanced.fraud_behavioral_bias;
+        let fired = apply_fraud_behavioral_bias(entry, &cfg, &mut self.rng);
+        for issue in &fired {
+            match issue {
+                ProcessIssueType::WeekendPosting => self.stats.fraud_weekend_bias_applied += 1,
+                ProcessIssueType::AfterHoursPosting => self.stats.fraud_off_hours_bias_applied += 1,
+                ProcessIssueType::PostClosePosting => self.stats.fraud_post_close_bias_applied += 1,
+                _ => {}
+            }
         }
-
-        // --- Weekend bias ---
-        if cfg.weekend_bias > 0.0 && self.rng.random::<f64>() < cfg.weekend_bias {
-            let original = entry.header.posting_date;
-            let days_to_weekend = match original.weekday() {
-                Weekday::Mon => 5,
-                Weekday::Tue => 4,
-                Weekday::Wed => 3,
-                Weekday::Thu => 2,
-                Weekday::Fri => 1,
-                Weekday::Sat | Weekday::Sun => 0,
-            };
-            let extra = if self.rng.random_bool(0.5) { 0 } else { 1 };
-            entry.header.posting_date = original + Duration::days(days_to_weekend + extra);
-            self.stats.fraud_weekend_bias_applied += 1;
-            fired.push(ProcessIssueType::WeekendPosting);
-        }
-
-        // --- Round-dollar bias (safe: only 2-line entries with matched sides).
-        if cfg.round_dollar_bias > 0.0 && self.rng.random::<f64>() < cfg.round_dollar_bias {
+        // `round_dollar_bias` doesn't emit a ProcessIssueType (no canonical
+        // process-issue label for it) — detect by matching the max line
+        // amount against the set of round targets. If the bias fired,
+        // the max amount is exactly one of [1K, 5K, 10K, 25K, 50K, 100K].
+        if cfg.round_dollar_bias > 0.0 {
             const ROUND_TARGETS: &[i64] = &[1_000, 5_000, 10_000, 25_000, 50_000, 100_000];
-            if entry.lines.len() == 2 {
-                let (debit_idx, credit_idx) = if entry.lines[0].is_debit() {
-                    (0, 1)
-                } else {
-                    (1, 0)
-                };
-                let current = entry.lines[debit_idx]
-                    .debit_amount
-                    .max(entry.lines[credit_idx].credit_amount);
-                if current > Decimal::ZERO {
-                    // Pick a round target close to current magnitude.
-                    let current_f64: f64 = current.try_into().unwrap_or(0.0);
-                    let target = ROUND_TARGETS
-                        .iter()
-                        .min_by(|a, b| {
-                            let da = (**a as f64 - current_f64).abs();
-                            let db = (**b as f64 - current_f64).abs();
-                            da.partial_cmp(&db).unwrap_or(std::cmp::Ordering::Equal)
-                        })
-                        .copied()
-                        .unwrap_or(1_000);
-                    let rounded = Decimal::from(target);
-                    entry.lines[debit_idx].debit_amount = rounded;
-                    entry.lines[debit_idx].credit_amount = Decimal::ZERO;
-                    entry.lines[credit_idx].debit_amount = Decimal::ZERO;
-                    entry.lines[credit_idx].credit_amount = rounded;
-                    self.stats.fraud_round_dollar_bias_applied += 1;
-                }
+            let max_amt: Decimal = entry
+                .lines
+                .iter()
+                .map(|l| l.debit_amount.max(l.credit_amount))
+                .max()
+                .unwrap_or(Decimal::ZERO);
+            if ROUND_TARGETS.iter().any(|t| max_amt == Decimal::from(*t)) {
+                self.stats.fraud_round_dollar_bias_applied += 1;
             }
         }
-
-        // --- Off-hours bias (22:00–05:59 UTC) ---
-        if cfg.off_hours_bias > 0.0 && self.rng.random::<f64>() < cfg.off_hours_bias {
-            // Pick an hour in [22, 23] ∪ [0, 5]
-            let hour: u32 = if self.rng.random_bool(0.5) {
-                self.rng.random_range(22..24)
-            } else {
-                self.rng.random_range(0..6)
-            };
-            let minute: u32 = self.rng.random_range(0..60);
-            let second: u32 = self.rng.random_range(0..60);
-            if let chrono::LocalResult::Single(new_ts) = Utc.with_ymd_and_hms(
-                entry.header.posting_date.year(),
-                entry.header.posting_date.month(),
-                entry.header.posting_date.day(),
-                hour,
-                minute,
-                second,
-            ) {
-                entry.header.created_at = new_ts;
-                self.stats.fraud_off_hours_bias_applied += 1;
-                fired.push(ProcessIssueType::AfterHoursPosting);
-            }
-        }
-
-        // --- Post-close marking bias ---
-        if cfg.post_close_bias > 0.0
-            && self.rng.random::<f64>() < cfg.post_close_bias
-            && !entry.header.is_post_close
-        {
-            entry.header.is_post_close = true;
-            self.stats.fraud_post_close_bias_applied += 1;
-            fired.push(ProcessIssueType::PostClosePosting);
-        }
-
         fired
     }
 

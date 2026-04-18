@@ -324,6 +324,10 @@ pub struct TypologyConfig {
     /// Fraction of document-flow Payments to bridge to BankTransactions (0.0 disables)
     #[serde(default = "default_payment_bridge_rate")]
     pub payment_bridge_rate: f64,
+    /// Spoofing typology rate — rapid placed-and-cancelled / reversed
+    /// transactions designed to probe or evade detection thresholds.
+    #[serde(default = "default_spoofing_rate")]
+    pub spoofing_rate: f64,
 }
 
 fn default_synth_id_rate() -> f64 {
@@ -342,10 +346,19 @@ fn default_co_occurrence_rate() -> f64 {
     0.10
 }
 fn default_network_rate() -> f64 {
-    0.05
+    // v3.1.1 — boosted from 0.05 to 0.15 so non-TransactionCounterparty
+    // edges (BeneficialOwnership, MuleLink, ShellLink) make up ≥10 % of
+    // the AML graph. Prior 0.05 produced 97 % TransactionCounterparty,
+    // starving link-prediction models of signal.
+    0.15
 }
 fn default_payment_bridge_rate() -> f64 {
     0.75
+}
+fn default_spoofing_rate() -> f64 {
+    // Modest rate for spoofing — ensures Spoofing typology is covered in
+    // the evaluation catalog without drowning out other signals.
+    0.002
 }
 
 impl Default for TypologyConfig {
@@ -359,15 +372,19 @@ impl Default for TypologyConfig {
             fraud_rate: 0.005,
             sophistication: SophisticationDistribution::default(),
             detectability: 0.5,
-            round_tripping_rate: 0.001,
+            // v3.1.1: bumped from 0.001 → 0.002 so round_tripping is
+            // represented in select_typology's weighted draw and the
+            // evaluator's 7-typology coverage check can pass.
+            round_tripping_rate: 0.002,
             trade_based_rate: 0.001,
             synthetic_identity_rate: 0.001,
             crypto_integration_rate: 0.001,
             sanctions_evasion_rate: 0.0005,
             false_positive_rate: 0.05,
             co_occurrence_rate: 0.10,
-            network_typology_rate: 0.05,
+            network_typology_rate: 0.15,
             payment_bridge_rate: 0.75,
+            spoofing_rate: 0.002,
         }
     }
 }

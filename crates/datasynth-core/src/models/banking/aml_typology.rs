@@ -84,6 +84,13 @@ pub enum AmlTypology {
     /// Corruption / PEP
     Corruption,
 
+    /// Spoofing: rapid placed-and-cancelled transactions to obscure
+    /// true intent or evade risk scoring. In AML context this covers
+    /// both market spoofing (fake order flow) and transaction spoofing
+    /// (rapid deposits + reversals on a mule account to test detection
+    /// thresholds).
+    Spoofing,
+
     /// Custom / other typology
     Custom(u16),
 }
@@ -115,7 +122,59 @@ impl AmlTypology {
             | Self::HumanTrafficking
             | Self::DrugTrafficking
             | Self::Corruption => "Predicate Crime",
+            Self::Spoofing => "Spoofing",
             Self::Custom(_) => "Custom",
+        }
+    }
+
+    /// Canonical lowercase name used by the AML detectability evaluator
+    /// to check typology coverage. Each variant maps to one of the seven
+    /// catalog entries from the banking module
+    /// (structuring / funnel / layering / mule / round_tripping / fraud
+    /// / spoofing) so the evaluator's exact-match lookup succeeds
+    /// regardless of how many fine-grained variants we add over time.
+    ///
+    /// This is the intended input to `AmlDetectabilityAnalyzer::analyze`
+    /// — do NOT pass `format!("{:?}", typology)` since those produce
+    /// PascalCase, which fails the evaluator's lowercase match.
+    pub fn canonical_name(&self) -> &'static str {
+        match self {
+            // Structuring family
+            Self::Structuring | Self::Smurfing | Self::CuckooSmurfing => "structuring",
+            // Funnel family
+            Self::FunnelAccount | Self::ConcentrationAccount | Self::PouchActivity => "funnel",
+            // Layering family
+            Self::Layering | Self::RapidMovement | Self::ShellCompany => "layering",
+            // Round-tripping family (treat trade-based ML + invoice manipulation
+            // as round-tripping variants since they share the same "funds return
+            // to origin" topology)
+            Self::RoundTripping | Self::TradeBasedML | Self::InvoiceManipulation => {
+                "round_tripping"
+            }
+            // Mule family (romance/advance-fee scams funnel to mule accounts)
+            Self::MoneyMule | Self::RomanceScam | Self::AdvanceFeeFraud => "mule",
+            // Fraud family (all direct fraud patterns, integration-category
+            // luxuries/crypto/casino also ultimately realize fraudulent funds)
+            Self::AccountTakeover
+            | Self::SyntheticIdentity
+            | Self::FirstPartyFraud
+            | Self::AuthorizedPushPayment
+            | Self::BusinessEmailCompromise
+            | Self::FakeVendor
+            | Self::RealEstateIntegration
+            | Self::LuxuryGoods
+            | Self::CasinoIntegration
+            | Self::CryptoIntegration => "fraud",
+            Self::Spoofing => "spoofing",
+            // Predicate crimes: downstream of fraud; map to fraud for
+            // coverage since they're not in the main AML catalog.
+            Self::TerroristFinancing
+            | Self::SanctionsEvasion
+            | Self::TaxEvasion
+            | Self::HumanTrafficking
+            | Self::DrugTrafficking
+            | Self::Corruption => "fraud",
+            Self::Custom(_) => "custom",
         }
     }
 
@@ -136,6 +195,7 @@ impl AmlTypology {
             Self::RomanceScam | Self::AdvanceFeeFraud => 6,
             Self::AuthorizedPushPayment | Self::FakeVendor => 7,
             Self::ConcentrationAccount | Self::PouchActivity => 5,
+            Self::Spoofing => 7,
             Self::Custom(_) => 5,
         }
     }

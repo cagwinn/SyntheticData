@@ -104,6 +104,7 @@ impl NarrativeGenerator {
             AmlTypology::HumanTrafficking => "human trafficking related",
             AmlTypology::DrugTrafficking => "drug trafficking related",
             AmlTypology::Corruption => "corruption/PEP-related activity",
+            AmlTypology::Spoofing => "transaction spoofing / detection-probing",
             AmlTypology::Custom(_) => "custom suspicious pattern",
         }
     }

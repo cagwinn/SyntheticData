@@ -187,6 +187,10 @@ pub fn create_router_full_with_backend(
         .route("/api/jobs", get(list_jobs))
         .route("/api/jobs/{id}", get(get_job))
         .route("/api/jobs/{id}/cancel", post(cancel_job))
+        // Scenario templates (sector-specific DAG catalog).
+        // Expose on both /v1/ (SDK canonical path) and /api/ for consistency.
+        .route("/v1/scenarios/templates", get(list_scenario_templates))
+        .route("/api/scenarios/templates", get(list_scenario_templates))
         // WebSocket
         .route("/ws/metrics", get(websocket_metrics))
         .route("/ws/events", get(websocket_events))
@@ -265,6 +269,10 @@ pub fn create_router_with_auth(
         .route("/api/jobs", get(list_jobs))
         .route("/api/jobs/{id}", get(get_job))
         .route("/api/jobs/{id}/cancel", post(cancel_job))
+        // Scenario templates (sector-specific DAG catalog).
+        // Expose on both /v1/ (SDK canonical path) and /api/ for consistency.
+        .route("/v1/scenarios/templates", get(list_scenario_templates))
+        .route("/api/scenarios/templates", get(list_scenario_templates))
         // WebSocket
         .route("/ws/metrics", get(websocket_metrics))
         .route("/ws/events", get(websocket_events))
@@ -329,6 +337,10 @@ pub fn create_router_with_cors(service: SynthService, cors_config: CorsConfig) -
         .route("/api/jobs", get(list_jobs))
         .route("/api/jobs/{id}", get(get_job))
         .route("/api/jobs/{id}/cancel", post(cancel_job))
+        // Scenario templates (sector-specific DAG catalog).
+        // Expose on both /v1/ (SDK canonical path) and /api/ for consistency.
+        .route("/v1/scenarios/templates", get(list_scenario_templates))
+        .route("/api/scenarios/templates", get(list_scenario_templates))
         // WebSocket
         .route("/ws/metrics", get(websocket_metrics))
         .route("/ws/events", get(websocket_events))
@@ -1145,6 +1157,103 @@ async fn websocket_events(
     State(state): State<AppState>,
 ) -> impl IntoResponse {
     ws.on_upgrade(move |socket| websocket::handle_events_socket(socket, state))
+}
+
+// ===========================================================================
+// Scenario Template Handlers
+// ===========================================================================
+
+/// Returns the catalog of scenario DAG templates the server can run.
+///
+/// Includes both sector-specific canonical templates (manufacturing,
+/// retail, financial_services) and the ISA 315 financial process default
+/// (`tpl_financial_process_17`). Before v3.1.1 this endpoint did not
+/// exist on the server, so SDK clients fell back to a hard-coded single
+/// template id — making sector-specific scenario DAGs invisible.
+async fn list_scenario_templates() -> Json<serde_json::Value> {
+    // Each entry lists the template id, human-readable name,
+    // description, target industry tag(s), and a summary of the
+    // intervention DAG (type + count). The concrete intervention
+    // parameters live in the YAML files under
+    // `crates/datasynth-config/src/templates/scenarios/` and are loaded
+    // at job-submission time.
+    let templates = serde_json::json!([
+        {
+            "template_id": "tpl_financial_process_17",
+            "name": "ISA 315 Financial Reporting Process",
+            "description": "Generic financial reporting process with 17 key risk nodes per ISA 315 (revised 2019)",
+            "industry": "generic",
+            "tags": ["audit", "isa_315", "financial_reporting"],
+            "intervention_count": 0,
+            "yaml_source": null,
+            "is_default": true
+        },
+        {
+            "template_id": "tpl_manufacturing_supply_disruption",
+            "name": "Manufacturing Supply Chain Disruption",
+            "description": "Critical component shortage cascades through BOMs, production orders, quality inspections, and COGS",
+            "industry": "manufacturing",
+            "tags": ["manufacturing", "supply_chain", "disruption"],
+            "intervention_count": 2,
+            "yaml_source": "manufacturing_supply_disruption.yaml",
+            "is_default": false
+        },
+        {
+            "template_id": "tpl_retail_seasonal_revenue",
+            "name": "Retail Seasonal Revenue Swing",
+            "description": "Q4 holiday surge + Q1 post-holiday slump drives revenue, inventory, and accrual volatility",
+            "industry": "retail",
+            "tags": ["retail", "seasonality", "revenue"],
+            "intervention_count": 2,
+            "yaml_source": "retail_seasonal_revenue.yaml",
+            "is_default": false
+        },
+        {
+            "template_id": "tpl_financial_services_credit_risk",
+            "name": "Financial Services Credit Risk Shock",
+            "description": "Macro credit downturn: ECL model reweighting, provision matrix changes, going concern assessment",
+            "industry": "financial_services",
+            "tags": ["financial_services", "credit_risk", "ifrs9"],
+            "intervention_count": 2,
+            "yaml_source": "financial_services_credit_risk.yaml",
+            "is_default": false
+        },
+        {
+            "template_id": "tpl_control_failure_cascade",
+            "name": "Control Failure Cascade",
+            "description": "Significant control failure in revenue cycle, cascading through audit risk assessment",
+            "industry": "generic",
+            "tags": ["audit", "control_failure"],
+            "intervention_count": 1,
+            "yaml_source": "control_failure_cascade.yaml",
+            "is_default": false
+        },
+        {
+            "template_id": "tpl_audit_scope_change",
+            "name": "Audit Scope Change",
+            "description": "Regulatory change triggering materiality reduction mid-engagement",
+            "industry": "generic",
+            "tags": ["audit", "regulatory"],
+            "intervention_count": 1,
+            "yaml_source": "audit_scope_change.yaml",
+            "is_default": false
+        },
+        {
+            "template_id": "tpl_going_concern_trigger",
+            "name": "Going Concern Trigger",
+            "description": "Credit crunch macro shock driving ISA 570 going concern assessment",
+            "industry": "generic",
+            "tags": ["audit", "going_concern", "isa_570"],
+            "intervention_count": 1,
+            "yaml_source": "going_concern_trigger.yaml",
+            "is_default": false
+        }
+    ]);
+    Json(serde_json::json!({
+        "templates": templates,
+        "total": 7,
+        "schema_version": "1.0"
+    }))
 }
 
 // ===========================================================================

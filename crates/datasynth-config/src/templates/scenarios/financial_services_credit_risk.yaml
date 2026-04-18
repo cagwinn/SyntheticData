@@ -1,0 +1,16 @@
+name: "Financial Services Credit Risk Shock"
+description: "Macro credit downturn: ECL model reweighting, provision matrix changes, going concern assessment"
+tags: [financial_services, credit_risk, ifrs9]
+interventions:
+  - type: macro_shock
+    magnitude: 0.55
+    timing:
+      onset: sudden
+      start_month: 6
+      duration_months: 8
+  - type: regulatory_change
+    magnitude: 0.40
+    timing:
+      onset: gradual
+      start_month: 1
+      duration_months: 12

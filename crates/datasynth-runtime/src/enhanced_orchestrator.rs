@@ -2456,6 +2456,47 @@ impl EnhancedOrchestrator {
         // Phase 8: Anomaly Injection (after all JE-generating phases)
         let anomaly_labels = self.phase_anomaly_injection(&mut entries, &actions, &mut stats)?;
 
+        // Phase 8b: Apply behavioral biases to fraud entries that did NOT go
+        // through the anomaly injector.
+        //
+        // Three paths set `is_fraud = true` without touching `is_anomaly`:
+        //   - je_generator::determine_fraud (intrinsic fraud during JE generation)
+        //   - fraud_propagation::propagate_documents_to_entries (doc-level cascade)
+        //   - Any external mutation that sets is_fraud after the fact
+        //
+        // The anomaly injector already applies the same bias inline when it
+        // tags an entry as fraud (and sets is_anomaly=true in the same step),
+        // so gating this sweep on `!is_anomaly` avoids double-application.
+        //
+        // Without this sweep, fraud entries from these paths show 0 lift on
+        // the canonical forensic signals (is_round_1000, is_off_hours,
+        // is_weekend, is_post_close), which is exactly what the SDK-side
+        // evaluator caught in v3.1 — fraud features had worse lift than
+        // baseline. See DS-3.1 post-deploy feedback.
+        {
+            use datasynth_core::fraud_bias::{
+                apply_fraud_behavioral_bias, FraudBehavioralBiasConfig,
+            };
+            use rand_chacha::rand_core::SeedableRng;
+            let cfg = FraudBehavioralBiasConfig::default();
+            if cfg.enabled {
+                let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(self.seed + 8100);
+                let mut swept = 0usize;
+                for entry in entries.iter_mut() {
+                    if entry.header.is_fraud && !entry.header.is_anomaly {
+                        apply_fraud_behavioral_bias(entry, &cfg, &mut rng);
+                        swept += 1;
+                    }
+                }
+                if swept > 0 {
+                    info!(
+                        "Applied behavioral biases to {swept} non-anomaly fraud entries \
+                         (doc-propagated + je_generator intrinsic fraud)"
+                    );
+                }
+            }
+        }
+
         // Emit anomaly labels to stream sink
         self.emit_phase_items(
             "anomaly_injection",

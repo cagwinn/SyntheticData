@@ -698,19 +698,21 @@ pub fn write_all_output_with_layout(
             "Accounting estimates (ISA 540)",
         );
 
-        // ISA 700/701/705/706: Audit opinions and Key Audit Matters
-        if !result.audit.audit_opinions.is_empty() {
-            write_json_safe(
-                &result.audit.audit_opinions,
-                &audit_dir.join("audit_opinions.json"),
-                "Audit opinions (ISA 700/705/706)",
-            );
-            write_json_safe(
-                &result.audit.key_audit_matters,
-                &audit_dir.join("key_audit_matters.json"),
-                "Key Audit Matters (ISA 701)",
-            );
-        }
+        // ISA 700/701/705/706: Audit opinions and Key Audit Matters.
+        // Always write even if the vec is empty; see the always-emit block
+        // below (outside the `engagements.is_empty()` guard) for the case
+        // where audit is entirely disabled — the files still appear in the
+        // archive with `[]` so SDK consumers don't get 404s on the manifest.
+        write_json_always(
+            &result.audit.audit_opinions,
+            &audit_dir.join("audit_opinions.json"),
+            "Audit opinions (ISA 700/705/706)",
+        );
+        write_json_always(
+            &result.audit.key_audit_matters,
+            &audit_dir.join("key_audit_matters.json"),
+            "Key Audit Matters (ISA 701)",
+        );
 
         // SOX 302 / 404
         if !result.audit.sox_302_certifications.is_empty() {
@@ -813,6 +815,23 @@ pub fn write_all_output_with_layout(
                 );
             }
         }
+    } else {
+        // Audit phase disabled or ran with no engagements — still emit
+        // audit_opinions.json + key_audit_matters.json so the archive
+        // structure is consistent and SDK consumers can rely on these
+        // files always existing. v3.1 announced these as archive-shipping
+        // files; v3.1.1 guarantees it regardless of audit.enabled.
+        std::fs::create_dir_all(&audit_dir)?;
+        write_json_always(
+            &result.audit.audit_opinions,
+            &audit_dir.join("audit_opinions.json"),
+            "Audit opinions (ISA 700/705/706) — empty (audit phase disabled)",
+        );
+        write_json_always(
+            &result.audit.key_audit_matters,
+            &audit_dir.join("key_audit_matters.json"),
+            "Key Audit Matters (ISA 701) — empty (audit phase disabled)",
+        );
     }
 
     // ========================================================================
@@ -1585,11 +1604,19 @@ pub fn write_all_output_with_layout(
             }
         }
 
-        // Process variant summary (from OCPM event log)
+        // Process variant summary (from OCPM event log).
+        //
+        // v3.1.1 — always emit the file when an event_log exists. When the
+        // event_log has no pre-computed `variants` map (older OCPM phases
+        // didn't populate it), derive variants on the fly from the raw
+        // events so SDK consumers see `analytics/process_variant_summary.json`
+        // in every archive rather than `null`. Without this, the v3.1
+        // claim that the file exists was only true when OCPM happened to
+        // populate its variants map.
         if let Some(ref event_log) = result.ocpm.event_log {
-            if !event_log.variants.is_empty() {
-                std::fs::create_dir_all(&analytics_dir)?;
-                let variant_data: Vec<datasynth_eval::VariantData> = event_log
+            std::fs::create_dir_all(&analytics_dir)?;
+            let variant_data: Vec<datasynth_eval::VariantData> = if !event_log.variants.is_empty() {
+                event_log
                     .variants
                     .values()
                     .map(|v| datasynth_eval::VariantData {
@@ -1597,26 +1624,76 @@ pub fn write_all_output_with_layout(
                         case_count: v.frequency as usize,
                         is_happy_path: v.is_happy_path,
                     })
-                    .collect();
+                    .collect()
+            } else {
+                // Fallback: derive variants from raw events by case_id.
+                // Each case's activity sequence (by activity_id) defines a
+                // variant; cases with the same sequence collapse into one
+                // variant. Events without a case_id are skipped since they
+                // can't be grouped into a process instance.
+                use std::collections::HashMap;
+                // Key by case_id's string form to avoid pulling the uuid
+                // crate into the output writer's dependency graph.
+                let mut per_case: HashMap<String, Vec<String>> = HashMap::new();
+                for ev in &event_log.events {
+                    if let Some(case_id) = ev.case_id {
+                        per_case
+                            .entry(case_id.to_string())
+                            .or_default()
+                            .push(ev.activity_id.clone());
+                    }
+                }
+                let mut variant_counts: HashMap<Vec<String>, usize> = HashMap::new();
+                for activities in per_case.into_values() {
+                    *variant_counts.entry(activities).or_insert(0) += 1;
+                }
+                // Happy path heuristic: the highest-frequency variant.
+                let max_count = variant_counts.values().copied().max().unwrap_or(0);
+                variant_counts
+                    .into_iter()
+                    .enumerate()
+                    .map(|(i, (seq, count))| datasynth_eval::VariantData {
+                        variant_id: format!("V{i:04}:{}", seq.join("->")),
+                        case_count: count,
+                        is_happy_path: count == max_count && max_count > 0,
+                    })
+                    .collect()
+            };
 
-                let variant_analyzer = datasynth_eval::VariantAnalyzer::new();
-                match variant_analyzer.analyze(&variant_data) {
-                    Ok(ref variant_result) => {
-                        if let Ok(json) = serde_json::to_string_pretty(variant_result) {
-                            if let Err(e) = std::fs::write(
-                                analytics_dir.join("process_variant_summary.json"),
-                                json,
-                            ) {
-                                warn!("Failed to write variant summary: {}", e);
-                            } else {
-                                info!(
-                                    "  Process variant summary written ({} variants, entropy: {:.2})",
-                                    variant_result.variant_count, variant_result.variant_entropy
-                                );
-                            }
+            let variant_analyzer = datasynth_eval::VariantAnalyzer::new();
+            match variant_analyzer.analyze(&variant_data) {
+                Ok(ref variant_result) => {
+                    if let Ok(json) = serde_json::to_string_pretty(variant_result) {
+                        if let Err(e) =
+                            std::fs::write(analytics_dir.join("process_variant_summary.json"), json)
+                        {
+                            warn!("Failed to write variant summary: {}", e);
+                        } else {
+                            info!(
+                                "  Process variant summary written ({} variants, entropy: {:.2})",
+                                variant_result.variant_count, variant_result.variant_entropy
+                            );
                         }
                     }
-                    Err(e) => warn!("Variant analysis skipped: {}", e),
+                }
+                Err(e) => {
+                    // Even on analyzer error, emit a minimal JSON placeholder
+                    // so the file always exists in the archive.
+                    warn!("Variant analysis failed: {}; emitting empty summary", e);
+                    let placeholder = serde_json::json!({
+                        "variant_count": 0,
+                        "variant_entropy": null,
+                        "happy_path_concentration": null,
+                        "top_variants": [],
+                        "passes": false,
+                        "issues": [format!("analyzer error: {e}")],
+                    });
+                    if let Ok(json) = serde_json::to_string_pretty(&placeholder) {
+                        let _ = std::fs::write(
+                            analytics_dir.join("process_variant_summary.json"),
+                            json,
+                        );
+                    }
                 }
             }
         }
@@ -1662,6 +1739,12 @@ pub fn write_all_output_with_layout(
                 .filter(|t| t.is_suspicious)
                 .collect();
             if !suspicious.is_empty() {
+                // Use AmlTypology::canonical_name() so the evaluator's
+                // exact-string match against EXPECTED_TYPOLOGIES succeeds.
+                // Prior to v3.1.1 we used `format!("{:?}", r)` (Debug /
+                // PascalCase) which never matched the lowercase expected
+                // names and produced "typology_coverage = 0.000" in every
+                // run regardless of actual typology injection.
                 let aml_data: Vec<AmlTransactionData> = suspicious
                     .iter()
                     .map(|t| AmlTransactionData {
@@ -1669,7 +1752,7 @@ pub fn write_all_output_with_layout(
                         typology: t
                             .suspicion_reason
                             .as_ref()
-                            .map(|r| format!("{:?}", r))
+                            .map(|r| r.canonical_name().to_string())
                             .unwrap_or_default(),
                         case_id: t.case_id.clone().unwrap_or_default(),
                         amount: t.amount.try_into().unwrap_or(0.0),
@@ -2308,6 +2391,51 @@ fn write_json_auto<T: serde::Serialize>(data: &[T], path: &Path, label: &str, fl
         write_json_flat(data, path, label);
     } else {
         write_json_safe(data, path, label);
+    }
+}
+
+/// Write a JSON file ALWAYS, even when the slice is empty (writes `[]`).
+///
+/// Use for files that must exist in the archive for SDK consumers
+/// (e.g., `audit_opinions.json`) regardless of whether the phase that
+/// populates them ran. `write_json_safe` / `write_json` short-circuit
+/// on empty slices, which would break manifest-driven clients that
+/// expect the file to be present.
+fn write_json_always<T: serde::Serialize>(data: &[T], path: &Path, label: &str) {
+    if SKIP_JSON.with(|c| c.get()) {
+        return;
+    }
+    match std::fs::File::create(path) {
+        Ok(file) => {
+            let mut writer = std::io::BufWriter::with_capacity(64 * 1024, file);
+            if let Err(e) = (|| -> Result<(), Box<dyn std::error::Error>> {
+                writer.write_all(b"[\n")?;
+                for (i, item) in data.iter().enumerate() {
+                    if i > 0 {
+                        writer.write_all(b",\n")?;
+                    }
+                    serde_json::to_writer_pretty(&mut writer, item)?;
+                }
+                if !data.is_empty() {
+                    writer.write_all(b"\n")?;
+                }
+                writer.write_all(b"]\n")?;
+                writer.flush()?;
+                Ok(())
+            })() {
+                warn!("Failed to write {}: {}", label, e);
+            } else {
+                info!(
+                    "  {} written: {} records -> {}",
+                    label,
+                    data.len(),
+                    path.display()
+                );
+            }
+        }
+        Err(e) => {
+            warn!("Failed to create {}: {}", path.display(), e);
+        }
     }
 }
 

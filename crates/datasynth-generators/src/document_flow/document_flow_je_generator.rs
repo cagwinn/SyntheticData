@@ -23,7 +23,8 @@ use datasynth_core::accounts::{
 };
 use datasynth_core::models::{
     documents::{CustomerInvoice, Delivery, GoodsReceipt, Payment, VendorInvoice},
-    BusinessProcess, JournalEntry, JournalEntryHeader, JournalEntryLine, TransactionSource,
+    BusinessProcess, DocumentRef, JournalEntry, JournalEntryHeader, JournalEntryLine,
+    TransactionSource,
 };
 use datasynth_core::uuid_factory::{DeterministicUuidFactory, GeneratorType};
 
@@ -452,6 +453,7 @@ impl DocumentFlowJeGenerator {
         header.business_process = Some(BusinessProcess::P2P);
         header.document_type = "WE".to_string();
         header.reference = Some(format!("GR:{}", gr.header.document_id));
+        header.source_document = Some(DocumentRef::GoodsReceipt(gr.header.document_id.clone()));
         header.header_text = Some(format!(
             "Goods Receipt {} - {}",
             gr.header.document_id,
@@ -517,6 +519,9 @@ impl DocumentFlowJeGenerator {
         header.business_process = Some(BusinessProcess::P2P);
         header.document_type = "KR".to_string();
         header.reference = Some(format!("VI:{}", invoice.header.document_id));
+        header.source_document = Some(DocumentRef::VendorInvoice(
+            invoice.header.document_id.clone(),
+        ));
         header.header_text = Some(format!(
             "Vendor Invoice {} - {}",
             invoice.vendor_invoice_number, invoice.vendor_id
@@ -589,6 +594,7 @@ impl DocumentFlowJeGenerator {
         header.business_process = Some(BusinessProcess::P2P);
         header.document_type = "KZ".to_string();
         header.reference = Some(format!("PAY:{}", payment.header.document_id));
+        header.source_document = Some(DocumentRef::Payment(payment.header.document_id.clone()));
         header.header_text = Some(format!(
             "Payment {} - {}",
             payment.header.document_id, payment.business_partner_id
@@ -658,6 +664,7 @@ impl DocumentFlowJeGenerator {
         header.business_process = Some(BusinessProcess::O2C);
         header.document_type = "WL".to_string();
         header.reference = Some(format!("DEL:{}", delivery.header.document_id));
+        header.source_document = Some(DocumentRef::Delivery(delivery.header.document_id.clone()));
         header.header_text = Some(format!(
             "Delivery {} - {}",
             delivery.header.document_id, delivery.customer_id
@@ -722,6 +729,9 @@ impl DocumentFlowJeGenerator {
         header.business_process = Some(BusinessProcess::O2C);
         header.document_type = "DR".to_string();
         header.reference = Some(format!("CI:{}", invoice.header.document_id));
+        header.source_document = Some(DocumentRef::CustomerInvoice(
+            invoice.header.document_id.clone(),
+        ));
         header.header_text = Some(format!(
             "Customer Invoice {} - {}",
             invoice.header.document_id, invoice.customer_id
@@ -792,6 +802,7 @@ impl DocumentFlowJeGenerator {
         header.business_process = Some(BusinessProcess::O2C);
         header.document_type = "DZ".to_string();
         header.reference = Some(format!("RCP:{}", payment.header.document_id));
+        header.source_document = Some(DocumentRef::Receipt(payment.header.document_id.clone()));
         header.header_text = Some(format!(
             "Customer Receipt {} - {}",
             payment.header.document_id, payment.business_partner_id

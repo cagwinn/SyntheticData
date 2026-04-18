@@ -1,0 +1,16 @@
+name: "Manufacturing Supply Chain Disruption"
+description: "Critical component shortage cascades through BOMs, production orders, quality inspections, and COGS"
+tags: [manufacturing, supply_chain, disruption]
+interventions:
+  - type: macro_shock
+    magnitude: 0.45
+    timing:
+      onset: sudden
+      start_month: 2
+      duration_months: 4
+  - type: control_failure
+    magnitude: 0.35
+    timing:
+      onset: gradual
+      start_month: 3
+      duration_months: 6

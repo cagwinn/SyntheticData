@@ -1584,7 +1584,15 @@ pub struct OutputConfig {
     /// JSON export layout for journal entries and document flows.
     /// "nested" (default): `{"header": {...}, "lines": [...]}` — natural ERP structure.
     /// "flat": header fields repeated on every line — friendlier for analytics/ML.
-    #[serde(default)]
+    ///
+    /// Accepts both `export_layout` (canonical / YAML) and `exportLayout`
+    /// (camelCase / SDK JSON) so SDKs that follow camelCase conventions
+    /// hit the flat path rather than silently getting the Nested default.
+    /// Before v3.1.1 the missing camelCase alias meant SDK requests with
+    /// `exportLayout: "flat"` were silently ignored, which SDK operators
+    /// reported as "flat hangs generation" (the job completed with Nested
+    /// layout, but manifests didn't match the expected flat shape).
+    #[serde(default, alias = "exportLayout")]
     pub export_layout: ExportLayout,
 }
 
@@ -1722,24 +1730,40 @@ pub struct FraudConfig {
     #[serde(default)]
     pub enabled: bool,
     /// Line-level fraud rate: fraction of individual JE lines flagged as fraud (0.0 to 1.0).
-    #[serde(default = "default_fraud_rate")]
+    ///
+    /// # Effective line-level prevalence
+    ///
+    /// If `document_fraud_rate = Some(d)` and `propagate_to_lines = true`,
+    /// the observed line-level fraud prevalence is roughly:
+    ///
+    ///     P(line is_fraud) ≈ fraud_rate + d × avg_lines_per_fraud_doc / total_lines
+    ///
+    /// For a typical retail job (avg 3 lines per document, ~30 % of lines
+    /// come from doc-flow-derived JEs) the combined rate lands near:
+    ///
+    ///     fraud_rate + 0.3 × d
+    ///
+    /// so setting `fraud_rate=0.02, document_fraud_rate=0.05, propagate_to_lines=true`
+    /// produces ~3.5 % line-level fraud, not 2 %. To target a specific
+    /// line-level prevalence X, choose `fraud_rate = X - 0.3 × d`.
+    #[serde(default = "default_fraud_rate", alias = "fraudRate")]
     pub fraud_rate: f64,
     /// Document-level fraud rate: fraction of source documents (PO, vendor
     /// invoice, customer invoice, payment) flagged as fraud. `None` disables
     /// document-level injection; `Some(r)` marks ~r × document-count as fraud
     /// independently of the line-level rate.
-    #[serde(default)]
+    #[serde(default, alias = "documentFraudRate")]
     pub document_fraud_rate: Option<f64>,
     /// When true, flagging a document as fraudulent cascades `is_fraud = true`
     /// and `fraud_type` to every journal entry derived from that document,
     /// and records `fraud_source_document_id` on the JE header.
     /// Default: `true`.
-    #[serde(default = "default_true")]
+    #[serde(default = "default_true", alias = "propagateToLines")]
     pub propagate_to_lines: bool,
     /// When true, tagging a JE as fraud via line-level anomaly injection also
     /// marks the JE's source document as fraudulent (if it can be resolved).
     /// Default: `true`.
-    #[serde(default = "default_true")]
+    #[serde(default = "default_true", alias = "propagateToDocument")]
     pub propagate_to_document: bool,
     /// Fraud type distribution
     #[serde(default)]

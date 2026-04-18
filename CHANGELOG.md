@@ -5,6 +5,148 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.1] - 2026-04-18
+
+Follow-up point release addressing post-deploy SDK-team feedback on
+v3.1. Closes the "declared but not live" gap between the v3.1 changelog
+and what actually shipped in running archives. Every fraud signal the
+forensic-ML pipeline depends on now fires on every fraud-setting path;
+AML typology coverage can reach its 0.80 threshold; archive files that
+were gated on optional phases always ship; SDK clients can hit the
+flat-export path and the sector-scenario catalog they expected.
+
+### Fraud behavioral biases — fixed on every path
+
+- **All four biases (weekend / round-dollar / off-hours / post-close) now
+  fire on every is_fraud path.** Previously only the anomaly injector's
+  `inject_anomaly` call applied them — `create_self_approval`,
+  `create_sod_violation`, document-level fraud propagation, and
+  `je_generator::determine_fraud` all skipped the bias layer, producing
+  fraud entries with zero or inverted lift on the canonical forensic
+  signals. The bias function is now in shared
+  `datasynth_core::fraud_bias` and is either inline-called at each
+  fraud-setting path or applied by a new Phase 8b sweep in the
+  orchestrator (gated on `is_fraud && !is_anomaly` to avoid
+  double-application).
+- **Round-dollar bias now supports multi-line entries.** Previously it
+  skipped any entry with more than two lines (most real JEs), producing
+  fraud rates below baseline — "inverted" lift. The new implementation
+  picks the nearest round target to the entry's max line amount and
+  rescales every line by that ratio, correcting residual rounding
+  pennies against the first credit/debit line so the entry stays
+  balanced across arbitrary numbers of lines.
+- **Smoke test**: `crates/datasynth-runtime/tests/fraud_bias_smoke.rs`
+  now asserts ≥ 1.5× lift on all four signals. Measured on a 25.6K-JE
+  retail job with fraud_rate=0.05 + document_fraud_rate=0.05:
+  weekend 22.9×, round_1000 39.4×, off_hours 1.59×, post_close ∞.
+
+### Document → JE fraud propagation — actually works
+
+- **`DocumentRef::{GoodsReceipt,VendorInvoice,Payment,Delivery,CustomerInvoice,Receipt}`
+  is now set on every document-flow JE header.** Before: the six
+  `generate_from_*` methods in `document_flow_je_generator.rs` wrote
+  `reference = "GR:doc_id"` / "VI:doc_id" / etc. but left
+  `source_document = None`, so `propagate_fraud_from_documents` had no
+  key to match and `is_fraud_propagated` stayed `false` on every JE
+  regardless of `fraud.document_fraud_rate` / `fraud.propagate_to_lines`.
+- Downstream consumers (ML stratification, detection tool training)
+  can now distinguish slip-level from scheme-level fraud via the
+  propagation flag.
+
+### AML typology coverage — reaches the 0.80 threshold
+
+- **New `AmlTypology::canonical_name()`** maps the ~30 fine-grained
+  variants onto the 7-typology catalog from CLAUDE.md
+  (structuring / funnel / layering / mule / round_tripping / fraud /
+  spoofing). `output_writer.rs` now uses this instead of
+  `format!("{:?}", typology)` (PascalCase Debug format) which
+  silently failed the evaluator's lowercase exact-match and produced
+  "typology_coverage = 0.000" in every v3.1 job.
+- **`AmlTypology::Spoofing` variant added** for transaction spoofing /
+  detection-probing patterns (a declared v3.1 typology that had no
+  enum variant).
+- **`TypologyInjector::select_typology` now draws from all 7 catalog
+  typologies** — `RoundTripping` and `Spoofing` were missing from the
+  weighted selection, so the evaluator's 6-of-7 threshold could never
+  be reached even with suspicious_rate maxed.
+- **Evaluator `EXPECTED_TYPOLOGIES` aligned with the catalog**:
+  previously had `mule_network` (no variant mapped), now `mule`;
+  added `funnel` so `FunnelAccount` contributes; still 7 entries.
+
+### AML relationship edges — more signal-bearing types
+
+- **`network_typology_rate` default 0.05 → 0.15.** Prior rate produced
+  97.3 % `TransactionCounterparty` edges with only 2.3 %
+  `BeneficialOwnership`, 0.4 % `MuleLink`, and 0.0 % `ShellLink` on a
+  typical job — starving link-prediction models of positive-class
+  signal. Boosted rate triples the participation in coordinated rings /
+  chains / pyramids, yielding denser mule/shell labeling.
+- **`spoofing_rate` config field added** (default 0.002) and
+  `round_tripping_rate` bumped from 0.001 → 0.002 so both are visible
+  in the weighted draw without being drowned out by the larger
+  structuring/layering/mule rates.
+
+### Analytics + audit files always ship
+
+- **`analytics/process_variant_summary.json` always emitted** when an
+  OCEL event log exists. When `event_log.variants` is pre-computed the
+  existing path is used; when empty, variants are derived on the fly
+  from raw events grouped by `case_id`. Prior v3.1 build gated the
+  emission on `!variants.is_empty()`, so the file silently disappeared
+  from archives where OCPM ran but didn't populate its variants map.
+- **`audit/audit_opinions.json` + `audit/key_audit_matters.json`
+  always ship**, even when the audit phase is disabled — new
+  `write_json_always` helper writes `[]` instead of suppressing the
+  file. Prior v3.1 release declared these files but they only appeared
+  when `audit.enabled=true`, breaking SDK manifest-driven clients that
+  expected the files to exist.
+
+### Scenario template catalog exposed
+
+- **New REST endpoints `/v1/scenarios/templates` and
+  `/api/scenarios/templates`** return the 7-template catalog
+  (tpl_financial_process_17, tpl_manufacturing_supply_disruption,
+  tpl_retail_seasonal_revenue, tpl_financial_services_credit_risk,
+  tpl_control_failure_cascade, tpl_audit_scope_change,
+  tpl_going_concern_trigger). Before: the endpoint didn't exist and
+  SDK clients fell back to a single hard-coded template ID.
+- **Three sector YAMLs added** under
+  `crates/datasynth-config/src/templates/scenarios/`:
+  `manufacturing_supply_disruption.yaml`,
+  `retail_seasonal_revenue.yaml`,
+  `financial_services_credit_risk.yaml`.
+
+### camelCase config aliases — "flat hangs" fixed
+
+- **`exportLayout`, `fraudRate`, `documentFraudRate`, `propagateToLines`,
+  `propagateToDocument` now accepted as camelCase aliases alongside
+  their snake_case canonical names.** Before: SDK clients sending
+  `{"exportLayout": "flat"}` had the field silently rejected (serde
+  default-fallback to `Nested`) and generation "completed" with a
+  nested manifest, which downstream clients interpreted as "hang"
+  since the expected flat shape never arrived.
+- The flat JSON layout code path itself was already correct in
+  `output_writer.rs`; the bug was purely field-naming.
+
+### Docs
+
+- **`CLAUDE.md` "Fraud rate math"** section added: explicit formula for
+  how `fraud_rate` + `document_fraud_rate` + `propagate_to_lines`
+  combine into observed line-level fraud prevalence, plus the four
+  bias defaults and their effects.
+
+### Internal changes
+
+- New crate module `datasynth-core/src/fraud_bias.rs` (shared bias
+  implementation + 4 unit tests).
+- New integration test
+  `datasynth-runtime/tests/fraud_bias_smoke.rs` guarding the lift
+  assertions.
+- Phase 8b sweep in `enhanced_orchestrator.rs::generate` between
+  anomaly injection and fraud→document back-propagation.
+- `write_json_always` helper in `datasynth-cli/src/output_writer.rs`
+  for files that must always appear in the archive.
+
 ## [3.1.0] - 2026-04-17
 
 This release addresses SDK-team feedback on DataSynth 3.0 dataset realism. It

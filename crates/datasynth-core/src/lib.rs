@@ -25,6 +25,7 @@ pub mod disk_guard;
 pub mod distributions;
 pub mod error;
 pub mod framework_accounts;
+pub mod fraud_bias;
 pub mod fraud_propagation;
 pub mod llm;
 pub mod memory_guard;

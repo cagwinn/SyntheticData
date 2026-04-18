@@ -1,0 +1,16 @@
+name: "Retail Seasonal Revenue Swing"
+description: "Q4 holiday surge + Q1 post-holiday slump drives revenue, inventory, and accrual volatility"
+tags: [retail, seasonality, revenue]
+interventions:
+  - type: regulatory_change
+    magnitude: 0.15
+    timing:
+      onset: gradual
+      start_month: 10
+      duration_months: 3
+  - type: macro_shock
+    magnitude: 0.25
+    timing:
+      onset: sudden
+      start_month: 1
+      duration_months: 2
