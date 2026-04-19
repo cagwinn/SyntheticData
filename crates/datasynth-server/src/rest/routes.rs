@@ -1170,6 +1170,17 @@ async fn websocket_events(
 /// (`tpl_financial_process_17`). Before v3.1.1 this endpoint did not
 /// exist on the server, so SDK clients fell back to a hard-coded single
 /// template id — making sector-specific scenario DAGs invisible.
+///
+/// # Portal / proxy integration
+///
+/// If you run DS behind a portal (e.g. VynFi) that does NOT proxy this
+/// endpoint, the portal must either:
+///   (a) Proxy `GET /v1/scenarios/templates` through to the DS-server, or
+///   (b) Statically mirror this response payload in its own handler.
+///
+/// The YAML source files for interventions live under
+/// `crates/datasynth-config/src/templates/scenarios/` in the DS repo so
+/// portals can load / serialize them directly if needed.
 async fn list_scenario_templates() -> Json<serde_json::Value> {
     // Each entry lists the template id, human-readable name,
     // description, target industry tag(s), and a summary of the

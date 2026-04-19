@@ -184,6 +184,63 @@ impl BankingOrchestrator {
             &accounts,
         ));
 
+        // Rebalance the edge mix so signal-bearing edge types (MuleLink /
+        // ShellLink / BeneficialOwnership / Family / Employment) aren't
+        // drowned out by the `TransactionCounterparty` cloud.
+        //
+        // Before v3.1.2, production jobs produced ~97 % TransactionCounterparty
+        // edges and ~3 % signal-bearing — link-prediction models had almost
+        // no positive class to learn from. After rebalancing, TransactionCounterparty
+        // is capped at a configurable multiple of signal-bearing edges (default 3×),
+        // with the excess dropped via deterministic subsampling so the same
+        // seed still produces the same graph. This doesn't invent fake
+        // signal-bearing edges — it just drops redundant counterparty edges
+        // so the remaining mix better represents the injected AML typologies.
+        {
+            use crate::labels::RelationshipType;
+            use rand::seq::SliceRandom;
+            use rand_chacha::rand_core::SeedableRng;
+
+            // Separate signal-bearing from bulk edges.
+            let (signal, bulk): (Vec<_>, Vec<_>) =
+                relationship_labels.into_iter().partition(|lbl| {
+                    !matches!(
+                        lbl.relationship_type,
+                        RelationshipType::TransactionCounterparty
+                    )
+                });
+            let signal_count = signal.len();
+
+            // Target: TransactionCounterparty ≤ 3× signal-bearing edges.
+            // With 0 signal edges, keep up to 256 bulk edges as a floor so
+            // tiny-dataset test runs don't end up with an empty graph.
+            const MAX_RATIO: usize = 3;
+            const BULK_FLOOR: usize = 256;
+            let cap = signal_count.saturating_mul(MAX_RATIO).max(BULK_FLOOR);
+
+            let kept_bulk: Vec<_> = if bulk.len() > cap {
+                let original_bulk_count = bulk.len();
+                let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(self.seed.wrapping_add(9100));
+                let mut shuffled = bulk;
+                shuffled.shuffle(&mut rng);
+                shuffled.truncate(cap);
+                tracing::info!(
+                    "AML edge rebalancing: kept {} TransactionCounterparty edges, \
+                     dropped {} excess (signal-bearing edges: {}, ratio target ≤ {}×)",
+                    shuffled.len(),
+                    original_bulk_count.saturating_sub(shuffled.len()),
+                    signal_count,
+                    MAX_RATIO
+                );
+                shuffled
+            } else {
+                bulk
+            };
+
+            relationship_labels = signal;
+            relationship_labels.extend(kept_bulk);
+        }
+
         // Compute statistics
         let suspicious_count = transactions.iter().filter(|t| t.is_suspicious).count();
         let spoofed_count = transactions.iter().filter(|t| t.is_spoofed).count();

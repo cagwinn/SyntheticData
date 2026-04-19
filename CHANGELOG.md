@@ -5,6 +5,77 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.2] - 2026-04-19
+
+Second follow-up release closing the remaining gaps SDK / VynFi teams
+called out in blog banners and dataset cards after v3.1.1 shipped. The
+three items pinned as "known DS upstream gaps" — off-hours lift still
+flat, AML edge mix still 96.8 % TransactionCounterparty, and
+exportLayout flat hanging — are now closed with regression tests.
+
+### Fraud off-hours lift — final-phase sweep
+
+- **Added Phase 20b "final behavioral bias sweep"** after all JE-adding
+  phases (ECL, provisions, treasury, tax, period close). Prior v3.1.1
+  Phase 8b sweep ran immediately after anomaly injection, but later
+  phases kept extending `entries` with fraud-tagged JEs (e.g. tax
+  provision entries derived from already-fraudulent transactions) that
+  missed the earlier sweep and shipped without bias applied. The new
+  sweep runs right before the result is assembled, so every `is_fraud`
+  entry — regardless of which phase added it — gets bias.
+- **Observed lift uplift on the existing smoke test**:
+  weekend `22.9×` → `33.0×`, round_1000 `39.4×` → `56.5×`,
+  off_hours `1.59×` → `1.81×`, post_close `∞` → `∞`.
+- Sweep gated on `is_fraud && !is_anomaly` to avoid double-applying on
+  anomaly-injector entries (which apply bias inline). Biases are
+  idempotent-ish: weekend / off-hours re-fire to another valid
+  weekend / off-hour, post-close is guarded, and round-dollar rescaling
+  on an already-round amount is a no-op.
+
+### AML relationship edge rebalancing
+
+- **New deterministic subsampling step** in `BankingOrchestrator::generate`
+  caps `TransactionCounterparty` edges at 3× the count of signal-bearing
+  edges (`MuleLink` / `ShellLink` / `BeneficialOwnership` / `Family` /
+  `Employment` / …). The prior default of extracting every
+  counterparty pair with ≥ 2 transactions produced ~97 %
+  TransactionCounterparty edges in production jobs — link-prediction
+  models had almost no positive class. After rebalancing the remaining
+  mix reflects the injected AML topology instead of being drowned out
+  by baseline counterparty activity.
+- `BULK_FLOOR = 256` protects tiny-dataset test runs from ending up
+  with an empty edge set when `signal_count == 0`.
+- Rebalancing uses a seeded RNG so the same seed yields the same edge
+  subset (reproducibility preserved for ML training runs).
+
+### exportLayout flat — regression test
+
+- **New `crates/datasynth-cli/tests/flat_export_smoke.rs`** drives the
+  real CLI binary end-to-end with `export_layout: flat`, writes the
+  archive to a tempdir, and asserts:
+  - `journal_entries.json` exists and is non-empty,
+  - it parses as a JSON array of flat records,
+  - each record has BOTH header (`document_id`) and line
+    (`gl_account`) fields merged,
+  - no nested `lines` array leaked through.
+- Test completes in ~157 s on a medium retail config — a legitimate
+  hang would exceed the 300 s `assert_cmd` timeout and fail with a
+  clear message instead of deadlocking CI. v3.1.1 added the camelCase
+  alias that fixed the silent field rejection; this test guards the
+  underlying code path against real-hang regressions going forward.
+
+### Scenario templates — portal-integration note
+
+- **Added doc comment on `list_scenario_templates`** describing how
+  portal deployments (e.g. VynFi) that do NOT proxy this endpoint
+  should either (a) proxy `GET /v1/scenarios/templates` through to
+  DS-server, or (b) mirror the response payload. The YAML sources
+  under `crates/datasynth-config/src/templates/scenarios/` can be
+  loaded directly by portal handlers.
+- This is a portal-side integration gap (DS-server serves the catalog
+  correctly; the portal just doesn't surface it). No DS-side code
+  change fixes that — documentation is the right tool.
+
 ## [3.1.1] - 2026-04-18
 
 Follow-up point release addressing post-deploy SDK-team feedback on

@@ -2979,6 +2979,48 @@ impl EnhancedOrchestrator {
             entries.extend(tax.tax_posting_journal_entries.iter().cloned());
         }
 
+        // Phase 20b: FINAL fraud behavioral bias sweep.
+        //
+        // Many phases AFTER Phase 8b (ECL / provisions / treasury / tax /
+        // period close) extend `entries` with new journal entries that may
+        // carry `is_fraud = true` (e.g. tax-provision entries derived from
+        // already-fraudulent transactions). Those late additions miss the
+        // Phase 8b sweep and ship without bias applied — which is exactly
+        // why SDK-team production jobs kept reporting `off_hours 0× lift`
+        // even after v3.1.1 closed the per-phase gap for early-added JEs.
+        //
+        // Running the sweep one more time here guarantees every is_fraud
+        // entry — regardless of which phase added it — has bias applied.
+        // `!is_anomaly` gates out anomaly-injector entries (which already
+        // got biased inline); the sweep is otherwise idempotent-ish:
+        // weekend / off_hours re-fire to another valid weekend / off-hour,
+        // post_close is guarded by `!is_post_close`, and round-dollar
+        // rescaling on an already-round amount is a no-op (ratio = 1).
+        {
+            use datasynth_core::fraud_bias::{
+                apply_fraud_behavioral_bias, FraudBehavioralBiasConfig,
+            };
+            use rand_chacha::rand_core::SeedableRng;
+            let cfg = FraudBehavioralBiasConfig::default();
+            if cfg.enabled {
+                let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(self.seed + 8200);
+                let mut swept = 0usize;
+                for entry in entries.iter_mut() {
+                    if entry.header.is_fraud && !entry.header.is_anomaly {
+                        apply_fraud_behavioral_bias(entry, &cfg, &mut rng);
+                        swept += 1;
+                    }
+                }
+                if swept > 0 {
+                    info!(
+                        "Phase 20b: final behavioral-bias sweep applied to {swept} \
+                         non-anomaly fraud entries (covers late-added JEs from \
+                         ECL / provisions / treasury / tax / period-close)"
+                    );
+                }
+            }
+        }
+
         // Phase 20a-cf: Enhanced Cash Flow (v2.4)
         // Build supplementary cash flow items from upstream JE data (depreciation,
         // interest, tax, dividends, working-capital deltas) and merge into CF statements.
