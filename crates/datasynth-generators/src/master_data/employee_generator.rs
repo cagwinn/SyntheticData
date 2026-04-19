@@ -195,6 +195,8 @@ pub struct EmployeeGenerator {
     employee_counter: usize,
     /// Optional country pack for locale-aware generation.
     country_pack: Option<datasynth_core::CountryPack>,
+    /// Optional template provider for user-supplied department display names (v3.2.1+)
+    template_provider: Option<datasynth_core::templates::SharedTemplateProvider>,
 }
 
 impl EmployeeGenerator {
@@ -216,7 +218,30 @@ impl EmployeeGenerator {
             config,
             employee_counter: 0,
             country_pack: None,
+            template_provider: None,
         }
+    }
+
+    /// Set a template provider so user-supplied department names
+    /// override the factory defaults. (v3.2.1+)
+    pub fn set_template_provider(
+        &mut self,
+        provider: datasynth_core::templates::SharedTemplateProvider,
+    ) {
+        self.template_provider = Some(provider);
+    }
+
+    /// Resolve a department's display name via the template provider,
+    /// falling back to the factory-assigned `name` field when the
+    /// provider has no override for this `department_code`. Preserves
+    /// byte-identical output when no `templates.path` is set.
+    fn resolve_department_name(&mut self, department_code: &str, factory_name: &str) -> String {
+        if let Some(ref provider) = self.template_provider {
+            if let Some(custom) = provider.get_department_name(department_code, &mut self.rng) {
+                return custom;
+            }
+        }
+        factory_name.to_string()
     }
 
     /// Set the country pack for locale-aware generation.
@@ -448,17 +473,45 @@ impl EmployeeGenerator {
             .manager_id = Some(ceo_id.clone());
         pool.add_employee(coo);
 
-        // Generate department pools
-        let departments = DepartmentDefinition::standard_departments(company_code);
+        // Generate department pools.
+        //
+        // v3.2.1+: department display names (e.g. "Finance",
+        // "Procurement") can come from the template provider. We map
+        // each factory-produced DepartmentDefinition through
+        // `resolve_department_name` so user-supplied names replace the
+        // embedded English strings where specified.
+        let mut departments = DepartmentDefinition::standard_departments(company_code);
+        for dept in departments.iter_mut() {
+            // Department code has the shape `{COMPANY}-{FIN|PROC|SALES|WH|IT}`.
+            // Extract the suffix and lowercase it to match the template key.
+            let code_suffix = dept.code.rsplit('-').next().unwrap_or("");
+            let key = match code_suffix {
+                "FIN" => "finance",
+                "PROC" => "procurement",
+                "SALES" => "sales",
+                "WH" => "warehouse",
+                "IT" => "it",
+                _ => "",
+            };
+            if !key.is_empty() {
+                let resolved = self.resolve_department_name(key, &dept.name);
+                dept.name = resolved;
+            }
+        }
+        let departments = departments;
 
         for dept in &departments {
             let dept_pool = self.generate_department_pool(company_code, dept, hire_date_range);
 
             // Assign department heads to executives
+            //
+            // v3.2.1: match on the code suffix (`*-FIN`) instead of the
+            // display name so user-supplied department names (e.g.
+            // German "Finanzen") don't break the CFO/COO routing.
+            let is_finance = dept.code.ends_with("-FIN");
             for mut employee in dept_pool.employees {
                 if employee.manager_id.is_none() {
-                    // Department head reports to CFO (finance) or COO (others)
-                    employee.manager_id = if dept.name == "Finance" {
+                    employee.manager_id = if is_finance {
                         Some(cfo_id.clone())
                     } else {
                         Some(coo_id.clone())

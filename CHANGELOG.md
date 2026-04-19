@@ -5,6 +5,78 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.2.1] - 2026-04-19
+
+Patch release completing master-data realism Track A P1: the remaining
+5 hardcoded sites identified in v3.2.0's release notes are now rewired
+through the existing `TemplateProvider`. Plus doc-drift fixes and a new
+CI gate that prevents regressions of customer-visible hardcoded pools.
+
+### Additional rewires (Track A P1)
+
+- **Material descriptions** — `MaterialGenerator::select_description`
+  now prefers `TemplateProvider::get_material_description(type_key)`
+  with the 8 `MaterialType` variants canonicalised to snake_case keys
+  (`finished_good`, `raw_material`, `semi_finished`, `trading_good`,
+  `operating_supplies`, `packaging`, `service`, `spare_part`). Falls
+  back to the embedded `MATERIAL_DESCRIPTIONS` pool when
+  `templates.path` is unset — byte-identical to v3.2.0 default output.
+- **Asset descriptions** — `AssetGenerator::select_description` now
+  prefers `TemplateProvider::get_asset_description(category_key)` with
+  9 `AssetClass` variants mapped to snake_case keys. Same
+  embedded-fallback contract.
+- **Department names** — `EmployeeGenerator` threads the provider in
+  and calls `get_department_name` per `{finance, procurement, sales,
+  warehouse, it}` department code. Display-name matching for CFO/COO
+  routing switched from string-equality to `code.ends_with("-FIN")` so
+  localisations (e.g. "Finanzen") don't break the org hierarchy.
+- **Audit finding titles** — `FindingGenerator::generate_finding_title`
+  early-returns the provider's `get_finding_title(type_key)` result
+  when present; falls through to the inline `match` arms otherwise.
+  Key space covers all 9 `FindingType` variants.
+- **Audit finding narratives** — new
+  `FindingGenerator::try_template_narrative` helper resolves each of
+  the 5 narrative sections (`condition` / `criteria` / `cause` /
+  `effect` / `recommendation`) through the provider and substitutes
+  `{account}` and `{amount}` placeholders. Section-level granularity —
+  users can override only the sections they care about; embedded
+  `format!` macros cover the rest.
+
+### Doc drift cleanup
+
+- `CLAUDE.md` architecture section updated to **16 active crates** +
+  `datasynth-graph-export` excluded, with `datasynth-audit-fsm` and
+  `datasynth-audit-optimizer` added to the list.
+- Stale "Not yet wired" comment on
+  `project_accounting/revenue_generator.rs::RevenueGenerator` removed;
+  replaced with an accurate pointer to its wiring site at
+  `enhanced_orchestrator.rs:8580`.
+- `datasynth-runtime/src/orchestrator.rs` gets a prominent legacy
+  notice at the top: production routes through `EnhancedOrchestrator`;
+  deletion tracked for v4.0.
+
+### New CI gate: template drift
+
+- `scripts/check_template_drift.sh` + a new `template_drift` job in
+  `.github/workflows/ci.yml` fail the build when:
+  1. A NEW customer-visible hardcoded name/description pool appears
+     under `crates/datasynth-generators/src/` outside the explicit
+     allowlist.
+  2. The `CLAUDE.md` asserted crate count diverges from the filesystem
+     truth.
+- The allowlist currently covers the v3.2.0/v3.2.1 master-data
+  fallback pools plus 17 not-yet-rewired pools (scheduled per roadmap
+  for v3.3.0). Any new pool added in a future PR must be justified in
+  the allowlist.
+
+### Regression coverage
+
+- `template_override_smoke.rs` extended from 3 → 8 tests: added
+  sentinel round-trips for material descriptions, asset descriptions,
+  department names, finding titles, and finding-narrative
+  placeholder substitution. Existing bank-name + byte-identical-default
+  + determinism tests continue to pass unchanged.
+
 ## [3.2.0] - 2026-04-19
 
 Minor release shipping the master-data realism infrastructure per

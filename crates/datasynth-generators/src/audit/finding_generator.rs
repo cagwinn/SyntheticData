@@ -75,6 +75,8 @@ pub struct FindingGenerator {
     config: FindingGeneratorConfig,
     finding_counter: u32,
     fiscal_year: u16,
+    /// Optional template provider for user-supplied finding titles + narratives (v3.2.1+)
+    template_provider: Option<datasynth_core::templates::SharedTemplateProvider>,
 }
 
 impl FindingGenerator {
@@ -85,6 +87,7 @@ impl FindingGenerator {
             config: FindingGeneratorConfig::default(),
             finding_counter: 0,
             fiscal_year: 2025,
+            template_provider: None,
         }
     }
 
@@ -95,7 +98,59 @@ impl FindingGenerator {
             config,
             finding_counter: 0,
             fiscal_year: 2025,
+            template_provider: None,
         }
+    }
+
+    /// Set a template provider so user-supplied finding titles and
+    /// narratives override the embedded tables. (v3.2.1+)
+    ///
+    /// When unset, the existing inline match arms are used — behavior
+    /// is byte-identical to pre-v3.2.1.
+    pub fn set_template_provider(
+        &mut self,
+        provider: datasynth_core::templates::SharedTemplateProvider,
+    ) {
+        self.template_provider = Some(provider);
+    }
+
+    /// Canonical snake_case key for a [`FindingType`] variant, matching
+    /// the template YAML schema (`finding_titles.by_type.<key>`).
+    fn finding_type_to_key(finding_type: FindingType) -> &'static str {
+        match finding_type {
+            FindingType::MaterialWeakness => "material_weakness",
+            FindingType::SignificantDeficiency => "significant_deficiency",
+            FindingType::ControlDeficiency => "control_deficiency",
+            FindingType::MaterialMisstatement => "material_misstatement",
+            FindingType::ImmaterialMisstatement => "immaterial_misstatement",
+            FindingType::ComplianceException => "compliance_exception",
+            FindingType::ItDeficiency => "it_deficiency",
+            FindingType::OtherMatter => "other_matter",
+            FindingType::ProcessImprovement => "process_improvement",
+        }
+    }
+
+    /// Try to get a narrative section from the template provider and
+    /// substitute `{placeholder}` tokens with runtime values. Returns
+    /// `None` if the provider has no template for this key — the caller
+    /// then falls through to the embedded format! macros.
+    ///
+    /// Supported placeholders: `{account}`, `{amount}`.
+    fn try_template_narrative(
+        &mut self,
+        finding_type: FindingType,
+        section: &str,
+        account: &str,
+        amount: Option<i64>,
+    ) -> Option<String> {
+        let provider = self.template_provider.clone()?;
+        let key = Self::finding_type_to_key(finding_type);
+        let tpl = provider.get_finding_narrative(key, section, &mut self.rng)?;
+        let mut out = tpl.replace("{account}", account);
+        if let Some(amt) = amount {
+            out = out.replace("{amount}", &amt.to_string());
+        }
+        Some(out)
     }
 
     /// Generate findings for an engagement.
@@ -344,6 +399,14 @@ impl FindingGenerator {
 
     /// Generate finding title and related account.
     fn generate_finding_title(&mut self, finding_type: FindingType) -> (String, String) {
+        // v3.2.1+: prefer user-supplied titles via TemplateProvider.
+        if let Some(ref provider) = self.template_provider {
+            let key = Self::finding_type_to_key(finding_type);
+            if let Some(pair) = provider.get_finding_title(key, &mut self.rng) {
+                return pair;
+            }
+        }
+
         match finding_type {
             FindingType::MaterialWeakness => {
                 let titles = [
@@ -459,6 +522,22 @@ impl FindingGenerator {
         finding_type: FindingType,
         account: &str,
     ) -> (String, String, String, String) {
+        // v3.2.1+: if the user provided narrative templates, use them
+        // for any section they defined; fall back to the embedded
+        // format! macros per-section. All four sections must be
+        // template-provided to skip the embedded path; mixing is
+        // intentional so users can override one section without
+        // authoring all four.
+        let tpl_condition = self.try_template_narrative(finding_type, "condition", account, None);
+        let tpl_criteria = self.try_template_narrative(finding_type, "criteria", account, None);
+        let tpl_cause = self.try_template_narrative(finding_type, "cause", account, None);
+        let tpl_effect = self.try_template_narrative(finding_type, "effect", account, None);
+        if let (Some(c), Some(cr), Some(ca), Some(ef)) =
+            (&tpl_condition, &tpl_criteria, &tpl_cause, &tpl_effect)
+        {
+            return (c.clone(), cr.clone(), ca.clone(), ef.clone());
+        }
+
         match finding_type {
             FindingType::MaterialWeakness
             | FindingType::SignificantDeficiency
@@ -539,6 +618,13 @@ impl FindingGenerator {
 
     /// Generate recommendation.
     fn generate_recommendation(&mut self, finding_type: FindingType, account: &str) -> String {
+        // v3.2.1+: try template provider first.
+        if let Some(rec) =
+            self.try_template_narrative(finding_type, "recommendation", account, None)
+        {
+            return rec;
+        }
+
         match finding_type {
             FindingType::MaterialWeakness | FindingType::SignificantDeficiency => {
                 format!(

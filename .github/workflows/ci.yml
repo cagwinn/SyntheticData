@@ -23,6 +23,14 @@ jobs:
         run: sed -i '/"crates\/datasynth-graph-export",/d' Cargo.toml
       - run: cargo fmt --all -- --check
 
+  template_drift:
+    name: Template Drift Gate (v3.2.1+)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Check no new hardcoded name/description pools + CLAUDE.md crate count
+        run: ./scripts/check_template_drift.sh
+
   clippy:
     name: Clippy
     runs-on: ubuntu-latest

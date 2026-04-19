@@ -144,6 +144,8 @@ pub struct MaterialGenerator {
     created_materials: Vec<String>, // Track for BOM references
     /// Optional country pack for locale-aware generation
     country_pack: Option<datasynth_core::CountryPack>,
+    /// Optional template provider for user-supplied material descriptions (v3.2.1+)
+    template_provider: Option<datasynth_core::templates::SharedTemplateProvider>,
 }
 
 impl MaterialGenerator {
@@ -161,12 +163,25 @@ impl MaterialGenerator {
             material_counter: 0,
             created_materials: Vec::new(),
             country_pack: None,
+            template_provider: None,
         }
     }
 
     /// Set the country pack for locale-aware generation.
     pub fn set_country_pack(&mut self, pack: datasynth_core::CountryPack) {
         self.country_pack = Some(pack);
+    }
+
+    /// Set a template provider so user-supplied material descriptions
+    /// override the embedded pool. (v3.2.1+)
+    ///
+    /// When `None` (default), the embedded `MATERIAL_DESCRIPTIONS` pool
+    /// is used — byte-identical to pre-v3.2.1 output.
+    pub fn set_template_provider(
+        &mut self,
+        provider: datasynth_core::templates::SharedTemplateProvider,
+    ) {
+        self.template_provider = Some(provider);
     }
 
     /// Set a counter offset so that generated IDs start after a given value.
@@ -460,14 +475,52 @@ impl MaterialGenerator {
     }
 
     /// Select description for material type.
-    fn select_description(&mut self, material_type: &MaterialType) -> &'static str {
+    ///
+    /// v3.2.1+: the user's [`TemplateProvider`] sees the material-type
+    /// key and gets to supply a custom description. If its pool is
+    /// empty for this type, the `get_material_description` trait
+    /// method's fallback (`"{type} material"`) is detected and the
+    /// embedded `MATERIAL_DESCRIPTIONS` pool is used instead — this
+    /// preserves byte-identical output when no user pack is configured.
+    fn select_description(&mut self, material_type: &MaterialType) -> String {
+        let type_key = Self::material_type_to_key(material_type);
+
+        // Provider first — but only if it returns something that isn't
+        // the generic fallback string. The default provider returns
+        // "{type} material" when no file pool exists; we reject that
+        // and use the embedded pool instead so behavior is unchanged
+        // when `templates.path` is not set.
+        if let Some(ref provider) = self.template_provider {
+            let candidate = provider.get_material_description(type_key, &mut self.rng);
+            let generic_fallback = format!("{type_key} material");
+            if candidate != generic_fallback {
+                return candidate;
+            }
+        }
+
         for (mat_type, descriptions) in MATERIAL_DESCRIPTIONS {
             if mat_type == material_type {
                 let idx = self.rng.random_range(0..descriptions.len());
-                return descriptions[idx];
+                return descriptions[idx].to_string();
             }
         }
-        "Generic Material"
+        "Generic Material".to_string()
+    }
+
+    /// Map a `MaterialType` enum variant onto the lowercase/snake_case
+    /// key the template YAML uses (e.g. `MaterialType::FinishedGood` →
+    /// `"finished_good"`).
+    fn material_type_to_key(material_type: &MaterialType) -> &'static str {
+        match material_type {
+            MaterialType::FinishedGood => "finished_good",
+            MaterialType::RawMaterial => "raw_material",
+            MaterialType::SemiFinished => "semi_finished",
+            MaterialType::TradingGood => "trading_good",
+            MaterialType::OperatingSupplies => "operating_supplies",
+            MaterialType::Packaging => "packaging",
+            MaterialType::Service => "service",
+            MaterialType::SparePart => "spare_part",
+        }
     }
 
     /// Select material group for type.

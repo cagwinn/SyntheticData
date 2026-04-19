@@ -1,4 +1,17 @@
 //! Generation orchestrator for coordinating data generation.
+//!
+//! # Legacy notice (v3.2.1+)
+//!
+//! This is the **basic** 2-phase orchestrator (CoA → JE) kept around
+//! for tests and the `GenerationOrchestrator` legacy API. All production
+//! call paths (CLI `generate`, server `/api/generate/bulk`, Python
+//! wrapper) route through
+//! `crates/datasynth-runtime/src/enhanced_orchestrator.rs::EnhancedOrchestrator`
+//! which has ~30 phases and full feature integration.
+//!
+//! Deletion of this file is tracked for v4.0 per
+//! `docs/analysis/unused-features-inventory.md` §4.3. Do not depend on
+//! this module from new code — use `EnhancedOrchestrator` instead.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;

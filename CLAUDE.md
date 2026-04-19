@@ -34,23 +34,27 @@ cargo run -p datasynth-server -- --port 3000 --worker-threads 4
 
 ## Architecture
 
-Rust workspace with 15 crates:
+Rust workspace with 16 active crates (plus `datasynth-graph-export`
+excluded from the default build — see
+`docs/analysis/unused-features-inventory.md` §6):
 
 ```
-datasynth-cli          → Binary (generate, validate, init, info, fingerprint)
-datasynth-server       → REST/gRPC/WebSocket server
-datasynth-runtime      → GenerationOrchestrator coordinates workflow
-datasynth-generators   → Data generators (JE, Document Flows, Subledgers, Anomalies, Audit)
-datasynth-banking      → KYC/AML banking with fraud typologies
-datasynth-ocpm         → OCEL 2.0 process mining
-datasynth-fingerprint  → Privacy-preserving fingerprint extraction/synthesis
-datasynth-standards    → Accounting/audit standards (IFRS, US GAAP, French GAAP, German GAAP, ISA, SOX, PCAOB)
-datasynth-graph        → Graph export (PyTorch Geometric, Neo4j, DGL)
-datasynth-eval         → Evaluation framework with auto-tuning
-datasynth-config       → Configuration schema, validation, presets
-datasynth-core         → Domain models, traits, distributions, resource guards
-datasynth-output       → Output sinks (CSV, JSON, Parquet)
-datasynth-test-utils   → Test utilities
+datasynth-cli             → Binary (generate, validate, init, info, fingerprint, templates)
+datasynth-server          → REST/gRPC/WebSocket server
+datasynth-runtime         → EnhancedOrchestrator coordinates workflow (~30 phases)
+datasynth-generators      → Data generators (JE, Document Flows, Subledgers, Anomalies, Audit)
+datasynth-banking         → KYC/AML banking with fraud typologies
+datasynth-ocpm            → OCEL 2.0 process mining
+datasynth-fingerprint     → Privacy-preserving fingerprint extraction/synthesis
+datasynth-standards       → Accounting/audit standards (IFRS, US GAAP, French GAAP, German GAAP, ISA, SOX, PCAOB)
+datasynth-graph           → Graph export (PyTorch Geometric, Neo4j, DGL)
+datasynth-eval            → Evaluation framework with auto-tuning
+datasynth-config          → Configuration schema, validation, presets
+datasynth-core            → Domain models, traits, distributions, resource guards, templates
+datasynth-output          → Output sinks (CSV, JSON, Parquet)
+datasynth-test-utils      → Test utilities
+datasynth-audit-fsm       → YAML-driven audit state machines (engagements, blueprints)
+datasynth-audit-optimizer → Risk-scoping / portfolio / Monte-Carlo / conformance analytics
 ```
 
 ### Key Models (datasynth-core/src/models/)

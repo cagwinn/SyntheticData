@@ -170,6 +170,8 @@ pub struct AssetGenerator {
     config: AssetGeneratorConfig,
     asset_counter: usize,
     coa_framework: CoAFramework,
+    /// Optional template provider for user-supplied asset descriptions (v3.2.1+)
+    template_provider: Option<datasynth_core::templates::SharedTemplateProvider>,
 }
 
 impl AssetGenerator {
@@ -186,12 +188,22 @@ impl AssetGenerator {
             config,
             asset_counter: 0,
             coa_framework: CoAFramework::UsGaap,
+            template_provider: None,
         }
     }
 
     /// Set the accounting framework for framework-aware asset generation.
     pub fn set_coa_framework(&mut self, framework: CoAFramework) {
         self.coa_framework = framework;
+    }
+
+    /// Set a template provider so user-supplied asset descriptions
+    /// override the embedded pool. (v3.2.1+)
+    pub fn set_template_provider(
+        &mut self,
+        provider: datasynth_core::templates::SharedTemplateProvider,
+    ) {
+        self.template_provider = Some(provider);
     }
 
     /// Generate a single fixed asset.
@@ -488,14 +500,45 @@ impl AssetGenerator {
     }
 
     /// Select description for asset class.
-    fn select_description(&mut self, asset_class: &AssetClass) -> &'static str {
+    ///
+    /// v3.2.1+: prefer the user's [`TemplateProvider`] pool; fall back
+    /// to the embedded `ASSET_DESCRIPTIONS` when the provider returns
+    /// the generic fallback (i.e. no file-backed entries for this
+    /// class). Byte-identical to v3.2.0 when `templates.path` is unset.
+    fn select_description(&mut self, asset_class: &AssetClass) -> String {
+        let class_key = Self::asset_class_to_key(asset_class);
+
+        if let Some(ref provider) = self.template_provider {
+            let candidate = provider.get_asset_description(class_key, &mut self.rng);
+            let generic_fallback = format!("{class_key} asset");
+            if candidate != generic_fallback {
+                return candidate;
+            }
+        }
+
         for (class, descriptions) in ASSET_DESCRIPTIONS {
             if class == asset_class {
                 let idx = self.rng.random_range(0..descriptions.len());
-                return descriptions[idx];
+                return descriptions[idx].to_string();
             }
         }
-        "Fixed Asset"
+        "Fixed Asset".to_string()
+    }
+
+    /// Map an `AssetClass` variant to its lowercase/snake_case YAML key.
+    fn asset_class_to_key(asset_class: &AssetClass) -> &'static str {
+        match asset_class {
+            AssetClass::Buildings => "buildings",
+            AssetClass::BuildingImprovements => "building_improvements",
+            AssetClass::Machinery => "machinery",
+            AssetClass::Vehicles => "vehicles",
+            AssetClass::Furniture => "furniture",
+            AssetClass::ItEquipment => "it_equipment",
+            AssetClass::Software => "software",
+            AssetClass::LeaseholdImprovements => "leasehold_improvements",
+            AssetClass::Land => "land",
+            _ => "other",
+        }
     }
 
     /// Generate acquisition cost.

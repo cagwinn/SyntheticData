@@ -16,9 +16,9 @@ use rust_decimal_macros::dec;
 
 /// Generates [`ProjectRevenue`] records using Percentage of Completion.
 ///
-/// Not yet wired into the runtime orchestrator; will be integrated alongside
-/// project revenue recognition support.  Currently exercised by unit and
-/// integration tests.
+/// Wired into `EnhancedOrchestrator` at
+/// `crates/datasynth-runtime/src/enhanced_orchestrator.rs:8580` under
+/// `config.project_accounting.revenue_recognition.enabled`.
 pub struct RevenueGenerator {
     rng: ChaCha8Rng,
     /// Produces deterministic revenue-record IDs.

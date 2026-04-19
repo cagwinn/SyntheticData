@@ -9692,6 +9692,8 @@ impl EnhancedOrchestrator {
                 let mut material_gen = MaterialGenerator::new(company_seed + 200);
                 material_gen.set_country_pack(pack.clone());
                 material_gen.set_counter_offset(i * materials_per_company);
+                // v3.2.1+: user-supplied material descriptions flow through shared provider
+                material_gen.set_template_provider(self.template_provider.clone());
                 let material_pool = material_gen.generate_material_pool(
                     materials_per_company,
                     &company.code,
@@ -9700,6 +9702,8 @@ impl EnhancedOrchestrator {
 
                 // Generate fixed assets
                 let mut asset_gen = AssetGenerator::new(company_seed + 300);
+                // v3.2.1+: user-supplied asset descriptions flow through shared provider
+                asset_gen.set_template_provider(self.template_provider.clone());
                 let asset_pool = asset_gen.generate_asset_pool(
                     assets_per_company,
                     &company.code,
@@ -9709,6 +9713,8 @@ impl EnhancedOrchestrator {
                 // Generate employees
                 let mut employee_gen = EmployeeGenerator::new(company_seed + 400);
                 employee_gen.set_country_pack(pack);
+                // v3.2.1+: user-supplied department names flow through shared provider
+                employee_gen.set_template_provider(self.template_provider.clone());
                 let employee_pool =
                     employee_gen.generate_company_pool(&company.code, (start_date, end_date));
 
@@ -11114,6 +11120,8 @@ impl EnhancedOrchestrator {
         let mut evidence_gen = EvidenceGenerator::new(self.seed + 7200);
         let mut risk_gen = RiskAssessmentGenerator::new(self.seed + 7300);
         let mut finding_gen = FindingGenerator::new(self.seed + 7400);
+        // v3.2.1+: user-supplied finding titles + narratives flow through shared provider
+        finding_gen.set_template_provider(self.template_provider.clone());
         let mut judgment_gen = JudgmentGenerator::new(self.seed + 7500);
         let mut confirmation_gen = ConfirmationGenerator::new(self.seed + 7600);
         let mut procedure_step_gen = ProcedureStepGenerator::new(self.seed + 7700);
