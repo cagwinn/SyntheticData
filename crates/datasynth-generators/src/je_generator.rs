@@ -2279,6 +2279,8 @@ mod tests {
                 po_prefix: "TEST-PO".to_string(),
                 so_prefix: "TEST-SO".to_string(),
             },
+            path: None,
+            merge_strategy: datasynth_config::TemplateMergeStrategy::default(),
         };
 
         let mut je_gen = JournalEntryGenerator::new_with_full_config(

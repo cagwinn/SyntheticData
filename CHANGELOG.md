@@ -5,6 +5,94 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.2.0] - 2026-04-19
+
+Minor release shipping the master-data realism infrastructure per
+`docs/plans/2026-04-19-master-data-realism-concept.md` Track A (P0).
+Users can now supply their own template pack directory and override
+the embedded vendor / customer / bank-name pools. The infrastructure
+is extensible so remaining hardcoded sites can be rewired in point
+releases without further trait or config churn.
+
+### User-supplied template packs (new)
+
+- **`TemplateConfig` accepts `path` + `merge_strategy`** fields
+  (`crates/datasynth-config/src/schema.rs`). Set
+  `templates.path: ./my_templates` (or supply via a new
+  `datasynth-data templates ...` subcommand) to load a YAML/JSON
+  directory that augments or replaces the embedded pools. Three merge
+  strategies: `extend` (default, append to embedded), `replace`
+  (discard embedded), `merge_prefer_file` (per-category replace).
+  Accepts both snake_case and camelCase (`templatesPath`,
+  `mergeStrategy`) for SDK compatibility.
+- **New `TemplateData` categories** for the sites that were previously
+  hardcoded: `bank_names` (flat pool), `finding_titles` (keyed by
+  finding-type), `finding_narratives` (keyed by finding-type +
+  section), `department_names` (keyed by department code). The
+  `TemplateLoader::merge` function is extended to handle all four
+  under every merge strategy.
+- **`TemplateProvider` trait grows four methods** with `None`-returning
+  default impls so implementors can migrate incrementally:
+  `get_bank_name`, `get_finding_title`, `get_finding_narrative`,
+  `get_department_name`. `DefaultTemplateProvider` implements all four
+  against `template_data`, falling back cleanly when the pool is
+  empty.
+
+### Runtime wiring
+
+- **`EnhancedOrchestrator` constructs a `SharedTemplateProvider` at
+  `::new` time** from `config.templates.path`. When `path` is `None`,
+  the provider is embedded-only and output is byte-identical to
+  v3.1.2. When `path` points to a missing or malformed file, orchestrator
+  construction fails fast with a clear config error (no silent fallthrough).
+- **Vendor bank names now flow through `TemplateProvider::get_bank_name`**
+  (`master_data/vendor_generator.rs::generate_bank_account`). When the
+  file-backed pool is non-empty, every vendor gets a bank name from the
+  user's pool. Falls back to the embedded 10-bank pool otherwise.
+- **Customer names now flow through `TemplateProvider::get_customer_name`**
+  (`master_data/customer_generator.rs::select_customer_name`). The
+  generator still picks an industry from the embedded template map
+  (same pre-v3.2.0 industry distribution), then asks the provider for
+  a name in that industry. Provider result wins when it came from the
+  user's file.
+
+### CLI
+
+- **New `datasynth-data templates export [--output DIR]`** writes a
+  starter template pack to the given directory — one YAML file per
+  category, with empty pools so users can see the schema of every slot.
+  The pack's README explains the merge-strategy options.
+- **New `datasynth-data templates validate --path PATH`** loads the
+  pack (file or directory) and runs `TemplateLoader::validate`.
+  Exits non-zero on hard errors.
+
+### Repo-level starter pack
+
+- **`templates/packs/defaults/`** ships with the release — 12 YAML
+  files + README documenting the user workflow. Users copy the
+  directory, edit the categories they care about, and point their
+  config at the copy.
+
+### Hardcoded sites still in place
+
+Five sites remain on embedded pools and will be rewired in v3.2.1
+without further infrastructure changes (the trait methods already
+exist and the provider is already threaded through the orchestrator):
+
+- `material_generator.rs::MATERIAL_DESCRIPTIONS`
+- `asset_generator.rs::ASSET_DESCRIPTIONS`
+- `audit/finding_generator.rs` finding titles
+- `audit/finding_generator.rs` finding narratives
+- `employee_generator.rs` department names
+
+### Regression guards
+
+- **New `crates/datasynth-runtime/tests/template_override_smoke.rs`** —
+  three tests covering the headline feature, byte-identical default
+  semantics, and seeded determinism.
+- Fraud-bias and flat-export smoke tests continue to pass unchanged.
+- Workspace clippy and fmt remain clean.
+
 ## [3.1.2] - 2026-04-19
 
 Second follow-up release closing the remaining gaps SDK / VynFi teams

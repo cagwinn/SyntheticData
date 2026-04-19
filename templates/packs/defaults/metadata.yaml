@@ -1,0 +1,6 @@
+name: DataSynth Starter Pack
+version: 1.0.0
+region: null
+sector: null
+author: null
+description: Copy and edit these files, then pass the directory via `templates.path` in your config or `--templates <dir>` on `generate`. Empty sections fall back to embedded defaults.

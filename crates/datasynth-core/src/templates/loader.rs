@@ -154,6 +154,73 @@ pub struct HeaderTextTemplates {
     pub by_process: HashMap<String, Vec<String>>,
 }
 
+/// Flat pool of bank names (used for vendor-bank assignment and
+/// banking-customer name generation). Unstructured because the current
+/// generator picks uniformly without industry/region keys — see
+/// `vendor_generator.rs::BANK_NAMES`.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct BankNameTemplates {
+    /// Bank names; picked uniformly at random.
+    #[serde(default)]
+    pub names: Vec<String>,
+}
+
+/// Audit finding title templates keyed by finding type.
+///
+/// Each entry is a (title, account-context) pair so the finding generator
+/// can pick a coherent title + account binding. Replaces the inline
+/// `const TITLES: &[(title, account)]` match arms in
+/// `audit/finding_generator.rs::generate_finding_title`.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct FindingTitleTemplates {
+    /// Titles organised by finding-type key (e.g. "material_weakness",
+    /// "significant_deficiency", "control_deficiency", "material_misstatement",
+    /// "immaterial_misstatement", "compliance_exception", "it_deficiency",
+    /// "other_matter", "process_improvement").
+    #[serde(default)]
+    pub by_type: HashMap<String, Vec<FindingTitleEntry>>,
+}
+
+/// A single finding-title entry.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FindingTitleEntry {
+    /// The finding title shown in workpapers.
+    pub title: String,
+    /// Account/area affected — paired with the title so the generator
+    /// doesn't accidentally tag a journal-entry finding to an unrelated
+    /// account like "Property, Plant & Equipment".
+    pub account: String,
+}
+
+/// Audit finding narrative templates keyed by finding type and section.
+///
+/// Each narrative has five sections (condition / criteria / cause /
+/// effect / recommendation). Templates may contain `{placeholder}`
+/// tokens that the generator substitutes at runtime (e.g. `{account}`,
+/// `{amount}`, `{period}`). Replaces the inline format!() macros in
+/// `audit/finding_generator.rs::generate_ccce` and
+/// `generate_recommendation`.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct FindingNarrativeTemplates {
+    /// Nested: by_type → by_section → list of candidate templates.
+    /// Section keys: "condition", "criteria", "cause", "effect", "recommendation".
+    #[serde(default)]
+    pub by_type: HashMap<String, HashMap<String, Vec<String>>>,
+}
+
+/// Department name templates keyed by department code.
+///
+/// Replaces the hardcoded strings in
+/// `master_data/employee_generator.rs::DepartmentDefinition::*`.
+/// Department codes: "finance", "procurement", "sales", "warehouse",
+/// "it".
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct DepartmentNameTemplates {
+    /// Display name per department code.
+    #[serde(default)]
+    pub by_code: HashMap<String, String>,
+}
+
 /// Complete template data structure loaded from files.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct TemplateData {
@@ -181,6 +248,18 @@ pub struct TemplateData {
     /// Header text templates
     #[serde(default)]
     pub header_text_templates: HeaderTextTemplates,
+    /// Bank name pool (v3.2.0+)
+    #[serde(default)]
+    pub bank_names: BankNameTemplates,
+    /// Audit finding titles by finding-type (v3.2.0+)
+    #[serde(default)]
+    pub finding_titles: FindingTitleTemplates,
+    /// Audit finding narratives by finding-type and section (v3.2.0+)
+    #[serde(default)]
+    pub finding_narratives: FindingNarrativeTemplates,
+    /// Department display names by code (v3.2.0+)
+    #[serde(default)]
+    pub department_names: DepartmentNameTemplates,
 }
 
 /// Strategy for merging template data.
@@ -395,6 +474,48 @@ impl TemplateLoader {
                 .extend(templates);
         }
 
+        // Extend h2r / r2r line descriptions (previously missing from merge)
+        for (account_type, descs) in overlay.line_item_descriptions.h2r {
+            base.line_item_descriptions
+                .h2r
+                .entry(account_type)
+                .or_default()
+                .extend(descs);
+        }
+        for (account_type, descs) in overlay.line_item_descriptions.r2r {
+            base.line_item_descriptions
+                .r2r
+                .entry(account_type)
+                .or_default()
+                .extend(descs);
+        }
+
+        // Extend bank names (flat pool).
+        base.bank_names.names.extend(overlay.bank_names.names);
+
+        // Extend finding titles by type.
+        for (ft, entries) in overlay.finding_titles.by_type {
+            base.finding_titles
+                .by_type
+                .entry(ft)
+                .or_default()
+                .extend(entries);
+        }
+
+        // Extend finding narratives by (type, section).
+        for (ft, sections) in overlay.finding_narratives.by_type {
+            let base_sections = base.finding_narratives.by_type.entry(ft).or_default();
+            for (section, templates) in sections {
+                base_sections.entry(section).or_default().extend(templates);
+            }
+        }
+
+        // Department names: keyed by code — overlay wins per code, since
+        // a department has one display name (not a pool).
+        for (code, name) in overlay.department_names.by_code {
+            base.department_names.by_code.insert(code, name);
+        }
+
         base
     }
 
@@ -419,6 +540,53 @@ impl TemplateLoader {
             if !names.is_empty() {
                 base.customer_names.industries.insert(industry, names);
             }
+        }
+
+        // Material descriptions — replace per material-type key
+        for (mat_type, descs) in overlay.material_descriptions.by_type {
+            if !descs.is_empty() {
+                base.material_descriptions.by_type.insert(mat_type, descs);
+            }
+        }
+
+        // Asset descriptions — replace per category key
+        for (category, descs) in overlay.asset_descriptions.by_category {
+            if !descs.is_empty() {
+                base.asset_descriptions.by_category.insert(category, descs);
+            }
+        }
+
+        // Header templates — replace per process key
+        for (process, templates) in overlay.header_text_templates.by_process {
+            if !templates.is_empty() {
+                base.header_text_templates
+                    .by_process
+                    .insert(process, templates);
+            }
+        }
+
+        // Bank names — if overlay has any, replace entirely
+        if !overlay.bank_names.names.is_empty() {
+            base.bank_names = overlay.bank_names;
+        }
+
+        // Finding titles — replace per finding type
+        for (ft, entries) in overlay.finding_titles.by_type {
+            if !entries.is_empty() {
+                base.finding_titles.by_type.insert(ft, entries);
+            }
+        }
+
+        // Finding narratives — replace per finding type (whole sections map)
+        for (ft, sections) in overlay.finding_narratives.by_type {
+            if !sections.is_empty() {
+                base.finding_narratives.by_type.insert(ft, sections);
+            }
+        }
+
+        // Department names — replace per code
+        for (code, name) in overlay.department_names.by_code {
+            base.department_names.by_code.insert(code, name);
         }
 
         base

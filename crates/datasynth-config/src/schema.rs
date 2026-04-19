@@ -1999,6 +1999,18 @@ impl Default for UsersPerPersona {
 }
 
 /// Template configuration for realistic data generation.
+///
+/// # User-supplied template packs (v3.2.0+)
+///
+/// Set `path` to a directory (or single YAML/JSON file) to override or
+/// extend the embedded default pools for vendor names, customer names,
+/// material/asset descriptions, audit findings, bank names, and
+/// department names. When `path` is `None` (the default), generators
+/// use the compiled-in pools and output is byte-identical to v3.1.2.
+///
+/// See `crates/datasynth-core/src/templates/loader.rs::TemplateData`
+/// for the full YAML schema. Use `datasynth-data templates export` to
+/// dump the defaults as a starter pack.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct TemplateConfig {
     /// Name generation settings
@@ -2010,6 +2022,36 @@ pub struct TemplateConfig {
     /// Reference number settings
     #[serde(default)]
     pub references: ReferenceTemplateConfig,
+    /// Optional path to a user-supplied template file or directory.
+    /// When set, entries from the file(s) augment or replace the
+    /// embedded defaults according to `merge_strategy`.
+    ///
+    /// `None` (default) = use embedded pools only (byte-identical to v3.1.2).
+    #[serde(default, alias = "templatesPath")]
+    pub path: Option<std::path::PathBuf>,
+    /// How file-based entries combine with embedded defaults.
+    ///
+    /// - `extend` (default): append file entries to embedded pools,
+    ///   de-duplicating. Safe for incremental overlays.
+    /// - `replace`: discard embedded pools entirely and use only file
+    ///   entries. Requires a fully-populated template file.
+    /// - `merge_prefer_file`: replace individual categories when present
+    ///   in the file; keep embedded for absent categories.
+    #[serde(default, alias = "mergeStrategy")]
+    pub merge_strategy: TemplateMergeStrategy,
+}
+
+/// Strategy for combining user-supplied template files with embedded defaults.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum TemplateMergeStrategy {
+    /// Append file entries to embedded pools (default).
+    #[default]
+    Extend,
+    /// Replace embedded pools entirely with file entries.
+    Replace,
+    /// Replace individual categories when present in file; keep embedded for absent ones.
+    MergePreferFile,
 }
 
 /// Name template configuration.

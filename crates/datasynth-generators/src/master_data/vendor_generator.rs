@@ -270,6 +270,8 @@ pub struct VendorGenerator {
     coa_framework: CoAFramework,
     /// Tracks used vendor names for deduplication
     used_names: HashSet<String>,
+    /// Optional template provider for user-supplied bank names (v3.2.0+)
+    template_provider: Option<datasynth_core::templates::SharedTemplateProvider>,
 }
 
 impl VendorGenerator {
@@ -291,6 +293,7 @@ impl VendorGenerator {
             country_pack: None,
             coa_framework: CoAFramework::UsGaap,
             used_names: HashSet::new(),
+            template_provider: None,
         }
     }
 
@@ -311,6 +314,7 @@ impl VendorGenerator {
             country_pack: None,
             coa_framework: CoAFramework::UsGaap,
             used_names: HashSet::new(),
+            template_provider: None,
         }
     }
 
@@ -327,6 +331,18 @@ impl VendorGenerator {
     /// Set the country pack for locale-aware generation.
     pub fn set_country_pack(&mut self, pack: datasynth_core::CountryPack) {
         self.country_pack = Some(pack);
+    }
+
+    /// Set a template provider so user-supplied bank names (and other
+    /// template-provided strings) override the embedded pools. (v3.2.0+)
+    ///
+    /// When `None` (default), the embedded `BANK_NAMES` pool is used —
+    /// byte-identical to pre-v3.2.0 output.
+    pub fn set_template_provider(
+        &mut self,
+        provider: datasynth_core::templates::SharedTemplateProvider,
+    ) {
+        self.template_provider = Some(provider);
     }
 
     /// Set a counter offset so that generated IDs start after a given value.
@@ -569,8 +585,22 @@ impl VendorGenerator {
 
     /// Generate a bank account.
     fn generate_bank_account(&mut self, vendor_id: &str) -> BankAccount {
-        let bank_idx = self.rng.random_range(0..BANK_NAMES.len());
-        let bank_name = BANK_NAMES[bank_idx];
+        // v3.2.0+: prefer user-supplied bank names from the template
+        // provider when available. Falls back to the embedded pool
+        // (byte-identical behavior to pre-v3.2.0).
+        let bank_name: String = match &self.template_provider {
+            Some(provider) => match provider.get_bank_name(&mut self.rng) {
+                Some(name) => name,
+                None => {
+                    let idx = self.rng.random_range(0..BANK_NAMES.len());
+                    BANK_NAMES[idx].to_string()
+                }
+            },
+            None => {
+                let idx = self.rng.random_range(0..BANK_NAMES.len());
+                BANK_NAMES[idx].to_string()
+            }
+        };
 
         let routing = format!("{:09}", self.rng.random_range(100000000u64..999999999));
         let account = format!("{:010}", self.rng.random_range(1000000000u64..9999999999));

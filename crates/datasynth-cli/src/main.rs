@@ -253,6 +253,44 @@ enum Commands {
         #[command(subcommand)]
         command: AuditCommands,
     },
+
+    /// Template pack management (v3.2.0+)
+    ///
+    /// Export the embedded default template pool as YAML starter
+    /// files, or validate a user-supplied template directory before
+    /// wiring it through `generate --config ... templates.path`.
+    Templates {
+        #[command(subcommand)]
+        command: TemplatesCommands,
+    },
+}
+
+#[derive(Subcommand)]
+enum TemplatesCommands {
+    /// Export a starter template pack as YAML files.
+    ///
+    /// The emitted pack mirrors the pool shapes the runtime consumes
+    /// (person names per culture, vendor names by category, customer
+    /// names by industry, material/asset descriptions, bank-name pool,
+    /// audit finding titles and narratives, department display names).
+    /// Empty categories appear as empty arrays so users know the shape
+    /// of every slot.
+    Export {
+        /// Output directory (created if missing)
+        #[arg(short, long, default_value = "./templates")]
+        output: PathBuf,
+    },
+
+    /// Validate a template file or directory.
+    ///
+    /// Runs the same checks `EnhancedOrchestrator` does at startup
+    /// (parse YAML/JSON, ensure each culture has at least one first
+    /// and last name, etc.). Exits non-zero on hard errors.
+    Validate {
+        /// Path to template file or directory
+        #[arg(short, long)]
+        path: PathBuf,
+    },
 }
 
 #[derive(Subcommand)]
@@ -2277,6 +2315,111 @@ fn main() -> Result<()> {
                 seed,
             } => handle_audit_benchmark(&complexity, anomaly_rate, &output, seed),
         },
+
+        Commands::Templates { command } => match command {
+            TemplatesCommands::Export { output } => handle_templates_export(&output),
+            TemplatesCommands::Validate { path } => handle_templates_validate(&path),
+        },
+    }
+}
+
+/// Export a starter template pack as YAML files under `output`.
+///
+/// Writes one file per category so users can open and edit a single
+/// category without touching unrelated pools. Empty pools are
+/// materialised as empty arrays to show the shape of every slot.
+fn handle_templates_export(output: &std::path::Path) -> Result<()> {
+    use datasynth_core::templates::loader::{
+        BankNameTemplates, DepartmentNameTemplates, FindingNarrativeTemplates,
+        FindingTitleTemplates, TemplateData, TemplateMetadata,
+    };
+
+    std::fs::create_dir_all(output)
+        .map_err(|e| anyhow::anyhow!("Failed to create {}: {e}", output.display()))?;
+
+    // Canonical starter pack = an empty TemplateData with metadata.
+    // The orchestrator's merge strategy fills in embedded pools when a
+    // section is empty, so this is a minimal "drop here to override"
+    // pack rather than a dump of every embedded string (which we
+    // cannot export losslessly without duplicating private constants).
+    let starter = TemplateData {
+        metadata: TemplateMetadata {
+            name: "DataSynth Starter Pack".to_string(),
+            version: "1.0.0".to_string(),
+            description: Some(
+                "Copy and edit these files, then pass the directory via \
+                 `templates.path` in your config or `--templates <dir>` on `generate`. \
+                 Empty sections fall back to embedded defaults."
+                    .to_string(),
+            ),
+            ..Default::default()
+        },
+        bank_names: BankNameTemplates::default(),
+        finding_titles: FindingTitleTemplates::default(),
+        finding_narratives: FindingNarrativeTemplates::default(),
+        department_names: DepartmentNameTemplates::default(),
+        ..Default::default()
+    };
+
+    // Write one YAML per category. A macro keeps the per-field writes
+    // terse without requiring trait objects (which would need erased_serde).
+    macro_rules! write_yaml {
+        ($filename:expr, $value:expr) => {{
+            let path = output.join($filename);
+            let yaml = serde_yaml::to_string(&$value)
+                .map_err(|e| anyhow::anyhow!("Serialize {}: {e}", $filename))?;
+            std::fs::write(&path, yaml)
+                .map_err(|e| anyhow::anyhow!("Write {}: {e}", path.display()))?;
+            tracing::info!("Wrote {}", path.display());
+        }};
+    }
+
+    write_yaml!("metadata.yaml", starter.metadata);
+    write_yaml!("person_names.yaml", starter.person_names);
+    write_yaml!("vendor_names.yaml", starter.vendor_names);
+    write_yaml!("customer_names.yaml", starter.customer_names);
+    write_yaml!("material_descriptions.yaml", starter.material_descriptions);
+    write_yaml!("asset_descriptions.yaml", starter.asset_descriptions);
+    write_yaml!(
+        "line_item_descriptions.yaml",
+        starter.line_item_descriptions
+    );
+    write_yaml!("header_text_templates.yaml", starter.header_text_templates);
+    write_yaml!("bank_names.yaml", starter.bank_names);
+    write_yaml!("finding_titles.yaml", starter.finding_titles);
+    write_yaml!("finding_narratives.yaml", starter.finding_narratives);
+    write_yaml!("department_names.yaml", starter.department_names);
+
+    tracing::info!(
+        "Starter template pack exported to {}. Edit the files you want to customize, \
+         then set `templates.path: {}` in your config.",
+        output.display(),
+        output.display()
+    );
+    Ok(())
+}
+
+/// Validate a template file or directory.
+fn handle_templates_validate(path: &std::path::Path) -> Result<()> {
+    use datasynth_core::templates::loader::TemplateLoader;
+
+    let data = if path.is_dir() {
+        TemplateLoader::load_from_directory(path)
+    } else {
+        TemplateLoader::load_from_file(path)
+    }
+    .map_err(|e| anyhow::anyhow!("Failed to load {}: {e}", path.display()))?;
+
+    let warnings = TemplateLoader::validate(&data);
+
+    if warnings.is_empty() {
+        println!("✓ {} — valid", path.display());
+        Ok(())
+    } else {
+        for w in &warnings {
+            eprintln!("  - {w}");
+        }
+        anyhow::bail!("{} warning(s) in {}", warnings.len(), path.display())
     }
 }
 

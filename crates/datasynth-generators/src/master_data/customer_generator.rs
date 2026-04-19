@@ -420,6 +420,8 @@ pub struct CustomerGenerator {
     coa_framework: CoAFramework,
     /// Tracks used customer names for deduplication
     used_names: HashSet<String>,
+    /// Optional template provider for user-supplied customer names (v3.2.0+)
+    template_provider: Option<datasynth_core::templates::SharedTemplateProvider>,
 }
 
 impl CustomerGenerator {
@@ -439,6 +441,7 @@ impl CustomerGenerator {
             country_pack: None,
             coa_framework: CoAFramework::UsGaap,
             used_names: HashSet::new(),
+            template_provider: None,
         }
     }
 
@@ -457,12 +460,25 @@ impl CustomerGenerator {
             country_pack: None,
             coa_framework: CoAFramework::UsGaap,
             used_names: HashSet::new(),
+            template_provider: None,
         }
     }
 
     /// Set the accounting framework for auxiliary GL account generation.
     pub fn set_coa_framework(&mut self, framework: CoAFramework) {
         self.coa_framework = framework;
+    }
+
+    /// Set a template provider so user-supplied customer names override
+    /// the embedded pools. (v3.2.0+)
+    ///
+    /// When `None` (default), the embedded `CUSTOMER_NAME_TEMPLATES`
+    /// pool is used — byte-identical to pre-v3.2.0 output.
+    pub fn set_template_provider(
+        &mut self,
+        provider: datasynth_core::templates::SharedTemplateProvider,
+    ) {
+        self.template_provider = Some(provider);
     }
 
     /// Set segmentation configuration.
@@ -666,17 +682,40 @@ impl CustomerGenerator {
     }
 
     /// Select a customer name from templates.
-    fn select_customer_name(&mut self) -> (&'static str, &'static str) {
+    ///
+    /// v3.2.0+: the user's [`TemplateProvider`] sees the chosen industry
+    /// and is given a chance to supply a custom name. If it declines
+    /// (method returns an empty-pool string or the embedded fallback
+    /// name), we keep the embedded pool's result. This preserves
+    /// byte-identical behaviour when `templates.path` is unset.
+    fn select_customer_name(&mut self) -> (&'static str, String) {
         let industry_idx = self.rng.random_range(0..CUSTOMER_NAME_TEMPLATES.len());
         let (industry, names) = CUSTOMER_NAME_TEMPLATES[industry_idx];
         let name_idx = self.rng.random_range(0..names.len());
-        (industry, names[name_idx])
+        let embedded_name = names[name_idx].to_string();
+
+        if let Some(ref provider) = self.template_provider {
+            // Provider has a `get_customer_name` method keyed by industry.
+            // If the provider was loaded from a file that has entries
+            // for this industry, we use its result; otherwise the
+            // provider's embedded-fallback branch is reached and we
+            // still prefer the generator's pool (which is the same
+            // pre-v3.2.0 pool). Detect "used its file" by checking
+            // whether the returned name appears in our static pool.
+            let candidate = provider.get_customer_name(industry, &mut self.rng);
+            let is_from_file = !names.iter().any(|n| *n == candidate);
+            if is_from_file {
+                return (industry, candidate);
+            }
+        }
+
+        (industry, embedded_name)
     }
 
     /// Select a unique customer name, appending a suffix if collision detected.
     fn select_customer_name_unique(&mut self) -> (&'static str, String) {
-        let (industry, name) = self.select_customer_name();
-        let mut name = name.to_string();
+        let (industry, name_str) = self.select_customer_name();
+        let mut name = name_str;
 
         if self.used_names.contains(&name) {
             let suffixes = [

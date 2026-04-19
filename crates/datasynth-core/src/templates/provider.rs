@@ -52,6 +52,54 @@ pub trait TemplateProvider: Send + Sync {
 
     /// Get a random header text template for the given process.
     fn get_header_template(&self, process: BusinessProcess, rng: &mut dyn Rng) -> String;
+
+    /// Get a random bank name from the flat pool. (v3.2.0+)
+    ///
+    /// Default impl returns `None` — implementors with a bank-name pool
+    /// (like `DefaultTemplateProvider`) override this. `None` means
+    /// "caller should use its own fallback" so existing
+    /// `BANK_NAMES`-based callers keep working until the rewire lands.
+    fn get_bank_name(&self, _rng: &mut dyn Rng) -> Option<String> {
+        None
+    }
+
+    /// Get a (title, account) pair for an audit finding of the given type.
+    /// (v3.2.0+)
+    ///
+    /// `finding_type_key` is a lowercase-snake-case canonical name
+    /// (e.g. "material_weakness", "control_deficiency"). Default impl
+    /// returns `None` so the caller falls back to its inline tables.
+    fn get_finding_title(
+        &self,
+        _finding_type_key: &str,
+        _rng: &mut dyn Rng,
+    ) -> Option<(String, String)> {
+        None
+    }
+
+    /// Get a narrative template string for an audit finding section.
+    /// (v3.2.0+)
+    ///
+    /// `section` must be one of: "condition", "criteria", "cause",
+    /// "effect", "recommendation". Returns `None` to trigger caller
+    /// fallback. Templates may contain `{placeholder}` tokens
+    /// (e.g. `{account}`, `{amount}`) that the caller substitutes.
+    fn get_finding_narrative(
+        &self,
+        _finding_type_key: &str,
+        _section: &str,
+        _rng: &mut dyn Rng,
+    ) -> Option<String> {
+        None
+    }
+
+    /// Get a display name for a department by code. (v3.2.0+)
+    ///
+    /// `department_code` is one of: "finance", "procurement", "sales",
+    /// "warehouse", "it". Returns `None` to trigger caller fallback.
+    fn get_department_name(&self, _department_code: &str, _rng: &mut dyn Rng) -> Option<String> {
+        None
+    }
 }
 
 /// Default template provider using embedded templates with optional file overrides.
@@ -480,6 +528,65 @@ impl TemplateProvider for DefaultTemplateProvider {
 
         // Fall back to generic
         format!("{} Transaction", key.to_uppercase())
+    }
+
+    fn get_bank_name(&self, rng: &mut dyn Rng) -> Option<String> {
+        if let Some(ref data) = self.template_data {
+            if !data.bank_names.names.is_empty() {
+                if let Some(name) = data.bank_names.names.choose(rng) {
+                    return Some(name.clone());
+                }
+            }
+        }
+        None
+    }
+
+    fn get_finding_title(
+        &self,
+        finding_type_key: &str,
+        rng: &mut dyn Rng,
+    ) -> Option<(String, String)> {
+        if let Some(ref data) = self.template_data {
+            if let Some(entries) = data.finding_titles.by_type.get(finding_type_key) {
+                if !entries.is_empty() {
+                    if let Some(entry) = entries.choose(rng) {
+                        return Some((entry.title.clone(), entry.account.clone()));
+                    }
+                }
+            }
+        }
+        None
+    }
+
+    fn get_finding_narrative(
+        &self,
+        finding_type_key: &str,
+        section: &str,
+        rng: &mut dyn Rng,
+    ) -> Option<String> {
+        if let Some(ref data) = self.template_data {
+            if let Some(sections) = data.finding_narratives.by_type.get(finding_type_key) {
+                if let Some(templates) = sections.get(section) {
+                    if !templates.is_empty() {
+                        if let Some(tpl) = templates.choose(rng) {
+                            return Some(tpl.clone());
+                        }
+                    }
+                }
+            }
+        }
+        None
+    }
+
+    fn get_department_name(&self, department_code: &str, _rng: &mut dyn Rng) -> Option<String> {
+        if let Some(ref data) = self.template_data {
+            if let Some(name) = data.department_names.by_code.get(department_code) {
+                if !name.is_empty() {
+                    return Some(name.clone());
+                }
+            }
+        }
+        None
     }
 }
 

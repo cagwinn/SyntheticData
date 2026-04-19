@@ -1455,6 +1455,13 @@ pub struct EnhancedOrchestrator {
     country_pack_registry: datasynth_core::CountryPackRegistry,
     /// Optional streaming sink for phase-by-phase output
     phase_sink: Option<Box<dyn crate::stream_pipeline::PhaseSink>>,
+    /// Shared template provider for user-supplied template packs.
+    ///
+    /// Constructed from `config.templates.path` at orchestrator creation
+    /// time. When the path is `None`, this is still populated with an
+    /// embedded-only provider so generators can always call trait methods
+    /// without an `Option<…>` guard. v3.2.0+.
+    template_provider: datasynth_core::templates::SharedTemplateProvider,
 }
 
 impl EnhancedOrchestrator {
@@ -1477,6 +1484,11 @@ impl EnhancedOrchestrator {
                 .map_err(|e| SynthError::config(e.to_string()))?,
         };
 
+        // Build the shared template provider from config.templates.path.
+        // `None` → embedded-only provider (byte-identical pre-v3.2.0 output).
+        // `Some(path)` → load file/dir and honour `merge_strategy`.
+        let template_provider = Self::build_template_provider(&config)?;
+
         Ok(Self {
             config,
             phase_config,
@@ -1489,7 +1501,51 @@ impl EnhancedOrchestrator {
             copula_generators: Vec::new(),
             country_pack_registry,
             phase_sink: None,
+            template_provider,
         })
+    }
+
+    /// Build the shared template provider from `config.templates`.
+    ///
+    /// Always returns a provider — falls back to embedded-only when
+    /// `config.templates.path` is `None`. The merge-strategy from config
+    /// maps onto the loader's [`MergeStrategy`] enum. Load failures at
+    /// orchestrator-construction time are fatal (preferable to silently
+    /// using embedded pools when the user supplied a bad path).
+    fn build_template_provider(
+        config: &GeneratorConfig,
+    ) -> SynthResult<datasynth_core::templates::SharedTemplateProvider> {
+        use datasynth_core::templates::{
+            loader::{MergeStrategy, TemplateLoader},
+            DefaultTemplateProvider,
+        };
+        use std::sync::Arc;
+
+        let provider = match &config.templates.path {
+            None => DefaultTemplateProvider::new(),
+            Some(path) => {
+                let data = if path.is_dir() {
+                    TemplateLoader::load_from_directory(path)
+                } else {
+                    TemplateLoader::load_from_file(path)
+                }
+                .map_err(|e| {
+                    SynthError::config(format!(
+                        "Failed to load templates from {}: {e}",
+                        path.display()
+                    ))
+                })?;
+                let strategy = match config.templates.merge_strategy {
+                    datasynth_config::TemplateMergeStrategy::Extend => MergeStrategy::Extend,
+                    datasynth_config::TemplateMergeStrategy::Replace => MergeStrategy::Replace,
+                    datasynth_config::TemplateMergeStrategy::MergePreferFile => {
+                        MergeStrategy::MergePreferFile
+                    }
+                };
+                DefaultTemplateProvider::with_templates(data, strategy)
+            }
+        };
+        Ok(Arc::new(provider))
     }
 
     /// Create with default phase config.
@@ -9557,6 +9613,9 @@ impl EnhancedOrchestrator {
                 vendor_gen.set_country_pack(pack.clone());
                 vendor_gen.set_coa_framework(coa_framework);
                 vendor_gen.set_counter_offset(i * vendors_per_company);
+                // v3.2.0+: user-supplied bank names (and future template
+                // strings) flow through the shared provider.
+                vendor_gen.set_template_provider(self.template_provider.clone());
                 // Wire vendor network config when enabled
                 if self.config.vendor_network.enabled {
                     let vn = &self.config.vendor_network;
@@ -9596,6 +9655,8 @@ impl EnhancedOrchestrator {
                 customer_gen.set_country_pack(pack.clone());
                 customer_gen.set_coa_framework(coa_framework);
                 customer_gen.set_counter_offset(i * customers_per_company);
+                // v3.2.0+: user-supplied customer names flow through the shared provider.
+                customer_gen.set_template_provider(self.template_provider.clone());
                 // Wire customer segmentation config when enabled
                 if self.config.customer_segmentation.enabled {
                     let cs = &self.config.customer_segmentation;
