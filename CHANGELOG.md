@@ -5,6 +5,72 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.4.1] - 2026-04-20
+
+v3.4.0 Sub-group B1 — **Temporal wiring for P2P / O2C / document flows.**
+Follows v3.4.0's distributions wiring and starts the temporal-context
+work. HR / treasury / period-close ship in v3.4.2 / v3.4.3.
+
+### Unified temporal context
+
+- New `TemporalContext` struct in `datasynth-core/src/distributions/
+  temporal_context.rs` bundles a `HolidayCalendar` (multi-year union)
+  and `BusinessDayCalculator`. Construct once per pipeline, share
+  via `Arc<TemporalContext>`.
+- Methods: `is_business_day`, `adjust_to_business_day`,
+  `adjust_to_previous_business_day`, `sample_business_day_in_range`,
+  `calculator()` (raw access).
+- Multi-year span support: holidays are loaded per-year and merged,
+  so multi-year pipelines work correctly (previously each generator
+  built its own single-year calendar, silently missing holidays in
+  out-of-range years).
+- New helper `parse_region_code(code)` maps ISO-2 strings
+  (case-insensitive, "US" / "de" / "UK") onto `Region`.
+
+### Document-flow wiring
+
+- `P2PGenerator::set_temporal_context(Arc<TemporalContext>)` snaps
+  PO / GR / invoice / payment / partial-delivery dates to the next
+  business day. Internal `calculate_gr_date`, `calculate_invoice_
+  date`, `calculate_payment_date`, and `generate_goods_receipts`
+  second-delivery path all route through one `snap_to_business_day`
+  helper.
+- `O2CGenerator::set_temporal_context(Arc<TemporalContext>)` does
+  the same for SO / delivery / customer-invoice / receipt / due-date.
+- `generate_chain` in both generators snaps the incoming PO/SO date
+  so external callers that compute dates via raw `rng` still benefit.
+- `EnhancedOrchestrator` builds the shared context once at
+  construction time from `temporal_patterns.business_days.enabled`,
+  `temporal_patterns.calendars.regions[0]`, and the global date
+  span. Passes `Arc::clone(&ctx)` to P2P + O2C at generator build.
+
+### Tests
+
+- 5 new unit tests on `TemporalContext` (weekend detection, snap,
+  sample-never-weekend, multi-year holidays, region-code parsing).
+- 4 new integration tests in
+  `crates/datasynth-runtime/tests/temporal_context_smoke.rs`
+  (P2P + O2C weekend-free, disabled-baseline, downstream GR + invoice
+  weekend-free).
+
+### Compatibility
+
+- `temporal_patterns.business_days.enabled = false` (default)
+  preserves v3.4.0 byte-identical output with the same seed.
+- All existing smoke tests (audit_config_v332, l1_wiring,
+  distributions_wiring, fraud_bias) continue to pass unchanged.
+
+### Known gaps (deferred)
+
+- v3.4.2 ships HR temporal wiring (payroll, time-entry,
+  expense-report).
+- v3.4.3 ships treasury + period-close temporal wiring
+  (cash-forecast, production-order, accruals, depreciation).
+- Manufacturing generators are already date-light; scheduled for
+  review in v3.4.3.
+
+---
+
 ## [3.4.0] - 2026-04-20
 
 Opens the v3.4.0 release line with **Sub-group A — Distributions

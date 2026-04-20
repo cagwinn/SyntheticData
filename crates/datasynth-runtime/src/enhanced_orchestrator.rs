@@ -1541,6 +1541,13 @@ pub struct EnhancedOrchestrator {
     /// embedded-only provider so generators can always call trait methods
     /// without an `Option<…>` guard. v3.2.0+.
     template_provider: datasynth_core::templates::SharedTemplateProvider,
+    /// v3.4.1+ temporal context for business-day / holiday awareness.
+    ///
+    /// Populated only when `temporal_patterns.business_days.enabled`. When
+    /// `None`, document-flow / HR / treasury / period-close generators keep
+    /// their legacy raw-RNG date-offset behaviour (byte-identical to v3.4.0
+    /// for the same seed).
+    temporal_context: Option<Arc<datasynth_core::distributions::TemporalContext>>,
 }
 
 impl EnhancedOrchestrator {
@@ -1568,6 +1575,11 @@ impl EnhancedOrchestrator {
         // `Some(path)` → load file/dir and honour `merge_strategy`.
         let template_provider = Self::build_template_provider(&config)?;
 
+        // v3.4.1: build a shared temporal context when
+        // `temporal_patterns.business_days.enabled`. `None` preserves the
+        // raw-RNG date-offset behaviour per-generator.
+        let temporal_context = Self::build_temporal_context(&config)?;
+
         Ok(Self {
             config,
             phase_config,
@@ -1581,7 +1593,38 @@ impl EnhancedOrchestrator {
             country_pack_registry,
             phase_sink: None,
             template_provider,
+            temporal_context,
         })
+    }
+
+    /// Build the shared [`TemporalContext`] from `config.temporal_patterns`.
+    ///
+    /// Returns `Ok(None)` when temporal-pattern features are disabled — the
+    /// caller keeps its legacy raw-RNG path. Returns `Ok(Some(arc))` when
+    /// enabled. Returns `Err` only for unrecoverable config errors.
+    fn build_temporal_context(
+        config: &GeneratorConfig,
+    ) -> SynthResult<Option<Arc<datasynth_core::distributions::TemporalContext>>> {
+        use datasynth_core::distributions::{parse_region_code, TemporalContext};
+
+        let tp = &config.temporal_patterns;
+        if !tp.enabled || !tp.business_days.enabled {
+            return Ok(None);
+        }
+
+        let start_date = NaiveDate::parse_from_str(&config.global.start_date, "%Y-%m-%d")
+            .map_err(|e| SynthError::config(format!("Invalid start_date: {e}")))?;
+        let end_date = start_date + chrono::Months::new(config.global.period_months);
+
+        let region_code = tp
+            .calendars
+            .regions
+            .first()
+            .cloned()
+            .unwrap_or_else(|| "US".to_string());
+        let region = parse_region_code(&region_code);
+
+        Ok(Some(TemporalContext::shared(region, start_date, end_date)))
     }
 
     /// Build the shared template provider from `config.templates`.
@@ -9993,6 +10036,12 @@ impl EnhancedOrchestrator {
         let p2p_config = convert_p2p_config(&self.config.document_flows.p2p);
         let mut p2p_gen = P2PGenerator::with_config(self.seed + 1000, p2p_config);
         p2p_gen.set_country_pack(self.primary_pack().clone());
+        // v3.4.1: wire temporal context so PO/GR/invoice/payment dates snap
+        // to business days. No-op when `temporal_patterns.business_days.
+        // enabled = false`.
+        if let Some(ctx) = &self.temporal_context {
+            p2p_gen.set_temporal_context(Arc::clone(ctx));
+        }
 
         for i in 0..p2p_count {
             let vendor = &self.master_data.vendors[i % self.master_data.vendors.len()];
@@ -10064,6 +10113,10 @@ impl EnhancedOrchestrator {
         let o2c_config = convert_o2c_config(&self.config.document_flows.o2c);
         let mut o2c_gen = O2CGenerator::with_config(self.seed + 2000, o2c_config);
         o2c_gen.set_country_pack(self.primary_pack().clone());
+        // v3.4.1: wire temporal context (no-op when business_days disabled).
+        if let Some(ctx) = &self.temporal_context {
+            o2c_gen.set_temporal_context(Arc::clone(ctx));
+        }
 
         for i in 0..o2c_count {
             let customer = &self.master_data.customers[i % self.master_data.customers.len()];

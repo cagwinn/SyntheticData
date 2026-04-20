@@ -4,6 +4,7 @@
 //! SalesOrder → Delivery → CustomerInvoice → CustomerReceipt (Payment)
 
 use chrono::{Datelike, NaiveDate};
+use datasynth_core::distributions::TemporalContext;
 use datasynth_core::models::{
     documents::{
         CustomerInvoice, CustomerInvoiceItem, Delivery, DeliveryItem, DocumentReference,
@@ -20,6 +21,7 @@ use datasynth_core::CountryPack;
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
 use rust_decimal::Decimal;
+use std::sync::Arc;
 
 /// Configuration for O2C flow generation.
 #[derive(Debug, Clone)]
@@ -167,6 +169,9 @@ pub struct O2CGenerator {
     on_account_counter: usize,
     correction_counter: usize,
     country_pack: Option<CountryPack>,
+    /// v3.4.1+ temporal context for business-day-aware date selection.
+    /// `None` preserves the legacy raw-rng behavior (byte-identical).
+    temporal_context: Option<Arc<TemporalContext>>,
 }
 
 impl O2CGenerator {
@@ -190,12 +195,29 @@ impl O2CGenerator {
             on_account_counter: 0,
             correction_counter: 0,
             country_pack: None,
+            temporal_context: None,
         }
     }
 
     /// Set the country pack for locale-aware document texts.
     pub fn set_country_pack(&mut self, pack: CountryPack) {
         self.country_pack = Some(pack);
+    }
+
+    /// Set the shared [`TemporalContext`] so SO/delivery/invoice/receipt
+    /// dates snap to business days. `None` restores pre-v3.4.1 behavior
+    /// (byte-identical to v3.4.0 for the same seed).
+    pub fn set_temporal_context(&mut self, ctx: Arc<TemporalContext>) {
+        self.temporal_context = Some(ctx);
+    }
+
+    /// Snap a date to the next business day when a [`TemporalContext`] is
+    /// configured; otherwise return the date unchanged.
+    fn snap_to_business_day(&self, date: NaiveDate) -> NaiveDate {
+        match &self.temporal_context {
+            Some(ctx) => ctx.adjust_to_business_day(date),
+            None => date,
+        }
     }
 
     /// Build a document ID, preferring the country pack `reference_prefix` when set.
@@ -257,6 +279,9 @@ impl O2CGenerator {
         fiscal_period: u8,
         created_by: &str,
     ) -> O2CDocumentChain {
+        // v3.4.1: snap the incoming so_date to a business day when a
+        // `TemporalContext` is configured (mirrors the P2P pattern).
+        let so_date = self.snap_to_business_day(so_date);
         // Generate SO
         let mut so = self.generate_sales_order(
             company_code,
@@ -983,9 +1008,23 @@ impl O2CGenerator {
                 .into_iter()
                 .collect();
 
-            // Select random SO date
-            let so_date =
-                start_date + chrono::Duration::days(self.rng.random_range(0..=days_range) as i64);
+            // Select random SO date. Snap to a business day when a
+            // `TemporalContext` is present so weekend/holiday sales orders
+            // don't leak through.
+            let raw_offset = self.rng.random_range(0..=days_range) as i64;
+            let raw_date = start_date + chrono::Duration::days(raw_offset);
+            let so_date = match &self.temporal_context {
+                Some(ctx) => {
+                    let end = start_date + chrono::Duration::days(days_range as i64);
+                    let snapped = ctx.adjust_to_business_day(raw_date);
+                    if snapped > end {
+                        ctx.adjust_to_previous_business_day(end)
+                    } else {
+                        snapped
+                    }
+                }
+                None => raw_date,
+            };
             let fiscal_period = self.get_fiscal_period(so_date);
 
             let chain = self.generate_chain(
@@ -1030,14 +1069,17 @@ impl O2CGenerator {
     /// Calculate delivery date from SO date.
     fn calculate_delivery_date(&mut self, so_date: NaiveDate) -> NaiveDate {
         let variance = self.rng.random_range(0..3) as i64;
-        so_date + chrono::Duration::days(self.config.avg_days_so_to_delivery as i64 + variance)
+        let raw =
+            so_date + chrono::Duration::days(self.config.avg_days_so_to_delivery as i64 + variance);
+        self.snap_to_business_day(raw)
     }
 
     /// Calculate invoice date from delivery date.
     fn calculate_invoice_date(&mut self, delivery_date: NaiveDate) -> NaiveDate {
         let variance = self.rng.random_range(0..2) as i64;
-        delivery_date
-            + chrono::Duration::days(self.config.avg_days_delivery_to_invoice as i64 + variance)
+        let raw = delivery_date
+            + chrono::Duration::days(self.config.avg_days_delivery_to_invoice as i64 + variance);
+        self.snap_to_business_day(raw)
     }
 
     /// Calculate payment date based on customer behavior.
@@ -1080,7 +1122,9 @@ impl O2CGenerator {
             0
         };
 
-        invoice_date + chrono::Duration::days(base_days + behavior_adjustment + late_adjustment)
+        let raw = invoice_date
+            + chrono::Duration::days(base_days + behavior_adjustment + late_adjustment);
+        self.snap_to_business_day(raw)
     }
 
     /// Calculate due date based on payment terms.
@@ -1089,7 +1133,8 @@ impl O2CGenerator {
         invoice_date: NaiveDate,
         payment_terms: &PaymentTerms,
     ) -> NaiveDate {
-        invoice_date + chrono::Duration::days(payment_terms.net_days() as i64)
+        let raw = invoice_date + chrono::Duration::days(payment_terms.net_days() as i64);
+        self.snap_to_business_day(raw)
     }
 
     /// Select payment method based on distribution.

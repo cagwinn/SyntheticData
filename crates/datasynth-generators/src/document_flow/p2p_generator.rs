@@ -4,10 +4,12 @@
 //! PurchaseOrder → GoodsReceipt → VendorInvoice → Payment
 
 use chrono::{Datelike, NaiveDate};
+use datasynth_core::distributions::TemporalContext;
 use datasynth_core::utils::seeded_rng;
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
 use rust_decimal::Decimal;
+use std::sync::Arc;
 
 use datasynth_core::models::{
     documents::{
@@ -172,6 +174,9 @@ pub struct P2PGenerator {
     pay_counter: usize,
     three_way_matcher: ThreeWayMatcher,
     country_pack: Option<CountryPack>,
+    /// v3.4.1+ temporal context for business-day-aware date selection.
+    /// `None` preserves the legacy raw-rng behavior (byte-identical).
+    temporal_context: Option<Arc<TemporalContext>>,
 }
 
 impl P2PGenerator {
@@ -192,12 +197,20 @@ impl P2PGenerator {
             pay_counter: 0,
             three_way_matcher: ThreeWayMatcher::new(),
             country_pack: None,
+            temporal_context: None,
         }
     }
 
     /// Set the country pack for locale-aware document texts.
     pub fn set_country_pack(&mut self, pack: CountryPack) {
         self.country_pack = Some(pack);
+    }
+
+    /// Set the shared [`TemporalContext`] so PO/GR/invoice/payment dates
+    /// snap to business days. `None` restores pre-v3.4.1 raw-rng behavior
+    /// (byte-identical to v3.4.0 for the same seed).
+    pub fn set_temporal_context(&mut self, ctx: Arc<TemporalContext>) {
+        self.temporal_context = Some(ctx);
     }
 
     /// Build a document ID, preferring the country pack `reference_prefix` when set.
@@ -259,6 +272,11 @@ impl P2PGenerator {
         fiscal_period: u8,
         created_by: &str,
     ) -> P2PDocumentChain {
+        // v3.4.1: snap the incoming po_date to a business day when a
+        // `TemporalContext` is configured. This protects callers like
+        // `enhanced_orchestrator` that compute `po_date` externally via
+        // raw `start_date + Duration::days(offset)` arithmetic.
+        let po_date = self.snap_to_business_day(po_date);
         // Generate PO
         let po = self.generate_purchase_order(
             company_code,
@@ -501,7 +519,8 @@ impl P2PGenerator {
             receipts.push(gr1);
 
             // Second delivery (remaining quantity)
-            let second_date = gr_date + chrono::Duration::days(self.rng.random_range(3..10) as i64);
+            let raw_second = gr_date + chrono::Duration::days(self.rng.random_range(3..10) as i64);
+            let second_date = self.snap_to_business_day(raw_second);
             let second_period = self.get_fiscal_period(second_date);
             let gr2 = self.create_goods_receipt(
                 po,
@@ -968,9 +987,23 @@ impl P2PGenerator {
                 .into_iter()
                 .collect();
 
-            // Select random PO date
-            let po_date =
-                start_date + chrono::Duration::days(self.rng.random_range(0..=days_range) as i64);
+            // Select random PO date. When a `TemporalContext` is present,
+            // snap the draw to the nearest business day so weekend/holiday
+            // postings don't leak through.
+            let raw_offset = self.rng.random_range(0..=days_range) as i64;
+            let raw_date = start_date + chrono::Duration::days(raw_offset);
+            let po_date = match &self.temporal_context {
+                Some(ctx) => {
+                    let end = start_date + chrono::Duration::days(days_range as i64);
+                    let snapped = ctx.adjust_to_business_day(raw_date);
+                    if snapped > end {
+                        ctx.adjust_to_previous_business_day(end)
+                    } else {
+                        snapped
+                    }
+                }
+                None => raw_date,
+            };
             let fiscal_period = self.get_fiscal_period(po_date);
 
             let chain = self.generate_chain(
@@ -992,13 +1025,26 @@ impl P2PGenerator {
     /// Calculate GR date based on PO date.
     fn calculate_gr_date(&mut self, po_date: NaiveDate) -> NaiveDate {
         let variance = self.rng.random_range(0..5) as i64;
-        po_date + chrono::Duration::days(self.config.avg_days_po_to_gr as i64 + variance)
+        let raw = po_date + chrono::Duration::days(self.config.avg_days_po_to_gr as i64 + variance);
+        self.snap_to_business_day(raw)
     }
 
     /// Calculate invoice date based on GR date.
     fn calculate_invoice_date(&mut self, gr_date: NaiveDate) -> NaiveDate {
         let variance = self.rng.random_range(0..3) as i64;
-        gr_date + chrono::Duration::days(self.config.avg_days_gr_to_invoice as i64 + variance)
+        let raw =
+            gr_date + chrono::Duration::days(self.config.avg_days_gr_to_invoice as i64 + variance);
+        self.snap_to_business_day(raw)
+    }
+
+    /// Snap a date to the next business day when a [`TemporalContext`] is
+    /// configured; otherwise return the date unchanged. Centralises the
+    /// temporal-aware rewrite so GR/invoice/payment helpers share one impl.
+    fn snap_to_business_day(&self, date: NaiveDate) -> NaiveDate {
+        match &self.temporal_context {
+            Some(ctx) => ctx.adjust_to_business_day(date),
+            None => date,
+        }
     }
 
     /// Calculate payment date based on invoice date and payment terms.
@@ -1011,7 +1057,7 @@ impl P2PGenerator {
         let due_date = invoice_date + chrono::Duration::days(due_days);
 
         // Determine if this is a late payment
-        if self.rng.random::<f64>() < self.config.payment_behavior.late_payment_rate {
+        let raw = if self.rng.random::<f64>() < self.config.payment_behavior.late_payment_rate {
             // Calculate late days based on distribution
             let late_days = self.calculate_late_days();
             due_date + chrono::Duration::days(late_days as i64)
@@ -1019,7 +1065,8 @@ impl P2PGenerator {
             // On-time or slightly early payment (-5 to +5 days variance)
             let variance = self.rng.random_range(-5..=5) as i64;
             due_date + chrono::Duration::days(variance)
-        }
+        };
+        self.snap_to_business_day(raw)
     }
 
     /// Calculate late payment days based on the distribution.
