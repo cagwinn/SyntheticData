@@ -5,6 +5,71 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.4.0] - 2026-04-20
+
+Opens the v3.4.0 release line with **Sub-group A — Distributions
+wiring**. The schema-level `distributions` section (validated but
+previously inert) now has an observable runtime effect.  Temporal
+wiring (v3.4.0 Sub-group B — P2P/O2C, HR, treasury, period-close)
+ships in follow-on minors.
+
+### Advanced distributions (journal entries)
+
+- New `AdvancedAmountSampler` in `datasynth-core/src/distributions/`
+  wraps either a `LogNormalMixtureSampler` or `GaussianMixtureSampler`
+  (delegating to the existing mixture infrastructure).
+- New `JournalEntryGenerator::set_advanced_distributions(cfg, seed)`
+  method threads `distributions.amounts` (`MixtureDistributionSchema
+  Config`) into the JE amount-sampling path. Non-fraud entries sample
+  from the mixture; fraud entries continue to use the legacy
+  `AmountSampler::sample_fraud` (fraud patterns like just-under-
+  approval-threshold amounts are orthogonal to mixture modeling).
+- Industry profile fallback: when `distributions.industry_profile`
+  is set and `amounts.components` is empty, the runtime substitutes
+  the chosen industry's canonical `sales_amounts` mixture from
+  `IndustryAmountProfile::for_industry(...)`. Retail defaults to POS-
+  sized transactions; manufacturing to B2B-sized; etc.
+- New schema converters `MixtureDistributionSchemaConfig::
+  to_log_normal_config()` and `to_gaussian_config()` bridge the
+  config layer to `datasynth-core`.
+
+### Validation
+
+- `validate_mixture_config` now accepts an empty `components` list
+  when `distributions.industry_profile.is_some()` (the industry
+  profile fallback handles it). Previously this was always a hard
+  error.
+
+### Tests
+
+- New integration crate
+  `crates/datasynth-runtime/tests/distributions_wiring_smoke.rs`
+  (4 tests) covering: disabled→no-op, explicit mixture produces
+  positive amounts, retail < manufacturing mean ordering, and
+  empty-components-without-profile is rejected by validation.
+- `datasynth-core` adds 3 unit tests on `AdvancedAmountSampler`.
+
+### Compatibility
+
+- `distributions.enabled = false` (default) preserves v3.3.2 byte-
+  identical output with the same seed.
+- `distributions.enabled = true, amounts.enabled = false` is also
+  a no-op by design — allows users to opt into `correlations` or
+  `regime_changes` without flipping amounts.
+- `transactions.amounts` remains the source of truth for the
+  legacy path; soft-deprecation in favor of `distributions.amounts`
+  will land in v3.5.x.
+
+### Known gaps (deferred to later minors)
+
+- Sub-group A does not yet wire `distributions.correlations`,
+  `conditional`, `regime_changes`, or `validation` — these remain
+  schema-validated but runtime-inert.
+- Sub-group B (temporal wiring via a new `TemporalContext` bundle
+  threaded into P2P/O2C/HR/treasury/period-close) ships separately.
+
+---
+
 ## [3.3.2] - 2026-04-20
 
 Completes the audit fine-grained config track: the 5 `[Not yet wired]`

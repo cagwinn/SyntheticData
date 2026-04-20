@@ -5965,6 +5965,64 @@ impl Default for MixtureDistributionSchemaConfig {
     }
 }
 
+impl MixtureDistributionSchemaConfig {
+    /// Convert this schema-level config into a [`LogNormalMixtureConfig`]
+    /// suitable for `LogNormalMixtureSampler::new`. Returns `None` if there
+    /// are no components (schema default is an empty list, which cannot
+    /// drive a sampler).
+    ///
+    /// Callers should gate this with `self.enabled` before invoking.
+    pub fn to_log_normal_config(
+        &self,
+    ) -> Option<datasynth_core::distributions::LogNormalMixtureConfig> {
+        if self.components.is_empty() {
+            return None;
+        }
+        Some(datasynth_core::distributions::LogNormalMixtureConfig {
+            components: self
+                .components
+                .iter()
+                .map(|c| match &c.label {
+                    Some(lbl) => datasynth_core::distributions::LogNormalComponent::with_label(
+                        c.weight,
+                        c.mu,
+                        c.sigma,
+                        lbl.clone(),
+                    ),
+                    None => datasynth_core::distributions::LogNormalComponent::new(
+                        c.weight, c.mu, c.sigma,
+                    ),
+                })
+                .collect(),
+            min_value: self.min_value,
+            max_value: self.max_value,
+            decimal_places: self.decimal_places,
+        })
+    }
+
+    /// Convert this schema-level config into a [`GaussianMixtureConfig`].
+    /// Returns `None` if there are no components.
+    pub fn to_gaussian_config(
+        &self,
+    ) -> Option<datasynth_core::distributions::GaussianMixtureConfig> {
+        if self.components.is_empty() {
+            return None;
+        }
+        Some(datasynth_core::distributions::GaussianMixtureConfig {
+            components: self
+                .components
+                .iter()
+                .map(|c| {
+                    datasynth_core::distributions::GaussianComponent::new(c.weight, c.mu, c.sigma)
+                })
+                .collect(),
+            allow_negative: true,
+            min_value: Some(self.min_value),
+            max_value: self.max_value,
+        })
+    }
+}
+
 /// Mixture distribution type.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]

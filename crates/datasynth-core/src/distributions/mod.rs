@@ -29,6 +29,7 @@
 //! - **event_timeline**: Event timeline orchestrator
 //! - **drift_recorder**: Ground truth drift label recorder
 
+mod advanced_amount;
 mod amount;
 mod behavioral_drift;
 mod benford;
@@ -54,6 +55,7 @@ mod timezone;
 mod weibull;
 mod zero_inflated;
 
+pub use advanced_amount::*;
 pub use amount::*;
 pub use behavioral_drift::*;
 pub use benford::*;

@@ -11,12 +11,14 @@ use std::sync::Arc;
 use tracing::debug;
 
 use datasynth_config::schema::{
-    FraudConfig, GeneratorConfig, TemplateConfig, TemporalPatternsConfig, TransactionConfig,
+    AdvancedDistributionConfig, FraudConfig, GeneratorConfig, MixtureDistributionType,
+    TemplateConfig, TemporalPatternsConfig, TransactionConfig,
 };
 use datasynth_core::distributions::{
-    BusinessDayCalculator, CrossDayConfig, DriftAdjustments, DriftConfig, DriftController,
-    EventType, LagDistribution, PeriodEndConfig, PeriodEndDynamics, PeriodEndModel,
-    ProcessingLagCalculator, ProcessingLagConfig, *,
+    AdvancedAmountSampler, BusinessDayCalculator, CrossDayConfig, DriftAdjustments, DriftConfig,
+    DriftController, EventType, IndustryAmountProfile, IndustryType, LagDistribution,
+    PeriodEndConfig, PeriodEndDynamics, PeriodEndModel, ProcessingLagCalculator,
+    ProcessingLagConfig, *,
 };
 use datasynth_core::models::*;
 use datasynth_core::templates::{
@@ -76,6 +78,10 @@ pub struct JournalEntryGenerator {
     // sum to 1.0 (validated by config schema). Default matches the legacy
     // hard-coded 0.35/0.30/0.20/0.10/0.05 distribution.
     business_process_weights: [(BusinessProcess, f64); 5],
+    // v3.4.0 advanced distributions (mixture models + industry profiles).
+    // None preserves v3.3.2 byte-for-byte behavior; populated only when the
+    // caller opts in via [`set_advanced_distributions`].
+    advanced_amount_sampler: Option<AdvancedAmountSampler>,
 }
 
 const DEFAULT_BUSINESS_PROCESS_WEIGHTS: [(BusinessProcess, f64); 5] = [
@@ -85,6 +91,24 @@ const DEFAULT_BUSINESS_PROCESS_WEIGHTS: [(BusinessProcess, f64); 5] = [
     (BusinessProcess::H2R, 0.10),
     (BusinessProcess::A2R, 0.05),
 ];
+
+/// Map the schema-level [`datasynth_config::schema::IndustryProfileType`]
+/// onto the distributions-layer [`IndustryType`], then return that industry's
+/// pre-configured `sales_amounts` mixture. Used as a fallback when the
+/// caller enables `distributions.amounts` but supplies no components.
+fn industry_profile_to_log_normal(
+    p: datasynth_config::schema::IndustryProfileType,
+) -> datasynth_core::distributions::LogNormalMixtureConfig {
+    use datasynth_config::schema::IndustryProfileType as P;
+    let industry = match p {
+        P::Retail => IndustryType::Retail,
+        P::Manufacturing => IndustryType::Manufacturing,
+        P::FinancialServices => IndustryType::FinancialServices,
+        P::Healthcare => IndustryType::Healthcare,
+        P::Technology => IndustryType::Technology,
+    };
+    IndustryAmountProfile::for_industry(industry).sales_amounts
+}
 
 /// State for tracking batch processing behavior.
 ///
@@ -251,7 +275,58 @@ impl JournalEntryGenerator {
             processing_lag_calculator: None,
             temporal_patterns_config: None,
             business_process_weights: DEFAULT_BUSINESS_PROCESS_WEIGHTS,
+            advanced_amount_sampler: None,
         }
+    }
+
+    /// Wire v3.4.0 advanced distributions. When the caller's config has
+    /// `distributions.enabled = true` AND `distributions.amounts.enabled =
+    /// true`, the journal-entry generator routes non-fraud amount sampling
+    /// through an [`AdvancedAmountSampler`] (log-normal or Gaussian mixture).
+    ///
+    /// When `distributions.industry_profile` is `Some`, the caller's
+    /// explicitly configured components override nothing — if the component
+    /// list is empty, the industry profile's `sales_amounts` mixture is used
+    /// instead. Explicit components always win.
+    ///
+    /// Returning `Ok(())` with no side effect is intentional for the
+    /// following no-op cases, so callers can unconditionally invoke this:
+    ///   - `config.enabled = false`
+    ///   - `config.amounts.enabled = false`
+    ///   - empty component list with no industry profile
+    ///
+    /// Errors propagate from mixture validation (e.g. weights not summing
+    /// to 1.0, non-positive sigma).
+    pub fn set_advanced_distributions(
+        &mut self,
+        config: &AdvancedDistributionConfig,
+        seed: u64,
+    ) -> Result<(), String> {
+        if !config.enabled || !config.amounts.enabled {
+            return Ok(());
+        }
+
+        match config.amounts.distribution_type {
+            MixtureDistributionType::LogNormal => {
+                let lognormal_cfg = config.amounts.to_log_normal_config().or_else(|| {
+                    config
+                        .industry_profile
+                        .map(industry_profile_to_log_normal)
+                });
+                if let Some(cfg) = lognormal_cfg {
+                    self.advanced_amount_sampler =
+                        Some(AdvancedAmountSampler::new_log_normal(seed, cfg)?);
+                }
+            }
+            MixtureDistributionType::Gaussian => {
+                if let Some(cfg) = config.amounts.to_gaussian_config() {
+                    self.advanced_amount_sampler =
+                        Some(AdvancedAmountSampler::new_gaussian(seed, cfg)?);
+                }
+            }
+        }
+
+        Ok(())
     }
 
     /// Override the business-process volume mix. Weights map directly to the
@@ -1062,10 +1137,16 @@ impl JournalEntryGenerator {
         // Generate line items
         let mut entry = JournalEntry::new(header);
 
-        // Generate amount - use fraud pattern if this is a fraudulent transaction
+        // Generate amount - use fraud pattern if this is a fraudulent transaction.
+        // Non-fraud path prefers the v3.4.0 advanced sampler when configured; fraud
+        // patterns always use the legacy sampler because they target specific
+        // thresholds (round numbers, just-under-approval amounts) that are
+        // orthogonal to mixture models.
         let base_amount = if let Some(ft) = fraud_type {
             let pattern = self.fraud_type_to_amount_pattern(ft);
             self.amount_sampler.sample_fraud(pattern)
+        } else if let Some(ref mut adv) = self.advanced_amount_sampler {
+            adv.sample_decimal()
         } else {
             self.amount_sampler.sample()
         };
@@ -2061,6 +2142,9 @@ impl Generator for JournalEntryGenerator {
         self.line_sampler.reset(self.seed + 1);
         self.amount_sampler.reset(self.seed + 2);
         self.temporal_sampler.reset(self.seed + 3);
+        if let Some(ref mut adv) = self.advanced_amount_sampler {
+            adv.reset(self.seed + 2);
+        }
         self.count = 0;
         self.uuid_factory.reset();
 

@@ -779,8 +779,10 @@ fn validate_distributions(config: &GeneratorConfig) -> SynthResult<()> {
         return Ok(());
     }
 
-    // Validate mixture model configuration
-    validate_mixture_config(&dist.amounts)?;
+    // Validate mixture model configuration. When a preset `industry_profile`
+    // is chosen, an empty `components` list is a valid opt-in to fall back
+    // to the industry's canonical sales-amount mixture (v3.4.0+).
+    validate_mixture_config(&dist.amounts, dist.industry_profile.is_some())?;
 
     // Validate correlation configuration
     validate_correlation_config(&dist.correlations)?;
@@ -800,16 +802,25 @@ fn validate_distributions(config: &GeneratorConfig) -> SynthResult<()> {
 }
 
 /// Validate mixture model configuration.
+///
+/// When `industry_profile_fallback` is true, an empty `components` list is
+/// allowed (the runtime substitutes the chosen industry's pre-baked
+/// mixture). Otherwise empty components is a hard config error.
 fn validate_mixture_config(
     config: &crate::schema::MixtureDistributionSchemaConfig,
+    industry_profile_fallback: bool,
 ) -> SynthResult<()> {
     if !config.enabled {
         return Ok(());
     }
 
     if config.components.is_empty() {
+        if industry_profile_fallback {
+            return Ok(());
+        }
         return Err(SynthError::validation(
-            "distributions.amounts.components cannot be empty when enabled",
+            "distributions.amounts.components cannot be empty when enabled \
+             (unless `distributions.industry_profile` is set as a fallback)",
         ));
     }
 

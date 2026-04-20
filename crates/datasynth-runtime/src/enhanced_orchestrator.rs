@@ -10199,6 +10199,13 @@ impl EnhancedOrchestrator {
             bp.h2r_weight,
             bp.a2r_weight,
         );
+        // v3.4.0: wire advanced distributions (mixture models + industry
+        // profiles). No-op when `distributions.enabled = false` or
+        // `distributions.amounts.enabled = false`, preserving v3.3.2
+        // byte-identical output on default configs.
+        generator
+            .set_advanced_distributions(&self.config.distributions, self.seed + 400)
+            .map_err(|e| SynthError::config(format!("invalid distributions config: {e}")))?;
         let generator = generator;
 
         // Connect generated master data to ensure JEs reference real entities
