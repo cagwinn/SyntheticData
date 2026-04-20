@@ -5,6 +5,95 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.5.0] - 2026-04-20
+
+**LLM Template Enrichment (Track B1, offline).** Minimal slice of the
+plan's v3.5.0 target — an OFFLINE, deterministic CLI that uses an LLM
+backend to expand template YAML files. The runtime itself stays 100%
+offline: the LLM is only invoked by the new `templates enrich`
+subcommand, which writes enriched YAML that `generate` then consumes
+via v3.2.0's `--templates <path>` machinery.
+
+### New CLI subcommand
+
+```bash
+datasynth-data templates enrich \
+  --input ./in.yaml \
+  --output ./enriched.yaml \
+  --category vendor_name \
+  --industry retail \
+  --region DE \
+  --sub-category office_supplies \
+  --count 50 \
+  --backend mock \
+  --seed 42
+```
+
+Supported categories:
+- `vendor_name` — adds entries under `vendor_names.categories.<sub_category>`
+- `customer_name` — adds entries under `customer_names.industries.<industry>`
+- `material_desc` — adds entries under `material_descriptions.by_type.<sub_category>`
+
+Backends in v3.5.0:
+- `mock` — deterministic `MockLlmProvider` that hashes the prompt + seed
+  for reproducible CI-friendly output. **Default.**
+- `http` / `claude` / `openai` — **not yet supported in v3.5.0**; these
+  will land in v3.5.1 once the `llm` feature flag is exposed through
+  the CLI layer (the infrastructure already exists in `datasynth-core`
+  via `HttpLlmProvider`; just needs flag surface area).
+
+### New enrichers
+
+- `CustomerLlmEnricher` in
+  `crates/datasynth-generators/src/llm_enrichment/customer_enricher.rs`
+  — mirrors `VendorLlmEnricher`. `enrich_customer_name(industry,
+  segment, country) -> Result<String>` + batch variant + deterministic
+  fallback.
+- `MaterialLlmEnricher` in
+  `crates/datasynth-generators/src/llm_enrichment/material_enricher.rs`
+  — same pattern for material descriptions from
+  `(material_type, industry)` context.
+
+### Template infrastructure
+
+- `TemplateLoader::save_to_yaml` / `save_to_file` — round-trips
+  `TemplateData` back to YAML / JSON for the enrich flow. Creates
+  parent directories automatically.
+- `TemplateData.metadata.description` is set to a provenance string
+  (backend, category, industry, region, count, seed) so downstream
+  loaders and `templates validate` can surface how a file was created.
+
+### Tests
+
+- 5 new unit tests across `CustomerLlmEnricher` + `MaterialLlmEnricher`
+  (non-empty output, batch length preservation, country-tag fallbacks).
+- New integration crate `crates/datasynth-cli/tests/templates_enrich_smoke.rs`
+  (6 tests):
+  1. `vendor_name` enrichment produces YAML with expected sub_category key
+  2. `customer_name` enrichment keys by industry
+  3. `material_desc` enrichment keys by material type
+  4. unknown category rejected (non-zero exit)
+  5. unknown backend rejected
+  6. same seed → byte-identical output (determinism regression)
+
+### Compatibility
+
+- Existing `templates export` / `templates validate` subcommands unchanged.
+- `generate` pipeline is 100% offline — LLM never runs there.
+- All 31 prior smoke tests across v3.3+/v3.4+ continue to pass.
+
+### Deferred (follow-ups)
+
+- HTTP backend surfacing (Claude/OpenAI/Ollama) → v3.5.1 once the `llm`
+  feature flag is wired through the CLI layer.
+- Finding-title / finding-narrative enrichment → v3.5.2 (audit team
+  asked for this but the schema is richer and warrants a dedicated
+  release).
+- Per-category prompt library (industry-specific exemplars, region
+  cultural cues) → v3.5.2 — v3.5.0 uses simple parameterised prompts.
+
+---
+
 ## [3.4.4] - 2026-04-20
 
 Minimal slice of v3.4.0's plan Sub-group A (advanced samplers) —

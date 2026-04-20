@@ -291,6 +291,56 @@ enum TemplatesCommands {
         #[arg(short, long)]
         path: PathBuf,
     },
+
+    /// v3.5.0+: LLM-driven enrichment of a template YAML file.
+    ///
+    /// Appends N new names / descriptions to the specified category by
+    /// calling the chosen LLM backend offline (the mock backend is
+    /// deterministic). Runs outside the generate pipeline — the enriched
+    /// YAML is then consumed at generate time via `--templates <path>`.
+    Enrich {
+        /// Input template YAML to start from (use a file produced by
+        /// `templates export`). If the file doesn't exist, an empty
+        /// TemplateData is used as the starting point.
+        #[arg(short, long)]
+        input: PathBuf,
+
+        /// Output YAML path for the enriched data.
+        #[arg(short, long)]
+        output: PathBuf,
+
+        /// What to enrich: vendor_name | customer_name | material_desc
+        #[arg(long)]
+        category: String,
+
+        /// Industry context for the LLM prompt (e.g. retail, manufacturing).
+        #[arg(long, default_value = "retail")]
+        industry: String,
+
+        /// Region / country code for the LLM prompt (e.g. US, DE, FR).
+        #[arg(long, default_value = "US")]
+        region: String,
+
+        /// Spend category (for vendors) or segment (for customers) or
+        /// material type. Defaults to "general".
+        #[arg(long, default_value = "general")]
+        sub_category: String,
+
+        /// Number of items to generate. Appends to existing pool.
+        #[arg(long, default_value_t = 50)]
+        count: u32,
+
+        /// LLM backend: mock | http. "mock" is deterministic and works
+        /// offline; "http" requires the `llm` feature and a configured
+        /// endpoint via env vars (see `LlmConfig`).
+        #[arg(long, default_value = "mock")]
+        backend: String,
+
+        /// Deterministic seed (used by mock backend and for HTTP request
+        /// seeding when the provider supports it).
+        #[arg(long, default_value_t = 42)]
+        seed: u64,
+    },
 }
 
 #[derive(Subcommand)]
@@ -2319,6 +2369,27 @@ fn main() -> Result<()> {
         Commands::Templates { command } => match command {
             TemplatesCommands::Export { output } => handle_templates_export(&output),
             TemplatesCommands::Validate { path } => handle_templates_validate(&path),
+            TemplatesCommands::Enrich {
+                input,
+                output,
+                category,
+                industry,
+                region,
+                sub_category,
+                count,
+                backend,
+                seed,
+            } => handle_templates_enrich(
+                &input,
+                &output,
+                &category,
+                &industry,
+                &region,
+                &sub_category,
+                count,
+                &backend,
+                seed,
+            ),
         },
     }
 }
@@ -2421,6 +2492,157 @@ fn handle_templates_validate(path: &std::path::Path) -> Result<()> {
         }
         anyhow::bail!("{} warning(s) in {}", warnings.len(), path.display())
     }
+}
+
+/// v3.5.0+: LLM-driven enrichment of a template YAML file.
+///
+/// Loads the input template (or starts from empty if it doesn't exist),
+/// calls the chosen LLM backend to generate N new items for the given
+/// category, appends them to the appropriate pool, and writes the result
+/// to `output`. The mock backend is deterministic so CI and offline
+/// development can exercise the flow without external dependencies.
+#[allow(clippy::too_many_arguments)]
+fn handle_templates_enrich(
+    input: &std::path::Path,
+    output: &std::path::Path,
+    category: &str,
+    industry: &str,
+    region: &str,
+    sub_category: &str,
+    count: u32,
+    backend: &str,
+    seed: u64,
+) -> Result<()> {
+    use datasynth_core::llm::{LlmProvider, MockLlmProvider};
+    use datasynth_core::templates::loader::TemplateLoader;
+    use datasynth_generators::llm_enrichment::{
+        CustomerLlmEnricher, MaterialLlmEnricher, VendorLlmEnricher,
+    };
+    use std::sync::Arc;
+
+    // Load starting point. Missing input is OK — we just start empty.
+    let mut data = if input.exists() {
+        TemplateLoader::load_from_file(input)
+            .map_err(|e| anyhow::anyhow!("Failed to load input {}: {e}", input.display()))?
+    } else {
+        eprintln!(
+            "Input {} does not exist; starting from empty TemplateData",
+            input.display()
+        );
+        datasynth_core::templates::loader::TemplateData::default()
+    };
+
+    // Backend selection. Only "mock" is supported without the `llm`
+    // feature flag; the http backend delegates to HttpLlmProvider via
+    // LlmConfig (not currently exposed here — users who want live Claude
+    // should call the API directly and feed results through `templates
+    // validate`).
+    let provider: Arc<dyn LlmProvider> = match backend {
+        "mock" => Arc::new(MockLlmProvider::new(seed)),
+        other => anyhow::bail!(
+            "Unknown backend '{other}'. Supported: mock. \
+             (http/claude backends arrive in a follow-up release with \
+             the llm feature flag.)"
+        ),
+    };
+
+    // Build batch requests and call the right enricher.
+    let items: Vec<String> = match category {
+        "vendor_name" | "vendor" | "vendors" => {
+            let enricher = VendorLlmEnricher::new(Arc::clone(&provider));
+            let requests: Vec<(String, String, String)> = (0..count)
+                .map(|_| {
+                    (
+                        industry.to_string(),
+                        sub_category.to_string(),
+                        region.to_string(),
+                    )
+                })
+                .collect();
+            enricher
+                .enrich_batch(&requests, seed)
+                .map_err(|e| anyhow::anyhow!("vendor enrichment failed: {e}"))?
+        }
+        "customer_name" | "customer" | "customers" => {
+            let enricher = CustomerLlmEnricher::new(Arc::clone(&provider));
+            let requests: Vec<(String, String, String)> = (0..count)
+                .map(|_| {
+                    (
+                        industry.to_string(),
+                        sub_category.to_string(),
+                        region.to_string(),
+                    )
+                })
+                .collect();
+            enricher
+                .enrich_batch(&requests, seed)
+                .map_err(|e| anyhow::anyhow!("customer enrichment failed: {e}"))?
+        }
+        "material_desc" | "material" | "materials" => {
+            let enricher = MaterialLlmEnricher::new(Arc::clone(&provider));
+            let requests: Vec<(String, String)> = (0..count)
+                .map(|_| (sub_category.to_string(), industry.to_string()))
+                .collect();
+            enricher
+                .enrich_batch(&requests, seed)
+                .map_err(|e| anyhow::anyhow!("material enrichment failed: {e}"))?
+        }
+        other => anyhow::bail!(
+            "Unknown category '{other}'. Supported: vendor_name, customer_name, material_desc"
+        ),
+    };
+
+    // Merge into TemplateData. Each category has its own pool shape; we
+    // append under the best-matching bucket. Pools use industry or
+    // sub_category as the key when the underlying struct is map-shaped.
+    match category {
+        "vendor_name" | "vendor" | "vendors" => {
+            let bucket = data
+                .vendor_names
+                .categories
+                .entry(sub_category.to_string())
+                .or_default();
+            bucket.extend(items.iter().cloned());
+        }
+        "customer_name" | "customer" | "customers" => {
+            let bucket = data
+                .customer_names
+                .industries
+                .entry(industry.to_string())
+                .or_default();
+            bucket.extend(items.iter().cloned());
+        }
+        "material_desc" | "material" | "materials" => {
+            let bucket = data
+                .material_descriptions
+                .by_type
+                .entry(sub_category.to_string())
+                .or_default();
+            bucket.extend(items.iter().cloned());
+        }
+        _ => unreachable!("category was validated above"),
+    }
+
+    // Record provenance metadata. Future loaders can warn users if
+    // enriched data is being consumed without intent.
+    data.metadata.version = if data.metadata.version.is_empty() {
+        "1.0.0".to_string()
+    } else {
+        data.metadata.version.clone()
+    };
+    data.metadata.description = Some(format!(
+        "Enriched via `templates enrich` (backend={backend}, category={category}, \
+         industry={industry}, region={region}, count={count}, seed={seed})"
+    ));
+
+    TemplateLoader::save_to_file(&data, output)
+        .map_err(|e| anyhow::anyhow!("Failed to save {}: {e}", output.display()))?;
+
+    println!(
+        "✓ Added {count} {category} item(s) to {output_path} (backend={backend})",
+        output_path = output.display()
+    );
+    Ok(())
 }
 
 /// Resolve a fingerprint-signing key by walking the configured sources in

@@ -319,6 +319,62 @@ impl TemplateLoader {
         }
     }
 
+    /// Save template data to a YAML file. v3.5.0+ — used by
+    /// `datasynth-data templates enrich` to persist LLM-enriched pools.
+    ///
+    /// Creates the parent directory if it doesn't exist.
+    pub fn save_to_yaml(data: &TemplateData, path: &Path) -> Result<(), TemplateError> {
+        if let Some(parent) = path.parent() {
+            if !parent.as_os_str().is_empty() && !parent.exists() {
+                std::fs::create_dir_all(parent).map_err(|e| {
+                    TemplateError::new(format!("Failed to create parent directory: {e}"))
+                        .with_path(parent.display().to_string())
+                })?;
+            }
+        }
+
+        let yaml = serde_yaml::to_string(data).map_err(|e| {
+            TemplateError::new(format!("Failed to serialize YAML: {e}"))
+                .with_path(path.display().to_string())
+        })?;
+
+        std::fs::write(path, yaml).map_err(|e| {
+            TemplateError::new(format!("Failed to write file: {e}"))
+                .with_path(path.display().to_string())
+        })
+    }
+
+    /// Save template data to a file (auto-detect format by extension).
+    /// v3.5.0+.
+    pub fn save_to_file(data: &TemplateData, path: &Path) -> Result<(), TemplateError> {
+        let extension = path.extension().and_then(|e| e.to_str()).unwrap_or("yaml");
+        match extension.to_lowercase().as_str() {
+            "yaml" | "yml" => Self::save_to_yaml(data, path),
+            "json" => {
+                let json = serde_json::to_string_pretty(data).map_err(|e| {
+                    TemplateError::new(format!("Failed to serialize JSON: {e}"))
+                        .with_path(path.display().to_string())
+                })?;
+                if let Some(parent) = path.parent() {
+                    if !parent.as_os_str().is_empty() && !parent.exists() {
+                        std::fs::create_dir_all(parent).map_err(|e| {
+                            TemplateError::new(format!("Failed to create parent directory: {e}"))
+                                .with_path(parent.display().to_string())
+                        })?;
+                    }
+                }
+                std::fs::write(path, json).map_err(|e| {
+                    TemplateError::new(format!("Failed to write file: {e}"))
+                        .with_path(path.display().to_string())
+                })
+            }
+            _ => Err(TemplateError::new(format!(
+                "Unsupported file extension: {extension}. Use .yaml, .yml, or .json"
+            ))
+            .with_path(path.display().to_string())),
+        }
+    }
+
     /// Load all template files from a directory.
     pub fn load_from_directory(dir: &Path) -> Result<TemplateData, TemplateError> {
         if !dir.is_dir() {

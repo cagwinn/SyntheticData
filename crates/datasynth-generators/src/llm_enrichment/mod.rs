@@ -7,6 +7,8 @@
 
 pub mod anomaly_designer;
 pub mod anomaly_explainer;
+pub mod customer_enricher;
+pub mod material_enricher;
 pub mod transaction_enricher;
 pub mod vendor_enricher;
 
@@ -15,5 +17,7 @@ pub use anomaly_designer::{
     SchemeLibrary,
 };
 pub use anomaly_explainer::AnomalyLlmExplainer;
+pub use customer_enricher::CustomerLlmEnricher;
+pub use material_enricher::MaterialLlmEnricher;
 pub use transaction_enricher::TransactionLlmEnricher;
 pub use vendor_enricher::VendorLlmEnricher;
