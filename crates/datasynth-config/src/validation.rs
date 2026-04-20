@@ -2491,6 +2491,7 @@ mod tests {
             scenarios: ScenariosConfig::default(),
             session: SessionSchemaConfig::default(),
             compliance_regulations: ComplianceRegulationsConfig::default(),
+            analytics_metadata: AnalyticsMetadataConfig::default(),
         }
     }
 

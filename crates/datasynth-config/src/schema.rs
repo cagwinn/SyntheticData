@@ -192,6 +192,52 @@ pub struct GeneratorConfig {
     /// Compliance regulations framework configuration (standards registry, jurisdictions, temporal versioning, audit templates, graph integration)
     #[serde(default)]
     pub compliance_regulations: ComplianceRegulationsConfig,
+    /// v3.3.0: analytics metadata phase — prior-year comparatives,
+    /// industry benchmarks, management reports, drift events. Off by
+    /// default so v3.2.1 archives are byte-identical.
+    #[serde(default)]
+    pub analytics_metadata: AnalyticsMetadataConfig,
+}
+
+/// v3.3.0: analytics-metadata phase configuration.
+///
+/// Gates the `phase_analytics_metadata` pass that runs AFTER all
+/// JE-adding phases (including the fraud-bias sweep at Phase 20b).
+/// When enabled, the orchestrator calls `PriorYearGenerator`,
+/// `IndustryBenchmarkGenerator`, `ManagementReportGenerator`, and
+/// `DriftEventGenerator` in sequence; each sub-flag below controls
+/// whether that specific generator fires.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AnalyticsMetadataConfig {
+    /// Master switch for the whole analytics phase.
+    #[serde(default)]
+    pub enabled: bool,
+    /// Emit `PriorYearComparative` records derived from current
+    /// period's account balances.
+    #[serde(default = "default_true")]
+    pub prior_year: bool,
+    /// Emit `IndustryBenchmark` records for the configured industry.
+    #[serde(default = "default_true")]
+    pub industry_benchmark: bool,
+    /// Emit management-report artefacts.
+    #[serde(default = "default_true")]
+    pub management_reports: bool,
+    /// Emit `LabeledDriftEvent` records — post-generation sweep over
+    /// journal entries to label detected drift patterns.
+    #[serde(default = "default_true")]
+    pub drift_events: bool,
+}
+
+impl Default for AnalyticsMetadataConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            prior_year: true,
+            industry_benchmark: true,
+            management_reports: true,
+            drift_events: true,
+        }
+    }
 }
 
 /// LLM enrichment configuration.
@@ -4080,6 +4126,47 @@ pub struct AuditGenerationConfig {
     /// FSM-driven audit generation configuration.
     #[serde(default)]
     pub fsm: Option<AuditFsmConfig>,
+
+    /// v3.3.0: IT general controls (access logs, change management
+    /// records) emitted alongside audit engagements. Requires both
+    /// `audit.enabled = true` and `audit.it_controls.enabled = true`
+    /// to take effect — the latter defaults to `false` so current
+    /// archives are byte-identical to v3.2.1.
+    #[serde(default)]
+    pub it_controls: ItControlsConfig,
+}
+
+/// IT general controls config (v3.3.0+).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ItControlsConfig {
+    /// Master switch — when `false`, no access logs or change records
+    /// are generated.
+    #[serde(default)]
+    pub enabled: bool,
+    /// Number of access-log entries per engagement (approximate — the
+    /// generator may round or scale based on company size).
+    #[serde(default = "default_access_log_count")]
+    pub access_logs_per_engagement: usize,
+    /// Number of change-management records per engagement.
+    #[serde(default = "default_change_record_count")]
+    pub change_records_per_engagement: usize,
+}
+
+fn default_access_log_count() -> usize {
+    500
+}
+fn default_change_record_count() -> usize {
+    50
+}
+
+impl Default for ItControlsConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            access_logs_per_engagement: default_access_log_count(),
+            change_records_per_engagement: default_change_record_count(),
+        }
+    }
 }
 
 impl Default for AuditGenerationConfig {
@@ -4092,6 +4179,7 @@ impl Default for AuditGenerationConfig {
             team: AuditTeamConfig::default(),
             review: ReviewWorkflowConfig::default(),
             fsm: None,
+            it_controls: ItControlsConfig::default(),
         }
     }
 }
@@ -13078,6 +13166,39 @@ pub struct ComplianceRegulationsConfig {
     /// Output settings for compliance-specific files.
     #[serde(default)]
     pub output: ComplianceOutputConfig,
+    /// v3.3.0: legal-document generation (engagement letters,
+    /// management reps, legal opinions, regulatory filings, board
+    /// resolutions). Requires `compliance_regulations.enabled = true`
+    /// AND `legal_documents.enabled = true` to take effect.
+    #[serde(default)]
+    pub legal_documents: LegalDocumentsConfig,
+}
+
+/// Legal-document generation settings (v3.3.0+).
+///
+/// Wires `LegalDocumentGenerator` into the orchestrator. Generates one
+/// batch per audit engagement when enabled.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LegalDocumentsConfig {
+    /// Master switch.
+    #[serde(default)]
+    pub enabled: bool,
+    /// Probability of including a legal-opinion document in an engagement.
+    #[serde(default = "default_legal_opinion_probability")]
+    pub legal_opinion_probability: f64,
+}
+
+fn default_legal_opinion_probability() -> f64 {
+    0.40
+}
+
+impl Default for LegalDocumentsConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            legal_opinion_probability: default_legal_opinion_probability(),
+        }
+    }
 }
 
 /// Filters which standards are included in the generation.

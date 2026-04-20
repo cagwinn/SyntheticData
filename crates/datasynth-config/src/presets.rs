@@ -111,6 +111,7 @@ pub fn create_preset(
         scenarios: ScenariosConfig::default(),
         session: SessionSchemaConfig::default(),
         compliance_regulations: ComplianceRegulationsConfig::default(),
+        analytics_metadata: AnalyticsMetadataConfig::default(),
     }
 }
 

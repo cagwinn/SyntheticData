@@ -366,6 +366,7 @@ mod tests {
             scenarios: Default::default(),
             session: Default::default(),
             compliance_regulations: Default::default(),
+            analytics_metadata: Default::default(),
         };
 
         let mut manifest = RunManifest::new(&config, 42);

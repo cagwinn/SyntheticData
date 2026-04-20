@@ -381,6 +381,12 @@ pub fn write_all_output_with_layout(
             &md_dir.join("cost_centers.json"),
             "Cost centers",
         );
+        // v3.3.0: organizational profiles (one per company)
+        write_json_safe(
+            &result.master_data.organizational_profiles,
+            &md_dir.join("organizational_profiles.json"),
+            "Organizational profiles (v3.3.0)",
+        );
     }
 
     // ========================================================================
@@ -815,6 +821,25 @@ pub fn write_all_output_with_layout(
                 );
             }
         }
+
+        // v3.3.0: legal documents (when compliance_regulations.legal_documents.enabled)
+        write_json_safe(
+            &result.audit.legal_documents,
+            &audit_dir.join("legal_documents.json"),
+            "Legal documents (v3.3.0)",
+        );
+
+        // v3.3.0: IT general controls — access logs + change records
+        write_json_safe(
+            &result.audit.it_controls_access_logs,
+            &audit_dir.join("it_controls_access_logs.json"),
+            "IT general controls — access logs (v3.3.0)",
+        );
+        write_json_safe(
+            &result.audit.it_controls_change_records,
+            &audit_dir.join("it_controls_change_records.json"),
+            "IT general controls — change management records (v3.3.0)",
+        );
     } else {
         // Audit phase disabled or ran with no engagements — still emit
         // audit_opinions.json + key_audit_matters.json so the archive
@@ -1538,6 +1563,42 @@ pub fn write_all_output_with_layout(
                 }
             }
             Err(e) => warn!("Failed to serialize data quality stats: {}", e),
+        }
+    }
+
+    // ========================================================================
+    // v3.3.0: Analytics-metadata phase outputs (prior year, industry
+    // benchmarks, management reports, drift events).
+    // ========================================================================
+    {
+        let am = &result.analytics_metadata;
+        if !am.prior_year_comparatives.is_empty()
+            || !am.industry_benchmarks.is_empty()
+            || !am.management_reports.is_empty()
+            || !am.drift_events.is_empty()
+        {
+            let analytics_dir = output_dir.join("analytics");
+            std::fs::create_dir_all(&analytics_dir)?;
+            write_json_safe(
+                &am.prior_year_comparatives,
+                &analytics_dir.join("prior_year_comparatives.json"),
+                "Prior-year comparatives (v3.3.0)",
+            );
+            write_json_safe(
+                &am.industry_benchmarks,
+                &analytics_dir.join("industry_benchmarks.json"),
+                "Industry benchmarks (v3.3.0)",
+            );
+            write_json_safe(
+                &am.management_reports,
+                &analytics_dir.join("management_reports.json"),
+                "Management reports (v3.3.0)",
+            );
+            write_json_safe(
+                &am.drift_events,
+                &analytics_dir.join("drift_events.json"),
+                "Drift event labels (v3.3.0)",
+            );
         }
     }
 

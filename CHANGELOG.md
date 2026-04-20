@@ -5,6 +5,117 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.3.0] - 2026-04-19
+
+Minor release closing a big chunk of `docs/analysis/unused-features-inventory.md`:
+7 previously-dormant L1 generators now participate in the default
+pipeline when their config flags are enabled. Each generator already
+existed (defined, unit-tested, re-exported from `datasynth-generators`)
+but had no call site in `EnhancedOrchestrator` — v3.3.0 wires them
+all in.
+
+### Newly wired L1 generators (7)
+
+- **`OrganizationalProfileGenerator`** (`organizational_profile_generator.rs:203`)
+  emits one `OrganizationalProfile` per company during the master-data
+  phase. No new config flag — runs unconditionally alongside master
+  data generation, as profile metadata is cheap and universally
+  useful. Output: `master_data/organizational_profiles.json`.
+- **`LegalDocumentGenerator`** (`legal_document_generator.rs:118`) —
+  one batch of legal documents (engagement letters, management
+  representation letters, legal opinions, regulatory filings, board
+  resolutions) per audit engagement. Gated by the new
+  `compliance_regulations.legal_documents.enabled` flag (requires
+  `audit.enabled = true` and `compliance_regulations.enabled = true`
+  as prerequisites). Output: `audit/legal_documents.json`.
+- **`ItControlsGenerator`** (`it_controls_generator.rs:106`) — IT
+  general controls including access logs (login audit trail with
+  failed-login clusters) and change-management records (code deploys,
+  patches, config changes, access changes, emergency fixes). One pass
+  per company covering the full engagement period. Gated by the new
+  `audit.it_controls.enabled` flag. Outputs:
+  `audit/it_controls_access_logs.json` + `audit/it_controls_change_records.json`.
+- **`PriorYearGenerator`** (`prior_year_generator.rs:169`) — prior-year
+  comparatives derived from current-period account balances with a
+  realistic growth factor and Benford-compliant first-digit nudge.
+  Gated by the new `analytics_metadata.enabled` flag + per-sub-flag
+  `analytics_metadata.prior_year` (default on). Output:
+  `analytics/prior_year_comparatives.json`.
+- **`IndustryBenchmarkGenerator`** (`industry_benchmark_generator.rs:228`)
+  — industry benchmarks for the configured `global.industry`. Gated
+  by `analytics_metadata.industry_benchmark` (default on when the
+  phase is enabled). Output: `analytics/industry_benchmarks.json`.
+- **`ManagementReportGenerator`** (`management_report_generator.rs:86`)
+  — flash reports, monthly management reports, quarterly board
+  reports per company. Gated by `analytics_metadata.management_reports`.
+  Output: `analytics/management_reports.json`.
+- **`DriftEventGenerator`** (`drift_event_generator.rs:47`) —
+  standalone drift-event labels for the generation window. Gated by
+  `analytics_metadata.drift_events`. Output: `analytics/drift_events.json`.
+
+### Infrastructure
+
+- New `PhaseConfig` flags: `generate_legal_documents`,
+  `generate_it_controls`, `generate_analytics_metadata`. All default
+  to `false`; all auto-derive from the corresponding config section's
+  `enabled` field via `PhaseConfig::from_config`.
+- New `AnalyticsMetadataSnapshot` on `EnhancedGenerationResult` —
+  container for the four analytics sub-generator outputs.
+- `AuditSnapshot` grows three fields: `legal_documents`,
+  `it_controls_access_logs`, `it_controls_change_records`.
+- `MasterDataSnapshot` grows `organizational_profiles`.
+- New phase function `phase_analytics_metadata` placed at the very
+  end of `generate()` — AFTER Phase 20b's fraud-bias sweep — so the
+  derived outputs reflect final post-injection state.
+
+### Config schema
+
+- New top-level section `analytics_metadata`:
+  ```yaml
+  analytics_metadata:
+    enabled: false
+    prior_year: true
+    industry_benchmark: true
+    management_reports: true
+    drift_events: true
+  ```
+- New nested section `compliance_regulations.legal_documents`:
+  ```yaml
+  compliance_regulations:
+    legal_documents:
+      enabled: false
+      legal_opinion_probability: 0.40
+  ```
+- New nested section `audit.it_controls`:
+  ```yaml
+  audit:
+    it_controls:
+      enabled: false
+      access_logs_per_engagement: 500
+      change_records_per_engagement: 50
+  ```
+
+### Deferred
+
+- Sub-group A from the roadmap's v3.3.0 plan — building three new
+  accounting-standards generators (Leases / FairValue /
+  FrameworkReconciliation) from scratch — moves to v3.3.1. The types
+  already exist in `datasynth-standards/src/accounting/{leases,fair_value,differences}.rs`;
+  only the wrapper generators are missing. This split keeps v3.3.0
+  focused on pure wiring of existing generators and reserves a
+  dedicated release for the new builds.
+- Audit fine-grained config (the 5 `[Not yet wired]` fields in
+  `AuditGenerationConfig`) moves to v3.3.2 per roadmap.
+
+### Regression coverage
+
+- New `crates/datasynth-runtime/tests/l1_wiring_smoke.rs` — 5 tests
+  covering: organizational profile always-on emission, per-flag
+  generator activation (legal / IT / analytics), and the "all flags
+  off = v3.2.1 byte-identical default" guarantee.
+- All v3.1.2 / v3.2.0 / v3.2.1 regression guards continue to pass:
+  `fraud_bias_smoke`, `flat_export_smoke`, `template_override_smoke`.
+
 ## [3.2.1] - 2026-04-19
 
 Patch release completing master-data realism Track A P1: the remaining
