@@ -302,7 +302,24 @@ impl JournalEntryGenerator {
         config: &AdvancedDistributionConfig,
         seed: u64,
     ) -> Result<(), String> {
-        if !config.enabled || !config.amounts.enabled {
+        if !config.enabled {
+            return Ok(());
+        }
+
+        // v3.4.4+: Pareto takes precedence over mixture models when set.
+        // This supports heavy-tailed amount distributions (capex, strategic
+        // contracts, fraud) that log-normal/Gaussian mixtures can't model
+        // as sharply.
+        if let Some(pareto) = &config.pareto {
+            if pareto.enabled {
+                let core_cfg = pareto.to_core_config();
+                self.advanced_amount_sampler =
+                    Some(AdvancedAmountSampler::new_pareto(seed, core_cfg)?);
+                return Ok(());
+            }
+        }
+
+        if !config.amounts.enabled {
             return Ok(());
         }
 

@@ -5,6 +5,63 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.4.4] - 2026-04-20
+
+Minimal slice of v3.4.0's plan Sub-group A (advanced samplers) —
+**Pareto heavy-tailed distribution for monetary amounts**. Ships the
+sampler that most directly improves realism for financial data
+(capex, strategic contracts, fraud amounts) while leaving the copula
+and Beta/Weibull/ZeroInflated/Conditional work for later minors when
+demand surfaces.
+
+### Pareto sampling
+
+- `AdvancedAmountSampler` gains a `Pareto(ParetoSampler)` variant plus
+  `new_pareto(seed, config)` factory. `sample_decimal` + `reset`
+  dispatch like the existing LogNormal / Gaussian variants.
+- New `ParetoSchemaConfig` in `crates/datasynth-config/src/schema.rs`
+  (fields: `enabled`, `alpha`, `x_min`, `max_value`, `decimal_places`
+  — defaults `2.0 / 100.0 / None / 2`). Includes `to_core_config()`
+  converter.
+- New `distributions.pareto: Option<ParetoSchemaConfig>` field on
+  `AdvancedDistributionConfig`. `None` (default) preserves v3.4.3
+  behavior.
+- `JournalEntryGenerator::set_advanced_distributions` now honors
+  Pareto with **precedence** over the mixture config: when
+  `distributions.pareto.enabled = true`, the generator builds a Pareto
+  sampler and returns early. Otherwise it falls through to the
+  existing LogNormal / Gaussian / industry-profile logic.
+- Fraud path unchanged (patterns remain orthogonal to amount
+  distribution choice).
+
+### Tests
+
+- 2 new unit tests in `datasynth-core::distributions::advanced_amount`
+  (heavy-tail behavior, deterministic reset).
+- New integration crate `pareto_sampler_smoke.rs` (3 tests):
+  1. enabled Pareto produces heavy-tailed amounts (most >= x_min, some
+     > 10×x_min) at the JE-entry total level.
+  2. disabled Pareto is a no-op (legacy path).
+  3. enabled Pareto takes precedence over an explicit mixture config.
+
+### Compatibility
+
+- `distributions.pareto = None` (default) preserves v3.4.3
+  byte-identical output for the same seed.
+- All 31 smoke tests across v3.3+/v3.4+ continue to pass.
+
+### Deferred
+
+- Copula-based cross-field correlations (Gaussian/Clayton/Gumbel/
+  Frank/StudentT) — v3.4.x follow-up when demand surfaces.
+- Beta / Weibull / ZeroInflated / Conditional sampler variants —
+  same; they already exist in `datasynth-core` but are not wired
+  through config.
+- `datasynth-audit-optimizer` CLI surfacing — per plan, this moves
+  to v3.5.x if the audit-optimizer team requests it.
+
+---
+
 ## [3.4.3] - 2026-04-20
 
 v3.4.0 Sub-group B3 + B4 — **Manufacturing + period-close temporal

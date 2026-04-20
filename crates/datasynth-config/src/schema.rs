@@ -5894,6 +5894,81 @@ pub struct AdvancedDistributionConfig {
     /// Statistical validation configuration.
     #[serde(default)]
     pub validation: StatisticalValidationSchemaConfig,
+
+    /// v3.4.4+ — Pareto heavy-tailed distribution for monetary amounts.
+    /// When set and `enabled`, overrides `amounts` mixture model for the
+    /// non-fraud amount-sampling path (fraud patterns remain orthogonal).
+    /// Useful for capex, strategic contracts, and any domain where a small
+    /// number of very large values dominates the tail.
+    #[serde(default)]
+    pub pareto: Option<ParetoSchemaConfig>,
+}
+
+/// Schema-level Pareto distribution configuration (v3.4.4+).
+///
+/// Thin wrapper around `datasynth_core::distributions::ParetoConfig` that
+/// adds an `enabled` gate and serde-friendly field names.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ParetoSchemaConfig {
+    /// Enable Pareto sampling. When true, replaces the `amounts` mixture
+    /// model for the non-fraud amount-sampling path.
+    #[serde(default)]
+    pub enabled: bool,
+
+    /// Shape parameter (tail heaviness). Lower values → heavier tail.
+    /// Typical range: 1.5-3.0. Default: 2.0.
+    #[serde(default = "default_pareto_alpha")]
+    pub alpha: f64,
+
+    /// Scale / minimum value. All samples are >= x_min.
+    /// Typical: 1000 (for capex) to 100,000 (for large contracts). Default: 100.
+    #[serde(default = "default_pareto_x_min")]
+    pub x_min: f64,
+
+    /// Optional upper clamp. `None` = unbounded (recommended for realistic
+    /// heavy tails).
+    #[serde(default)]
+    pub max_value: Option<f64>,
+
+    /// Decimal places for rounding. Default: 2.
+    #[serde(default = "default_pareto_decimal_places")]
+    pub decimal_places: u8,
+}
+
+fn default_pareto_alpha() -> f64 {
+    2.0
+}
+
+fn default_pareto_x_min() -> f64 {
+    100.0
+}
+
+fn default_pareto_decimal_places() -> u8 {
+    2
+}
+
+impl Default for ParetoSchemaConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            alpha: default_pareto_alpha(),
+            x_min: default_pareto_x_min(),
+            max_value: None,
+            decimal_places: default_pareto_decimal_places(),
+        }
+    }
+}
+
+impl ParetoSchemaConfig {
+    /// Convert this schema config into a `datasynth_core::distributions::ParetoConfig`.
+    pub fn to_core_config(&self) -> datasynth_core::distributions::ParetoConfig {
+        datasynth_core::distributions::ParetoConfig {
+            alpha: self.alpha,
+            x_min: self.x_min,
+            max_value: self.max_value,
+            decimal_places: self.decimal_places,
+        }
+    }
 }
 
 /// Industry profile types for pre-configured distribution settings.
