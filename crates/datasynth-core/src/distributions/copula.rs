@@ -200,6 +200,7 @@ impl CopulaConfig {
 }
 
 /// Bivariate copula sampler.
+#[derive(Clone)]
 pub struct BivariateCopulaSampler {
     rng: ChaCha8Rng,
     config: CopulaConfig,

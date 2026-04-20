@@ -873,13 +873,16 @@ fn validate_correlation_config(config: &crate::schema::CorrelationSchemaConfig) 
         ));
     }
 
-    // Check matrix size
-    let expected_matrix_size = n * (n - 1) / 2;
-    if config.matrix.len() != expected_matrix_size {
+    // Check matrix size. Accept either:
+    //   - upper-triangular flat: n*(n-1)/2 elements (compact)
+    //   - full symmetric n×n: n*n elements (matches the CLAUDE.md
+    //     example that's been in the docs since v3.4)
+    let expected_tri = n * (n - 1) / 2;
+    let expected_full = n * n;
+    if config.matrix.len() != expected_tri && config.matrix.len() != expected_full {
         return Err(SynthError::validation(format!(
-            "distributions.correlations.matrix must have {} elements for {} fields, got {}",
-            expected_matrix_size,
-            n,
+            "distributions.correlations.matrix must have {expected_tri} (upper-triangular) \
+             or {expected_full} (full symmetric) elements for {n} fields, got {}",
             config.matrix.len()
         )));
     }

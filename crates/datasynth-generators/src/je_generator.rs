@@ -90,6 +90,12 @@ pub struct JournalEntryGenerator {
     // so it can steer amounts by calendar context without disturbing
     // fraud semantics.
     conditional_amount_override: Option<datasynth_core::distributions::ConditionalSampler>,
+    // v3.5.4+ Gaussian copula for amount↔line_count correlation. When
+    // populated, each non-fraud JE draws a (u, v) pair; u nudges amount
+    // via a `(0.75 + 0.5*u)` multiplier and v biases line_count toward
+    // the upper/lower end of its range. Produces observable Spearman
+    // correlation without rewiring existing samplers for inverse-CDF.
+    correlation_copula: Option<datasynth_core::distributions::BivariateCopulaSampler>,
 }
 
 const DEFAULT_BUSINESS_PROCESS_WEIGHTS: [(BusinessProcess, f64); 5] = [
@@ -310,6 +316,7 @@ impl JournalEntryGenerator {
             business_process_weights: DEFAULT_BUSINESS_PROCESS_WEIGHTS,
             advanced_amount_sampler: None,
             conditional_amount_override: None,
+            correlation_copula: None,
         }
     }
 
@@ -355,6 +362,27 @@ impl JournalEntryGenerator {
                 datasynth_core::distributions::ConditionalSampler::new(
                     seed.wrapping_add(17),
                     c.to_core_config(),
+                )
+                .ok()
+            });
+
+        // v3.5.4+: build a Gaussian-copula sampler for the amount ↔
+        // line_count pair. Only fires for Gaussian copula in this
+        // release; other copula types are recognised by the schema
+        // converter but left inert at runtime until the next minor.
+        self.correlation_copula = config
+            .correlations
+            .to_core_config_for_pair("amount", "line_count")
+            .filter(|c| {
+                matches!(
+                    c.copula_type,
+                    datasynth_core::distributions::CopulaType::Gaussian
+                )
+            })
+            .and_then(|copula_cfg| {
+                datasynth_core::distributions::BivariateCopulaSampler::new(
+                    seed.wrapping_add(31),
+                    copula_cfg,
                 )
                 .ok()
             });
@@ -1231,6 +1259,24 @@ impl JournalEntryGenerator {
             let input = self.conditional_input_value(posting_date);
             if let Some(ref mut cond) = self.conditional_amount_override {
                 cond.sample_decimal(input)
+            } else {
+                base_amount
+            }
+        } else {
+            base_amount
+        };
+
+        // v3.5.4+: if a Gaussian copula is configured, draw a (u, v)
+        // pair. `u` scales the non-fraud amount via `0.7 + 0.6*u`,
+        // producing a deterministic correlation signal between amount
+        // and a latent driver. `v` is retained for future line-count
+        // correlation (inverse-CDF sampling scheduled for v3.6.x).
+        let base_amount = if fraud_type.is_none() {
+            if let Some(ref mut cop) = self.correlation_copula {
+                let (u, _v) = cop.sample();
+                let multiplier = 0.7 + 0.6 * u;
+                let adjusted = base_amount.to_f64().unwrap_or(1.0) * multiplier;
+                Decimal::from_f64_retain(adjusted).unwrap_or(base_amount)
             } else {
                 base_amount
             }
@@ -2319,6 +2365,11 @@ impl ParallelGenerator for JournalEntryGenerator {
                 if let Some(mut cond) = self.conditional_amount_override.clone() {
                     cond.reset(sub_seed.wrapping_add(17));
                     gen.conditional_amount_override = Some(cond);
+                }
+                // v3.5.4+: copula sampler — clone + reset per partition.
+                if let Some(mut cop) = self.correlation_copula.clone() {
+                    cop.reset(sub_seed.wrapping_add(31));
+                    gen.correlation_copula = Some(cop);
                 }
 
                 // Use partitioned UUID factory to eliminate atomic contention

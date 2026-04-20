@@ -6163,6 +6163,74 @@ impl Default for CorrelationSchemaConfig {
     }
 }
 
+impl CorrelationSchemaConfig {
+    /// v3.5.4+: extract the correlation for a specific field pair from
+    /// either the upper-triangular flat matrix (n*(n-1)/2 values) or a
+    /// full symmetric n×n matrix (n*n values). Returns `None` when the
+    /// named fields aren't both present or the matrix shape doesn't
+    /// match.
+    pub fn correlation_between(&self, field_a: &str, field_b: &str) -> Option<f64> {
+        let idx_a = self.fields.iter().position(|f| f.name == field_a)?;
+        let idx_b = self.fields.iter().position(|f| f.name == field_b)?;
+        if idx_a == idx_b {
+            return Some(1.0);
+        }
+        let (i, j) = if idx_a < idx_b {
+            (idx_a, idx_b)
+        } else {
+            (idx_b, idx_a)
+        };
+        let n = self.fields.len();
+        // Full n×n symmetric matrix?
+        if self.matrix.len() == n * n {
+            return self.matrix.get(idx_a * n + idx_b).copied();
+        }
+        // Upper triangular flat (row-major, excluding diagonal)?
+        let expected_tri = n * (n - 1) / 2;
+        if self.matrix.len() == expected_tri {
+            // Row i, col j where j > i: flat index is
+            //   sum_{k=0..i}((n-1-k)) + (j - i - 1)
+            // = i*(n-1) - i*(i-1)/2 + (j - i - 1)
+            let flat = i * (n - 1) - i * (i.saturating_sub(1)) / 2 + (j - i - 1);
+            return self.matrix.get(flat).copied();
+        }
+        None
+    }
+
+    /// Convert this schema config to a core `CopulaConfig` when the
+    /// declared field pair `(field_a, field_b)` has a valid correlation
+    /// entry. Returns `None` when disabled, fields missing, or matrix
+    /// malformed.
+    pub fn to_core_config_for_pair(
+        &self,
+        field_a: &str,
+        field_b: &str,
+    ) -> Option<datasynth_core::distributions::CopulaConfig> {
+        if !self.enabled {
+            return None;
+        }
+        let rho = self.correlation_between(field_a, field_b)?;
+        use datasynth_core::distributions::{CopulaConfig, CopulaType};
+        let copula_type = match self.copula_type {
+            CopulaSchemaType::Gaussian => CopulaType::Gaussian,
+            CopulaSchemaType::Clayton => CopulaType::Clayton,
+            CopulaSchemaType::Gumbel => CopulaType::Gumbel,
+            CopulaSchemaType::Frank => CopulaType::Frank,
+            CopulaSchemaType::StudentT => CopulaType::StudentT,
+        };
+        // Gaussian / StudentT interpret theta as correlation; others
+        // as a shape parameter. Minimal v3.5.4 only wires Gaussian in
+        // the runtime, but the converter is general so follow-ups can
+        // light up the other copulas.
+        let theta = rho.clamp(-0.999, 0.999);
+        Some(CopulaConfig {
+            copula_type,
+            theta,
+            degrees_of_freedom: 4.0,
+        })
+    }
+}
+
 /// Copula type for dependency modeling.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]

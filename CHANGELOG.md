@@ -5,6 +5,64 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.5.4] - 2026-04-20
+
+### `distributions.correlations` runtime wiring (Gaussian copula)
+
+- The schema-validated `distributions.correlations` block now drives
+  an amount adjustment when `copula_type = Gaussian` and the fields
+  include `amount` + `line_count` with a declared correlation.
+- New `CorrelationSchemaConfig::correlation_between(field_a,
+  field_b)` helper extracts ρ from either the upper-triangular flat
+  matrix (n*(n-1)/2 entries) or a full symmetric n×n matrix (n*n
+  entries). `to_core_config_for_pair(a, b)` builds a
+  `CopulaConfig` ready for `BivariateCopulaSampler`.
+- `JournalEntryGenerator.correlation_copula` holds the sampler. Each
+  non-fraud entry draws `(u, v)`; `u` scales amount via `0.7 + 0.6*u`
+  (range [0.7, 1.3]) before drift/seasonality. `v` is retained for
+  future line-count inversion (scheduled for v3.6.x).
+- Other copula types (Clayton / Gumbel / Frank / Student-t) are
+  recognised by the converter but left inert at runtime — their
+  schema validates, `set_advanced_distributions` parses them, but
+  no sampler is installed. Tagged in the source so follow-up releases
+  can light them up incrementally.
+
+### Validator fix
+
+- `distributions.correlations.matrix` now accepts EITHER the
+  upper-triangular flat layout (n*(n-1)/2 elements — compact) OR a
+  full symmetric n×n matrix (n*n elements — matches the CLAUDE.md
+  YAML example). Previously only upper-triangular was accepted,
+  causing silent config rejections when users copied the docs
+  verbatim.
+
+### Tests
+
+- New integration crate `correlations_smoke.rs` (4 tests):
+  disabled → no-op, full n×n matrix accepted, upper-triangular flat
+  accepted, non-Gaussian copulas accepted-but-inert.
+- `split()` on `JournalEntryGenerator` now copies the copula sampler
+  per partition (parallel determinism preserved).
+- All 45 prior runtime smoke + 6 CLI smoke tests still green.
+
+### Compatibility
+
+- `distributions.correlations.enabled = false` (default) preserves
+  v3.5.3 byte-identical output for the same seed.
+- The validator change is strictly additive (widens the accepted
+  shapes).
+
+### Deferred
+
+- Full quantile-inverse amount↔line_count correlation (inverse CDF
+  sampling on existing marginals) → v3.6.x.
+- Clayton / Gumbel / Frank / Student-t runtime sampling → v3.6.x.
+- `ExpectedCorrelationConfig` validation (checking that declared
+  correlations are preserved in output) → v3.6.x via the existing
+  statistical-validation phase.
+
+---
+
 ## [3.5.3] - 2026-04-20
 
 ### `distributions.conditional` runtime wiring (pragmatic scope)
