@@ -897,6 +897,23 @@ pub struct AccountingStandardsSnapshot {
     pub provision_count: usize,
     /// Currency translation result count (IAS 21).
     pub currency_translation_count: usize,
+    // ---- v3.3.1: Lease / FairValue / FrameworkReconciliation ----
+    /// Lease contracts (IFRS 16 / ASC 842). Each entry carries its own
+    /// ROU asset + lease liability details.
+    pub leases: Vec<datasynth_standards::accounting::leases::Lease>,
+    /// Fair value measurements (IFRS 13 / ASC 820) across Level 1/2/3.
+    pub fair_value_measurements:
+        Vec<datasynth_standards::accounting::fair_value::FairValueMeasurement>,
+    /// Framework difference records (dual-reporting only).
+    pub framework_differences:
+        Vec<datasynth_standards::accounting::differences::FrameworkDifferenceRecord>,
+    /// Per-entity framework reconciliation (dual-reporting only).
+    pub framework_reconciliations:
+        Vec<datasynth_standards::accounting::differences::FrameworkReconciliation>,
+    /// Counts for stats logging.
+    pub lease_count: usize,
+    pub fair_value_measurement_count: usize,
+    pub framework_difference_count: usize,
 }
 
 /// Compliance regulations framework snapshot (standards, procedures, findings, filings, graph).
@@ -7323,18 +7340,118 @@ impl EnhancedOrchestrator {
         stats.ecl_model_count = snapshot.ecl_model_count;
         stats.provision_count = snapshot.provision_count;
 
+        // ------------------------------------------------------------
+        // v3.3.1: Lease accounting (IFRS 16 / ASC 842)
+        // ------------------------------------------------------------
+        if self.config.accounting_standards.leases.enabled {
+            use datasynth_generators::standards::LeaseGenerator;
+            let start_date = NaiveDate::parse_from_str(&self.config.global.start_date, "%Y-%m-%d")
+                .unwrap_or_else(|_| {
+                    NaiveDate::from_ymd_opt(2025, 1, 1).expect("hardcoded 2025-01-01 is valid")
+                });
+            let framework =
+                Self::resolve_accounting_framework(self.config.accounting_standards.framework);
+            let mut lease_gen = LeaseGenerator::new(self.seed + 9500);
+            for company in &self.config.companies {
+                let leases = lease_gen.generate(
+                    &company.code,
+                    start_date,
+                    &self.config.accounting_standards.leases,
+                    framework,
+                );
+                snapshot.lease_count += leases.len();
+                snapshot.leases.extend(leases);
+            }
+            info!("v3.3.1 lease accounting: {} leases", snapshot.lease_count);
+        }
+
+        // ------------------------------------------------------------
+        // v3.3.1: Fair value measurements (IFRS 13 / ASC 820)
+        // ------------------------------------------------------------
+        if self.config.accounting_standards.fair_value.enabled {
+            use datasynth_generators::standards::FairValueGenerator;
+            let end_date = NaiveDate::parse_from_str(&self.config.global.start_date, "%Y-%m-%d")
+                .unwrap_or_else(|_| NaiveDate::from_ymd_opt(2025, 1, 1).expect("hardcoded valid"))
+                + chrono::Months::new(self.config.global.period_months);
+            let framework =
+                Self::resolve_accounting_framework(self.config.accounting_standards.framework);
+            let mut fv_gen = FairValueGenerator::new(self.seed + 9600);
+            for company in &self.config.companies {
+                let measurements = fv_gen.generate(
+                    &company.code,
+                    end_date,
+                    &company.currency,
+                    &self.config.accounting_standards.fair_value,
+                    framework,
+                );
+                snapshot.fair_value_measurement_count += measurements.len();
+                snapshot.fair_value_measurements.extend(measurements);
+            }
+            info!(
+                "v3.3.1 fair value measurements: {}",
+                snapshot.fair_value_measurement_count
+            );
+        }
+
+        // ------------------------------------------------------------
+        // v3.3.1: Framework reconciliation (dual reporting only)
+        // ------------------------------------------------------------
+        if self.config.accounting_standards.generate_differences
+            && matches!(
+                self.config.accounting_standards.framework,
+                Some(datasynth_config::schema::AccountingFrameworkConfig::DualReporting)
+            )
+        {
+            use datasynth_generators::standards::FrameworkReconciliationGenerator;
+            let end_date = NaiveDate::parse_from_str(&self.config.global.start_date, "%Y-%m-%d")
+                .unwrap_or_else(|_| NaiveDate::from_ymd_opt(2025, 1, 1).expect("hardcoded valid"))
+                + chrono::Months::new(self.config.global.period_months);
+            let mut recon_gen = FrameworkReconciliationGenerator::new(self.seed + 9700);
+            for company in &self.config.companies {
+                let (records, reconciliation) = recon_gen.generate(&company.code, end_date);
+                snapshot.framework_difference_count += records.len();
+                snapshot.framework_differences.extend(records);
+                snapshot.framework_reconciliations.push(reconciliation);
+            }
+            info!(
+                "v3.3.1 framework reconciliation: {} differences across {} entities",
+                snapshot.framework_difference_count,
+                snapshot.framework_reconciliations.len()
+            );
+        }
+
         info!(
-            "Accounting standards data generated: {} revenue contracts, {} impairment tests, {} business combinations, {} ECL models, {} provisions, {} IAS 21 translations",
+            "Accounting standards data generated: {} revenue contracts, {} impairment tests, {} business combinations, {} ECL models, {} provisions, {} IAS 21 translations, {} leases, {} FV measurements, {} framework differences",
             snapshot.revenue_contract_count,
             snapshot.impairment_test_count,
             snapshot.business_combination_count,
             snapshot.ecl_model_count,
             snapshot.provision_count,
-            snapshot.currency_translation_count
+            snapshot.currency_translation_count,
+            snapshot.lease_count,
+            snapshot.fair_value_measurement_count,
+            snapshot.framework_difference_count,
         );
         self.check_resources_with_log("post-accounting-standards")?;
 
         Ok(snapshot)
+    }
+
+    /// v3.3.1: helper to resolve the accounting-standards framework enum
+    /// from config into the `datasynth_standards::framework::AccountingFramework`
+    /// type expected by standards generators. Falls back to US GAAP.
+    fn resolve_accounting_framework(
+        cfg: Option<datasynth_config::schema::AccountingFrameworkConfig>,
+    ) -> datasynth_standards::framework::AccountingFramework {
+        use datasynth_config::schema::AccountingFrameworkConfig as Cfg;
+        use datasynth_standards::framework::AccountingFramework as Fw;
+        match cfg {
+            Some(Cfg::Ifrs) => Fw::Ifrs,
+            Some(Cfg::DualReporting) => Fw::DualReporting,
+            Some(Cfg::FrenchGaap) => Fw::FrenchGaap,
+            Some(Cfg::GermanGaap) => Fw::GermanGaap,
+            _ => Fw::UsGaap,
+        }
     }
 
     /// Phase 18: Generate manufacturing data (production orders, quality inspections, cycle counts).

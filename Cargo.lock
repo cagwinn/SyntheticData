@@ -1247,7 +1247,7 @@ checksum = "d7a1e2f27636f116493b8b860f5546edb47c8d8f8ea73e1d2a20be88e28d1fea"
 
 [[package]]
 name = "datasynth-audit-fsm"
-version = "3.3.0"
+version = "3.3.1"
 dependencies = [
  "arrow",
  "chrono",
@@ -1273,7 +1273,7 @@ dependencies = [
 
 [[package]]
 name = "datasynth-audit-optimizer"
-version = "3.3.0"
+version = "3.3.1"
 dependencies = [
  "chrono",
  "datasynth-audit-fsm",
@@ -1288,7 +1288,7 @@ dependencies = [
 
 [[package]]
 name = "datasynth-banking"
-version = "3.3.0"
+version = "3.3.1"
 dependencies = [
  "chrono",
  "csv",
@@ -1308,7 +1308,7 @@ dependencies = [
 
 [[package]]
 name = "datasynth-cli"
-version = "3.3.0"
+version = "3.3.1"
 dependencies = [
  "anyhow",
  "assert_cmd",
@@ -1346,7 +1346,7 @@ dependencies = [
 
 [[package]]
 name = "datasynth-config"
-version = "3.3.0"
+version = "3.3.1"
 dependencies = [
  "chrono",
  "datasynth-banking",
@@ -1361,7 +1361,7 @@ dependencies = [
 
 [[package]]
 name = "datasynth-core"
-version = "3.3.0"
+version = "3.3.1"
 dependencies = [
  "candle-core",
  "candle-nn",
@@ -1390,7 +1390,7 @@ dependencies = [
 
 [[package]]
 name = "datasynth-eval"
-version = "3.3.0"
+version = "3.3.1"
 dependencies = [
  "chrono",
  "datasynth-config",
@@ -1415,7 +1415,7 @@ dependencies = [
 
 [[package]]
 name = "datasynth-fingerprint"
-version = "3.3.0"
+version = "3.3.1"
 dependencies = [
  "anyhow",
  "arrow",
@@ -1444,7 +1444,7 @@ dependencies = [
 
 [[package]]
 name = "datasynth-generators"
-version = "3.3.0"
+version = "3.3.1"
 dependencies = [
  "chrono",
  "datasynth-config",
@@ -1468,7 +1468,7 @@ dependencies = [
 
 [[package]]
 name = "datasynth-graph"
-version = "3.3.0"
+version = "3.3.1"
 dependencies = [
  "chrono",
  "datasynth-banking",
@@ -1487,7 +1487,7 @@ dependencies = [
 
 [[package]]
 name = "datasynth-ocpm"
-version = "3.3.0"
+version = "3.3.1"
 dependencies = [
  "chrono",
  "datasynth-core",
@@ -1503,7 +1503,7 @@ dependencies = [
 
 [[package]]
 name = "datasynth-output"
-version = "3.3.0"
+version = "3.3.1"
 dependencies = [
  "arrow",
  "chrono",
@@ -1527,7 +1527,7 @@ dependencies = [
 
 [[package]]
 name = "datasynth-runtime"
-version = "3.3.0"
+version = "3.3.1"
 dependencies = [
  "chrono",
  "crossbeam-channel",
@@ -1566,7 +1566,7 @@ dependencies = [
 
 [[package]]
 name = "datasynth-server"
-version = "3.3.0"
+version = "3.3.1"
 dependencies = [
  "anyhow",
  "argon2",
@@ -1616,7 +1616,7 @@ dependencies = [
 
 [[package]]
 name = "datasynth-standards"
-version = "3.3.0"
+version = "3.3.1"
 dependencies = [
  "chrono",
  "datasynth-core",
@@ -1632,7 +1632,7 @@ dependencies = [
 
 [[package]]
 name = "datasynth-test-utils"
-version = "3.3.0"
+version = "3.3.1"
 dependencies = [
  "chrono",
  "datasynth-banking",
@@ -1655,7 +1655,7 @@ dependencies = [
 
 [[package]]
 name = "datasynth-workspace"
-version = "3.3.0"
+version = "3.3.1"
 dependencies = [
  "chrono",
  "criterion",

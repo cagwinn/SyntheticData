@@ -2056,6 +2056,48 @@ pub fn write_all_output_with_layout(
                 "IAS 21 currency translation results",
             );
         }
+
+        // v3.3.1: Leases (IFRS 16 / ASC 842)
+        if !result.accounting_standards.leases.is_empty() {
+            let leases_dir = acct_dir.join("leases");
+            std::fs::create_dir_all(&leases_dir)?;
+            write_json_safe(
+                &result.accounting_standards.leases,
+                &leases_dir.join("leases.json"),
+                "Leases (IFRS 16 / ASC 842) — v3.3.1",
+            );
+        }
+
+        // v3.3.1: Fair value measurements (IFRS 13 / ASC 820)
+        if !result
+            .accounting_standards
+            .fair_value_measurements
+            .is_empty()
+        {
+            let fv_dir = acct_dir.join("fair_value");
+            std::fs::create_dir_all(&fv_dir)?;
+            write_json_safe(
+                &result.accounting_standards.fair_value_measurements,
+                &fv_dir.join("fair_value_measurements.json"),
+                "Fair value measurements (IFRS 13 / ASC 820) — v3.3.1",
+            );
+        }
+
+        // v3.3.1: Framework reconciliation (dual reporting)
+        if !result.accounting_standards.framework_differences.is_empty() {
+            let diff_dir = acct_dir.join("framework_differences");
+            std::fs::create_dir_all(&diff_dir)?;
+            write_json_safe(
+                &result.accounting_standards.framework_differences,
+                &diff_dir.join("framework_differences.json"),
+                "Framework differences (US GAAP vs IFRS) — v3.3.1",
+            );
+            write_json_safe(
+                &result.accounting_standards.framework_reconciliations,
+                &diff_dir.join("framework_reconciliations.json"),
+                "Per-entity framework reconciliation — v3.3.1",
+            );
+        }
     }
 
     // ========================================================================

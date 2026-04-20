@@ -5,6 +5,75 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.3.1] - 2026-04-20
+
+Completes v3.3.0 Sub-group A: three new accounting-standards
+generators that had types in `datasynth-standards` but no wrapper —
+now fully wired into `phase_accounting_standards`.
+
+### New accounting-standards generators
+
+- **`LeaseGenerator`** (IFRS 16 / ASC 842) — basic v1 scope per
+  roadmap: straight-line amortization, simple discount-rate model,
+  per-period liability rollforward. Reuses the rich `Lease::new`
+  constructor in `datasynth-standards` (which handles classification
+  per framework bright-line / principles-based rules) and draws
+  realistic inputs: asset classes, lessor names, fixed payments,
+  discount rates. Gated by `accounting_standards.leases.enabled`.
+  Output: `accounting_standards/leases/leases.json`.
+- **`FairValueGenerator`** (IFRS 13 / ASC 820) — produces
+  `FairValueMeasurement` records across Level 1/2/3 hierarchy per
+  `config.{level1,level2,level3}_percent`. Level 1 uses Market
+  Approach; Level 2 mixes Market/Income; Level 3 defaults to Income
+  Approach with optional `SensitivityAnalysis`. Attaches valuation
+  inputs (quoted prices / yield curves / discount rates / growth
+  rates) per level. Gated by `accounting_standards.fair_value.enabled`.
+  Output: `accounting_standards/fair_value/fair_value_measurements.json`.
+- **`FrameworkReconciliationGenerator`** — emits
+  `FrameworkDifferenceRecord` entries across 12 canonical
+  difference areas (revenue recognition, lease classification,
+  inventory costing, development costs, property revaluation,
+  impairment, contingent liabilities, share-based payment,
+  financial instruments, consolidation, joint arrangements, income
+  taxes) with realistic US GAAP ↔ IFRS delta distributions, plus
+  one `FrameworkReconciliation` summary per entity. Gated by
+  `accounting_standards.generate_differences = true` AND
+  `framework = dual_reporting`. Outputs under
+  `accounting_standards/framework_differences/`.
+
+### Infrastructure
+
+- `AccountingStandardsSnapshot` grows 7 new fields: `leases`,
+  `fair_value_measurements`, `framework_differences`,
+  `framework_reconciliations`, plus `lease_count`,
+  `fair_value_measurement_count`, `framework_difference_count`.
+- New helper `EnhancedOrchestrator::resolve_accounting_framework`
+  maps the typed config enum onto the
+  `datasynth_standards::framework::AccountingFramework` value the
+  standards generators expect.
+- Output writer extended with `accounting_standards/{leases,fair_value,framework_differences}/`
+  subdirectories.
+
+### Regression coverage
+
+- Each new generator has 4 unit tests in `datasynth-generators/src/standards/`
+  covering count / measurement sanity / classification distribution /
+  zero-count no-op.
+- New `crates/datasynth-runtime/tests/accounting_standards_v331_smoke.rs`
+  — 5 tests: each generator activates under its flag, framework
+  reconciliation is dual-reporting-only, all-flags-off = empty
+  snapshot fields.
+- All prior v3.1.2 / v3.2.x / v3.3.0 regression guards continue to pass.
+
+### Deferred
+
+- Lease v2+ (modifications, reassessments, subleases, impairment
+  overlay) — roadmap v3.4+.
+- True per-line cross-framework measurement tracing for framework
+  reconciliation — v3.4+.
+- Audit fine-grained config (the 5 `[Not yet wired]` fields in
+  `AuditGenerationConfig`) — v3.3.2 per roadmap.
+
 ## [3.3.0] - 2026-04-19
 
 Minor release closing a big chunk of `docs/analysis/unused-features-inventory.md`:
