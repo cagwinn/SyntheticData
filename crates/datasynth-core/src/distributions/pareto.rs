@@ -124,6 +124,7 @@ impl ParetoConfig {
 }
 
 /// Pareto distribution sampler.
+#[derive(Clone)]
 pub struct ParetoSampler {
     rng: ChaCha8Rng,
     config: ParetoConfig,

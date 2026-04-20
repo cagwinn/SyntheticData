@@ -201,6 +201,7 @@ impl ConditionalDistributionConfig {
 }
 
 /// Sampler for conditional distributions.
+#[derive(Clone)]
 pub struct ConditionalSampler {
     rng: ChaCha8Rng,
     config: ConditionalDistributionConfig,

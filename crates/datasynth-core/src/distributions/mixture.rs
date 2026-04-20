@@ -270,6 +270,7 @@ pub struct SampleWithComponent {
 }
 
 /// Gaussian Mixture Model sampler.
+#[derive(Clone)]
 pub struct GaussianMixtureSampler {
     rng: ChaCha8Rng,
     config: GaussianMixtureConfig,
@@ -382,6 +383,7 @@ impl GaussianMixtureSampler {
 }
 
 /// Log-Normal Mixture Model sampler for positive-only distributions.
+#[derive(Clone)]
 pub struct LogNormalMixtureSampler {
     rng: ChaCha8Rng,
     config: LogNormalMixtureConfig,

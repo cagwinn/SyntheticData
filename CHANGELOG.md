@@ -5,6 +5,71 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.5.3] - 2026-04-20
+
+### `distributions.conditional` runtime wiring (pragmatic scope)
+
+- The schema-validated-but-inert `distributions.conditional` block now
+  has observable runtime effect for a tractable subset of its full
+  expressive range. Building the general field-to-field dependency
+  engine deserves its own design pass; this release ships the 80/20
+  slice.
+- Scope: when a conditional rule has `output_field == "amount"` AND
+  `input_field ∈ {"month", "quarter", "constant", ""}`, the JE
+  generator installs a `ConditionalSampler` that overrides the
+  non-fraud amount path. Rules with any other combination are
+  silently ignored (robust against user typos).
+- Input-field semantics:
+  - `month` → posting-date month 1..=12 (enables Q4-larger, Dec-spike,
+    seasonal patterns).
+  - `quarter` → posting-date quarter 1..=4.
+  - `constant` / empty → always 0 (use when you want a conditional
+    shape without a calendar dependence).
+- All six distribution families from the schema (`Fixed`, `Normal`,
+  `LogNormal`, `Uniform`, `Beta`, `Discrete`) are supported via 1:1
+  converter into `datasynth_core::distributions::
+  ConditionalDistributionParams`.
+- Fraud entries still bypass this path (fraud patterns are orthogonal
+  to calendar-conditional amount shapes, same policy as the v3.4.0
+  Pareto / mixture overrides).
+
+### Parallel-generation fix
+
+- `JournalEntryGenerator::split` was dropping the `advanced_amount_
+  sampler` and new `conditional_amount_override` on worker partitions,
+  silently regressing to default amount sampling at ≥10K entries.
+- Fixed by making the underlying samplers `#[derive(Clone)]` and
+  copying + re-seeding in `split()`. Each partition now gets a unique
+  deterministic stream (offset by the partition sub-seed) while still
+  honouring the configured distribution.
+- This was a latent issue that affected v3.4.0+ users of
+  `distributions.amounts`; it's only surfaced now because the v3.5.3
+  smoke tests finally exercise the high-volume path.
+
+### Tests
+
+- New integration crate `conditional_smoke.rs` (3 tests):
+  disabled → no-op, month-based Q4 amount shift produces >3× mean
+  difference, unsupported input_field silently ignored.
+- All 42 prior runtime smoke tests + 6 CLI smoke tests continue to pass.
+
+### Compatibility
+
+- `distributions.conditional = []` (default) preserves v3.5.2
+  byte-identical output.
+- Public surface additions only (`Clone` derive on public samplers);
+  no breaking changes.
+
+### Deferred
+
+- Full field-to-field conditional dependency (e.g.
+  `output_field = "line_count"` depending on `output_field = "amount"`
+  drawn earlier in the same entry) — scheduled for v3.6.x.
+- Additional input fields (`company_index`, `year`, `day_of_week`) —
+  trivial follow-up, added when a user requests them.
+
+---
+
 ## [3.5.2] - 2026-04-20
 
 ### `distributions.regime_changes` runtime wiring

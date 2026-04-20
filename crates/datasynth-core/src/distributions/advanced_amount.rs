@@ -24,6 +24,7 @@ use super::pareto::{ParetoConfig, ParetoSampler};
 ///
 /// v3.4.4 added the `Pareto` variant for heavy-tailed monetary samples
 /// (capex, strategic contracts, fraud amounts).
+#[derive(Clone)]
 pub enum AdvancedAmountSampler {
     /// Log-normal mixture (preferred for positive monetary amounts).
     LogNormal(LogNormalMixtureSampler),

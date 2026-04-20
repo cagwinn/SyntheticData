@@ -82,6 +82,14 @@ pub struct JournalEntryGenerator {
     // None preserves v3.3.2 byte-for-byte behavior; populated only when the
     // caller opts in via [`set_advanced_distributions`].
     advanced_amount_sampler: Option<AdvancedAmountSampler>,
+    // v3.5.3+ conditional amount override. Populated when
+    // `config.distributions.conditional` contains an entry where
+    // `output_field == "amount"` and `input_field ∈ {"month",
+    // "quarter", "constant"}`. Applied *after* the fraud-pattern /
+    // advanced-sampler / legacy-sampler cascade on non-fraud entries
+    // so it can steer amounts by calendar context without disturbing
+    // fraud semantics.
+    conditional_amount_override: Option<datasynth_core::distributions::ConditionalSampler>,
 }
 
 const DEFAULT_BUSINESS_PROCESS_WEIGHTS: [(BusinessProcess, f64); 5] = [
@@ -96,6 +104,31 @@ const DEFAULT_BUSINESS_PROCESS_WEIGHTS: [(BusinessProcess, f64); 5] = [
 /// onto the distributions-layer [`IndustryType`], then return that industry's
 /// pre-configured `sales_amounts` mixture. Used as a fallback when the
 /// caller enables `distributions.amounts` but supplies no components.
+/// v3.5.3+ — check whether the configured `input_field` is one the JE
+/// generator can compute per-entry. Currently supported:
+///   - `"month"` — posting-date month (1..=12)
+///   - `"quarter"` — posting-date quarter (1..=4)
+///   - `"constant"` / empty — always 0.0 (treats as unconditional)
+/// Unsupported values cause the conditional rule to be silently ignored
+/// to keep runtime robust against user typos.
+impl JournalEntryGenerator {
+    fn supported_conditional_input(field: &str) -> bool {
+        matches!(field, "month" | "quarter" | "constant" | "")
+    }
+
+    fn conditional_input_value(&self, posting_date: chrono::NaiveDate) -> f64 {
+        match self
+            .conditional_amount_override
+            .as_ref()
+            .map(|s| s.config().input_field.as_str())
+        {
+            Some("month") => posting_date.month() as f64,
+            Some("quarter") => ((posting_date.month() - 1) / 3 + 1) as f64,
+            _ => 0.0,
+        }
+    }
+}
+
 fn industry_profile_to_log_normal(
     p: datasynth_config::schema::IndustryProfileType,
 ) -> datasynth_core::distributions::LogNormalMixtureConfig {
@@ -276,6 +309,7 @@ impl JournalEntryGenerator {
             temporal_patterns_config: None,
             business_process_weights: DEFAULT_BUSINESS_PROCESS_WEIGHTS,
             advanced_amount_sampler: None,
+            conditional_amount_override: None,
         }
     }
 
@@ -305,6 +339,25 @@ impl JournalEntryGenerator {
         if !config.enabled {
             return Ok(());
         }
+
+        // v3.5.3+: build a conditional-amount override when the config
+        // declares a rule with `output_field == "amount"` and a supported
+        // input field. The override is applied *after* the standard
+        // cascade so it doesn't disturb fraud-path sampling. Unsupported
+        // input fields are ignored with a trace log.
+        self.conditional_amount_override = config
+            .conditional
+            .iter()
+            .find(|c| {
+                c.output_field == "amount" && Self::supported_conditional_input(&c.input_field)
+            })
+            .and_then(|c| {
+                datasynth_core::distributions::ConditionalSampler::new(
+                    seed.wrapping_add(17),
+                    c.to_core_config(),
+                )
+                .ok()
+            });
 
         // v3.4.4+: Pareto takes precedence over mixture models when set.
         // This supports heavy-tailed amount distributions (capex, strategic
@@ -1165,6 +1218,24 @@ impl JournalEntryGenerator {
             adv.sample_decimal()
         } else {
             self.amount_sampler.sample()
+        };
+        // v3.5.3+: if a conditional-amount override is configured and
+        // the JE is non-fraud, re-sample the amount from the conditional
+        // distribution using the computed context. Fraud entries bypass
+        // this path to preserve fraud-pattern semantics (as with the
+        // advanced sampler cascade above).
+        let base_amount = if fraud_type.is_none() {
+            // Compute input context BEFORE taking &mut on the sampler
+            // to avoid borrow-checker conflict with the immutable
+            // `conditional_input_value` call.
+            let input = self.conditional_input_value(posting_date);
+            if let Some(ref mut cond) = self.conditional_amount_override {
+                cond.sample_decimal(input)
+            } else {
+                base_amount
+            }
+        } else {
+            base_amount
         };
 
         // Apply temporal drift if configured
@@ -2235,6 +2306,20 @@ impl ParallelGenerator for JournalEntryGenerator {
                 gen.approval_enabled = self.approval_enabled;
                 gen.approval_threshold = self.approval_threshold;
                 gen.sod_violation_rate = self.sod_violation_rate;
+                // v3.4.0+: advanced amount sampler (mixture / Pareto /
+                // Gaussian). Clone and reset the internal RNG with the
+                // partition's sub_seed so each worker explores a unique
+                // subsequence without repeating the parent stream.
+                if let Some(mut adv) = self.advanced_amount_sampler.clone() {
+                    adv.reset(sub_seed.wrapping_add(2));
+                    gen.advanced_amount_sampler = Some(adv);
+                }
+                // v3.5.3+: conditional amount override — clone + reset
+                // so each partition gets a fresh deterministic stream.
+                if let Some(mut cond) = self.conditional_amount_override.clone() {
+                    cond.reset(sub_seed.wrapping_add(17));
+                    gen.conditional_amount_override = Some(cond);
+                }
 
                 // Use partitioned UUID factory to eliminate atomic contention
                 gen.uuid_factory = DeterministicUuidFactory::for_partition(

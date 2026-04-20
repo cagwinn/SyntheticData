@@ -6292,6 +6292,90 @@ pub struct ConditionalBreakpointConfig {
     pub distribution: ConditionalDistributionParamsConfig,
 }
 
+impl ConditionalDistributionSchemaConfig {
+    /// Convert this schema config into a core
+    /// [`ConditionalDistributionConfig`] suitable for
+    /// [`ConditionalSampler::new`]. v3.5.3+.
+    pub fn to_core_config(&self) -> datasynth_core::distributions::ConditionalDistributionConfig {
+        use datasynth_core::distributions::{
+            Breakpoint, ConditionalDistributionConfig, ConditionalDistributionParams,
+        };
+
+        let default_distribution = convert_conditional_params(&self.default_distribution);
+        let breakpoints: Vec<Breakpoint> = self
+            .breakpoints
+            .iter()
+            .map(|bp| Breakpoint {
+                threshold: bp.threshold,
+                distribution: convert_conditional_params(&bp.distribution),
+            })
+            .collect();
+
+        // Use a sentinel default_distribution when the schema default is
+        // its factory default (Fixed { value: 0.0 })  and we have
+        // breakpoints — we don't want to clobber data for values below
+        // the first breakpoint.
+        let final_default = if breakpoints.is_empty() {
+            default_distribution
+        } else {
+            match default_distribution {
+                ConditionalDistributionParams::Fixed { value: 0.0 } => {
+                    // Reuse the first breakpoint's distribution as the
+                    // default to avoid surprising zeros.
+                    breakpoints[0].distribution.clone()
+                }
+                other => other,
+            }
+        };
+
+        ConditionalDistributionConfig {
+            output_field: self.output_field.clone(),
+            input_field: self.input_field.clone(),
+            breakpoints,
+            default_distribution: final_default,
+            min_value: self.min_value,
+            max_value: self.max_value,
+            decimal_places: self.decimal_places,
+        }
+    }
+}
+
+fn convert_conditional_params(
+    p: &ConditionalDistributionParamsConfig,
+) -> datasynth_core::distributions::ConditionalDistributionParams {
+    use datasynth_core::distributions::ConditionalDistributionParams as Core;
+    match p {
+        ConditionalDistributionParamsConfig::Fixed { value } => Core::Fixed { value: *value },
+        ConditionalDistributionParamsConfig::Normal { mu, sigma } => Core::Normal {
+            mu: *mu,
+            sigma: *sigma,
+        },
+        ConditionalDistributionParamsConfig::LogNormal { mu, sigma } => Core::LogNormal {
+            mu: *mu,
+            sigma: *sigma,
+        },
+        ConditionalDistributionParamsConfig::Uniform { min, max } => Core::Uniform {
+            min: *min,
+            max: *max,
+        },
+        ConditionalDistributionParamsConfig::Beta {
+            alpha,
+            beta,
+            min,
+            max,
+        } => Core::Beta {
+            alpha: *alpha,
+            beta: *beta,
+            min: *min,
+            max: *max,
+        },
+        ConditionalDistributionParamsConfig::Discrete { values, weights } => Core::Discrete {
+            values: values.clone(),
+            weights: weights.clone(),
+        },
+    }
+}
+
 /// Distribution parameters for conditional distributions.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
