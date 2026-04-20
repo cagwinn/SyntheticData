@@ -53,6 +53,7 @@ mod seasonality;
 mod temporal;
 mod temporal_context;
 mod timezone;
+mod validation;
 mod weibull;
 mod zero_inflated;
 
@@ -80,5 +81,6 @@ pub use seasonality::*;
 pub use temporal::*;
 pub use temporal_context::*;
 pub use timezone::*;
+pub use validation::*;
 pub use weibull::*;
 pub use zero_inflated::*;

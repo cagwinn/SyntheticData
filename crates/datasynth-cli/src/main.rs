@@ -331,8 +331,11 @@ enum TemplatesCommands {
         count: u32,
 
         /// LLM backend: mock | http. "mock" is deterministic and works
-        /// offline; "http" requires the `llm` feature and a configured
-        /// endpoint via env vars (see `LlmConfig`).
+        /// offline; "http" requires the `llm` Cargo feature and a
+        /// configured endpoint. For OpenRouter, pass `--backend http
+        /// --base-url https://openrouter.ai/api
+        /// --model anthropic/claude-sonnet-4.5
+        /// --api-key-env OPENROUTER_API_KEY`.
         #[arg(long, default_value = "mock")]
         backend: String,
 
@@ -340,6 +343,26 @@ enum TemplatesCommands {
         /// seeding when the provider supports it).
         #[arg(long, default_value_t = 42)]
         seed: u64,
+
+        /// Model identifier for the HTTP backend. On OpenRouter this is
+        /// `{vendor}/{model}` e.g. `anthropic/claude-sonnet-4.5` or
+        /// `openai/gpt-4o-mini`. Ignored when `--backend mock`.
+        #[arg(long, default_value = "anthropic/claude-sonnet-4.5")]
+        model: String,
+
+        /// Environment variable that holds the API key for the HTTP
+        /// backend. Typical values: `OPENROUTER_API_KEY`,
+        /// `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`. Ignored when
+        /// `--backend mock`.
+        #[arg(long, default_value = "OPENROUTER_API_KEY")]
+        api_key_env: String,
+
+        /// Base URL for the HTTP backend. OpenAI-compatible;
+        /// `/v1/chat/completions` is appended automatically. Default is
+        /// OpenRouter (`https://openrouter.ai/api`); use
+        /// `https://api.openai.com` for OpenAI.
+        #[arg(long, default_value = "https://openrouter.ai/api")]
+        base_url: String,
     },
 }
 
@@ -2379,6 +2402,9 @@ fn main() -> Result<()> {
                 count,
                 backend,
                 seed,
+                model,
+                api_key_env,
+                base_url,
             } => handle_templates_enrich(
                 &input,
                 &output,
@@ -2389,6 +2415,9 @@ fn main() -> Result<()> {
                 count,
                 &backend,
                 seed,
+                &model,
+                &api_key_env,
+                &base_url,
             ),
         },
     }
@@ -2512,6 +2541,9 @@ fn handle_templates_enrich(
     count: u32,
     backend: &str,
     seed: u64,
+    model: &str,
+    api_key_env: &str,
+    base_url: &str,
 ) -> Result<()> {
     use datasynth_core::llm::{LlmProvider, MockLlmProvider};
     use datasynth_core::templates::loader::TemplateLoader;
@@ -2532,17 +2564,16 @@ fn handle_templates_enrich(
         datasynth_core::templates::loader::TemplateData::default()
     };
 
-    // Backend selection. Only "mock" is supported without the `llm`
-    // feature flag; the http backend delegates to HttpLlmProvider via
-    // LlmConfig (not currently exposed here — users who want live Claude
-    // should call the API directly and feed results through `templates
-    // validate`).
+    // Backend selection. `mock` always works (offline, deterministic).
+    // `http` requires the `llm` Cargo feature — it hits an OpenAI-compatible
+    // endpoint (OpenRouter is the default so users can reach Claude/GPT/etc.
+    // with one key).
     let provider: Arc<dyn LlmProvider> = match backend {
         "mock" => Arc::new(MockLlmProvider::new(seed)),
+        "http" => build_http_provider(model, api_key_env, base_url)?,
         other => anyhow::bail!(
-            "Unknown backend '{other}'. Supported: mock. \
-             (http/claude backends arrive in a follow-up release with \
-             the llm feature flag.)"
+            "Unknown backend '{other}'. Supported: mock, http. \
+             (http requires the `llm` Cargo feature and a configured API key.)"
         ),
     };
 
@@ -2643,6 +2674,54 @@ fn handle_templates_enrich(
         output_path = output.display()
     );
     Ok(())
+}
+
+/// Build an HTTP LLM provider (OpenAI-compatible). Gated behind the `llm`
+/// Cargo feature — without it, returns a helpful error instead of
+/// silently falling back to mock.
+#[cfg(feature = "llm")]
+fn build_http_provider(
+    model: &str,
+    api_key_env: &str,
+    base_url: &str,
+) -> Result<std::sync::Arc<dyn datasynth_core::llm::LlmProvider>> {
+    use datasynth_core::llm::{HttpLlmProvider, LlmConfig, LlmProviderType};
+    use std::sync::Arc;
+
+    // Early-exit with a clear error if the API key env var is unset.
+    // Users typically hit this when they forget to export OPENROUTER_API_KEY.
+    if std::env::var(api_key_env).is_err() {
+        anyhow::bail!(
+            "environment variable `{api_key_env}` is not set; cannot call HTTP LLM. \
+             Set it (e.g. `export {api_key_env}=sk-...`) and retry, or use `--backend mock`."
+        );
+    }
+
+    let cfg = LlmConfig {
+        provider: LlmProviderType::OpenAi, // OpenAI-compatible wire format
+        model: model.to_string(),
+        api_key_env: api_key_env.to_string(),
+        base_url: Some(base_url.to_string()),
+        max_retries: 3,
+        timeout_secs: 60,
+        cache_enabled: true,
+    };
+    let provider = HttpLlmProvider::new(cfg)
+        .map_err(|e| anyhow::anyhow!("failed to build HTTP LLM provider: {e}"))?;
+    Ok(Arc::new(provider))
+}
+
+#[cfg(not(feature = "llm"))]
+fn build_http_provider(
+    _model: &str,
+    _api_key_env: &str,
+    _base_url: &str,
+) -> Result<std::sync::Arc<dyn datasynth_core::llm::LlmProvider>> {
+    anyhow::bail!(
+        "the HTTP LLM backend requires the `llm` Cargo feature. \
+         Rebuild with `cargo build --features llm` (or `cargo install \
+         datasynth-cli --features llm`)."
+    )
 }
 
 /// Resolve a fingerprint-signing key by walking the configured sources in

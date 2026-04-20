@@ -1240,6 +1240,10 @@ pub struct EnhancedGenerationResult {
     /// industry benchmarks, management reports, drift events). Empty
     /// when `analytics_metadata.enabled = false`.
     pub analytics_metadata: AnalyticsMetadataSnapshot,
+    /// v3.5.1+: statistical validation report (Benford, chi-squared,
+    /// KS) over the generated amount distribution.  `None` when
+    /// `distributions.validation.enabled = false`.
+    pub statistical_validation: Option<datasynth_core::distributions::StatisticalValidationReport>,
 }
 
 /// v3.3.0: snapshot for the analytics-metadata phase.
@@ -3551,6 +3555,12 @@ impl EnhancedOrchestrator {
         // outputs reflect final data.
         let analytics_metadata = self.phase_analytics_metadata(&entries)?;
 
+        // v3.5.1: statistical validation over the final amount
+        // distribution. Runs *after* all JE-adding phases so the report
+        // reflects everything the user will see in the output. Returns
+        // `None` unless `distributions.validation.enabled = true`.
+        let statistical_validation = self.phase_statistical_validation(&entries)?;
+
         Ok(EnhancedGenerationResult {
             chart_of_accounts: Arc::try_unwrap(coa).unwrap_or_else(|arc| (*arc).clone()),
             master_data: std::mem::take(&mut self.master_data),
@@ -3595,6 +3605,7 @@ impl EnhancedOrchestrator {
             industry_output,
             compliance_regulations,
             analytics_metadata,
+            statistical_validation,
         })
     }
 
@@ -14447,6 +14458,97 @@ impl EnhancedOrchestrator {
     ///      current-period account balances.
     ///   2. `IndustryBenchmarkGenerator` — industry benchmarks for the
     ///      configured `global.industry`.
+    /// v3.5.1+: Run the statistical validation suite configured in
+    /// `distributions.validation.tests` over the final amount
+    /// distribution.  Collects every non-zero line-level amount (debit +
+    /// credit) and hands it to the runners in
+    /// `datasynth_core::distributions::validation`.
+    ///
+    /// Returns `Ok(None)` when validation is disabled (the default).
+    /// When `reporting.fail_on_error = true` and any test fails, returns
+    /// `Err` with a concise message; otherwise attaches the report to
+    /// the result and lets callers inspect it.
+    fn phase_statistical_validation(
+        &self,
+        entries: &[JournalEntry],
+    ) -> SynthResult<Option<datasynth_core::distributions::StatisticalValidationReport>> {
+        use datasynth_config::schema::StatisticalTestConfig;
+        use datasynth_core::distributions::{
+            run_benford_first_digit, run_chi_squared, run_ks_uniform_log, StatisticalTestResult,
+            StatisticalValidationReport, TestOutcome,
+        };
+
+        let cfg = &self.config.distributions.validation;
+        if !cfg.enabled {
+            return Ok(None);
+        }
+
+        // Collect per-line positive amounts (debit + credit is zero on the
+        // non-posting side, so this naturally picks the magnitude).
+        let amounts: Vec<rust_decimal::Decimal> = entries
+            .iter()
+            .flat_map(|je| je.lines.iter().map(|l| l.debit_amount + l.credit_amount))
+            .filter(|a| *a > rust_decimal::Decimal::ZERO)
+            .collect();
+
+        let mut results: Vec<StatisticalTestResult> = Vec::with_capacity(cfg.tests.len());
+        for test_cfg in &cfg.tests {
+            match test_cfg {
+                StatisticalTestConfig::BenfordFirstDigit {
+                    threshold_mad,
+                    warning_mad,
+                } => {
+                    results.push(run_benford_first_digit(
+                        &amounts,
+                        *threshold_mad,
+                        *warning_mad,
+                    ));
+                }
+                StatisticalTestConfig::ChiSquared { bins, significance } => {
+                    results.push(run_chi_squared(&amounts, *bins, *significance));
+                }
+                StatisticalTestConfig::DistributionFit {
+                    target: _,
+                    ks_significance,
+                    method: _,
+                } => {
+                    // v3.5.1 only implements a log-uniformity KS check;
+                    // target-specific fits land in a follow-up.
+                    results.push(run_ks_uniform_log(&amounts, *ks_significance));
+                }
+                StatisticalTestConfig::CorrelationCheck { .. }
+                | StatisticalTestConfig::AndersonDarling { .. } => {
+                    results.push(StatisticalTestResult {
+                        name: match test_cfg {
+                            StatisticalTestConfig::CorrelationCheck { .. } => "correlation_check",
+                            StatisticalTestConfig::AndersonDarling { .. } => "anderson_darling",
+                            _ => "unknown",
+                        }
+                        .to_string(),
+                        outcome: TestOutcome::Skipped,
+                        statistic: 0.0,
+                        threshold: 0.0,
+                        message: "not implemented in v3.5.1; scheduled for follow-up".to_string(),
+                    });
+                }
+            }
+        }
+
+        let report = StatisticalValidationReport {
+            sample_count: amounts.len(),
+            results,
+        };
+
+        if cfg.reporting.fail_on_error && !report.all_passed() {
+            let failed = report.failed_names().join(", ");
+            return Err(SynthError::validation(format!(
+                "statistical validation failed: {failed}"
+            )));
+        }
+
+        Ok(Some(report))
+    }
+
     ///   3. `ManagementReportGenerator` — management-report artefacts.
     ///   4. `DriftEventGenerator` — post-generation drift-event labels.
     fn phase_analytics_metadata(

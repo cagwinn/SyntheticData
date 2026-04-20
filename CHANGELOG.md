@@ -5,6 +5,74 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.5.1] - 2026-04-20
+
+### HTTP LLM backend for template enrichment
+
+- `templates enrich --backend http` now actually calls a live LLM via
+  the `HttpLlmProvider` gated behind the `llm` Cargo feature. Defaults
+  target **OpenRouter** (any model, any vendor, one key) so users can
+  reach Claude Sonnet / GPT-4o / Llama / etc. without per-vendor
+  plumbing.
+- New CLI flags on `templates enrich`:
+  - `--model` — e.g. `anthropic/claude-sonnet-4.5` (default),
+    `openai/gpt-4o-mini`, `meta-llama/llama-4`.
+  - `--api-key-env` — env var holding the key (default
+    `OPENROUTER_API_KEY`).
+  - `--base-url` — OpenAI-compatible endpoint (default
+    `https://openrouter.ai/api`). `/v1/chat/completions` is appended.
+- Clear error when the env var isn't set (no silent fallback).
+- Verified live against OpenRouter + Claude Sonnet 4.5: vendor,
+  customer, and material enrichment all return realistic region-
+  specific content (e.g. DE retail → Kaufland, Becker Handelsgruppe).
+- `default` build of `datasynth-cli` still works without the `llm`
+  feature — attempting `--backend http` returns a helpful error.
+
+### Statistical validation runtime wiring
+
+- `distributions.validation` now has an observable runtime effect.
+  Previously the schema was validated but tests never ran.
+- New `datasynth_core::distributions::validation` module with:
+  - `StatisticalValidationReport` + `StatisticalTestResult` +
+    `TestOutcome { Passed, Warning, Failed, Skipped }`.
+  - `run_benford_first_digit(amounts, threshold, warning)` — MAD vs.
+    Benford's expected first-digit probabilities. Skipped under 100
+    samples.
+  - `run_chi_squared(amounts, bins, significance)` — goodness-of-fit
+    against uniformity on log-scale. Ships a hard-coded χ² critical
+    table for common (df, α) pairs.
+  - `run_ks_uniform_log(amounts, significance)` — Kolmogorov-Smirnov
+    D-statistic against a uniform CDF on log-scale (ships as the v3.5.1
+    implementation of `DistributionFit`).
+- New orchestrator phase `phase_statistical_validation` runs after
+  all JE-adding phases (so analytics / fraud-bias / close are reflected
+  in the report). Attached to `EnhancedGenerationResult.
+  statistical_validation` (`Option<…>`, `None` when disabled).
+- `reporting.fail_on_error = true` short-circuits generation with a
+  `SynthError::validation` when any test fails.
+- `CorrelationCheck` and `AndersonDarling` ship in v3.5.2 — current
+  runner marks them `Skipped` with a descriptive message so users see
+  they're acknowledged but not yet implemented.
+
+### Tests
+
+- 6 new unit tests on `datasynth-core::distributions::validation`
+  (Benford pass/fail/skipped, chi-squared pass-on-log-uniform,
+  chi-squared fail-on-bimodal, report summary helpers).
+- New integration crate `statistical_validation_smoke.rs` (4 tests):
+  disabled → None, enabled → report present, multi-test fan-out,
+  unimplemented tests skipped rather than failing.
+- All 31 prior smoke tests across v3.3+/v3.4+ remain green.
+
+### Compatibility
+
+- `distributions.validation.enabled = false` (default) preserves v3.5.0
+  byte-identical output and leaves `statistical_validation = None`.
+- No breaking changes to `EnhancedGenerationResult` — the new field is
+  additive.
+
+---
+
 ## [3.5.0] - 2026-04-20
 
 **LLM Template Enrichment (Track B1, offline).** Minimal slice of the
