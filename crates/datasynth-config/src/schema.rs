@@ -6481,6 +6481,135 @@ pub struct RecessionPeriodConfig {
     pub severity: f64,
 }
 
+impl RegimeChangeSchemaConfig {
+    /// Populate the regime-change, economic-cycle, and parameter-drift
+    /// slots on a `DriftConfig` from this schema config. v3.5.2+.
+    ///
+    /// `generation_start` must match `config.global.start_date` so that
+    /// absolute regime-change dates can be mapped to 0-indexed periods.
+    /// Unparseable / out-of-range dates are silently skipped to keep
+    /// runtime robust against user typos.
+    pub fn apply_to(
+        &self,
+        drift: &mut datasynth_core::distributions::DriftConfig,
+        generation_start: chrono::NaiveDate,
+    ) {
+        if !self.enabled {
+            return;
+        }
+
+        // Enable drift if any regime-change feature wants it.
+        drift.enabled = true;
+
+        // Regime-change events (absolute dates → period offsets).
+        for event in &self.changes {
+            let period = match chrono::NaiveDate::parse_from_str(&event.date, "%Y-%m-%d") {
+                Ok(d) => {
+                    let days = (d - generation_start).num_days();
+                    if days < 0 {
+                        continue;
+                    }
+                    // Approximate month by dividing by 30.4 so we don't
+                    // need chrono::Months arithmetic.
+                    (days as f64 / 30.4).round() as u32
+                }
+                Err(_) => continue,
+            };
+            let change_type = convert_regime_change_type(event.change_type);
+            let core_effects = event
+                .effects
+                .iter()
+                .map(|e| datasynth_core::distributions::RegimeEffect {
+                    field: e.field.clone(),
+                    multiplier: e.multiplier,
+                })
+                .collect();
+            drift
+                .regime_changes
+                .push(datasynth_core::distributions::RegimeChange {
+                    period,
+                    change_type,
+                    description: event.description.clone(),
+                    effects: core_effects,
+                    transition_periods: 0,
+                });
+        }
+
+        // Economic cycle.
+        if let Some(ec) = &self.economic_cycle {
+            if ec.enabled {
+                let recession_periods: Vec<u32> = ec
+                    .recessions
+                    .iter()
+                    .flat_map(|r| r.start_month..r.start_month + r.duration_months)
+                    .collect();
+                // Use the most-severe recession as the severity driver;
+                // fall back to default when none declared.
+                let severity = ec
+                    .recessions
+                    .iter()
+                    .map(|r| 1.0 - r.severity)
+                    .fold(0.75f64, f64::min);
+                drift.economic_cycle = datasynth_core::distributions::EconomicCycleConfig {
+                    enabled: true,
+                    cycle_length: ec.period_months,
+                    amplitude: ec.amplitude,
+                    phase_offset: ec.phase_offset,
+                    recession_periods,
+                    recession_severity: severity,
+                };
+                drift.drift_type = datasynth_core::distributions::DriftType::Mixed;
+            }
+        }
+
+        // Parameter drifts.
+        for pd in &self.parameter_drifts {
+            let drift_type = match pd.drift_type {
+                ParameterDriftTypeConfig::Linear => {
+                    datasynth_core::distributions::ParameterDriftType::Linear
+                }
+                ParameterDriftTypeConfig::Exponential => {
+                    datasynth_core::distributions::ParameterDriftType::Exponential
+                }
+                ParameterDriftTypeConfig::Logistic => {
+                    datasynth_core::distributions::ParameterDriftType::Logistic
+                }
+                ParameterDriftTypeConfig::Step => {
+                    datasynth_core::distributions::ParameterDriftType::Step
+                }
+            };
+            drift
+                .parameter_drifts
+                .push(datasynth_core::distributions::ParameterDrift {
+                    parameter: pd.parameter.clone(),
+                    drift_type,
+                    initial_value: pd.start_value,
+                    target_or_rate: pd.end_value,
+                    start_period: pd.start_period,
+                    end_period: pd.end_period,
+                    steepness: 1.0,
+                });
+        }
+    }
+}
+
+fn convert_regime_change_type(
+    t: RegimeChangeTypeConfig,
+) -> datasynth_core::distributions::RegimeChangeType {
+    use datasynth_core::distributions::RegimeChangeType as Core;
+    match t {
+        RegimeChangeTypeConfig::Acquisition => Core::Acquisition,
+        RegimeChangeTypeConfig::Divestiture => Core::Divestiture,
+        RegimeChangeTypeConfig::PriceIncrease => Core::PriceIncrease,
+        RegimeChangeTypeConfig::PriceDecrease => Core::PriceDecrease,
+        RegimeChangeTypeConfig::ProductLaunch => Core::ProductLaunch,
+        RegimeChangeTypeConfig::ProductDiscontinuation => Core::ProductDiscontinuation,
+        RegimeChangeTypeConfig::PolicyChange => Core::PolicyChange,
+        RegimeChangeTypeConfig::CompetitorEntry => Core::CompetitorEntry,
+        RegimeChangeTypeConfig::Custom => Core::Custom,
+    }
+}
+
 fn default_recession_severity() -> f64 {
     0.20
 }

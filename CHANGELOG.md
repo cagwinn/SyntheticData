@@ -5,6 +5,48 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.5.2] - 2026-04-20
+
+### `distributions.regime_changes` runtime wiring
+
+- The schema-validated-but-inert `distributions.regime_changes` block
+  now has observable runtime effect. Regime events, economic cycles,
+  and parameter drifts flow through the same `DriftController` as
+  `config.temporal`.
+- New `RegimeChangeSchemaConfig::apply_to(&mut DriftConfig,
+  generation_start)` converts schema-level (absolute-date) events
+  into core `RegimeChange` entries (period-indexed from the run's
+  start).  Unparseable / pre-start-date events are silently skipped.
+- Supported regime types: `Acquisition`, `Divestiture`,
+  `PriceIncrease`, `PriceDecrease`, `ProductLaunch`,
+  `ProductDiscontinuation`, `PolicyChange`, `CompetitorEntry`,
+  `Custom`. Each maps 1:1 onto the core enum.
+- Economic cycle wiring: `cycle_length`, `amplitude`, `phase_offset`,
+  `recessions` (flat list of (start, start+duration)) → core
+  `EconomicCycleConfig`. Recession severity uses the most-severe
+  declared event as the driver.
+- Parameter drifts (linear / exponential / logistic / step) flow
+  through to `core::ParameterDrift`. `steepness` hard-coded to 1.0
+  for now — schema exposure in v3.5.3.
+- Orchestrator: JE generator's `with_drift_config` now receives a
+  merged config when either `temporal.enabled` OR
+  `distributions.regime_changes.enabled` is true.
+
+### Tests
+
+- New integration crate `regime_changes_smoke.rs` (3 tests):
+  disabled → no-op, PriceIncrease event on July 1 → post-event mean
+  amounts rise ≥3% vs. baseline, economic_cycle config completes
+  end-to-end without error.
+- All 39 prior runtime smoke tests continue to pass.
+
+### Compatibility
+
+- `distributions.regime_changes.enabled = false` (default) preserves
+  v3.5.1 byte-identical output with the same seed.
+
+---
+
 ## [3.5.1] - 2026-04-20
 
 ### HTTP LLM backend for template enrichment

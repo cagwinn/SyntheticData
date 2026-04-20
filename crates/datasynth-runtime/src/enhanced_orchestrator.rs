@@ -10312,9 +10312,26 @@ impl EnhancedOrchestrator {
             .with_persona_errors(true)
             .with_fraud_config(self.config.fraud.clone());
 
-        // Apply temporal drift if configured
-        if self.config.temporal.enabled {
-            let drift_config = self.config.temporal.to_core_config();
+        // Apply temporal drift if configured. v3.5.2+: also merge
+        // `distributions.regime_changes` (regime events, economic
+        // cycles, parameter drifts) into the same DriftConfig so both
+        // knobs flow through the shared DriftController.
+        let temporal_enabled = self.config.temporal.enabled;
+        let regimes_enabled = self.config.distributions.regime_changes.enabled;
+        if temporal_enabled || regimes_enabled {
+            let mut drift_config = if temporal_enabled {
+                self.config.temporal.to_core_config()
+            } else {
+                // regime-changes only: start from default (drift OFF),
+                // apply_to flips `enabled = true`.
+                datasynth_core::distributions::DriftConfig::default()
+            };
+            if regimes_enabled {
+                self.config
+                    .distributions
+                    .regime_changes
+                    .apply_to(&mut drift_config, start_date);
+            }
             generator = generator.with_drift_config(drift_config, self.seed + 100);
         }
 
