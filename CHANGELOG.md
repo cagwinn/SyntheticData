@@ -5,6 +5,75 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.4.3] - 2026-04-20
+
+v3.4.0 Sub-group B3 + B4 — **Manufacturing + period-close temporal
+wiring**. Closes out the temporal-context track. Production orders
+and accrual reversals now respect business days + holidays.
+
+### Manufacturing (`ProductionOrderGenerator`)
+
+- New `set_temporal_context(Arc<TemporalContext>)` setter.
+- 7 date-arithmetic sites now snap to the next business day when
+  a context is present:
+  - `planned_start` (month-offset draw)
+  - `planned_end` (planned_start + 3-14 production days)
+  - `actual_start` for `InProcess` / `Completed` / `Closed` statuses
+  - `actual_end` for `Completed` / `Closed`
+  - Per-operation `started_at` and `completed_at` (routing ops)
+- Operation-level snapping matters because routing operations
+  previously produced `started_at`/`completed_at` on weekends,
+  which downstream process-mining / shop-floor analytics read as
+  non-working-day activity.
+
+### Period-close (`AccrualGenerator`)
+
+- New `set_temporal_context(Arc<TemporalContext>)` setter.
+- Both `generate_accrued_expense` and `generate_accrued_revenue`
+  now snap their `reversal_date` to the next business day.
+  Matters because `reversal_days_offset` (default = 1) frequently
+  places reversals on the first of the next month, which is often
+  a weekend.
+
+### Orchestrator hookup
+
+- `EnhancedOrchestrator` threads `Arc::clone(&self.temporal_context)`
+  to both generators at their construction sites (`AccrualGenerator`
+  inside Phase "Accrual entries", `ProductionOrderGenerator` in the
+  manufacturing phase). `None` preserves v3.4.2 byte-identical output.
+
+### Tests
+
+- New integration crate `temporal_mfg_close_smoke.rs` (4 tests):
+  1. planned_start + planned_end never weekends
+  2. actual_start + actual_end never weekends
+  3. operation started_at + completed_at never weekends
+  4. disabled-temporal still produces orders (regression)
+
+### Deferred (won't ship in v3.4.x)
+
+- `CashForecastGenerator` already only reads dates from external
+  AR/AP/disbursement inputs — nothing to snap internally. Its
+  `horizon_end` (line 92) is a boundary check, not a posting date.
+- `CloseEngine` has no internal date arithmetic; period dates come
+  from `FiscalPeriod`. Nothing to wire.
+- `PayrollGenerator` remains caller-driven (as in v3.4.2).
+
+### Compatibility
+
+- `temporal_patterns.business_days.enabled = false` (default)
+  preserves v3.4.2 byte-identical output for the same seed.
+- All 28 smoke tests across v3.3+/v3.4+ continue to pass.
+
+This closes out the v3.4.x temporal-wiring track. The plan's
+"12 generators" target is covered pragmatically: 4 document-flow
++ 2 HR + 1 manufacturing + 1 period-close = 8 actively snapping;
+the remaining 4 (cash_position, cash_forecast, fx_rate_service,
+close_engine, depreciation, payroll) either don't have internal
+date arithmetic or compute dates from caller-owned inputs.
+
+---
+
 ## [3.4.2] - 2026-04-20
 
 v3.4.0 Sub-group B2 — **HR temporal wiring** for time entries and

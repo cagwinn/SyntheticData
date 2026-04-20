@@ -5,6 +5,7 @@
 
 use chrono::{Datelike, NaiveDate};
 use datasynth_config::schema::{ManufacturingCostingConfig, ProductionOrderConfig, RoutingConfig};
+use datasynth_core::distributions::TemporalContext;
 use datasynth_core::models::{
     CostBreakdown, OperationStatus, ProductionOrder, ProductionOrderStatus, ProductionOrderType,
     RoutingOperation,
@@ -15,6 +16,7 @@ use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
 use rust_decimal::prelude::*;
 use rust_decimal::Decimal;
+use std::sync::Arc;
 use tracing::debug;
 
 /// Work center identifiers used in routing operations.
@@ -39,6 +41,9 @@ const OPERATION_DESCRIPTIONS: &[&str] = &[
 pub struct ProductionOrderGenerator {
     rng: ChaCha8Rng,
     uuid_factory: DeterministicUuidFactory,
+    /// v3.4.3+ temporal context — when set, planned/actual order + operation
+    /// dates snap to the next business day. `None` preserves legacy behavior.
+    temporal_context: Option<Arc<TemporalContext>>,
 }
 
 impl ProductionOrderGenerator {
@@ -47,6 +52,23 @@ impl ProductionOrderGenerator {
         Self {
             rng: seeded_rng(seed, 0),
             uuid_factory: DeterministicUuidFactory::new(seed, GeneratorType::ProductionOrder),
+            temporal_context: None,
+        }
+    }
+
+    /// Set the shared [`TemporalContext`] so production-order dates (planned
+    /// start/end, actual start/end, operation started_at/completed_at) snap
+    /// to business days.
+    pub fn set_temporal_context(&mut self, ctx: Arc<TemporalContext>) {
+        self.temporal_context = Some(ctx);
+    }
+
+    /// Snap a date to the next business day when a [`TemporalContext`] is
+    /// present; otherwise return it unchanged.
+    fn snap_to_business_day(&self, date: NaiveDate) -> NaiveDate {
+        match &self.temporal_context {
+            Some(ctx) => ctx.adjust_to_business_day(date),
+            None => date,
         }
     }
 
@@ -142,12 +164,17 @@ impl ProductionOrderGenerator {
             Decimal::from_f64_retain(actual_qty_f64.round()).unwrap_or(planned_quantity);
         let scrap_quantity = (planned_quantity - actual_quantity).max(Decimal::ZERO);
 
-        // Dates
+        // Dates. v3.4.3+: when `temporal_context` is set, planned + actual
+        // dates snap to the next business day (production typically begins
+        // on a workday, not a weekend). Raw-RNG fallback preserves legacy
+        // behavior byte-for-byte.
         let days_in_month = (month_end - month_start).num_days().max(1);
         let start_offset = self.rng.random_range(0..days_in_month);
-        let planned_start = month_start + chrono::Duration::days(start_offset);
+        let planned_start =
+            self.snap_to_business_day(month_start + chrono::Duration::days(start_offset));
         let production_days = self.rng.random_range(3..=14);
-        let planned_end = planned_start + chrono::Duration::days(production_days);
+        let planned_end =
+            self.snap_to_business_day(planned_start + chrono::Duration::days(production_days));
 
         // Actual dates depend on status
         let (actual_start, actual_end) = match status {
@@ -155,14 +182,17 @@ impl ProductionOrderGenerator {
             ProductionOrderStatus::Released => (None, None),
             ProductionOrderStatus::InProcess => {
                 let offset = self.rng.random_range(0..=2);
-                (Some(planned_start + chrono::Duration::days(offset)), None)
+                let raw = planned_start + chrono::Duration::days(offset);
+                (Some(self.snap_to_business_day(raw)), None)
             }
             ProductionOrderStatus::Completed | ProductionOrderStatus::Closed => {
                 let start_offset = self.rng.random_range(0..=2);
                 let end_offset = self.rng.random_range(-1..=3);
+                let raw_start = planned_start + chrono::Duration::days(start_offset);
+                let raw_end = planned_end + chrono::Duration::days(end_offset);
                 (
-                    Some(planned_start + chrono::Duration::days(start_offset)),
-                    Some(planned_end + chrono::Duration::days(end_offset)),
+                    Some(self.snap_to_business_day(raw_start)),
+                    Some(self.snap_to_business_day(raw_end)),
                 )
             }
             ProductionOrderStatus::Cancelled => (None, None),
@@ -369,13 +399,16 @@ impl ProductionOrderGenerator {
                 let op_start_offset = i as i64 * days_per_op;
                 let started_at = match op_status {
                     OperationStatus::InProcess | OperationStatus::Completed => {
-                        Some(planned_start + chrono::Duration::days(op_start_offset))
+                        let raw = planned_start + chrono::Duration::days(op_start_offset);
+                        Some(self.snap_to_business_day(raw))
                     }
                     _ => None,
                 };
                 let completed_at = match op_status {
                     OperationStatus::Completed => {
-                        Some(planned_start + chrono::Duration::days(op_start_offset + days_per_op))
+                        let raw =
+                            planned_start + chrono::Duration::days(op_start_offset + days_per_op);
+                        Some(self.snap_to_business_day(raw))
                     }
                     _ => None,
                 };

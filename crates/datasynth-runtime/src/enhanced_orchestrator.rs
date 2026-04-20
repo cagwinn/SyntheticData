@@ -4202,6 +4202,11 @@ impl EnhancedOrchestrator {
         {
             use datasynth_generators::{AccrualGenerator, AccrualGeneratorConfig};
             let mut accrual_gen = AccrualGenerator::new(AccrualGeneratorConfig::default());
+            // v3.4.3: snap reversal dates to business days. No-op when
+            // temporal_patterns.business_days is disabled.
+            if let Some(ctx) = &self.temporal_context {
+                accrual_gen.set_temporal_context(Arc::clone(ctx));
+            }
 
             // Standard accrual items: (description, expense_acct, liability_acct, % of revenue)
             let accrual_items: &[(&str, &str, &str)] = &[
@@ -7546,6 +7551,10 @@ impl EnhancedOrchestrator {
 
         // Generate production orders
         let mut prod_gen = datasynth_generators::ProductionOrderGenerator::new(seed + 350);
+        // v3.4.3: snap planned / actual / operation dates to business days.
+        if let Some(ctx) = &self.temporal_context {
+            prod_gen.set_temporal_context(Arc::clone(ctx));
+        }
         let production_orders = prod_gen.generate(
             company_code,
             &material_data,

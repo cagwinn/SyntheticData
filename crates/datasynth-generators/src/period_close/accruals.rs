@@ -4,8 +4,10 @@ use chrono::NaiveDate;
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use std::collections::HashMap;
+use std::sync::Arc;
 use tracing::debug;
 
+use datasynth_core::distributions::TemporalContext;
 use datasynth_core::models::{
     AccrualCalculationMethod, AccrualDefinition, AccrualFrequency, AccrualType, FiscalPeriod,
     JournalEntry, JournalEntryLine,
@@ -36,6 +38,11 @@ impl Default for AccrualGeneratorConfig {
 pub struct AccrualGenerator {
     config: AccrualGeneratorConfig,
     accrual_counter: u64,
+    /// v3.4.3+ temporal context — when set, accrual reversal dates snap to
+    /// the next business day. Matters because `reversal_days_offset` often
+    /// points to the first day of the next month, which is frequently a
+    /// weekend. `None` preserves legacy behavior.
+    temporal_context: Option<Arc<TemporalContext>>,
 }
 
 impl AccrualGenerator {
@@ -44,6 +51,22 @@ impl AccrualGenerator {
         Self {
             config,
             accrual_counter: 0,
+            temporal_context: None,
+        }
+    }
+
+    /// Set the shared [`TemporalContext`] so accrual reversal dates snap to
+    /// the next business day.
+    pub fn set_temporal_context(&mut self, ctx: Arc<TemporalContext>) {
+        self.temporal_context = Some(ctx);
+    }
+
+    /// Snap a date to the next business day when a [`TemporalContext`] is
+    /// present; otherwise return it unchanged.
+    fn snap_to_business_day(&self, date: NaiveDate) -> NaiveDate {
+        match &self.temporal_context {
+            Some(ctx) => ctx.adjust_to_business_day(date),
+            None => date,
         }
     }
 
@@ -172,7 +195,8 @@ impl AccrualGenerator {
             let reversal_date = posting_date
                 .checked_add_signed(chrono::Duration::days(self.config.reversal_days_offset))
                 .unwrap_or(posting_date);
-            Some(self.generate_reversal(&je, reversal_date))
+            let snapped = self.snap_to_business_day(reversal_date);
+            Some(self.generate_reversal(&je, snapped))
         } else {
             None
         };
@@ -226,7 +250,8 @@ impl AccrualGenerator {
             let reversal_date = posting_date
                 .checked_add_signed(chrono::Duration::days(self.config.reversal_days_offset))
                 .unwrap_or(posting_date);
-            Some(self.generate_reversal(&je, reversal_date))
+            let snapped = self.snap_to_business_day(reversal_date);
+            Some(self.generate_reversal(&je, snapped))
         } else {
             None
         };
