@@ -14459,16 +14459,6 @@ impl EnhancedOrchestrator {
         asset_net - liability_net
     }
 
-    /// v3.3.0: analytics-metadata phase.
-    ///
-    /// Runs AFTER all JE-adding phases (including Phase 20b's
-    /// fraud-bias sweep). Four sub-generators fire in sequence,
-    /// each gated by an individual `analytics_metadata.<flag>` toggle:
-    ///
-    ///   1. `PriorYearGenerator` — prior-year comparatives derived from
-    ///      current-period account balances.
-    ///   2. `IndustryBenchmarkGenerator` — industry benchmarks for the
-    ///      configured `global.industry`.
     /// v3.5.1+: Run the statistical validation suite configured in
     /// `distributions.validation.tests` over the final amount
     /// distribution.  Collects every non-zero line-level amount (debit +
@@ -14560,8 +14550,18 @@ impl EnhancedOrchestrator {
         Ok(Some(report))
     }
 
-    ///   3. `ManagementReportGenerator` — management-report artefacts.
-    ///   4. `DriftEventGenerator` — post-generation drift-event labels.
+    /// v3.3.0: analytics-metadata phase.
+    ///
+    /// Runs AFTER all JE-adding phases (including Phase 20b's
+    /// fraud-bias sweep). Four sub-generators fire in sequence, each
+    /// gated by an individual `analytics_metadata.<flag>` toggle:
+    ///
+    /// 1. `PriorYearGenerator` — prior-year comparatives derived from
+    ///    current-period account balances.
+    /// 2. `IndustryBenchmarkGenerator` — industry benchmarks for the
+    ///    configured `global.industry`.
+    /// 3. `ManagementReportGenerator` — management-report artefacts.
+    /// 4. `DriftEventGenerator` — post-generation drift-event labels.
     fn phase_analytics_metadata(
         &mut self,
         entries: &[JournalEntry],

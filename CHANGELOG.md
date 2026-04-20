@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.1] - 2026-04-20
+
+### CI fix — clippy `-D warnings` compliance
+
+- CI runs `cargo clippy --all-targets -- -D warnings`; local dev runs
+  default clippy. v3.5.1 → v4.0.0 introduced two doc-comment items
+  that tripped `clippy::doc_lazy_continuation` under strict mode but
+  warned (not failed) locally:
+  - `JournalEntryGenerator::supported_conditional_input` doc block:
+    bulleted list needed a blank separator line.
+  - `phase_statistical_validation` doc block accidentally wedged
+    between `phase_analytics_metadata`'s header and its numbered-list
+    items 3-4. The numbered list is now contiguous above the
+    function signature and the validation-phase doc sits as its own
+    block just above `phase_statistical_validation`.
+- No behavior change; clippy now clean under `-D warnings`.
+
+### Impact
+
+v3.5.1 / v3.5.2 / v3.5.3 / v3.5.4 / v4.0.0 all had CI red while
+Benchmarks + Release stayed green — the published crates and binaries
+are unaffected. This patch restores CI green for the v4.0 line.
+
+---
+
 ## [4.0.0] - 2026-04-20
 
 **First major-version bump.** Bundles cleanup items that were

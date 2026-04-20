@@ -112,9 +112,11 @@ const DEFAULT_BUSINESS_PROCESS_WEIGHTS: [(BusinessProcess, f64); 5] = [
 /// caller enables `distributions.amounts` but supplies no components.
 /// v3.5.3+ — check whether the configured `input_field` is one the JE
 /// generator can compute per-entry. Currently supported:
+///
 ///   - `"month"` — posting-date month (1..=12)
 ///   - `"quarter"` — posting-date quarter (1..=4)
 ///   - `"constant"` / empty — always 0.0 (treats as unconditional)
+///
 /// Unsupported values cause the conditional rule to be silently ignored
 /// to keep runtime robust against user typos.
 impl JournalEntryGenerator {
