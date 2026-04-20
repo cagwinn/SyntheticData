@@ -5,6 +5,102 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.0] - 2026-04-20
+
+**First major-version bump.** Bundles cleanup items that were
+earmarked for v4.0 across the whole v3.x line. Breaking surface is
+small and limited to internals nobody outside the runtime called.
+
+### Breaking
+
+- **Legacy `GenerationOrchestrator` removed.**
+  `crates/datasynth-runtime/src/orchestrator.rs` is deleted.  The
+  `pub use orchestrator::*` re-export in `lib.rs` is gone.  All
+  production call paths (CLI `generate`, server `/api/generate/bulk`,
+  Python wrapper) already routed through `EnhancedOrchestrator` in
+  v3.x; we verified zero external references before removing.
+  **Migration:** replace
+  `GenerationOrchestrator::new(config)` with
+  `EnhancedOrchestrator::new(config, PhaseConfig::from_config(&config))`.
+
+### New
+
+- **`LlmTemplateProvider` (Track B2).** New
+  `datasynth_core::templates::LlmTemplateProvider` wraps a base
+  `TemplateProvider` and routes `vendor_name`, `customer_name`,
+  `material_description` through an `LlmProvider` with in-memory
+  caching. Opt-in per category via `with_vendor_enrichment()` / etc.
+  3 unit tests covering opt-in, cache hits, pass-through delegation.
+- **`TemplateLoader::load_from_yaml_str`** — parses a YAML string
+  directly. First step toward v4.1's planned YAML-as-SoT migration
+  for default name pools. See `crates/datasynth-core/src/templates/
+  YAML_AS_SOT_MIGRATION.md` for the roadmap.
+- **`datasynth-graph-export` STATUS note.** The excluded graph-export
+  crate now has a `STATUS.md` documenting its parked state, what
+  needs to happen to un-park it, and the v4.1 owner/timeline.
+
+### Neural diffusion — explicit stub resolution
+
+The `diffusion.backend ∈ {neural, hybrid}` path previously sat as a
+silently-no-op code block (documented as an L2 stub in v3.x). v4.0
+replaces it with:
+- Config acknowledgement (stats still populate
+  `neural_hybrid_weight` / `neural_hybrid_strategy` /
+  `neural_routed_column_count`).
+- An explicit `WARN`-level log explaining the backend isn't shipped
+  and directing users to the `DiffusionBackend` trait for contributing.
+- Removal of the commented "how it would integrate" block that misled
+  readers.
+
+Statistical diffusion (`backend = "statistical"`) continues to run
+unchanged via `phase_diffusion_enhancement`.
+
+### Internal hygiene
+
+- `crates/datasynth-runtime/src/lib.rs` module list trimmed; doc
+  header updated to reflect the removal.
+
+### Compatibility
+
+- The orchestrator removal only affects callers who instantiated
+  `GenerationOrchestrator` directly.  Public-API users of
+  `EnhancedOrchestrator`, the CLI, the server, and the Python wrapper
+  see **zero** behavior changes on the same seed.
+- No schema changes; all `v3.5.x` config files load unchanged.
+
+### Deferred further (v4.1+)
+
+- Full YAML-as-source-of-truth migration for default name pools —
+  roadmap documented in `templates/YAML_AS_SOT_MIGRATION.md`.
+- Full quantile-inversion amount↔line_count copula correlation
+  (v3.5.4 ships the Gaussian half; the inverse-CDF work to also
+  correlate line_count remains in v4.1).
+- Clayton / Gumbel / Frank / Student-t copula runtime wiring.
+- Real neural / hybrid diffusion training loop (contribution welcome).
+- Consolidation of the two graph-export surfaces (`datasynth-graph`
+  embedded path vs the excluded `datasynth-graph-export` crate).
+
+### Shipping the v3.5.x series
+
+Today's continuous release train:
+
+| Version | Date | Highlight |
+|---|---|---|
+| 3.3.2 | 2026-04-20 | audit fine-grained config (5 "Not yet wired" → 0) |
+| 3.4.0 | 2026-04-20 | `distributions.amounts` + industry profiles |
+| 3.4.1 | 2026-04-20 | TemporalContext + P2P/O2C business-day wiring |
+| 3.4.2 | 2026-04-20 | HR temporal (time entries + expenses) |
+| 3.4.3 | 2026-04-20 | Mfg + accrual-reversal temporal |
+| 3.4.4 | 2026-04-20 | Pareto heavy-tailed sampler |
+| 3.5.0 | 2026-04-20 | LLM template enrichment (mock CLI) |
+| 3.5.1 | 2026-04-20 | HTTP LLM backend (OpenRouter live) + validation |
+| 3.5.2 | 2026-04-20 | `distributions.regime_changes` wiring |
+| 3.5.3 | 2026-04-20 | `distributions.conditional` + parallel-split fix |
+| 3.5.4 | 2026-04-20 | Gaussian copula correlations |
+| 4.0.0 | 2026-04-20 | Major: legacy orch removed, LlmTemplateProvider, v4.1 scaffolding |
+
+---
+
 ## [3.5.4] - 2026-04-20
 
 ### `distributions.correlations` runtime wiring (Gaussian copula)

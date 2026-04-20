@@ -12,6 +12,7 @@
 //! through YAML/JSON files for regional and sector-specific variations.
 
 pub mod descriptions;
+pub mod llm;
 pub mod loader;
 pub mod names;
 pub mod provider;
@@ -19,6 +20,7 @@ pub mod realism;
 pub mod references;
 
 pub use descriptions::{DescriptionGenerator, HeaderTextPattern};
+pub use llm::LlmTemplateProvider;
 pub use loader::{
     AssetDescriptionTemplates, CultureNames, CustomerNameTemplates, HeaderTextTemplates,
     LineItemDescriptionTemplates, MaterialDescriptionTemplates, MergeStrategy, PersonNameTemplates,

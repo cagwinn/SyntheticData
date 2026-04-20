@@ -3385,48 +3385,42 @@ impl EnhancedOrchestrator {
         // Phase: Compliance regulations (must run before hypergraph so it can be included)
         let compliance_regulations = self.phase_compliance_regulations(&mut stats)?;
 
-        // Phase: Neural enhancement (optional — requires neural feature + config)
+        // Phase: Neural enhancement (config-acknowledged-only in v4.0).
+        //
+        // The neural / hybrid diffusion path was a documented L2 stub
+        // in v3.x; actual neural-network training requires ML
+        // infrastructure (PyTorch / candle bindings, GPU access,
+        // training loops) that was never wired through the
+        // orchestrator. Rather than keep a silently-no-op block that
+        // misleads users into thinking neural training happens, v4.0
+        // acknowledges the config — exposing stats so downstream
+        // tooling can see the request — but emits a clear warning
+        // when a non-statistical backend is requested. The statistical
+        // diffusion backend continues to run via
+        // `phase_diffusion_enhancement`.
+        //
+        // Users who need real neural diffusion: track the roadmap item
+        // in the v4.x backlog and consider contributing the backend
+        // (the `DiffusionBackend` trait is the integration point).
         if self.config.diffusion.enabled
             && (self.config.diffusion.backend == "neural"
                 || self.config.diffusion.backend == "hybrid")
         {
             let neural = &self.config.diffusion.neural;
-            // Validate hybrid_strategy early so an unknown string doesn't
-            // silently fall through to weighted_average semantics.
-            const VALID_STRATEGIES: &[&str] = &["weighted_average", "column_select", "threshold"];
-            if !VALID_STRATEGIES.contains(&neural.hybrid_strategy.as_str()) {
-                warn!(
-                    "Unknown diffusion.neural.hybrid_strategy='{}' — expected one of {:?}; \
-                     falling back to 'weighted_average'.",
-                    neural.hybrid_strategy, VALID_STRATEGIES
-                );
-            }
             let weight = neural.hybrid_weight.clamp(0.0, 1.0);
-            if (weight - neural.hybrid_weight).abs() > f64::EPSILON {
-                warn!(
-                    "diffusion.neural.hybrid_weight={} clamped to [0,1] → {}",
-                    neural.hybrid_weight, weight
-                );
-            }
-            info!(
-                "Phase neural enhancement: backend={} strategy={} weight={:.2} columns={} \
-                 (neural_columns: {:?})",
-                self.config.diffusion.backend,
-                neural.hybrid_strategy,
-                weight,
-                neural.neural_columns.len(),
-                neural.neural_columns,
-            );
             stats.neural_hybrid_weight = Some(weight);
             stats.neural_hybrid_strategy = Some(neural.hybrid_strategy.clone());
             stats.neural_routed_column_count = Some(neural.neural_columns.len());
-            // Neural enhancement integrates via the DiffusionBackend trait:
-            // 1. NeuralDiffusionTrainer::train() on generated amounts
-            // 2. HybridGenerator blends rule-based + neural at configured weight
-            // 3. TabularTransformer for conditional column prediction
-            // 4. GnnGraphTrainer for entity relationship structure
-            // Actual training requires the `neural` cargo feature on datasynth-core.
-            // The orchestrator delegates to the diffusion module which is feature-gated.
+            warn!(
+                "diffusion.backend='{}' is config-acknowledged only in v4.0 — \
+                 the neural/hybrid training path is not yet shipped. Config \
+                 is captured in stats (weight={weight:.2}, strategy={}, \
+                 columns={}) but no neural training runs. Statistical \
+                 diffusion (backend='statistical') continues to work.",
+                self.config.diffusion.backend,
+                neural.hybrid_strategy,
+                neural.neural_columns.len(),
+            );
         }
 
         // Phase 19b: Hypergraph Export (after all data is available)

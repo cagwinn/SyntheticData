@@ -292,6 +292,17 @@ impl TemplateLoader {
         })
     }
 
+    /// Load template data from an in-memory YAML string.  v4.0.0+.
+    ///
+    /// Intended for callers that embed template YAML at compile time
+    /// via `include_str!("…")`, which is the primary migration step
+    /// toward v4.1's planned YAML-as-source-of-truth for the default
+    /// name pools.
+    pub fn load_from_yaml_str(yaml: &str) -> Result<TemplateData, TemplateError> {
+        serde_yaml::from_str(yaml)
+            .map_err(|e| TemplateError::new(format!("Failed to parse YAML: {e}")))
+    }
+
     /// Load template data from a JSON file.
     pub fn load_from_json(path: &Path) -> Result<TemplateData, TemplateError> {
         let contents = std::fs::read_to_string(path).map_err(|e| {
