@@ -59,6 +59,9 @@ allowlist=(
     "crates/datasynth-generators/src/manufacturing/production_order_generator.rs:OPERATION_DESCRIPTIONS"
     "crates/datasynth-generators/src/manufacturing/quality_inspection_generator.rs:CHARACTERISTIC_NAMES"
     "crates/datasynth-generators/src/manufacturing/bom_generator.rs:COMPONENT_DESCRIPTIONS"
+    # v3.3.1 — new with LeaseGenerator; TemplateProvider rewire
+    # scheduled for v3.4+ alongside the other standards generators.
+    "crates/datasynth-generators/src/standards/lease_generator.rs:LESSOR_NAMES"
 )
 
 echo "=== Hardcoded name/description pools in datasynth-generators/ ==="
