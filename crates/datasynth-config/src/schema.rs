@@ -4098,28 +4098,38 @@ pub struct AuditGenerationConfig {
     #[serde(default)]
     pub enabled: bool,
 
-    /// [Not yet wired] Generate workpaper data — reserved for future fine-grained control.
-    /// Currently, workpapers are always generated when `enabled = true`.
+    /// Gate for workpaper generation (v3.3.2+).
+    /// When `false`, workpapers and dependent evidence are skipped
+    /// while engagements / risk assessments / findings still generate.
     #[serde(default = "default_true")]
     pub generate_workpapers: bool,
 
-    /// [Not yet wired] Default engagement type distribution — reserved for future fine-grained control.
-    /// Currently, engagement types are determined by the audit generator's internal defaults.
+    /// Engagement type distribution (v3.3.2+). Drives per-engagement
+    /// type draw via `AuditEngagementGenerator::draw_engagement_type`.
     #[serde(default)]
     pub engagement_types: AuditEngagementTypesConfig,
 
-    /// [Not yet wired] Workpaper configuration — reserved for future fine-grained control.
-    /// Currently, workpaper settings are determined by the audit generator's internal defaults.
+    /// Workpaper configuration (v3.3.2+). `average_per_phase` maps onto
+    /// `WorkpaperGenerator.workpapers_per_section` as a ±50% band
+    /// around the average. Sampling / ISA / cross-reference flags are
+    /// surfaced for downstream formatting overlays.
     #[serde(default)]
     pub workpapers: WorkpaperConfig,
 
-    /// [Not yet wired] Team configuration — reserved for future fine-grained control.
-    /// Currently, team composition is determined by the audit generator's internal defaults.
+    /// Audit team configuration (v3.3.2+). `min_team_size` /
+    /// `max_team_size` map directly onto
+    /// `AuditEngagementGenerator.team_size_range`.
+    /// `specialist_probability` is reserved for v3.4 (explicit
+    /// specialist-role support).
     #[serde(default)]
     pub team: AuditTeamConfig,
 
-    /// [Not yet wired] Review workflow configuration — reserved for future fine-grained control.
-    /// Currently, review workflow is determined by the audit generator's internal defaults.
+    /// Review workflow configuration (v3.3.2+).
+    /// `average_review_delay_days` drives both
+    /// `first_review_delay_range` and `second_review_delay_range` as
+    /// a ±1-day band around the average. `rework_probability` and
+    /// `require_partner_signoff` are reserved for v3.4 workflow
+    /// modeling.
     #[serde(default)]
     pub review: ReviewWorkflowConfig,
 

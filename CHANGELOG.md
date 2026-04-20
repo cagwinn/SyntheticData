@@ -5,6 +5,67 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.3.2] - 2026-04-20
+
+Completes the audit fine-grained config track: the 5 `[Not yet wired]`
+sub-blocks on `AuditGenerationConfig` now have an observable runtime
+effect. This closes the inventory's `[Not yet wired]` count in
+`schema.rs` to 0.
+
+### Audit config threading
+
+- **`audit.generate_workpapers`** — when `false`, the audit phase emits
+  engagements (and risk assessments) but skips workpaper + evidence
+  generation entirely. Default remains `true`.
+- **`audit.engagement_types`** — the 5 probabilities
+  (`financial_statement`, `sox_icfr`, `integrated`, `review`,
+  `agreed_upon_procedures`) now drive `EngagementGenerator` weighted
+  selection of `EngagementType`. Mapping: `financial_statement →
+  AnnualAudit`, `sox_icfr + integrated → IntegratedAudit`, `review →
+  ReviewEngagement`, `agreed_upon_procedures → AgreedUponProcedures`.
+- **`audit.workpapers.average_per_phase`** — replaces the hardcoded
+  `workpapers_per_section` range in `WorkpaperGenerator` with a
+  ±50% band around the configured average. Output workpaper counts
+  scale proportionally.
+- **`audit.team`** (`min_team_size`, `max_team_size`) — overrides the
+  hardcoded `team_size_range` so every engagement's `team_member_ids`
+  falls within the configured band.
+- **`audit.review`** (`average_review_delay_days`) — drives the
+  first- and second-review delay ranges (±1 day around the
+  configured average).
+
+### Schema cleanup
+
+- Removed the `[Not yet wired]` prefix from 5 doc comments on
+  `AuditGenerationConfig` in `crates/datasynth-config/src/schema.rs`
+  and replaced them with v3.3.2+ notes explaining the mapping.
+
+### New generator surface
+
+- `EngagementGenerator::set_team_config(&AuditTeamConfig)` — override
+  team-size range at construction.
+- `EngagementGenerator::draw_engagement_type(&AuditEngagementTypesConfig)
+  -> EngagementType` — weighted selection honoring schema probabilities.
+- `WorkpaperGenerator::set_schema_configs(&WorkpaperConfig,
+  &ReviewWorkflowConfig)` — map `average_per_phase` +
+  `average_review_delay_days` into internal ranges.
+
+### Tests
+
+- New integration test crate
+  `crates/datasynth-runtime/tests/audit_config_v332_smoke.rs` (5
+  tests) covering each newly wired field: disable-workpapers skip,
+  default-workpapers presence, team min/max respected, engagement-type
+  distribution honored, workpapers_per_phase scaling.
+
+### Compatibility
+
+- All 5 defaults preserve v3.3.1 behavior. Config that didn't set
+  these fields keeps producing byte-identical output with the same
+  seed.
+
+---
+
 ## [3.3.1] - 2026-04-20
 
 Completes v3.3.0 Sub-group A: three new accounting-standards

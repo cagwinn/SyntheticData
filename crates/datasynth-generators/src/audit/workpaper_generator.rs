@@ -96,6 +96,40 @@ impl WorkpaperGenerator {
         }
     }
 
+    /// v3.3.2: override internal config from the user-facing audit
+    /// schema configuration (`WorkpaperConfig` + `ReviewWorkflowConfig`).
+    ///
+    /// Mapping:
+    ///   - `WorkpaperConfig.average_per_phase` → a range of ±50% around
+    ///     the configured average, clamped to ≥1. E.g. `average=5` →
+    ///     `workpapers_per_section = (3, 8)`.
+    ///   - `ReviewWorkflowConfig.average_review_delay_days` → a ±1-day
+    ///     band around the average used for both first and second
+    ///     review delays.
+    ///
+    /// The sampling / ISA-reference / cross-reference flags on
+    /// `WorkpaperConfig` are not currently mapped to the generator's
+    /// internal state — they're used by downstream formatting logic
+    /// and reserved for v3.4+ (where we add explicit ISA-reference
+    /// annotations to generated workpaper titles).
+    pub fn set_schema_configs(
+        &mut self,
+        workpapers: &datasynth_config::WorkpaperConfig,
+        review: &datasynth_config::ReviewWorkflowConfig,
+    ) {
+        let avg = workpapers.average_per_phase.max(1) as u32;
+        let half = (avg / 2).max(1);
+        let low = avg.saturating_sub(half).max(1);
+        let high = avg.saturating_add(half);
+        self.config.workpapers_per_section = (low, high);
+
+        let avg_review = review.average_review_delay_days.max(1);
+        let low_r = avg_review.saturating_sub(1).max(1);
+        let high_r = avg_review.saturating_add(1);
+        self.config.first_review_delay_range = (low_r, high_r);
+        self.config.second_review_delay_range = (low_r.max(1), high_r);
+    }
+
     /// Generate workpapers for an engagement phase.
     pub fn generate_workpapers_for_phase(
         &mut self,

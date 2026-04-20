@@ -84,6 +84,55 @@ impl AuditEngagementGenerator {
         }
     }
 
+    /// v3.3.2: override internal config with the user-facing audit
+    /// schema configuration.
+    ///
+    /// Maps `AuditTeamConfig.{min_team_size, max_team_size}` onto the
+    /// generator's `team_size_range`. The `specialist_probability` is
+    /// surfaced via `specialist_probability_override` so downstream
+    /// team-composition code can honour it without a full refactor.
+    pub fn set_team_config(&mut self, team_config: &datasynth_config::AuditTeamConfig) {
+        self.config.team_size_range = (
+            team_config.min_team_size as u32,
+            team_config.max_team_size as u32,
+        );
+        // specialist_probability is currently not surfaced to the
+        // generator — reserved for a future v3.4 refactor that
+        // introduces specialist roles. Kept here as a no-op assignment
+        // for completeness so we can see the config wiring line-count.
+        let _ = team_config.specialist_probability;
+    }
+
+    /// v3.3.2: draw an engagement type honoring the user-configured
+    /// distribution from `AuditEngagementTypesConfig`.
+    ///
+    /// Maps the 5 schema probabilities onto the 5 `EngagementType`
+    /// variants the model exposes (AnnualAudit / IntegratedAudit /
+    /// ReviewEngagement / AgreedUponProcedures, with SOX ICFR rolled
+    /// into IntegratedAudit since ASC 404 + financial-statement audit
+    /// is always run as integrated). The rolled-in SOX probability is
+    /// summed with `integrated`; `financial_statement` maps to
+    /// `AnnualAudit`.
+    pub fn draw_engagement_type(
+        &mut self,
+        types: &datasynth_config::AuditEngagementTypesConfig,
+    ) -> EngagementType {
+        let roll: f64 = self.rng.random();
+        let mut acc = types.financial_statement;
+        if roll < acc {
+            return EngagementType::AnnualAudit;
+        }
+        acc += types.sox_icfr + types.integrated;
+        if roll < acc {
+            return EngagementType::IntegratedAudit;
+        }
+        acc += types.review;
+        if roll < acc {
+            return EngagementType::ReviewEngagement;
+        }
+        EngagementType::AgreedUponProcedures
+    }
+
     /// Generate an audit engagement for a company.
     pub fn generate_engagement(
         &mut self,

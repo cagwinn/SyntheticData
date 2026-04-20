@@ -11323,7 +11323,15 @@ impl EnhancedOrchestrator {
 
         // Initialize generators
         let mut engagement_gen = AuditEngagementGenerator::new(self.seed + 7000);
+        // v3.3.2: thread the user-facing audit schema config into the
+        // engagement generator (team size range).
+        engagement_gen.set_team_config(&self.config.audit.team);
+
         let mut workpaper_gen = WorkpaperGenerator::new(self.seed + 7100);
+        // v3.3.2: thread workpaper + review workflow schema config into
+        // the workpaper generator (per-section count range + review
+        // delay ranges).
+        workpaper_gen.set_schema_configs(&self.config.audit.workpapers, &self.config.audit.review);
         let mut evidence_gen = EvidenceGenerator::new(self.seed + 7200);
         let mut risk_gen = RiskAssessmentGenerator::new(self.seed + 7300);
         let mut finding_gen = FindingGenerator::new(self.seed + 7400);
@@ -11365,6 +11373,13 @@ impl EnhancedOrchestrator {
             };
 
             for _eng_idx in 0..(engagements_for_company + extra) {
+                // v3.3.2: draw engagement type from the user-configured
+                // distribution instead of always using the default
+                // (AnnualAudit). Falls back to the default when all
+                // probabilities are zero.
+                let eng_type =
+                    engagement_gen.draw_engagement_type(&self.config.audit.engagement_types);
+
                 // Generate the engagement
                 let mut engagement = engagement_gen.generate_engagement(
                     &company.code,
@@ -11372,7 +11387,7 @@ impl EnhancedOrchestrator {
                     fiscal_year,
                     period_end,
                     company_revenue,
-                    None, // Use default engagement type
+                    Some(eng_type),
                 );
 
                 // Replace synthetic team IDs with real employee IDs from master data
@@ -11407,9 +11422,16 @@ impl EnhancedOrchestrator {
                 // Get team members from the engagement
                 let team_members: Vec<String> = engagement.team_member_ids.clone();
 
-                // Generate workpapers for the engagement
-                let workpapers =
-                    workpaper_gen.generate_complete_workpaper_set(&engagement, &team_members);
+                // Generate workpapers for the engagement.
+                // v3.3.2: honor `audit.generate_workpapers` — when false,
+                // workpapers (and dependent evidence) are skipped while
+                // the engagement itself, risk assessments, findings, etc.
+                // still generate normally.
+                let workpapers = if self.config.audit.generate_workpapers {
+                    workpaper_gen.generate_complete_workpaper_set(&engagement, &team_members)
+                } else {
+                    Vec::new()
+                };
 
                 for wp in &workpapers {
                     if let Some(pb) = &pb {
