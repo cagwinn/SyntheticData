@@ -5,12 +5,14 @@
 
 use chrono::{Datelike, NaiveDate};
 use datasynth_config::schema::TimeAttendanceConfig;
+use datasynth_core::distributions::TemporalContext;
 use datasynth_core::models::{TimeApprovalStatus, TimeEntry};
 use datasynth_core::utils::seeded_rng;
 use datasynth_core::uuid_factory::{DeterministicUuidFactory, GeneratorType};
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
 use std::collections::HashMap;
+use std::sync::Arc;
 use tracing::debug;
 
 /// Default PTO rate (probability that an employee takes PTO on a given business day).
@@ -29,6 +31,10 @@ pub struct TimeEntryGenerator {
     cost_center_ids_pool: Vec<String>,
     /// Mapping of employee_id → employee_name for denormalization (DS-011).
     employee_names: HashMap<String, String>,
+    /// v3.4.2+ temporal context — when set, `collect_business_days` filters
+    /// out holidays (not just weekends) and `submitted_at` lag snaps to
+    /// business days. `None` preserves legacy weekday-only behavior.
+    temporal_context: Option<Arc<TemporalContext>>,
 }
 
 impl TimeEntryGenerator {
@@ -40,7 +46,21 @@ impl TimeEntryGenerator {
             employee_ids_pool: Vec::new(),
             cost_center_ids_pool: Vec::new(),
             employee_names: HashMap::new(),
+            temporal_context: None,
         }
+    }
+
+    /// Set the shared [`TemporalContext`] so business-day collection excludes
+    /// holidays (not just weekends) and `submitted_at` lag days snap forward
+    /// to the next business day.
+    pub fn set_temporal_context(&mut self, ctx: Arc<TemporalContext>) {
+        self.temporal_context = Some(ctx);
+    }
+
+    /// Builder variant of [`Self::set_temporal_context`].
+    pub fn with_temporal_context(mut self, ctx: Arc<TemporalContext>) -> Self {
+        self.temporal_context = Some(ctx);
+        self
     }
 
     /// Set ID pools for cross-reference coherence.
@@ -94,18 +114,37 @@ impl TimeEntryGenerator {
         entries
     }
 
-    /// Collect all business days (Mon-Fri) within the given date range.
+    /// Collect all business days within the given date range.
+    ///
+    /// When a [`TemporalContext`] is configured, holidays are also excluded
+    /// (the context's full `is_business_day` check runs). Otherwise, only
+    /// weekends are filtered (legacy pre-v3.4.2 behavior).
     fn collect_business_days(&self, start: NaiveDate, end: NaiveDate) -> Vec<NaiveDate> {
         let mut days = Vec::new();
         let mut current = start;
         while current <= end {
-            let weekday = current.weekday();
-            if weekday != chrono::Weekday::Sat && weekday != chrono::Weekday::Sun {
+            let is_business = match &self.temporal_context {
+                Some(ctx) => ctx.is_business_day(current),
+                None => {
+                    let weekday = current.weekday();
+                    weekday != chrono::Weekday::Sat && weekday != chrono::Weekday::Sun
+                }
+            };
+            if is_business {
                 days.push(current);
             }
             current += chrono::Duration::days(1);
         }
         days
+    }
+
+    /// Snap a date to the next business day when a [`TemporalContext`] is
+    /// present; otherwise return it unchanged.
+    fn snap_to_business_day(&self, date: NaiveDate) -> NaiveDate {
+        match &self.temporal_context {
+            Some(ctx) => ctx.adjust_to_business_day(date),
+            None => date,
+        }
     }
 
     /// Generate a single time entry for an employee on a given day.
@@ -194,7 +233,8 @@ impl TimeEntryGenerator {
             if approval_status != TimeApprovalStatus::Pending || self.rng.random_bool(0.5) {
                 // Most entries are submitted on the day or the next day
                 let lag = self.rng.random_range(0..=2);
-                Some(date + chrono::Duration::days(lag))
+                let raw = date + chrono::Duration::days(lag);
+                Some(self.snap_to_business_day(raw))
             } else {
                 None
             };

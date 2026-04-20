@@ -5,6 +5,60 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.4.2] - 2026-04-20
+
+v3.4.0 Sub-group B2 — **HR temporal wiring** for time entries and
+expense reports. Follows v3.4.1's document-flow (P2P / O2C) wiring.
+Treasury + period-close ship in v3.4.3.
+
+### Time entry temporal awareness
+
+- `TimeEntryGenerator::set_temporal_context(Arc<TemporalContext>)`
+  (+ builder variant `with_temporal_context`) makes
+  `collect_business_days` also exclude holidays (not just weekends).
+  Previously the weekday-only filter silently posted time on national
+  holidays.
+- `submitted_at` lag (0–2 day variance) now snaps to the next business
+  day when the context is set.
+
+### Expense report temporal awareness
+
+- `ExpenseReportGenerator::set_temporal_context(Arc<TemporalContext>)`
+  (+ builder variant). Snaps:
+  - `submission_date` (submission-lag-adjusted) to the next business day.
+  - `approved_date` (approval-lag-adjusted) to the next business day.
+  - `paid_date` (3–14 days post-approval) to the next business day.
+  - Line-item `date` (uniform over period) to the next business day,
+    clamping back to period_end if snapping would overflow.
+
+### Orchestrator hookup
+
+- `EnhancedOrchestrator` now passes `Arc::clone(&self.temporal_context)`
+  to `TimeEntryGenerator` and `ExpenseReportGenerator` at construction
+  (same pattern as v3.4.1's P2P / O2C wiring). `None` context preserves
+  legacy behavior.
+- `PayrollGenerator` is intentionally skipped in this release — its
+  period dates are driven entirely by the caller, so no temporal
+  snapping is needed inside the generator.
+
+### Tests
+
+- New integration crate `temporal_hr_smoke.rs` (5 tests):
+  1. time-entry dates exclude weekends AND US holidays (MLK, Presidents)
+  2. time-entry `submitted_at` never a weekend
+  3. expense-report `submission_date` / `approved_date` / `paid_date`
+     never a weekend
+  4. expense-report line-item dates never a weekend/US holiday
+  5. disabled-temporal path still produces HR output (legacy regression)
+
+### Compatibility
+
+- `temporal_patterns.business_days.enabled = false` (default) preserves
+  v3.4.1 byte-identical output with the same seed.
+- All 24 smoke tests across v3.3+/v3.4+ continue to pass.
+
+---
+
 ## [3.4.1] - 2026-04-20
 
 v3.4.0 Sub-group B1 — **Temporal wiring for P2P / O2C / document flows.**

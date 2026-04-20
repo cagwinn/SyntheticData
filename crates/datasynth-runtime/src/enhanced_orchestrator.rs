@@ -6861,6 +6861,12 @@ impl EnhancedOrchestrator {
         if self.config.hr.time_attendance.enabled {
             let mut time_gen = datasynth_generators::TimeEntryGenerator::new(seed + 31)
                 .with_pools(employee_ids.clone(), cost_center_ids.clone());
+            // v3.4.2: when a temporal context is configured, time entries
+            // respect holidays (not just weekends) and submitted_at lag
+            // snaps to business days.
+            if let Some(ctx) = &self.temporal_context {
+                time_gen.set_temporal_context(Arc::clone(ctx));
+            }
             let entries = time_gen.generate(
                 &employee_ids,
                 start_date,
@@ -6876,6 +6882,11 @@ impl EnhancedOrchestrator {
             let mut expense_gen = datasynth_generators::ExpenseReportGenerator::new(seed + 32)
                 .with_pools(employee_ids.clone(), cost_center_ids.clone());
             expense_gen.set_country_pack(self.primary_pack().clone());
+            // v3.4.2: snap submission / approval / paid / line-item dates
+            // to business days when temporal_context is present.
+            if let Some(ctx) = &self.temporal_context {
+                expense_gen.set_temporal_context(Arc::clone(ctx));
+            }
             let company_currency = self
                 .config
                 .companies

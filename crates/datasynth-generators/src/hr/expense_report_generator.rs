@@ -6,6 +6,7 @@
 
 use chrono::{Datelike, NaiveDate};
 use datasynth_config::schema::ExpenseConfig;
+use datasynth_core::distributions::TemporalContext;
 use datasynth_core::models::{ExpenseCategory, ExpenseLineItem, ExpenseReport, ExpenseStatus};
 use datasynth_core::utils::{sample_decimal_range, seeded_rng};
 use datasynth_core::uuid_factory::{DeterministicUuidFactory, GeneratorType};
@@ -14,6 +15,7 @@ use rand_chacha::ChaCha8Rng;
 use rust_decimal::Decimal;
 use smallvec::SmallVec;
 use std::collections::HashMap;
+use std::sync::Arc;
 use tracing::debug;
 
 /// Generates [`ExpenseReport`] records for employees over a period.
@@ -32,6 +34,10 @@ pub struct ExpenseReportGenerator {
     /// Optional country pack for locale-aware generation (set via
     /// `set_country_pack`); drives locale-specific currencies.
     country_pack: Option<datasynth_core::CountryPack>,
+    /// v3.4.2+ temporal context — when set, submission / approval / paid /
+    /// line-item dates snap to the next business day. `None` preserves
+    /// legacy raw-rng behavior (byte-identical to v3.4.1).
+    temporal_context: Option<Arc<TemporalContext>>,
 }
 
 impl ExpenseReportGenerator {
@@ -50,6 +56,7 @@ impl ExpenseReportGenerator {
             cost_center_ids_pool: Vec::new(),
             employee_names: HashMap::new(),
             country_pack: None,
+            temporal_context: None,
         }
     }
 
@@ -68,6 +75,28 @@ impl ExpenseReportGenerator {
             cost_center_ids_pool: Vec::new(),
             employee_names: HashMap::new(),
             country_pack: None,
+            temporal_context: None,
+        }
+    }
+
+    /// Set the shared [`TemporalContext`] so submission / approval / paid /
+    /// line-item dates snap to the next business day.
+    pub fn set_temporal_context(&mut self, ctx: Arc<TemporalContext>) {
+        self.temporal_context = Some(ctx);
+    }
+
+    /// Builder variant of [`Self::set_temporal_context`].
+    pub fn with_temporal_context(mut self, ctx: Arc<TemporalContext>) -> Self {
+        self.temporal_context = Some(ctx);
+        self
+    }
+
+    /// Snap a date to the next business day when a [`TemporalContext`] is
+    /// present; otherwise return it unchanged.
+    fn snap_to_business_day(&self, date: NaiveDate) -> NaiveDate {
+        match &self.temporal_context {
+            Some(ctx) => ctx.adjust_to_business_day(date),
+            None => date,
         }
     }
 
@@ -209,7 +238,8 @@ impl ExpenseReportGenerator {
             .max()
             .unwrap_or(period_end);
         let submission_lag = self.rng.random_range(0..=5);
-        let submission_date = max_expense_date + chrono::Duration::days(submission_lag);
+        let raw_submission = max_expense_date + chrono::Duration::days(submission_lag);
+        let submission_date = self.snap_to_business_day(raw_submission);
 
         // Trip/purpose descriptions
         let descriptions = [
@@ -251,13 +281,17 @@ impl ExpenseReportGenerator {
 
         let approved_date = if matches!(status, ExpenseStatus::Approved | ExpenseStatus::Paid) {
             let approval_lag = self.rng.random_range(1..=7);
-            Some(submission_date + chrono::Duration::days(approval_lag))
+            let raw = submission_date + chrono::Duration::days(approval_lag);
+            Some(self.snap_to_business_day(raw))
         } else {
             None
         };
 
         let paid_date = if status == ExpenseStatus::Paid {
-            approved_date.map(|ad| ad + chrono::Duration::days(self.rng.random_range(3..=14)))
+            approved_date.map(|ad| {
+                let raw = ad + chrono::Duration::days(self.rng.random_range(3..=14));
+                self.snap_to_business_day(raw)
+            })
         } else {
             None
         };
@@ -339,10 +373,22 @@ impl ExpenseReportGenerator {
         )
         .round_dp(2);
 
-        // Date within the period
+        // Date within the period. With a TemporalContext, snap to the next
+        // business day; otherwise keep the raw offset (legacy behavior).
         let days_in_period = (period_end - period_start).num_days().max(1);
         let offset = self.rng.random_range(0..=days_in_period);
-        let date = period_start + chrono::Duration::days(offset);
+        let raw_date = period_start + chrono::Duration::days(offset);
+        let date = match &self.temporal_context {
+            Some(ctx) => {
+                let snapped = ctx.adjust_to_business_day(raw_date);
+                if snapped > period_end {
+                    ctx.adjust_to_previous_business_day(period_end)
+                } else {
+                    snapped
+                }
+            }
+            None => raw_date,
+        };
 
         // Receipt attached: 85% of the time
         let receipt_attached = self.rng.random_bool(0.85);
