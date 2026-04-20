@@ -308,11 +308,10 @@ impl JournalEntryGenerator {
 
         match config.amounts.distribution_type {
             MixtureDistributionType::LogNormal => {
-                let lognormal_cfg = config.amounts.to_log_normal_config().or_else(|| {
-                    config
-                        .industry_profile
-                        .map(industry_profile_to_log_normal)
-                });
+                let lognormal_cfg = config
+                    .amounts
+                    .to_log_normal_config()
+                    .or_else(|| config.industry_profile.map(industry_profile_to_log_normal));
                 if let Some(cfg) = lognormal_cfg {
                     self.advanced_amount_sampler =
                         Some(AdvancedAmountSampler::new_log_normal(seed, cfg)?);
