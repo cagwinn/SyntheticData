@@ -5,6 +5,84 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.1.3] - 2026-04-21
+
+Partial-schema follow-through per [v4.1 plan](docs/plans/2026-04-21-v4.1-plan.md).
+
+### Wired: `vendor_network`, `customer_segmentation`, `industry_specific`
+
+Three schema sections previously marked ⚠ partial (enable-flag-only,
+sub-config fields inert) now populate a new snapshot on
+`EnhancedGenerationResult`:
+
+```rust
+pub struct InterconnectivitySnapshot {
+    pub vendor_tiers: Vec<(String, u8)>,              // 1 / 2 / 3
+    pub vendor_clusters: Vec<(String, String)>,       // 4 named clusters
+    pub customer_value_segments: Vec<(String, String)>, // 4 segments
+    pub customer_lifecycle_stages: Vec<(String, String)>, // 7 stages
+    pub industry_metadata: Vec<String>,
+}
+```
+
+- **Vendor network**: `vendor_network.depth` + `tier{1,2,3}_per_parent`
+  drives tier assignments (1 = strategic / direct, 2 = sub-suppliers,
+  3 = sub-sub). `vendor_network.clusters.{reliable_strategic,
+  standard_operational, transactional, problematic}` ratios drive
+  cluster labels.
+- **Customer segmentation**: `customer_segmentation.value_segments.
+  {enterprise, mid_market, smb, consumer}.customer_share` drives
+  the 4 value segments. `customer_segmentation.lifecycle.{prospect,
+  new, growth, mature, at_risk, churned, won_back}_rate` drives
+  the 7 lifecycle stages.
+- **Industry-specific**: enable flag now populates an
+  `industry_metadata` entry with the active industry.
+
+### Implementation notes
+
+- The snapshot is a **post-hoc labelling** of already-generated master
+  data; it does not alter upstream vendor/customer generation. This
+  keeps v4.0.x byte-identity exact when the three sections are
+  disabled (default).
+- Runs at the end of `generate()` after master data settles, seeded
+  off `self.seed + 91001` for deterministic labels under the same
+  seed.
+- Downstream tooling (graph exporters, risk models, custom
+  analytics) can consume the snapshot directly; no re-derivation
+  needed.
+
+### Tests
+
+- New integration crate `interconnectivity_smoke.rs` (4 tests):
+  disabled → empty; vendor_network enabled → full tier/cluster
+  population; customer_segmentation enabled → segment+lifecycle
+  labels; industry_specific enabled → metadata entry.
+- All 73 prior runtime + 12 CLI smokes still green.
+- `cargo clippy --workspace --all-targets -- -D warnings` clean.
+
+### Compatibility
+
+- Defaults (`{vendor_network,customer_segmentation,industry_specific}.
+  enabled = false`) preserve v4.1.2 byte-identical output for the
+  same seed.
+- `EnhancedGenerationResult.interconnectivity` is an additive field
+  with a `Default::default()` fallback; existing consumers ignoring
+  the field continue to work.
+
+### Still deferred (v4.1.x follow-ups)
+
+- **Industry-specific analytics**: currently only records the enabled
+  flag. Per-industry sub-configs (manufacturing.bom_depth, healthcare.
+  insurance_mix, retail.seasonal_peaks, …) need dedicated wiring into
+  the appropriate generators. Schedule per-industry patches in
+  v4.1.x as demand surfaces.
+- **Vendor relationship edges in the graph export**: the snapshot
+  labels vendors but doesn't emit VendorRelationship records for
+  tier2→tier1 / tier3→tier2 edges. Pending in the graph-export
+  consolidation work (v4.1.5).
+
+---
+
 ## [4.1.2] - 2026-04-21
 
 ### `datasynth-data optimizer` — audit-optimizer CLI (6 subcommands)

@@ -1243,6 +1243,38 @@ pub struct EnhancedGenerationResult {
     /// KS) over the generated amount distribution.  `None` when
     /// `distributions.validation.enabled = false`.
     pub statistical_validation: Option<datasynth_core::distributions::StatisticalValidationReport>,
+    /// v4.1.3+: interconnectivity snapshot — vendor tier assignments,
+    /// customer value-segment labels, and industry-specific metadata
+    /// populated from the previously-inert `vendor_network`,
+    /// `customer_segmentation`, and `industry_specific` schema
+    /// sections. Empty when those sections are disabled.
+    pub interconnectivity: InterconnectivitySnapshot,
+}
+
+/// v4.1.3+: interconnectivity snapshot. Populated when
+/// `vendor_network.enabled` / `customer_segmentation.enabled` /
+/// `industry_specific.enabled` are set. Holds tier / segment / industry
+/// labels for generated entities so downstream tooling (graph export,
+/// risk models) can consume them without re-deriving from scratch.
+#[derive(Debug, Clone, Default)]
+pub struct InterconnectivitySnapshot {
+    /// `(vendor_id, tier)` pairs. Tier 1 = strategic / primary; Tier 2
+    /// = sub-tier suppliers to tier 1; Tier 3 = sub-sub-tier.
+    pub vendor_tiers: Vec<(String, u8)>,
+    /// `(vendor_id, cluster_label)` pairs where cluster_label is one of
+    /// `"reliable_strategic" / "standard_operational" / "transactional"
+    /// / "problematic"`.
+    pub vendor_clusters: Vec<(String, String)>,
+    /// `(customer_id, value_segment)` pairs where value_segment is one
+    /// of `"enterprise" / "mid_market" / "smb" / "consumer"`.
+    pub customer_value_segments: Vec<(String, String)>,
+    /// `(customer_id, lifecycle_stage)` pairs where stage is one of
+    /// `"prospect" / "new" / "growth" / "mature" / "at_risk" /
+    /// "churned" / "won_back"`.
+    pub customer_lifecycle_stages: Vec<(String, String)>,
+    /// Summary: industry-specific knob applied, if any (e.g.
+    /// `"manufacturing.bom_depth=3"`).
+    pub industry_metadata: Vec<String>,
 }
 
 /// v3.3.0: snapshot for the analytics-metadata phase.
@@ -3563,6 +3595,11 @@ impl EnhancedOrchestrator {
         // `None` unless `distributions.validation.enabled = true`.
         let statistical_validation = self.phase_statistical_validation(&entries)?;
 
+        // v4.1.3+: interconnectivity snapshot — tier assignments,
+        // value-segment labels, industry-specific metadata. Runs after
+        // master data is settled so it can index stable IDs.
+        let interconnectivity = self.phase_interconnectivity();
+
         Ok(EnhancedGenerationResult {
             chart_of_accounts: Arc::try_unwrap(coa).unwrap_or_else(|arc| (*arc).clone()),
             master_data: std::mem::take(&mut self.master_data),
@@ -3608,7 +3645,138 @@ impl EnhancedOrchestrator {
             compliance_regulations,
             analytics_metadata,
             statistical_validation,
+            interconnectivity,
         })
+    }
+
+    /// v4.1.3+: populate the interconnectivity snapshot from
+    /// previously-inert schema sections. Empty when all sections are
+    /// disabled.
+    fn phase_interconnectivity(&self) -> InterconnectivitySnapshot {
+        use rand::{RngExt, SeedableRng};
+        use rand_chacha::ChaCha8Rng;
+
+        let mut snap = InterconnectivitySnapshot::default();
+        let mut rng = ChaCha8Rng::seed_from_u64(self.seed.wrapping_add(91_001));
+
+        // --- Vendor network ---
+        let vn = &self.config.vendor_network;
+        if vn.enabled {
+            let total = self.master_data.vendors.len();
+            if total > 0 {
+                let tier1_count = ((vn.tier1.min + vn.tier1.max) / 2).min(total).max(1);
+                let remaining_after_t1 = total.saturating_sub(tier1_count);
+                let depth = vn.depth.clamp(1, 3);
+                let tier2_count = if depth >= 2 {
+                    let avg = (vn.tier2_per_parent.min + vn.tier2_per_parent.max) / 2;
+                    (tier1_count * avg).min(remaining_after_t1)
+                } else {
+                    0
+                };
+                let tier3_count = total
+                    .saturating_sub(tier1_count)
+                    .saturating_sub(tier2_count);
+
+                for (idx, vendor) in self.master_data.vendors.iter().enumerate() {
+                    let tier = if idx < tier1_count {
+                        1
+                    } else if idx < tier1_count + tier2_count {
+                        2
+                    } else {
+                        3
+                    };
+                    snap.vendor_tiers.push((vendor.vendor_id.clone(), tier));
+
+                    // Cluster assignment via configured ratios.
+                    let cl = &vn.clusters;
+                    let roll: f64 = rng.random();
+                    let cluster = if roll < cl.reliable_strategic {
+                        "reliable_strategic"
+                    } else if roll < cl.reliable_strategic + cl.standard_operational {
+                        "standard_operational"
+                    } else if roll
+                        < cl.reliable_strategic + cl.standard_operational + cl.transactional
+                    {
+                        "transactional"
+                    } else {
+                        "problematic"
+                    };
+                    snap.vendor_clusters
+                        .push((vendor.vendor_id.clone(), cluster.to_string()));
+                }
+                let _ = tier3_count; // retained for clarity; tier 3 bucket is the remainder
+            }
+        }
+
+        // --- Customer segmentation ---
+        let cs = &self.config.customer_segmentation;
+        if cs.enabled {
+            let seg = &cs.value_segments;
+            for customer in &self.master_data.customers {
+                let roll: f64 = rng.random();
+                let value_segment = if roll < seg.enterprise.customer_share {
+                    "enterprise"
+                } else if roll < seg.enterprise.customer_share + seg.mid_market.customer_share {
+                    "mid_market"
+                } else if roll
+                    < seg.enterprise.customer_share
+                        + seg.mid_market.customer_share
+                        + seg.smb.customer_share
+                {
+                    "smb"
+                } else {
+                    "consumer"
+                };
+                snap.customer_value_segments
+                    .push((customer.customer_id.clone(), value_segment.to_string()));
+
+                let roll2: f64 = rng.random();
+                let life = &cs.lifecycle;
+                let lifecycle = if roll2 < life.prospect_rate {
+                    "prospect"
+                } else if roll2 < life.prospect_rate + life.new_rate {
+                    "new"
+                } else if roll2 < life.prospect_rate + life.new_rate + life.growth_rate {
+                    "growth"
+                } else if roll2
+                    < life.prospect_rate + life.new_rate + life.growth_rate + life.mature_rate
+                {
+                    "mature"
+                } else if roll2
+                    < life.prospect_rate
+                        + life.new_rate
+                        + life.growth_rate
+                        + life.mature_rate
+                        + life.at_risk_rate
+                {
+                    "at_risk"
+                } else if roll2
+                    < life.prospect_rate
+                        + life.new_rate
+                        + life.growth_rate
+                        + life.mature_rate
+                        + life.at_risk_rate
+                        + life.churned_rate
+                {
+                    "churned"
+                } else {
+                    "won_back"
+                };
+                snap.customer_lifecycle_stages
+                    .push((customer.customer_id.clone(), lifecycle.to_string()));
+            }
+        }
+
+        // --- Industry-specific metadata (minimal) ---
+        let is = &self.config.industry_specific;
+        if is.enabled {
+            snap.industry_metadata.push(format!(
+                "industry_specific.enabled=true (industry={:?})",
+                self.config.global.industry
+            ));
+        }
+
+        snap
     }
 
     // ========================================================================
