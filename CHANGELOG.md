@@ -5,6 +5,85 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.1.1] - 2026-04-21
+
+LLM track completion per [v4.1 plan](docs/plans/2026-04-21-v4.1-plan.md).
+
+### `FindingLlmEnricher`
+
+New `datasynth_generators::llm_enrichment::FindingLlmEnricher`:
+
+- `enrich_finding_title(finding_type, severity, area)` — 5-12 word
+  noun phrase.
+- `enrich_finding_narrative(finding_type, section, area)` — 40-80
+  word paragraph. Sections: `condition`, `criteria`, `cause`,
+  `effect`, `recommendation`.
+- `enrich_titles_batch(…)` for seeded batch generation.
+- Deterministic fallback templates per (type, section) when the LLM
+  errors or returns empty content.
+- 5 unit tests covering mock + batch + both fallback paths.
+
+### `phase_llm_enrichment` broadened
+
+- Previously vendors-only. Now also enriches:
+  - **Customers** when `llm.enrich_customers = true` (up to
+    `llm.max_customer_enrichments` per run).
+  - **Materials** when `llm.enrich_materials = true` (up to
+    `llm.max_material_enrichments` per run).
+- Finding enrichment at the runtime phase is intentionally deferred
+  to v4.1.2 — findings are generated in the audit phase which runs
+  AFTER phase_llm_enrichment, so we'll introduce a second finding-
+  focused phase pass. The new `FindingLlmEnricher` is already live
+  for callers that want to enrich ad-hoc.
+- Stats: new `llm_customers_enriched`, `llm_materials_enriched`,
+  `llm_findings_enriched` counters on `EnhancedGenerationStatistics`.
+
+### Schema additions
+
+`LlmSchemaConfig` grows 6 fields (all default-off, all additive):
+
+- `enrich_customers: bool`
+- `enrich_materials: bool`
+- `enrich_findings: bool`
+- `max_customer_enrichments: usize` (default 50)
+- `max_material_enrichments: usize` (default 50)
+- `max_finding_enrichments: usize` (default 50)
+
+### CI feature matrix
+
+New `.github/workflows/ci-feature-matrix.yml` builds and runs
+unit tests across: `default`, `llm`, `llm --no-default-features`,
+`neural`, `adversarial`, `llm+neural`. Catches feature-gate
+breakage at push time rather than during release.
+
+### Tests
+
+- 5 new unit tests on `FindingLlmEnricher`.
+- New integration crate `llm_enrichment_broaden_smoke.rs` (4 tests):
+  customers enriched when flag set, materials enriched when flag set,
+  vendors still enriched by default, defaults leave customer/material
+  untouched.
+- All 63 prior runtime smokes + 6 CLI smokes still green.
+
+### Compatibility
+
+- `llm.enrich_customers = false` / `llm.enrich_materials = false`
+  (defaults) preserve v4.1.0 byte-identical output for the same seed.
+- Schema additions are all `#[serde(default)]`; existing YAML
+  configs load unchanged.
+
+### Still deferred
+
+- Per-(industry × region × category) rich prompt library —
+  v4.1.1 keeps the simple parameterised prompts introduced in
+  v3.5.0. Prompt-engineering iteration is ongoing work, not a
+  code-ship item.
+- Finding-focused orchestrator phase that runs after audit data is
+  generated — scheduled for v4.1.2 or v4.1.3 alongside the
+  audit-optimizer CLI work.
+
+---
+
 ## [4.1.0] - 2026-04-21
 
 Distributions-completion track (per [v4.1 plan](docs/plans/2026-04-21-v4.1-plan.md)).

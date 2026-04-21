@@ -259,6 +259,35 @@ pub struct LlmSchemaConfig {
     /// Maximum number of vendor names to enrich per run.
     #[serde(default = "default_llm_batch_size")]
     pub max_vendor_enrichments: usize,
+
+    /// v4.1.1+: also enrich customer names at generate time.
+    /// Default `false` preserves v4.1.0 behaviour.
+    #[serde(default)]
+    pub enrich_customers: bool,
+
+    /// v4.1.1+: also enrich material descriptions at generate time.
+    /// Default `false`.
+    #[serde(default)]
+    pub enrich_materials: bool,
+
+    /// v4.1.1+: also enrich audit finding titles at generate time
+    /// (the finding narratives remain on their existing template path
+    /// because they're richer and locale-specific). Default `false`.
+    #[serde(default)]
+    pub enrich_findings: bool,
+
+    /// v4.1.1+: upper bound on customer enrichments per run. Matches
+    /// `max_vendor_enrichments` semantics.
+    #[serde(default = "default_llm_batch_size")]
+    pub max_customer_enrichments: usize,
+
+    /// v4.1.1+: upper bound on material enrichments per run.
+    #[serde(default = "default_llm_batch_size")]
+    pub max_material_enrichments: usize,
+
+    /// v4.1.1+: upper bound on finding enrichments per run.
+    #[serde(default = "default_llm_batch_size")]
+    pub max_finding_enrichments: usize,
 }
 
 fn default_llm_provider() -> String {
@@ -280,6 +309,12 @@ impl Default for LlmSchemaConfig {
             provider: default_llm_provider(),
             model: default_llm_model_name(),
             max_vendor_enrichments: default_llm_batch_size(),
+            enrich_customers: false,
+            enrich_materials: false,
+            enrich_findings: false,
+            max_customer_enrichments: default_llm_batch_size(),
+            max_material_enrichments: default_llm_batch_size(),
+            max_finding_enrichments: default_llm_batch_size(),
         }
     }
 }

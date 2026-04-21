@@ -8,6 +8,7 @@
 pub mod anomaly_designer;
 pub mod anomaly_explainer;
 pub mod customer_enricher;
+pub mod finding_enricher;
 pub mod material_enricher;
 pub mod transaction_enricher;
 pub mod vendor_enricher;
@@ -18,6 +19,7 @@ pub use anomaly_designer::{
 };
 pub use anomaly_explainer::AnomalyLlmExplainer;
 pub use customer_enricher::CustomerLlmEnricher;
+pub use finding_enricher::FindingLlmEnricher;
 pub use material_enricher::MaterialLlmEnricher;
 pub use transaction_enricher::TransactionLlmEnricher;
 pub use vendor_enricher::VendorLlmEnricher;

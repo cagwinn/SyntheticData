@@ -1,0 +1,57 @@
+name: CI Feature Matrix
+
+# v4.1.1+ — build + test each feature combination to prevent silent
+# breakage when a feature-gated module stops compiling.
+#
+# Runs on every push to main and on every PR so breakage is caught
+# immediately, not during a release.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  CARGO_HOME: /home/runner/.cargo
+  CARGO_INCREMENTAL: 0
+
+jobs:
+  matrix:
+    name: build+test (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: default
+            flags: ""
+          - name: llm
+            flags: "--features llm"
+          - name: llm-no-default
+            flags: "--no-default-features --features llm"
+          - name: neural
+            flags: "--features neural"
+          - name: adversarial
+            flags: "--features adversarial"
+          - name: llm+neural
+            flags: "--features llm,neural"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: feature-matrix-${{ matrix.name }}
+
+      - name: cargo check
+        run: cargo check --workspace ${{ matrix.flags }}
+
+      - name: cargo test (lib + unit only — skip heavyweight integration)
+        # The full smoke suite runs on the main ci.yml; here we just
+        # want to confirm each feature combo compiles and passes
+        # unit-level tests.
+        run: cargo test --workspace --lib ${{ matrix.flags }} -- --test-threads=4

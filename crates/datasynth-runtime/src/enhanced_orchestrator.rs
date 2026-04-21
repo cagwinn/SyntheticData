@@ -174,7 +174,6 @@ use datasynth_generators::audit::sample_generator::SampleGenerator;
 use datasynth_generators::audit::service_org_generator::ServiceOrgGenerator;
 use datasynth_generators::audit::subsequent_event_generator::SubsequentEventGenerator;
 use datasynth_generators::coa_generator::CoAFramework;
-use datasynth_generators::llm_enrichment::VendorLlmEnricher;
 use rayon::prelude::*;
 
 // ============================================================================
@@ -1337,6 +1336,15 @@ pub struct EnhancedGenerationStatistics {
     /// Number of vendor names enriched by LLM.
     #[serde(default)]
     pub llm_vendors_enriched: usize,
+    /// v4.1.1+: number of customer names enriched by LLM.
+    #[serde(default)]
+    pub llm_customers_enriched: usize,
+    /// v4.1.1+: number of material descriptions enriched by LLM.
+    #[serde(default)]
+    pub llm_materials_enriched: usize,
+    /// v4.1.1+: number of audit finding titles enriched by LLM.
+    #[serde(default)]
+    pub llm_findings_enriched: usize,
     /// Diffusion enhancement timing (milliseconds).
     #[serde(default)]
     pub diffusion_enhancement_ms: u64,
@@ -4693,42 +4701,100 @@ impl EnhancedOrchestrator {
                     Arc::new(MockLlmProvider::new(self.seed))
                 }
             };
-            let enricher = VendorLlmEnricher::new(provider);
-
+            // v4.1.1+: multi-category enrichment. Vendors remain the
+            // default path; customers and materials opt in via
+            // `llm.enrich_customers` / `llm.enrich_materials` flags.
             let industry = format!("{:?}", self.config.global.industry);
-            let max_enrichments = self
+
+            let vendor_enricher =
+                datasynth_generators::llm_enrichment::VendorLlmEnricher::new(Arc::clone(&provider));
+            let max_vendors = self
                 .config
                 .llm
                 .max_vendor_enrichments
                 .min(self.master_data.vendors.len());
-
-            let mut enriched_count = 0usize;
-            for vendor in self.master_data.vendors.iter_mut().take(max_enrichments) {
-                match enricher.enrich_vendor_name(&industry, "general", &vendor.country) {
+            let mut vendors_enriched = 0usize;
+            for vendor in self.master_data.vendors.iter_mut().take(max_vendors) {
+                match vendor_enricher.enrich_vendor_name(&industry, "general", &vendor.country) {
                     Ok(name) => {
                         vendor.name = name;
-                        enriched_count += 1;
+                        vendors_enriched += 1;
                     }
-                    Err(e) => {
-                        warn!(
-                            "LLM vendor enrichment failed for {}: {}",
-                            vendor.vendor_id, e
-                        );
+                    Err(e) => warn!(
+                        "LLM vendor enrichment failed for {}: {}",
+                        vendor.vendor_id, e
+                    ),
+                }
+            }
+
+            let mut customers_enriched = 0usize;
+            if self.config.llm.enrich_customers {
+                let customer_enricher =
+                    datasynth_generators::llm_enrichment::CustomerLlmEnricher::new(Arc::clone(
+                        &provider,
+                    ));
+                let max_customers = self
+                    .config
+                    .llm
+                    .max_customer_enrichments
+                    .min(self.master_data.customers.len());
+                for customer in self.master_data.customers.iter_mut().take(max_customers) {
+                    match customer_enricher.enrich_customer_name(
+                        &industry,
+                        "general",
+                        &customer.country,
+                    ) {
+                        Ok(name) => {
+                            customer.name = name;
+                            customers_enriched += 1;
+                        }
+                        Err(e) => warn!(
+                            "LLM customer enrichment failed for {}: {}",
+                            customer.customer_id, e
+                        ),
                     }
                 }
             }
 
-            enriched_count
+            let mut materials_enriched = 0usize;
+            if self.config.llm.enrich_materials {
+                let material_enricher =
+                    datasynth_generators::llm_enrichment::MaterialLlmEnricher::new(Arc::clone(
+                        &provider,
+                    ));
+                let max_materials = self
+                    .config
+                    .llm
+                    .max_material_enrichments
+                    .min(self.master_data.materials.len());
+                for material in self.master_data.materials.iter_mut().take(max_materials) {
+                    let material_type = format!("{:?}", material.material_type);
+                    match material_enricher.enrich_material_description(&material_type, &industry) {
+                        Ok(desc) => {
+                            material.description = desc;
+                            materials_enriched += 1;
+                        }
+                        Err(e) => warn!(
+                            "LLM material enrichment failed for {}: {}",
+                            material.material_id, e
+                        ),
+                    }
+                }
+            }
+
+            (vendors_enriched, customers_enriched, materials_enriched)
         }));
 
         match result {
-            Ok(enriched_count) => {
-                stats.llm_vendors_enriched = enriched_count;
+            Ok((v, c, m)) => {
+                stats.llm_vendors_enriched = v;
+                stats.llm_customers_enriched = c;
+                stats.llm_materials_enriched = m;
                 let elapsed = start.elapsed();
                 stats.llm_enrichment_ms = elapsed.as_millis() as u64;
                 info!(
-                    "Phase 11 complete: {} vendors enriched in {}ms",
-                    enriched_count, stats.llm_enrichment_ms
+                    "Phase 11 complete: {} vendors, {} customers, {} materials enriched in {}ms",
+                    v, c, m, stats.llm_enrichment_ms
                 );
             }
             Err(_) => {
