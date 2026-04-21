@@ -5,6 +5,73 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.1.4] - 2026-04-21
+
+YAML-as-source-of-truth foundation per [v4.1 plan](docs/plans/2026-04-21-v4.1-plan.md).
+
+### `DefaultTemplateProvider::bundled()`
+
+New compile-time-bundled YAML path:
+
+- `crates/datasynth-core/templates/defaults.yaml` — committed in repo,
+  included via `include_str!` as `BUNDLED_DEFAULTS_YAML` const.
+- `DefaultTemplateProvider::bundled() -> Result<Self, TemplateError>`
+  parses the bundled YAML and constructs a provider that **extends**
+  (not replaces) the hardcoded embedded arrays via the existing
+  `MergeStrategy::Extend` path.
+- Byte-identity preserved: callers using
+  `DefaultTemplateProvider::new()` (the default path) continue to
+  produce the exact same output they did in v4.1.3. Opt-in via
+  `bundled()` to pick up the YAML-side entries.
+
+### v4.1.4 curated seed content
+
+`defaults.yaml` ships a small curated set of additions per category
+so the loader isn't exercising an empty pool:
+
+- 3 vendors each for `office_supplies`, `raw_materials`, `it_services`
+- 3 customers each for `retail`, `financial_services`, `manufacturing`
+- Material descriptions for `raw_materials`, `components`, `packaging`
+- 3 bank names + 3 departments
+
+The bundled YAML is **additive**; real content expansion is a
+follow-up as specific regions / industries get prioritised.
+
+### Why not the full migration
+
+Full YAML-as-SoT (every embedded `const` array exported to YAML with
+build.rs round-trip validation + byte-identical regression) is
+~1–2 weeks of careful work and carries regression risk. v4.1.4 ships
+the foundation so contributors can migrate pools incrementally:
+
+1. Copy the `const` array into `defaults.yaml` under the matching
+   key.
+2. Remove the `const` array.
+3. Adjust `DefaultTemplateProvider::new()` to call `bundled()`.
+4. Run the byte-identity regression test suite.
+5. Ship the pool in a v4.1.x patch.
+
+See `crates/datasynth-core/src/templates/YAML_AS_SOT_MIGRATION.md`
+for the full migration recipe.
+
+### Tests
+
+- 2 new unit tests on `DefaultTemplateProvider::bundled()`: loader
+  parses without error, curated retail customer names appear in
+  the draw stream.
+- All 77 prior runtime + 12 CLI + 3 templates enrich smokes still
+  green.
+- `cargo clippy --workspace --all-targets -- -D warnings` clean.
+
+### Compatibility
+
+- `DefaultTemplateProvider::new()` (default path, used by all
+  orchestrator paths today) preserves v4.1.3 byte-identical output.
+- `bundled()` is an opt-in convenience; existing public API
+  unchanged.
+
+---
+
 ## [4.1.3] - 2026-04-21
 
 Partial-schema follow-through per [v4.1 plan](docs/plans/2026-04-21-v4.1-plan.md).

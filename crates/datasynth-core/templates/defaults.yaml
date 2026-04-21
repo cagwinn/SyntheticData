@@ -1,0 +1,80 @@
+# DataSynth embedded defaults — v4.1.4+
+#
+# This file is bundled into `datasynth-core` via `include_str!` and
+# loaded by `DefaultTemplateProvider::bundled()`. It extends (not
+# replaces) the hardcoded `const &[&str]` arrays in the provider.
+#
+# This is the first step toward full YAML-as-source-of-truth
+# migration (see `crates/datasynth-core/src/templates/
+# YAML_AS_SOT_MIGRATION.md`). v4.1.4 ships the loader wiring; future
+# v4.x releases progressively export the embedded arrays here.
+#
+# Keep entries sorted within each pool for byte-identical reproducibility.
+# Entries are ADDITIVE — they supplement the embedded arrays, never replace.
+
+metadata:
+  name: "DataSynth bundled defaults (v4.1.4)"
+  version: "4.1.4"
+  region: null
+  sector: null
+  description: "Bundled additive extensions to the embedded default template pools."
+
+# v4.1.4 seed entries — small curated additions per category. Downstream
+# releases expand per demand. These entries prove the bundle loader
+# works end-to-end without committing to the full migration today.
+
+vendor_names:
+  categories:
+    office_supplies:
+      - "Global Office Essentials Ltd"
+      - "Metro Supply Partners"
+      - "Meridian Stationery Co"
+    raw_materials:
+      - "Northridge Materials Group"
+      - "Apex Industrial Supply"
+      - "Summit Raw Materials Inc"
+    it_services:
+      - "Atlas Systems Consulting"
+      - "Catalyst Technology Partners"
+      - "Pinnacle IT Services"
+
+customer_names:
+  industries:
+    retail:
+      - "Crestwood Retail Holdings"
+      - "Highland Market Group"
+      - "Lakeside Consumer Brands"
+    financial_services:
+      - "Keystone Financial Partners"
+      - "Waypoint Capital Group"
+      - "Heritage Investment Services"
+    manufacturing:
+      - "Ironworks Manufacturing Corp"
+      - "Precision Components Inc"
+      - "Foundry Industrial Group"
+
+material_descriptions:
+  by_type:
+    raw_materials:
+      - "Cold-rolled steel coil (1.5mm)"
+      - "Aluminium extrusion profile 6063-T5"
+      - "Polypropylene injection-grade resin"
+    components:
+      - "Precision-turned brass fitting M10"
+      - "Stainless steel ball bearing assembly"
+      - "Rubber-over-moulded sealing gasket"
+    packaging:
+      - "Double-wall corrugated carton 30x20x15"
+      - "Stretch wrap film 500mm × 300m"
+
+bank_names:
+  names:
+    - "Metropolitan Trust Bank"
+    - "Continental Commerce Bank"
+    - "Heritage National Bank"
+
+department_names:
+  by_code:
+    D100: "Corporate Finance"
+    D200: "Commercial Operations"
+    D300: "Shared Services"

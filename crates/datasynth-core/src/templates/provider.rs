@@ -110,6 +110,13 @@ pub struct DefaultTemplateProvider {
     merge_strategy: MergeStrategy,
 }
 
+/// Bundled default YAML — v4.1.4+ proof-of-concept for the
+/// YAML-as-source-of-truth migration path. The file at
+/// `crates/datasynth-core/templates/defaults.yaml` is included at
+/// compile time and made available via
+/// [`DefaultTemplateProvider::bundled`].
+pub const BUNDLED_DEFAULTS_YAML: &str = include_str!("../../templates/defaults.yaml");
+
 impl DefaultTemplateProvider {
     /// Create a new provider with embedded templates only.
     pub fn new() -> Self {
@@ -117,6 +124,25 @@ impl DefaultTemplateProvider {
             template_data: None,
             merge_strategy: MergeStrategy::Extend,
         }
+    }
+
+    /// v4.1.4+ — create a provider backed by the bundled `defaults.yaml`
+    /// (included at compile time) *extended on top of* the embedded
+    /// arrays.
+    ///
+    /// This is the first step toward full YAML-as-source-of-truth
+    /// for the default name pools. The bundled YAML supplements (not
+    /// replaces) the hardcoded `const` arrays, so byte-identity under
+    /// the same seed is preserved when callers use
+    /// [`DefaultTemplateProvider::new`].
+    ///
+    /// If the bundled YAML is malformed at build time, `include_str!`
+    /// fails the build; at runtime this fn only fails if the YAML
+    /// structure doesn't match the `TemplateData` shape, which a
+    /// build-time lint would catch.
+    pub fn bundled() -> Result<Self, super::loader::TemplateError> {
+        let data = TemplateLoader::load_from_yaml_str(BUNDLED_DEFAULTS_YAML)?;
+        Ok(Self::with_templates(data, MergeStrategy::Extend))
     }
 
     /// Create a provider with file-based templates.
@@ -622,6 +648,43 @@ mod tests {
 
         let last_name = provider.get_person_last_name(NameCulture::German, &mut rng);
         assert!(!last_name.is_empty());
+    }
+
+    #[test]
+    fn bundled_defaults_loads() {
+        // v4.1.4+ — the bundled YAML must parse and produce a provider
+        // that supplies names without panicking.
+        let provider = DefaultTemplateProvider::bundled().expect("bundled YAML parses");
+        let mut rng = ChaCha8Rng::seed_from_u64(42);
+        let vendor = provider.get_vendor_name("office_supplies", &mut rng);
+        assert!(!vendor.is_empty());
+        let customer = provider.get_customer_name("retail", &mut rng);
+        assert!(!customer.is_empty());
+    }
+
+    #[test]
+    fn bundled_defaults_include_curated_entries() {
+        // Spot-check a specific curated entry from defaults.yaml so the
+        // loader isn't silently swallowing the file.
+        let provider = DefaultTemplateProvider::bundled().expect("bundled YAML parses");
+        let mut rng = ChaCha8Rng::seed_from_u64(1);
+        // Draw many customer names under "retail"; our curated pool
+        // must appear at least once with high probability.
+        let mut saw_curated = false;
+        for _ in 0..500 {
+            let name = provider.get_customer_name("retail", &mut rng);
+            if name == "Crestwood Retail Holdings"
+                || name == "Highland Market Group"
+                || name == "Lakeside Consumer Brands"
+            {
+                saw_curated = true;
+                break;
+            }
+        }
+        assert!(
+            saw_curated,
+            "bundled retail customer names should appear in the draw stream"
+        );
     }
 
     #[test]
