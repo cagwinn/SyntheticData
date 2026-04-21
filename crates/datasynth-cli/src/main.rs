@@ -1339,9 +1339,9 @@ fn main() -> Result<()> {
             for fmt in &export_format {
                 match fmt.to_ascii_lowercase().as_str() {
                     "sap" => {
-                        // SAP S/4HANA BKPF / BSEG / ACDOCA export, honouring
-                        // config.output.sap (or falling back to defaults
-                        // when the YAML block is absent).
+                        // SAP S/4HANA BKPF / BSEG / ACDOCA + master-data export,
+                        // honouring config.output.sap (or falling back to
+                        // defaults when the YAML block is absent).
                         let sap_dir = output.join("sap_export");
                         if let Err(e) = std::fs::create_dir_all(&sap_dir) {
                             tracing::warn!("Could not create sap_export directory: {}", e);
@@ -1358,11 +1358,25 @@ fn main() -> Result<()> {
                                 sap_config.tables,
                                 sap_config.include_extension_fields,
                             );
-                            let mut sap_exporter = SapExporter::new(sap_config);
+
+                            // Transactional tables (BKPF / BSEG / ACDOCA).
+                            let requested_table_names: Vec<String> = config_for_manifest
+                                .output
+                                .sap
+                                .tables
+                                .iter()
+                                .map(|t| t.to_ascii_lowercase())
+                                .collect();
+                            let want_table = |name: &str| -> bool {
+                                requested_table_names.is_empty()
+                                    || requested_table_names.iter().any(|t| t == name)
+                            };
+
+                            let mut sap_exporter = SapExporter::new(sap_config.clone());
                             match sap_exporter.export_to_files(&result.journal_entries, &sap_dir) {
                                 Ok(files) => {
                                     tracing::info!(
-                                        "SAP export: {} tables written to {}",
+                                        "SAP export: {} transactional tables written to {}",
                                         files.len(),
                                         sap_dir.display()
                                     );
@@ -1375,6 +1389,115 @@ fn main() -> Result<()> {
                                     }
                                 }
                                 Err(e) => tracing::warn!("SAP export failed: {}", e),
+                            }
+
+                            // Master-data tables (v4.3.0b): LFA1/LFB1 (vendor),
+                            // KNA1/KNB1 (customer), MARA/MARD (material).
+                            let company_codes: Vec<String> = config_for_manifest
+                                .companies
+                                .iter()
+                                .map(|c| c.code.clone())
+                                .collect();
+
+                            if want_table("lfa1") && !result.master_data.vendors.is_empty() {
+                                let path = sap_dir.join("lfa1.csv");
+                                match datasynth_output::write_lfa1(
+                                    &sap_config,
+                                    &result.master_data.vendors,
+                                    &path,
+                                ) {
+                                    Ok(()) => tracing::info!(
+                                        "  SAP LFA1 ({} vendors) → {}",
+                                        result.master_data.vendors.len(),
+                                        path.display()
+                                    ),
+                                    Err(e) => tracing::warn!("LFA1 export failed: {}", e),
+                                }
+                            }
+                            if want_table("lfb1")
+                                && !result.master_data.vendors.is_empty()
+                                && !company_codes.is_empty()
+                            {
+                                let path = sap_dir.join("lfb1.csv");
+                                match datasynth_output::write_lfb1(
+                                    &sap_config,
+                                    &result.master_data.vendors,
+                                    &company_codes,
+                                    &path,
+                                ) {
+                                    Ok(()) => tracing::info!(
+                                        "  SAP LFB1 ({} vendors × {} companies) → {}",
+                                        result.master_data.vendors.len(),
+                                        company_codes.len(),
+                                        path.display()
+                                    ),
+                                    Err(e) => tracing::warn!("LFB1 export failed: {}", e),
+                                }
+                            }
+                            if want_table("kna1") && !result.master_data.customers.is_empty() {
+                                let path = sap_dir.join("kna1.csv");
+                                match datasynth_output::write_kna1(
+                                    &sap_config,
+                                    &result.master_data.customers,
+                                    &path,
+                                ) {
+                                    Ok(()) => tracing::info!(
+                                        "  SAP KNA1 ({} customers) → {}",
+                                        result.master_data.customers.len(),
+                                        path.display()
+                                    ),
+                                    Err(e) => tracing::warn!("KNA1 export failed: {}", e),
+                                }
+                            }
+                            if want_table("knb1")
+                                && !result.master_data.customers.is_empty()
+                                && !company_codes.is_empty()
+                            {
+                                let path = sap_dir.join("knb1.csv");
+                                match datasynth_output::write_knb1(
+                                    &sap_config,
+                                    &result.master_data.customers,
+                                    &company_codes,
+                                    &path,
+                                ) {
+                                    Ok(()) => tracing::info!(
+                                        "  SAP KNB1 ({} customers × {} companies) → {}",
+                                        result.master_data.customers.len(),
+                                        company_codes.len(),
+                                        path.display()
+                                    ),
+                                    Err(e) => tracing::warn!("KNB1 export failed: {}", e),
+                                }
+                            }
+                            if want_table("mara") && !result.master_data.materials.is_empty() {
+                                let path = sap_dir.join("mara.csv");
+                                match datasynth_output::write_mara(
+                                    &sap_config,
+                                    &result.master_data.materials,
+                                    &path,
+                                ) {
+                                    Ok(()) => tracing::info!(
+                                        "  SAP MARA ({} materials) → {}",
+                                        result.master_data.materials.len(),
+                                        path.display()
+                                    ),
+                                    Err(e) => tracing::warn!("MARA export failed: {}", e),
+                                }
+                            }
+                            if want_table("mard") && !result.master_data.materials.is_empty() {
+                                let path = sap_dir.join("mard.csv");
+                                match datasynth_output::write_mard(
+                                    &sap_config,
+                                    &result.master_data.materials,
+                                    &path,
+                                ) {
+                                    Ok(()) => tracing::info!(
+                                        "  SAP MARD ({} materials × plants) → {}",
+                                        result.master_data.materials.len(),
+                                        path.display()
+                                    ),
+                                    Err(e) => tracing::warn!("MARD export failed: {}", e),
+                                }
                             }
                         }
                     }
@@ -3769,23 +3892,41 @@ fn build_sap_config(settings: &datasynth_config::SapExportSettings) -> SapExport
             .tables
             .iter()
             .filter_map(|t| match t.to_ascii_lowercase().as_str() {
+                // Transactional (go through SapExporter.export_to_files).
                 "bkpf" => Some(SapTableType::Bkpf),
                 "bseg" => Some(SapTableType::Bseg),
                 "acdoca" => Some(SapTableType::Acdoca),
-                "lfa1" => Some(SapTableType::Lfa1),
-                "kna1" => Some(SapTableType::Kna1),
-                "mara" => Some(SapTableType::Mara),
-                "csks" => Some(SapTableType::Csks),
-                "cepc" => Some(SapTableType::Cepc),
+                // Master-data (go through standalone write_* helpers).
+                // SapTableType currently has only LFA1 / KNA1 / MARA / CSKS / CEPC;
+                // the company-code variants LFB1 / KNB1 and storage-loc MARD are
+                // selected via the `want_table("lfb1"|"knb1"|"mard")` check in
+                // the CLI body and don't map 1:1 to SapTableType. That's OK —
+                // unknown-table names here become a tracing warn + filter-out
+                // at the SapExporter level but still drive master-data writes.
+                "lfa1" | "lfb1" | "kna1" | "knb1" | "mara" | "mard" | "csks" | "cepc" => {
+                    match t.to_ascii_lowercase().as_str() {
+                        "lfa1" | "lfb1" => Some(SapTableType::Lfa1),
+                        "kna1" | "knb1" => Some(SapTableType::Kna1),
+                        "mara" | "mard" => Some(SapTableType::Mara),
+                        "csks" => Some(SapTableType::Csks),
+                        "cepc" => Some(SapTableType::Cepc),
+                        _ => None,
+                    }
+                }
                 other => {
                     tracing::warn!(
                         "SAP export config: ignoring unknown table '{}' \
-                         (known: bkpf, bseg, acdoca, lfa1, kna1, mara, csks, cepc)",
+                         (known: bkpf, bseg, acdoca, lfa1, lfb1, kna1, knb1, \
+                         mara, mard, csks, cepc)",
                         other
                     );
                     None
                 }
             })
+            .collect::<Vec<SapTableType>>()
+            .into_iter()
+            .collect::<std::collections::HashSet<_>>()
+            .into_iter()
             .collect()
     };
 

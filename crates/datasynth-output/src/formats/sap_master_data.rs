@@ -1,0 +1,825 @@
+//! SAP master-data table exporters — v4.3.0b.
+//!
+//! Complements the document-oriented exporter in `formats::sap` by
+//! mapping the DataSynth master-data models (`Vendor`, `Customer`,
+//! `Material`) into the SAP master-data tables that accompany the
+//! classical three-table triple (BKPF / BSEG / ACDOCA):
+//!
+//! | DataSynth model | SAP general table | SAP company-code table |
+//! |-----------------|-------------------|------------------------|
+//! | `Vendor`        | LFA1              | LFB1                   |
+//! | `Customer`      | KNA1              | KNB1                   |
+//! | `Material`      | MARA              | MARD                   |
+//!
+//! LFA1 / KNA1 are cross-client "general data" tables (one row per
+//! master record). LFB1 / KNB1 carry company-code-specific data
+//! (reconciliation account, payment terms, dunning block) — one row
+//! per (vendor|customer, company code). MARA is the client-level
+//! material master; MARD is the storage-location-level stock view.
+//!
+//! All exporters honour the `SapDialect` setting of the parent
+//! `SapExportConfig` (delimiter / decimal separator / date format /
+//! UTF-8 BOM).
+
+use std::fs::File;
+use std::io::{BufWriter, Write};
+use std::path::Path;
+
+use chrono::Datelike;
+use datasynth_core::error::SynthResult;
+use datasynth_core::models::{Customer, Material, Vendor};
+
+use super::sap::{
+    SapCustomer, SapCustomerExportable, SapExportConfig, SapVendor, SapVendorExportable,
+};
+
+// ===========================================================================
+// LFA1 — Vendor general data (one row per Vendor)
+// ===========================================================================
+
+impl SapVendorExportable for Vendor {
+    fn to_sap_vendor(&self, client: &str) -> SapVendor {
+        SapVendor {
+            mandt: client.to_string(),
+            lifnr: self.vendor_id.clone(),
+            land1: self.country.clone(),
+            name1: self.name.clone(),
+            name2: None,
+            ort01: None,
+            pstlz: None,
+            stras: None,
+            regio: None,
+            spras: language_for_country(&self.country).to_string(),
+            stcd1: self.tax_id.clone(),
+            ktokk: account_group_for_vendor(self),
+        }
+    }
+}
+
+// ===========================================================================
+// KNA1 — Customer general data (one row per Customer)
+// ===========================================================================
+
+impl SapCustomerExportable for Customer {
+    fn to_sap_customer(&self, client: &str) -> SapCustomer {
+        SapCustomer {
+            mandt: client.to_string(),
+            kunnr: self.customer_id.clone(),
+            land1: self.country.clone(),
+            name1: self.name.clone(),
+            name2: None,
+            ort01: None,
+            pstlz: None,
+            stras: None,
+            regio: None,
+            spras: language_for_country(&self.country).to_string(),
+            stcd1: self.tax_id.clone(),
+            ktokd: account_group_for_customer(self),
+        }
+    }
+}
+
+// ===========================================================================
+// LFB1 — Vendor company-code data (one row per (vendor, company code))
+// ===========================================================================
+
+/// SAP LFB1 — vendor company-code view. Carries the reconciliation
+/// account, payment terms, dunning procedure, and withholding-tax flag
+/// that are company-code-specific on a vendor master record.
+#[derive(Debug, Clone)]
+pub struct SapVendorCompanyCode {
+    pub mandt: String,
+    pub lifnr: String,
+    pub bukrs: String,
+    /// Reconciliation GL account (AKONT) — AP control account in the chart.
+    pub akont: String,
+    /// Payment terms key (ZTERM) — "Net30" / "Net60" / "2_10_Net_30" etc.
+    pub zterm: String,
+    /// Dunning procedure (MAHNA) — blank when no dunning applies.
+    pub mahna: Option<String>,
+    /// Withholding tax code (QSSKZ) — populated when withholding is applicable.
+    pub qsskz: Option<String>,
+    /// Payment block reason (ZAHLS) — blank = open, "A"/"B"/... = blocked.
+    pub zahls: Option<String>,
+    /// Vendor sort key (SORTL).
+    pub sortl: Option<String>,
+    /// Account creation date (ERDAT).
+    pub erdat: chrono::NaiveDate,
+}
+
+/// Extension trait for building the LFB1 company-code row from a
+/// foreign-crate `Vendor`. Rust's orphan rule forbids an inherent impl
+/// on `Vendor`, so we expose the method via a trait defined here.
+pub trait SapVendorCompanyCodeExportable {
+    fn to_sap_vendor_company_code(&self, client: &str, company_code: &str) -> SapVendorCompanyCode;
+}
+
+impl SapVendorCompanyCodeExportable for Vendor {
+    fn to_sap_vendor_company_code(&self, client: &str, company_code: &str) -> SapVendorCompanyCode {
+        SapVendorCompanyCode {
+            mandt: client.to_string(),
+            lifnr: self.vendor_id.clone(),
+            bukrs: company_code.to_string(),
+            akont: self
+                .reconciliation_account
+                .clone()
+                .unwrap_or_else(|| "2000".to_string()),
+            zterm: format!("{:?}", self.payment_terms),
+            mahna: None,
+            qsskz: if self.withholding_tax_applicable {
+                Some("W1".to_string())
+            } else {
+                None
+            },
+            zahls: None,
+            sortl: Some(self.vendor_id.clone()),
+            erdat: chrono::Utc::now().date_naive(),
+        }
+    }
+}
+
+// ===========================================================================
+// KNB1 — Customer company-code data (one row per (customer, company code))
+// ===========================================================================
+
+/// SAP KNB1 — customer company-code view. Carries the reconciliation
+/// account, payment terms, dunning level / procedure, and credit block
+/// that are company-code-specific on a customer master record.
+#[derive(Debug, Clone)]
+pub struct SapCustomerCompanyCode {
+    pub mandt: String,
+    pub kunnr: String,
+    pub bukrs: String,
+    /// Reconciliation GL account (AKONT) — AR control account.
+    pub akont: String,
+    /// Payment terms key (ZTERM).
+    pub zterm: String,
+    /// Dunning procedure (MAHNA).
+    pub mahna: Option<String>,
+    /// Current dunning level (MAHNS, 0–4).
+    pub mahns: u8,
+    /// Last dunning run date (MADAT).
+    pub madat: Option<chrono::NaiveDate>,
+    /// Payment block reason (ZAHLS).
+    pub zahls: Option<String>,
+    /// Credit block indicator (CRDBLK) — 1 = blocked, 0 = open.
+    pub crdblk: u8,
+    /// Sort key (SORTL).
+    pub sortl: Option<String>,
+    /// Account creation date (ERDAT).
+    pub erdat: chrono::NaiveDate,
+}
+
+/// Extension trait for building the KNB1 company-code row from a
+/// foreign-crate `Customer`.
+pub trait SapCustomerCompanyCodeExportable {
+    fn to_sap_customer_company_code(
+        &self,
+        client: &str,
+        company_code: &str,
+    ) -> SapCustomerCompanyCode;
+}
+
+impl SapCustomerCompanyCodeExportable for Customer {
+    fn to_sap_customer_company_code(
+        &self,
+        client: &str,
+        company_code: &str,
+    ) -> SapCustomerCompanyCode {
+        SapCustomerCompanyCode {
+            mandt: client.to_string(),
+            kunnr: self.customer_id.clone(),
+            bukrs: company_code.to_string(),
+            akont: self
+                .reconciliation_account
+                .clone()
+                .unwrap_or_else(|| "1100".to_string()),
+            zterm: format!("{:?}", self.payment_terms),
+            mahna: self.dunning_procedure.clone(),
+            mahns: self.dunning_level,
+            madat: self.last_dunning_date,
+            zahls: self.credit_block_reason.clone(),
+            crdblk: if self.credit_blocked { 1 } else { 0 },
+            sortl: Some(self.customer_id.clone()),
+            erdat: chrono::Utc::now().date_naive(),
+        }
+    }
+}
+
+// ===========================================================================
+// MARA — Material general data (one row per Material)
+// ===========================================================================
+
+/// SAP MARA — material master general view. One row per material,
+/// client-wide (cross-plant).
+#[derive(Debug, Clone)]
+pub struct SapMaterial {
+    pub mandt: String,
+    /// Material number (MATNR).
+    pub matnr: String,
+    /// Material type (MTART) — "FERT" (finished), "HALB" (semi-finished),
+    /// "ROH" (raw), "HAWA" (trading goods), "DIEN" (service), etc.
+    pub mtart: String,
+    /// Industry sector (MBRSH) — "C" = chemical, "M" = mechanical engineering,
+    /// "1" = retail, defaults to "M" when unknown.
+    pub mbrsh: String,
+    /// Material group (MATKL).
+    pub matkl: String,
+    /// Base unit of measure (MEINS).
+    pub meins: String,
+    /// Gross weight (BRGEW).
+    pub brgew: Option<rust_decimal::Decimal>,
+    /// Volume (VOLUM).
+    pub volum: Option<rust_decimal::Decimal>,
+    /// Unit of weight (GEWEI).
+    pub gewei: String,
+    /// Unit of volume (VOLEH).
+    pub voleh: String,
+    /// Old material number (BISMT) — blank by default.
+    pub bismt: Option<String>,
+    /// Creation date (ERSDA).
+    pub ersda: chrono::NaiveDate,
+    /// Created by user (ERNAM).
+    pub ernam: String,
+}
+
+/// Extension trait for building MARA rows from a foreign-crate `Material`.
+pub trait SapMaterialExportable {
+    fn to_sap_material(&self, client: &str) -> SapMaterial;
+}
+
+impl SapMaterialExportable for Material {
+    fn to_sap_material(&self, client: &str) -> SapMaterial {
+        SapMaterial {
+            mandt: client.to_string(),
+            matnr: self.material_id.clone(),
+            mtart: material_type_to_mtart(&self.material_type),
+            mbrsh: "M".to_string(),
+            matkl: material_group_to_matkl(&self.material_group),
+            // UnitOfMeasure has a `code` String field (e.g. "EA", "KG", "L")
+            // that maps directly to the SAP MEINS column.
+            meins: self.base_uom.code.to_uppercase(),
+            brgew: self.weight_kg,
+            volum: self.volume_m3,
+            gewei: "KG".to_string(),
+            voleh: "M3".to_string(),
+            bismt: None,
+            ersda: chrono::Utc::now().date_naive(),
+            ernam: "SYSTEM".to_string(),
+        }
+    }
+}
+
+// ===========================================================================
+// MARD — Material storage location data (one row per (material, plant, storage location))
+// ===========================================================================
+
+/// SAP MARD — storage-location view. One row per (material, plant,
+/// storage location); carries the period stock total that subledger
+/// inventory reports pull from.
+#[derive(Debug, Clone)]
+pub struct SapMaterialStorage {
+    pub mandt: String,
+    pub matnr: String,
+    /// Plant (WERKS).
+    pub werks: String,
+    /// Storage location (LGORT).
+    pub lgort: String,
+    /// Total unrestricted-use stock (LABST).
+    pub labst: rust_decimal::Decimal,
+    /// Stock in quality inspection (INSME).
+    pub insme: rust_decimal::Decimal,
+    /// Blocked stock (SPEME).
+    pub speme: rust_decimal::Decimal,
+    /// Safety stock (EISLO).
+    pub eislo: rust_decimal::Decimal,
+    /// Reorder point (MINBE).
+    pub minbe: rust_decimal::Decimal,
+}
+
+/// Extension trait for building MARD storage-location rows from a
+/// foreign-crate `Material`.
+pub trait SapMaterialStorageExportable {
+    fn to_sap_material_storage_rows(
+        &self,
+        client: &str,
+        storage_location: &str,
+        stock_by_plant: &[(String, rust_decimal::Decimal)],
+    ) -> Vec<SapMaterialStorage>;
+}
+
+impl SapMaterialStorageExportable for Material {
+    fn to_sap_material_storage_rows(
+        &self,
+        client: &str,
+        storage_location: &str,
+        stock_by_plant: &[(String, rust_decimal::Decimal)],
+    ) -> Vec<SapMaterialStorage> {
+        stock_by_plant
+            .iter()
+            .map(|(plant, qty)| SapMaterialStorage {
+                mandt: client.to_string(),
+                matnr: self.material_id.clone(),
+                werks: plant.clone(),
+                lgort: storage_location.to_string(),
+                labst: *qty,
+                insme: rust_decimal::Decimal::ZERO,
+                speme: rust_decimal::Decimal::ZERO,
+                eislo: self.safety_stock,
+                minbe: self.reorder_point,
+            })
+            .collect()
+    }
+}
+
+// ===========================================================================
+// File writers
+// ===========================================================================
+
+/// Shared helper — opens a file, writes the dialect BOM, returns the buffered writer.
+fn open_master_file(cfg: &SapExportConfig, path: &Path) -> SynthResult<BufWriter<File>> {
+    let file = File::create(path)?;
+    let mut writer = BufWriter::with_capacity(256 * 1024, file);
+    let bom = cfg.dialect.bom();
+    if !bom.is_empty() {
+        writer.write_all(bom)?;
+    }
+    Ok(writer)
+}
+
+fn write_row<W: Write>(writer: &mut W, delim: char, fields: &[String]) -> std::io::Result<()> {
+    for (i, f) in fields.iter().enumerate() {
+        if i > 0 {
+            write!(writer, "{delim}")?;
+        }
+        write!(writer, "{f}")?;
+    }
+    writeln!(writer)
+}
+
+fn write_header<W: Write>(writer: &mut W, delim: char, cols: &[&str]) -> std::io::Result<()> {
+    for (i, c) in cols.iter().enumerate() {
+        if i > 0 {
+            write!(writer, "{delim}")?;
+        }
+        write!(writer, "{c}")?;
+    }
+    writeln!(writer)
+}
+
+fn escape(field: &str) -> String {
+    if field.contains(',') || field.contains(';') || field.contains('"') || field.contains('\n') {
+        format!("\"{}\"", field.replace('"', "\"\""))
+    } else {
+        field.to_string()
+    }
+}
+
+/// Write LFA1 (vendor general data). One row per vendor.
+pub fn write_lfa1(cfg: &SapExportConfig, vendors: &[Vendor], path: &Path) -> SynthResult<()> {
+    let mut writer = open_master_file(cfg, path)?;
+    let delim = cfg.delimiter();
+    write_header(
+        &mut writer,
+        delim,
+        &[
+            "MANDT", "LIFNR", "LAND1", "NAME1", "NAME2", "ORT01", "PSTLZ", "STRAS", "REGIO",
+            "SPRAS", "STCD1", "KTOKK",
+        ],
+    )?;
+    for v in vendors {
+        let s = v.to_sap_vendor(&cfg.client);
+        let fields: Vec<String> = vec![
+            s.mandt,
+            s.lifnr,
+            s.land1,
+            escape(&s.name1),
+            escape(&s.name2.unwrap_or_default()),
+            escape(&s.ort01.unwrap_or_default()),
+            s.pstlz.unwrap_or_default(),
+            escape(&s.stras.unwrap_or_default()),
+            s.regio.unwrap_or_default(),
+            s.spras,
+            s.stcd1.unwrap_or_default(),
+            s.ktokk,
+        ];
+        write_row(&mut writer, delim, &fields)?;
+    }
+    writer.flush()?;
+    Ok(())
+}
+
+/// Write LFB1 (vendor company-code data). Requires a list of company
+/// codes to emit the per-vendor-per-company rows.
+pub fn write_lfb1(
+    cfg: &SapExportConfig,
+    vendors: &[Vendor],
+    company_codes: &[String],
+    path: &Path,
+) -> SynthResult<()> {
+    let mut writer = open_master_file(cfg, path)?;
+    let delim = cfg.delimiter();
+    write_header(
+        &mut writer,
+        delim,
+        &[
+            "MANDT", "LIFNR", "BUKRS", "AKONT", "ZTERM", "MAHNA", "QSSKZ", "ZAHLS", "SORTL",
+            "ERDAT",
+        ],
+    )?;
+    for v in vendors {
+        for company in company_codes {
+            let s = v.to_sap_vendor_company_code(&cfg.client, company);
+            let fields: Vec<String> = vec![
+                s.mandt,
+                s.lifnr,
+                s.bukrs,
+                s.akont,
+                s.zterm,
+                s.mahna.unwrap_or_default(),
+                s.qsskz.unwrap_or_default(),
+                s.zahls.unwrap_or_default(),
+                s.sortl.unwrap_or_default(),
+                cfg.format_date(s.erdat),
+            ];
+            write_row(&mut writer, delim, &fields)?;
+        }
+    }
+    writer.flush()?;
+    Ok(())
+}
+
+/// Write KNA1 (customer general data).
+pub fn write_kna1(cfg: &SapExportConfig, customers: &[Customer], path: &Path) -> SynthResult<()> {
+    let mut writer = open_master_file(cfg, path)?;
+    let delim = cfg.delimiter();
+    write_header(
+        &mut writer,
+        delim,
+        &[
+            "MANDT", "KUNNR", "LAND1", "NAME1", "NAME2", "ORT01", "PSTLZ", "STRAS", "REGIO",
+            "SPRAS", "STCD1", "KTOKD",
+        ],
+    )?;
+    for c in customers {
+        let s = c.to_sap_customer(&cfg.client);
+        let fields: Vec<String> = vec![
+            s.mandt,
+            s.kunnr,
+            s.land1,
+            escape(&s.name1),
+            escape(&s.name2.unwrap_or_default()),
+            escape(&s.ort01.unwrap_or_default()),
+            s.pstlz.unwrap_or_default(),
+            escape(&s.stras.unwrap_or_default()),
+            s.regio.unwrap_or_default(),
+            s.spras,
+            s.stcd1.unwrap_or_default(),
+            s.ktokd,
+        ];
+        write_row(&mut writer, delim, &fields)?;
+    }
+    writer.flush()?;
+    Ok(())
+}
+
+/// Write KNB1 (customer company-code data).
+pub fn write_knb1(
+    cfg: &SapExportConfig,
+    customers: &[Customer],
+    company_codes: &[String],
+    path: &Path,
+) -> SynthResult<()> {
+    let mut writer = open_master_file(cfg, path)?;
+    let delim = cfg.delimiter();
+    write_header(
+        &mut writer,
+        delim,
+        &[
+            "MANDT", "KUNNR", "BUKRS", "AKONT", "ZTERM", "MAHNA", "MAHNS", "MADAT", "ZAHLS",
+            "CRDBLK", "SORTL", "ERDAT",
+        ],
+    )?;
+    for c in customers {
+        for company in company_codes {
+            let s = c.to_sap_customer_company_code(&cfg.client, company);
+            let fields: Vec<String> = vec![
+                s.mandt,
+                s.kunnr,
+                s.bukrs,
+                s.akont,
+                s.zterm,
+                s.mahna.unwrap_or_default(),
+                s.mahns.to_string(),
+                s.madat.map(|d| cfg.format_date(d)).unwrap_or_default(),
+                s.zahls.unwrap_or_default(),
+                s.crdblk.to_string(),
+                s.sortl.unwrap_or_default(),
+                cfg.format_date(s.erdat),
+            ];
+            write_row(&mut writer, delim, &fields)?;
+        }
+    }
+    writer.flush()?;
+    Ok(())
+}
+
+/// Write MARA (material general data).
+pub fn write_mara(cfg: &SapExportConfig, materials: &[Material], path: &Path) -> SynthResult<()> {
+    let mut writer = open_master_file(cfg, path)?;
+    let delim = cfg.delimiter();
+    write_header(
+        &mut writer,
+        delim,
+        &[
+            "MANDT", "MATNR", "MTART", "MBRSH", "MATKL", "MEINS", "BRGEW", "VOLUM", "GEWEI",
+            "VOLEH", "BISMT", "ERSDA", "ERNAM",
+        ],
+    )?;
+    for m in materials {
+        let s = m.to_sap_material(&cfg.client);
+        let fields: Vec<String> = vec![
+            s.mandt,
+            s.matnr,
+            s.mtart,
+            s.mbrsh,
+            s.matkl,
+            s.meins,
+            s.brgew
+                .as_ref()
+                .map(|d| cfg.format_decimal(d))
+                .unwrap_or_default(),
+            s.volum
+                .as_ref()
+                .map(|d| cfg.format_decimal(d))
+                .unwrap_or_default(),
+            s.gewei,
+            s.voleh,
+            s.bismt.unwrap_or_default(),
+            cfg.format_date(s.ersda),
+            s.ernam,
+        ];
+        write_row(&mut writer, delim, &fields)?;
+    }
+    writer.flush()?;
+    Ok(())
+}
+
+/// Write MARD (material storage-location data). Uses a synthetic
+/// `"0001"` storage location when none is supplied — SAP's default.
+pub fn write_mard(cfg: &SapExportConfig, materials: &[Material], path: &Path) -> SynthResult<()> {
+    let mut writer = open_master_file(cfg, path)?;
+    let delim = cfg.delimiter();
+    write_header(
+        &mut writer,
+        delim,
+        &[
+            "MANDT", "MATNR", "WERKS", "LGORT", "LABST", "INSME", "SPEME", "EISLO", "MINBE",
+        ],
+    )?;
+    for m in materials {
+        // Each listed plant emits a MARD row with zero stock — the CLI can
+        // overlay real stock from `InventoryPosition` data if needed.
+        let stock: Vec<(String, rust_decimal::Decimal)> = m
+            .plants
+            .iter()
+            .map(|p| (p.clone(), rust_decimal::Decimal::ZERO))
+            .collect();
+        for s in m.to_sap_material_storage_rows(&cfg.client, "0001", &stock) {
+            let fields: Vec<String> = vec![
+                s.mandt,
+                s.matnr,
+                s.werks,
+                s.lgort,
+                cfg.format_decimal(&s.labst),
+                cfg.format_decimal(&s.insme),
+                cfg.format_decimal(&s.speme),
+                cfg.format_decimal(&s.eislo),
+                cfg.format_decimal(&s.minbe),
+            ];
+            write_row(&mut writer, delim, &fields)?;
+        }
+    }
+    writer.flush()?;
+    Ok(())
+}
+
+// ===========================================================================
+// Internal helpers
+// ===========================================================================
+
+/// Map a DataSynth `MaterialGroup` to the SAP MATKL column (4-char codes).
+fn material_group_to_matkl(g: &datasynth_core::models::MaterialGroup) -> String {
+    use datasynth_core::models::MaterialGroup;
+    match g {
+        MaterialGroup::Electronics => "ELEC",
+        MaterialGroup::Mechanical => "MECH",
+        MaterialGroup::Chemicals | MaterialGroup::Chemical => "CHEM",
+        MaterialGroup::OfficeSupplies => "OFFC",
+        MaterialGroup::ItEquipment => "ITEQ",
+        MaterialGroup::Furniture => "FURN",
+        MaterialGroup::PackagingMaterials => "PACK",
+        MaterialGroup::SafetyEquipment => "SAFE",
+        MaterialGroup::Tools => "TOOL",
+        MaterialGroup::Services => "SERV",
+        MaterialGroup::Consumables => "CONS",
+        MaterialGroup::FinishedGoods => "FINI",
+    }
+    .to_string()
+}
+
+/// Map a DataSynth `MaterialType` to the SAP MTART code.
+fn material_type_to_mtart(mt: &datasynth_core::models::MaterialType) -> String {
+    use datasynth_core::models::MaterialType;
+    match mt {
+        MaterialType::RawMaterial => "ROH",
+        MaterialType::SemiFinished => "HALB",
+        MaterialType::FinishedGood => "FERT",
+        MaterialType::TradingGood => "HAWA",
+        MaterialType::OperatingSupplies => "HIBE",
+        MaterialType::SparePart => "ERSA",
+        MaterialType::Packaging => "VERP",
+        MaterialType::Service => "DIEN",
+    }
+    .to_string()
+}
+
+/// Pick a default SAP KTOKK vendor account group based on vendor type.
+fn account_group_for_vendor(v: &Vendor) -> String {
+    use datasynth_core::models::VendorType;
+    match v.vendor_type {
+        VendorType::Supplier => "LIEF",
+        VendorType::ServiceProvider | VendorType::ProfessionalServices => "SERV",
+        VendorType::Technology => "TECH",
+        VendorType::Logistics => "LOGI",
+        VendorType::Contractor => "CONT",
+        VendorType::RealEstate => "REST",
+        VendorType::Financial => "FINA",
+        VendorType::Utility => "UTIL",
+        VendorType::EmployeeReimbursement => "EMPL",
+    }
+    .to_string()
+}
+
+/// Pick a default SAP KTOKD customer account group based on customer type.
+fn account_group_for_customer(c: &Customer) -> String {
+    use datasynth_core::models::CustomerType;
+    match c.customer_type {
+        CustomerType::Corporate => "KUNA",
+        CustomerType::SmallBusiness => "KUN1",
+        CustomerType::Consumer => "CPDB",
+        CustomerType::Government => "GOVT",
+        CustomerType::NonProfit => "NPRF",
+        CustomerType::Intercompany => "INTR",
+        CustomerType::Distributor => "DIST",
+    }
+    .to_string()
+}
+
+/// Minimal ISO-country → SAP-language (SPRAS) map. Falls back to "E"
+/// (English) for anything not explicitly listed.
+fn language_for_country(iso: &str) -> &'static str {
+    match iso {
+        "DE" | "AT" | "CH" => "D",
+        "FR" | "BE" | "LU" => "F",
+        "ES" | "MX" | "AR" | "CO" | "CL" => "S",
+        "IT" => "I",
+        "PT" | "BR" => "P",
+        "CN" => "1",
+        "JP" => "J",
+        "RU" => "R",
+        "PL" => "L",
+        _ => "E",
+    }
+}
+
+#[allow(dead_code)]
+fn today_ymd() -> String {
+    let now = chrono::Utc::now().date_naive();
+    format!("{:04}{:02}{:02}", now.year(), now.month(), now.day())
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use super::super::sap::SapDialect;
+    use super::*;
+    use datasynth_core::models::{CustomerType, MaterialType, VendorType};
+    use tempfile::TempDir;
+
+    fn sample_vendor() -> Vendor {
+        let mut v = Vendor::new("V-0001", "Müller GmbH", VendorType::Supplier);
+        v.country = "DE".to_string();
+        v.tax_id = Some("DE123456789".to_string());
+        v.reconciliation_account = Some("2000".to_string());
+        v.withholding_tax_applicable = true;
+        v
+    }
+
+    fn sample_customer() -> Customer {
+        let mut c = Customer::new("C-0001", "Retail Corp", CustomerType::Corporate);
+        c.country = "US".to_string();
+        c.reconciliation_account = Some("1100".to_string());
+        c.dunning_level = 2;
+        c.credit_blocked = true;
+        c.credit_block_reason = Some("A".to_string());
+        c
+    }
+
+    fn sample_material() -> Material {
+        let mut m = Material::new("MAT-0001", "Steel coil 1.5mm", MaterialType::RawMaterial);
+        m.weight_kg = Some(rust_decimal::Decimal::new(15, 0));
+        m.plants = vec!["PLNT01".to_string(), "PLNT02".to_string()];
+        m
+    }
+
+    #[test]
+    fn lfa1_row_round_trip_maps_core_fields() {
+        let v = sample_vendor();
+        let row = v.to_sap_vendor("100");
+        assert_eq!(row.mandt, "100");
+        assert_eq!(row.lifnr, "V-0001");
+        assert_eq!(row.land1, "DE");
+        assert_eq!(row.name1, "Müller GmbH");
+        assert_eq!(row.spras, "D", "DE country must map to SPRAS=D (German)");
+        assert_eq!(row.stcd1.as_deref(), Some("DE123456789"));
+        assert_eq!(row.ktokk, "LIEF");
+    }
+
+    #[test]
+    fn kna1_row_round_trip_maps_core_fields() {
+        let c = sample_customer();
+        let row = c.to_sap_customer("100");
+        assert_eq!(row.kunnr, "C-0001");
+        assert_eq!(row.land1, "US");
+        assert_eq!(row.spras, "E");
+        assert_eq!(row.ktokd, "KUNA");
+    }
+
+    #[test]
+    fn lfb1_row_carries_reconciliation_account_and_withholding() {
+        let v = sample_vendor();
+        let row = v.to_sap_vendor_company_code("100", "C001");
+        assert_eq!(row.bukrs, "C001");
+        assert_eq!(row.akont, "2000");
+        assert_eq!(
+            row.qsskz.as_deref(),
+            Some("W1"),
+            "withholding-applicable vendor must emit a QSSKZ code"
+        );
+    }
+
+    #[test]
+    fn knb1_row_carries_dunning_and_credit_block() {
+        let c = sample_customer();
+        let row = c.to_sap_customer_company_code("100", "C001");
+        assert_eq!(row.bukrs, "C001");
+        assert_eq!(row.akont, "1100");
+        assert_eq!(row.mahns, 2);
+        assert_eq!(row.crdblk, 1, "credit-blocked customer must emit CRDBLK=1");
+        assert_eq!(row.zahls.as_deref(), Some("A"));
+    }
+
+    #[test]
+    fn mara_row_maps_material_type_to_mtart() {
+        let m = sample_material();
+        let row = m.to_sap_material("100");
+        assert_eq!(row.matnr, "MAT-0001");
+        assert_eq!(row.mtart, "ROH", "raw-material type must map to MTART=ROH");
+    }
+
+    #[test]
+    fn mard_row_emitted_per_plant() {
+        let m = sample_material();
+        let stock: Vec<(String, rust_decimal::Decimal)> = vec![
+            ("PLNT01".to_string(), rust_decimal::Decimal::new(100, 0)),
+            ("PLNT02".to_string(), rust_decimal::Decimal::new(50, 0)),
+        ];
+        let rows = m.to_sap_material_storage_rows("100", "0001", &stock);
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].werks, "PLNT01");
+        assert_eq!(rows[0].labst, rust_decimal::Decimal::new(100, 0));
+        assert_eq!(rows[1].werks, "PLNT02");
+    }
+
+    #[test]
+    fn master_files_written_with_hana_dialect_use_semicolon_and_bom() {
+        let tmp = TempDir::new().unwrap();
+        let cfg = SapExportConfig {
+            dialect: SapDialect::Hana,
+            ..SapExportConfig::default()
+        };
+        let vendors = vec![sample_vendor()];
+        let lfa1_path = tmp.path().join("lfa1.csv");
+        write_lfa1(&cfg, &vendors, &lfa1_path).unwrap();
+
+        let bytes = std::fs::read(&lfa1_path).unwrap();
+        assert_eq!(
+            &bytes[..3],
+            [0xEF, 0xBB, 0xBF],
+            "Hana dialect must prefix master-data files with a UTF-8 BOM"
+        );
+        let text = std::str::from_utf8(&bytes[3..]).unwrap();
+        assert!(text.lines().next().unwrap().contains(';'));
+    }
+}

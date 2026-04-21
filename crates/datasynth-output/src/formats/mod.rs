@@ -12,6 +12,7 @@ pub mod gobd;
 pub mod netsuite;
 pub mod oracle;
 pub mod sap;
+pub mod sap_master_data;
 pub mod xbrl;
 
 pub use fec::write_fec_csv;
@@ -21,5 +22,10 @@ pub use oracle::{OracleExporter, OracleJeHeader, OracleJeLine};
 pub use sap::{
     SapCustomer, SapCustomerExportable, SapDialect, SapExportConfig, SapExporter, SapTableType,
     SapVendor, SapVendorExportable,
+};
+pub use sap_master_data::{
+    write_kna1, write_knb1, write_lfa1, write_lfb1, write_mara, write_mard, SapCustomerCompanyCode,
+    SapCustomerCompanyCodeExportable, SapMaterial, SapMaterialExportable, SapMaterialStorage,
+    SapMaterialStorageExportable, SapVendorCompanyCode, SapVendorCompanyCodeExportable,
 };
 pub use xbrl::XbrlExporter;
