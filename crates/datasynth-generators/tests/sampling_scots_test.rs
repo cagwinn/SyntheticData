@@ -611,3 +611,68 @@ fn scots_related_account_areas_are_non_empty() {
         );
     }
 }
+
+// ============================================================================
+// key_item_reason propagation (v4.2.3)
+// ============================================================================
+//
+// `SampledItem.key_item_reason` was added so SDK consumers can see why a key
+// item was selected without cross-referencing `SamplingPlan.key_items[]`.
+// Representative-sample rows keep it None.
+
+#[test]
+fn sampled_items_key_item_reason_populated_for_key_items_only() {
+    let cra = make_high_cra("Revenue", AuditAssertion::Occurrence);
+    let mut gen = SamplingPlanGenerator::new(42);
+    let (plans, items) = gen.generate_for_cras(std::slice::from_ref(&cra), Some(TEST_TE));
+    assert!(!plans.is_empty());
+    assert!(!items.is_empty());
+
+    let plan = &plans[0];
+    let plan_items: Vec<_> = items
+        .iter()
+        .filter(|i| i.sampling_plan_id == plan.id)
+        .collect();
+
+    let mut key_item_rows = 0;
+    let mut rep_rows = 0;
+    for item in &plan_items {
+        match item.selection_type {
+            SelectionType::KeyItem => {
+                key_item_rows += 1;
+                let reason = item.key_item_reason.expect(
+                    "key-item row must carry key_item_reason — consumers depend on \
+                     this field to avoid re-joining against SamplingPlan.key_items[]",
+                );
+                // Reason must match the parent plan's key_items[] entry by item_id.
+                let parent_ki = plan
+                    .key_items
+                    .iter()
+                    .find(|ki| ki.item_id == item.item_id)
+                    .expect("key-item row must reference a KeyItem in the plan");
+                assert_eq!(
+                    reason, parent_ki.reason,
+                    "key_item_reason must match the source KeyItem.reason for {}",
+                    item.item_id
+                );
+            }
+            SelectionType::Representative => {
+                rep_rows += 1;
+                assert!(
+                    item.key_item_reason.is_none(),
+                    "representative-sample row must not carry key_item_reason \
+                     (item_id={})",
+                    item.item_id
+                );
+            }
+        }
+    }
+    assert!(
+        key_item_rows > 0,
+        "test plan should contain at least one key-item row"
+    );
+    assert!(
+        rep_rows > 0,
+        "test plan should contain at least one representative row"
+    );
+}

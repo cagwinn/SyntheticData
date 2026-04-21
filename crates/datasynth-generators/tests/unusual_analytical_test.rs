@@ -1,7 +1,7 @@
 //! Integration tests for ISA 520 unusual item markers and analytical relationships.
 
 use chrono::NaiveDate;
-use datasynth_core::models::audit::unusual_items::UnusualSeverity;
+use datasynth_core::models::audit::unusual_items::{UnusualDimension, UnusualSeverity};
 use datasynth_core::models::journal_entry::{
     JournalEntry, JournalEntryHeader, JournalEntryLine, TransactionSource,
 };
@@ -585,4 +585,66 @@ fn analytical_period_values_are_non_negative() {
             }
         }
     }
+}
+
+// =============================================================================
+// Nature-dimension regression (v4.2.3)
+// =============================================================================
+//
+// Prior to v4.2.3, `compute_automated_accounts` used a 5% manual-rate ceiling
+// that effectively disqualified every account in realistic runs (real P&L
+// accounts see 20-30% manual postings from adjustments / reversals), so the
+// Nature dimension never fired. The threshold is now 20%, matching audit
+// practice for "automated-preponderant" accounts.
+
+#[test]
+fn unusual_items_nature_dimension_fires_on_manual_to_automated_account() {
+    // Build a population dominated by automated postings to account 1100
+    // (20 auto → well above the min-posting floor of 5, with 0% manual).
+    let posting_date = NaiveDate::from_ymd_opt(2024, 4, 15).unwrap();
+    let mut entries = Vec::new();
+    for _ in 0..20 {
+        entries.push(make_entry(
+            "C001",
+            posting_date,
+            "1100",
+            "4000",
+            dec!(1_000),
+            TransactionSource::Automated,
+            false,
+            "BATCH",
+        ));
+    }
+    // One manual JE touching the same automated account — THIS is the
+    // Nature-trigger pattern.
+    entries.push(make_entry(
+        "C001",
+        posting_date,
+        "1100",
+        "2000",
+        dec!(5_000),
+        TransactionSource::Manual,
+        false,
+        "CLERK01",
+    ));
+
+    let config = UnusualItemGeneratorConfig {
+        normal_entry_flag_probability: 1.0,
+        anomaly_entry_flag_probability: 1.0,
+        ..Default::default()
+    };
+    let mut gen = UnusualItemGenerator::with_config(42, config);
+    let flags = gen.generate_for_entity("C001", &entries, period_end());
+
+    let nature_flag_count = flags
+        .iter()
+        .filter(|f| f.dimensions.contains(&UnusualDimension::Nature))
+        .count();
+    assert!(
+        nature_flag_count >= 1,
+        "Expected at least one Nature-dimension flag for a manual JE to an \
+         otherwise-automated account; got {} total flags with dimensions: {:?}",
+        flags.len(),
+        flags.iter().map(|f| &f.dimensions).collect::<Vec<_>>()
+    );
 }

@@ -122,6 +122,12 @@ pub struct SampledItem {
     pub amount: Decimal,
     /// How the item was selected into the sample.
     pub selection_type: SelectionType,
+    /// Why this item was selected as a key item — populated only when
+    /// `selection_type == SelectionType::KeyItem`, so SDK consumers don't
+    /// need to cross-reference `SamplingPlan.key_items[]` to find out why.
+    /// `None` for representative-sample rows.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub key_item_reason: Option<KeyItemReason>,
     /// Whether the auditor has completed testing on this item.
     pub tested: bool,
     /// Whether a misstatement was found during testing.

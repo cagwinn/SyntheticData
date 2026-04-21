@@ -415,8 +415,17 @@ fn compute_pair_frequencies(entries: &[&JournalEntry]) -> HashMap<String, usize>
     freq
 }
 
-/// Determine which GL accounts are "almost always automated" (>= 95% of
-/// postings are from non-Manual sources).
+/// Determine which GL accounts are "predominantly automated" — at least 80%
+/// of postings come from non-Manual sources (system interfaces, batch jobs,
+/// subledger postings, period-close engine, etc.).
+///
+/// The 80% bar matches audit practice for "automated-preponderant" accounts
+/// (AR/AP control accounts, revenue recognition accounts, accrual accounts,
+/// bank accounts posted via payment runs). A manual JE hitting such an
+/// account is the Nature-dimension trigger per ISA 520.
+///
+/// The minimum-posting count of 5 keeps the signal meaningful even on
+/// short-period demo runs while avoiding single-posting noise.
 fn compute_automated_accounts(entries: &[&JournalEntry]) -> HashSet<String> {
     let mut account_counts: HashMap<String, (u64, u64)> = HashMap::new(); // (total, manual)
     for je in entries {
@@ -431,7 +440,7 @@ fn compute_automated_accounts(entries: &[&JournalEntry]) -> HashSet<String> {
     }
     account_counts
         .into_iter()
-        .filter(|(_, (total, manual))| *total >= 10 && (*manual as f64 / *total as f64) < 0.05)
+        .filter(|(_, (total, manual))| *total >= 5 && (*manual as f64 / *total as f64) < 0.20)
         .map(|(acct, _)| acct)
         .collect()
 }
