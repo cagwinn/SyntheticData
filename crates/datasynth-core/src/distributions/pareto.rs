@@ -169,6 +169,25 @@ impl ParetoSampler {
         Decimal::from_f64_retain(value).unwrap_or(Decimal::ONE)
     }
 
+    /// v4.1.6+: inverse CDF (quantile function). Given `u ∈ (0, 1)`
+    /// returns the Pareto quantile `x_min * (1-u)^(-1/α)` clamped by
+    /// `max_value` and rounded to `decimal_places`. Used by the
+    /// copula-correlation path to turn a copula's uniform draws into
+    /// rank-preserving amount samples.
+    pub fn ppf(&self, u: f64) -> f64 {
+        let u = u.clamp(1e-12, 1.0 - 1e-12);
+        let mut value = self.config.x_min * (1.0 - u).powf(-1.0 / self.config.alpha);
+        if let Some(max) = self.config.max_value {
+            value = value.min(max);
+        }
+        (value * self.decimal_multiplier).round() / self.decimal_multiplier
+    }
+
+    /// v4.1.6+: inverse CDF as Decimal.
+    pub fn ppf_decimal(&self, u: f64) -> Decimal {
+        Decimal::from_f64_retain(self.ppf(u)).unwrap_or(Decimal::ONE)
+    }
+
     /// Sample multiple values.
     pub fn sample_n(&mut self, n: usize) -> Vec<f64> {
         (0..n).map(|_| self.sample()).collect()

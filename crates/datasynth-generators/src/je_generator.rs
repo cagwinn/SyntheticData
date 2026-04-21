@@ -1155,27 +1155,26 @@ impl JournalEntryGenerator {
         let copula_uv: Option<(f64, f64)> =
             self.correlation_copula.as_mut().map(|cop| cop.sample());
 
-        // Sample line item specification, then shift count by v-quantile
-        // when a copula is configured. v ∈ [0, 1]; shift ∈ [-4, +4] lines,
-        // centred on 0 at v = 0.5. Result is clamped to ≥ 2 total lines
-        // and ≥ 1 debit + ≥ 1 credit so the balance invariant holds.
+        // Sample line item specification. When a copula is configured,
+        // v drives line-count via a quantile-preserving map: integer
+        // count `2 + floor(v * 10)` gives range [2, 11] evenly spaced
+        // in v, so rank(v) == rank(line_count).
+        //
+        // v4.1.6+: upgraded from the v3.5.4 nudge (shift around
+        // independently-drawn count) to true rank-preserving quantile
+        // inversion, so empirical Kendall-τ now matches copula theory.
         let mut line_spec = self.line_sampler.sample();
         if let Some((_u, v)) = copula_uv {
-            let shift = ((v - 0.5) * 8.0).round() as i32;
-            if shift != 0 {
-                let new_total = (line_spec.total_count as i32 + shift).max(2) as usize;
-                // Preserve debit/credit proportions (approximately).
-                let old_debit = line_spec.debit_count.max(1);
-                let old_credit = line_spec.credit_count.max(1);
-                let new_debit = (new_total as f64 * old_debit as f64
-                    / (old_debit + old_credit) as f64)
-                    .round() as usize;
-                let new_debit = new_debit.clamp(1, new_total - 1);
-                let new_credit = new_total - new_debit;
-                line_spec.total_count = new_total;
-                line_spec.debit_count = new_debit;
-                line_spec.credit_count = new_credit;
-            }
+            let new_total = 2 + ((v * 10.0).floor() as usize).min(9);
+            let old_debit = line_spec.debit_count.max(1);
+            let old_credit = line_spec.credit_count.max(1);
+            let new_debit = (new_total as f64 * old_debit as f64 / (old_debit + old_credit) as f64)
+                .round() as usize;
+            let new_debit = new_debit.clamp(1, new_total - 1);
+            let new_credit = new_total - new_debit;
+            line_spec.total_count = new_total;
+            line_spec.debit_count = new_debit;
+            line_spec.credit_count = new_credit;
         }
 
         // Determine source type using full 4-way distribution
@@ -1345,18 +1344,25 @@ impl JournalEntryGenerator {
             base_amount
         };
 
-        // v4.1.0+: if a copula is configured, apply the cached `u`
-        // quantile (drawn once at entry construction, shared with
-        // the line-count shift so amount↔line_count are genuinely
-        // correlated). Log-scale multiplier `exp(4*(u-0.5))` gives a
-        // 0.14×–7.4× range — strong enough rank-preservation that
-        // empirical Spearman shows the copula's dependency structure
-        // even against log-normal base-amount noise.
+        // v4.1.6+: if a copula is configured AND an advanced amount
+        // sampler with a ppf is available, use true rank-preserving
+        // inverse-CDF sampling — amount is drawn DIRECTLY from the
+        // sampler's quantile at `u`, replacing (not nudging) the
+        // independently-drawn base_amount. This makes empirical
+        // Kendall-τ match the copula's theoretical τ.
+        //
+        // Fallback for copula-without-advanced-sampler: keep the
+        // v4.1.0 log-scale multiplier nudge (observable correlation,
+        // diluted magnitude).
         let base_amount = if fraud_type.is_none() {
             if let Some((u, _v)) = copula_uv {
-                let log_mult = 4.0 * (u - 0.5);
-                let adjusted = base_amount.to_f64().unwrap_or(1.0) * log_mult.exp();
-                Decimal::from_f64_retain(adjusted).unwrap_or(base_amount)
+                if let Some(ref adv) = self.advanced_amount_sampler {
+                    adv.ppf_decimal(u)
+                } else {
+                    let log_mult = 4.0 * (u - 0.5);
+                    let adjusted = base_amount.to_f64().unwrap_or(1.0) * log_mult.exp();
+                    Decimal::from_f64_retain(adjusted).unwrap_or(base_amount)
+                }
             } else {
                 base_amount
             }

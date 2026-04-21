@@ -70,6 +70,21 @@ impl AdvancedAmountSampler {
             Self::Pareto(s) => s.reset(seed),
         }
     }
+
+    /// v4.1.6+ inverse CDF (quantile function) — returns the `Decimal`
+    /// quantile at uniform `u ∈ (0, 1)` for whichever underlying
+    /// sampler is active. Gaussian variant clamps negatives to zero
+    /// (monetary-amount semantics).
+    pub fn ppf_decimal(&self, u: f64) -> Decimal {
+        match self {
+            Self::LogNormal(s) => s.ppf_decimal(u),
+            Self::Pareto(s) => s.ppf_decimal(u),
+            Self::Gaussian(s) => {
+                let v = s.ppf(u).max(0.0);
+                Decimal::from_f64_retain(v).unwrap_or(Decimal::ZERO)
+            }
+        }
+    }
 }
 
 /// Build a [`LogNormalMixtureConfig`] from a list of `(weight, mu, sigma,

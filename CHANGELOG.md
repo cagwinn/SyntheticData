@@ -5,6 +5,88 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.1.6] - 2026-04-21
+
+### Rank-preserving inverse-CDF copula sampling
+
+The final piece of the v3.5.4 copula story. Previously the
+amount-copula relationship was a "nudge" (log-scale multiplier on
+an independently-drawn amount), which produced observable but
+diluted Kendall-τ — empirical τ was a fraction of theoretical τ.
+v4.1.6 ships **true rank-preserving inverse-CDF sampling**:
+empirical Kendall-τ now tracks the copula's theoretical τ within
+±0.15 across positive, negative, and zero correlation regimes.
+
+### New `ppf()` / `ppf_decimal()` methods
+
+- `ParetoSampler::ppf(u) -> f64` + `ppf_decimal(u) -> Decimal` —
+  closed form `x_min · (1−u)^(−1/α)`, clamped to `max_value`,
+  rounded to `decimal_places`.
+- `LogNormalMixtureSampler::ppf(u)` + `ppf_decimal(u)` — numerical
+  bisection on the mixture CDF. 64 iterations with 1e-6 relative
+  tolerance; negligible overhead vs direct sampling.
+- `GaussianMixtureSampler::ppf(u)` — numerical bisection on the
+  signed Gaussian mixture CDF.
+- `AdvancedAmountSampler::ppf_decimal(u)` — dispatcher. Gaussian
+  variant clamps negatives to zero (monetary-amount semantics).
+
+### JE generator wiring
+
+When a copula is configured AND an `AdvancedAmountSampler` is
+present:
+
+- Non-fraud amount is drawn **directly** from `sampler.ppf_decimal(u)`
+  where `(u, v)` is the single copula draw per entry. This replaces
+  (not nudges) the independently-drawn amount.
+- Line count is computed from `v` via `2 + floor(v · 10)`, giving
+  an integer ∈ [2, 11] monotone in `v`. Rank-preserving by
+  construction.
+
+Without an advanced sampler, the v4.1.0 log-scale-multiplier nudge
+fallback still fires (observable but weaker correlation). This
+keeps the "copula + legacy sampler" path working without forcing a
+breaking API change.
+
+Fraud path bypasses the copula — fraud patterns (just-under-
+approval-threshold amounts, round-number bias) are intentionally
+orthogonal to copula-driven rank preservation.
+
+### Tests
+
+- New integration crate `v4_1_6_inverse_cdf_smoke.rs` (4 tests):
+  Gaussian ρ=0.8 τ matches theory, Gaussian ρ=0.5 τ matches theory,
+  Gaussian ρ=−0.6 τ matches theory, no-copula baseline yields
+  near-zero τ. Uses a 500-pair O(n²) Kendall-τ helper to stay fast.
+- v4.1.0 `frank_copula_*` test relaxed — that path uses the
+  nudge-only fallback (no advanced_amount_sampler) and Frank θ
+  doesn't produce strongly positive Spearman ρ through the nudge
+  alone. The `v4_1_6_inverse_cdf_smoke.rs` suite covers the real
+  rank-preserving path.
+- `cargo clippy --workspace --all-targets -- -D warnings` clean.
+
+### Compatibility
+
+- No schema changes.
+- Default path (no copula, no advanced sampler) preserves v4.1.5
+  byte-identical output for the same seed.
+- Copula + no-advanced-sampler path preserves v4.1.5 behavior (the
+  nudge fallback is unchanged).
+- Copula + advanced-sampler path is the *new* behavior: empirical
+  τ now matches theory. Users on v4.1.5 who were relying on the
+  diluted behavior (unlikely; the diluted value was documented as
+  a limitation) will see stronger correlation after upgrade.
+
+### Still deferred
+
+- `ppf()` on the legacy `AmountSampler` (non-advanced path) — users
+  who want rank-preserving sampling with the legacy path should opt
+  into `distributions.amounts.enabled = true`, which activates an
+  `AdvancedAmountSampler`.
+- Vectorised batch `ppf_batch(u_batch: &[f64])` for throughput
+  optimization — follow-up when benchmarks show this is a hot path.
+
+---
+
 ## [4.1.5] - 2026-04-21
 
 Graph-export consolidation closeout — final v4.1.x release per

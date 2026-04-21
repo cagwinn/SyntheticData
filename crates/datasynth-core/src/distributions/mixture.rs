@@ -380,6 +380,52 @@ impl GaussianMixtureSampler {
     pub fn config(&self) -> &GaussianMixtureConfig {
         &self.config
     }
+
+    /// v4.1.6+: inverse CDF (quantile) for the Gaussian mixture via
+    /// bisection. Result clamped to `[min_value, max_value]`.
+    pub fn ppf(&self, u: f64) -> f64 {
+        let u = u.clamp(1e-9, 1.0 - 1e-9);
+        let min = self.config.min_value.unwrap_or(-1e15);
+        let max = self.config.max_value.unwrap_or(1e15);
+        let (mut lo, mut hi) = (min, max);
+        for _ in 0..64 {
+            let mid = (lo + hi) / 2.0;
+            let f_mid = mixture_gaussian_cdf(&self.config.components, mid);
+            if f_mid < u {
+                lo = mid;
+            } else {
+                hi = mid;
+            }
+            if hi - lo < 1e-6 * mid.abs().max(1.0) {
+                break;
+            }
+        }
+        ((lo + hi) / 2.0).clamp(min, max)
+    }
+}
+
+/// CDF of a Gaussian mixture at `x`.
+fn mixture_gaussian_cdf(components: &[GaussianComponent], x: f64) -> f64 {
+    components
+        .iter()
+        .map(|c| c.weight * standard_normal_cdf_gauss((x - c.mu) / c.sigma))
+        .sum()
+}
+
+fn standard_normal_cdf_gauss(x: f64) -> f64 {
+    0.5 * (1.0 + erf_gauss(x / std::f64::consts::SQRT_2))
+}
+
+fn erf_gauss(x: f64) -> f64 {
+    let sign = if x < 0.0 { -1.0 } else { 1.0 };
+    let x = x.abs();
+    let t = 1.0 / (1.0 + 0.3275911 * x);
+    let y = 1.0
+        - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t
+            + 0.254829592)
+            * t
+            * (-x * x).exp();
+    sign * y
 }
 
 /// Log-Normal Mixture Model sampler for positive-only distributions.
@@ -513,6 +559,69 @@ impl LogNormalMixtureSampler {
             .map(|c| c.weight * c.expected_value())
             .sum()
     }
+
+    /// v4.1.6+: inverse CDF (quantile) for the mixture, computed via
+    /// bisection.  Given `u ∈ (0, 1)` returns the value `x` such that
+    /// `F(x) = u`, where `F` is the mixture CDF (weighted sum of the
+    /// component log-normal CDFs). Result is clamped to
+    /// `[min_value, max_value]` and rounded to `decimal_places`.
+    pub fn ppf(&self, u: f64) -> f64 {
+        let u = u.clamp(1e-9, 1.0 - 1e-9);
+        let max = self.config.max_value.unwrap_or(1e15);
+        let min = self.config.min_value.max(1e-9);
+        // Bisection — the mixture CDF is monotone.
+        let (mut lo, mut hi) = (min, max);
+        for _ in 0..64 {
+            let mid = (lo + hi) / 2.0;
+            let f_mid = mixture_log_normal_cdf(&self.config.components, mid);
+            if f_mid < u {
+                lo = mid;
+            } else {
+                hi = mid;
+            }
+            if hi - lo < 1e-6 * mid.abs().max(1.0) {
+                break;
+            }
+        }
+        let value = ((lo + hi) / 2.0).clamp(min, max);
+        (value * self.decimal_multiplier).round() / self.decimal_multiplier
+    }
+
+    /// v4.1.6+: inverse CDF as Decimal.
+    pub fn ppf_decimal(&self, u: f64) -> Decimal {
+        Decimal::from_f64_retain(self.ppf(u)).unwrap_or(Decimal::ONE)
+    }
+}
+
+/// CDF of a log-normal mixture at `x` (standard normal CDF applied to
+/// `(ln(x) - μ) / σ` for each component, weighted by component weights).
+fn mixture_log_normal_cdf(components: &[LogNormalComponent], x: f64) -> f64 {
+    if x <= 0.0 {
+        return 0.0;
+    }
+    let log_x = x.ln();
+    components
+        .iter()
+        .map(|c| c.weight * standard_normal_cdf((log_x - c.mu) / c.sigma))
+        .sum()
+}
+
+/// Standard normal CDF via an erf approximation. Matches
+/// `crate::distributions::validation::erf` to 7 digits.
+fn standard_normal_cdf(x: f64) -> f64 {
+    0.5 * (1.0 + erf(x / std::f64::consts::SQRT_2))
+}
+
+fn erf(x: f64) -> f64 {
+    let sign = if x < 0.0 { -1.0 } else { 1.0 };
+    let x = x.abs();
+    let t = 1.0 / (1.0 + 0.3275911 * x);
+    let y = 1.0
+        - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t
+            + 0.254829592)
+            * t
+            * (-x * x).exp();
+    sign * y
 }
 
 #[cfg(test)]
