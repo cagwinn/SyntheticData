@@ -263,6 +263,107 @@ enum Commands {
         #[command(subcommand)]
         command: TemplatesCommands,
     },
+
+    /// Audit optimizer — risk scoping, portfolio, Monte Carlo,
+    /// calibration, conformance, resource optimization (v4.1.2+).
+    ///
+    /// Surfaces the analytics in the `datasynth-audit-optimizer`
+    /// crate through a single CLI entry point. Each subcommand emits
+    /// a JSON report to stdout or the configured `--output` path.
+    Optimizer {
+        #[command(subcommand)]
+        command: OptimizerCommands,
+    },
+}
+
+/// v4.1.2+: audit-optimizer subcommands. Each wraps one module in
+/// `datasynth-audit-optimizer`. The current cut emits a minimal
+/// structured result (JSON) so downstream tooling can consume it;
+/// deeper analytics surface per-subcommand flags in follow-up
+/// patches.
+#[derive(Subcommand)]
+#[allow(clippy::large_enum_variant)]
+enum OptimizerCommands {
+    /// Rank in-scope accounts by residual risk using the configured
+    /// inherent-risk + control-strength model.
+    RiskScope {
+        /// Input: audit engagement YAML file.
+        #[arg(short, long)]
+        input: PathBuf,
+        /// Output path for the ranked-accounts JSON.
+        #[arg(short, long, default_value = "./risk-scope.json")]
+        output: PathBuf,
+        /// Top-N accounts to return (default: all).
+        #[arg(long)]
+        top_n: Option<usize>,
+    },
+
+    /// Audit-portfolio optimization: allocate audit hours across
+    /// engagements subject to a total budget.
+    Portfolio {
+        /// Input: portfolio-candidates YAML (one entry per engagement).
+        #[arg(short, long)]
+        input: PathBuf,
+        /// Total audit-hour budget.
+        #[arg(long)]
+        budget_hours: u32,
+        /// Output JSON path.
+        #[arg(short, long, default_value = "./portfolio.json")]
+        output: PathBuf,
+    },
+
+    /// Resource allocation across engagement phases (planning / fieldwork /
+    /// review / reporting) given an effort-schedule and team capacity.
+    Resources {
+        /// Input: engagement-schedule YAML.
+        #[arg(short, long)]
+        input: PathBuf,
+        /// Output JSON path.
+        #[arg(short, long, default_value = "./resources.json")]
+        output: PathBuf,
+    },
+
+    /// Conformance check between an observed audit lifecycle trace
+    /// (from `audit_events.json`) and the expected FSM blueprint.
+    Conformance {
+        /// Input: observed trace JSON.
+        #[arg(short, long)]
+        input: PathBuf,
+        /// Blueprint YAML to compare against.
+        #[arg(long)]
+        blueprint: PathBuf,
+        /// Output JSON path.
+        #[arg(short, long, default_value = "./conformance.json")]
+        output: PathBuf,
+    },
+
+    /// Monte-Carlo simulation of risk-weighted engagement cost /
+    /// duration across N runs.
+    MonteCarlo {
+        /// Input: base engagement YAML.
+        #[arg(short, long)]
+        input: PathBuf,
+        /// Number of simulation runs.
+        #[arg(long, default_value_t = 1000)]
+        runs: u32,
+        /// Deterministic seed.
+        #[arg(long, default_value_t = 42)]
+        seed: u64,
+        /// Output JSON path.
+        #[arg(short, long, default_value = "./monte-carlo.json")]
+        output: PathBuf,
+    },
+
+    /// Calibration — fit control-strength / inherent-risk weights
+    /// against historical findings.
+    Calibration {
+        /// Input: historical-findings YAML/CSV.
+        #[arg(short, long)]
+        input: PathBuf,
+        /// Output JSON path (calibrated parameters).
+        #[arg(short, long, default_value = "./calibration.json")]
+        output: PathBuf,
+    },
 }
 
 #[derive(Subcommand)]
@@ -2421,6 +2522,119 @@ fn main() -> Result<()> {
                 &base_url,
             ),
         },
+
+        Commands::Optimizer { command } => handle_optimizer(command),
+    }
+}
+
+/// v4.1.2+: audit-optimizer CLI dispatcher. Each subcommand emits a
+/// minimal JSON report; deeper analytics per subcommand surface in
+/// follow-up patches. The report schema is stable (keys + types) so
+/// downstream tooling can consume it today without waiting for the
+/// full analytics implementation.
+fn handle_optimizer(command: OptimizerCommands) -> Result<()> {
+    match command {
+        OptimizerCommands::RiskScope {
+            input,
+            output,
+            top_n,
+        } => {
+            let report = serde_json::json!({
+                "command": "risk-scope",
+                "input": input.display().to_string(),
+                "top_n": top_n,
+                "status": "stub_report_v4_1_2",
+                "message": "audit-optimizer risk-scope is available as a library API at \
+                           datasynth_audit_optimizer::risk_scoping::*. CLI-side analytics \
+                           wiring ships incrementally in v4.1.x patches.",
+            });
+            std::fs::write(&output, serde_json::to_string_pretty(&report)?)
+                .map_err(|e| anyhow::anyhow!("failed to write {}: {e}", output.display()))?;
+            println!("✓ risk-scope report → {}", output.display());
+            Ok(())
+        }
+        OptimizerCommands::Portfolio {
+            input,
+            budget_hours,
+            output,
+        } => {
+            let report = serde_json::json!({
+                "command": "portfolio",
+                "input": input.display().to_string(),
+                "budget_hours": budget_hours,
+                "status": "stub_report_v4_1_2",
+                "message": "audit-optimizer portfolio is available as a library API at \
+                           datasynth_audit_optimizer::portfolio::*.",
+            });
+            std::fs::write(&output, serde_json::to_string_pretty(&report)?)
+                .map_err(|e| anyhow::anyhow!("failed to write {}: {e}", output.display()))?;
+            println!("✓ portfolio report → {}", output.display());
+            Ok(())
+        }
+        OptimizerCommands::Resources { input, output } => {
+            let report = serde_json::json!({
+                "command": "resources",
+                "input": input.display().to_string(),
+                "status": "stub_report_v4_1_2",
+                "message": "audit-optimizer resources is available as a library API at \
+                           datasynth_audit_optimizer::resource_optimizer::*.",
+            });
+            std::fs::write(&output, serde_json::to_string_pretty(&report)?)
+                .map_err(|e| anyhow::anyhow!("failed to write {}: {e}", output.display()))?;
+            println!("✓ resources report → {}", output.display());
+            Ok(())
+        }
+        OptimizerCommands::Conformance {
+            input,
+            blueprint,
+            output,
+        } => {
+            let report = serde_json::json!({
+                "command": "conformance",
+                "input": input.display().to_string(),
+                "blueprint": blueprint.display().to_string(),
+                "status": "stub_report_v4_1_2",
+                "message": "audit-optimizer conformance is available as a library API at \
+                           datasynth_audit_optimizer::conformance::*.",
+            });
+            std::fs::write(&output, serde_json::to_string_pretty(&report)?)
+                .map_err(|e| anyhow::anyhow!("failed to write {}: {e}", output.display()))?;
+            println!("✓ conformance report → {}", output.display());
+            Ok(())
+        }
+        OptimizerCommands::MonteCarlo {
+            input,
+            runs,
+            seed,
+            output,
+        } => {
+            let report = serde_json::json!({
+                "command": "monte-carlo",
+                "input": input.display().to_string(),
+                "runs": runs,
+                "seed": seed,
+                "status": "stub_report_v4_1_2",
+                "message": "audit-optimizer monte-carlo is available as a library API at \
+                           datasynth_audit_optimizer::monte_carlo::*.",
+            });
+            std::fs::write(&output, serde_json::to_string_pretty(&report)?)
+                .map_err(|e| anyhow::anyhow!("failed to write {}: {e}", output.display()))?;
+            println!("✓ monte-carlo report → {}", output.display());
+            Ok(())
+        }
+        OptimizerCommands::Calibration { input, output } => {
+            let report = serde_json::json!({
+                "command": "calibration",
+                "input": input.display().to_string(),
+                "status": "stub_report_v4_1_2",
+                "message": "audit-optimizer calibration is available as a library API at \
+                           datasynth_audit_optimizer::calibration::*.",
+            });
+            std::fs::write(&output, serde_json::to_string_pretty(&report)?)
+                .map_err(|e| anyhow::anyhow!("failed to write {}: {e}", output.display()))?;
+            println!("✓ calibration report → {}", output.display());
+            Ok(())
+        }
     }
 }
 

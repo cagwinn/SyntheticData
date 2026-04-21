@@ -8349,6 +8349,15 @@ fn default_format_mismatch() -> f64 {
 // =============================================================================
 
 /// Configuration for behavioral drift (vendor, customer, employee behavior).
+///
+/// **Deprecated (v4.1.2):** this schema section is currently
+/// validated-but-inert — no runtime code consumes its fields. Users
+/// who want behavioral drift-style effects should reach for
+/// `distributions.regime_changes` (v3.5.2+), which drives the
+/// `DriftController` via the parameter-drift path. The schema type
+/// remains for backward-compatible YAML loading; it will be removed
+/// in a future major version once `regime_changes` gains per-entity
+/// (vendor / customer / employee) targeting.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct BehavioralDriftSchemaConfig {
     /// Enable behavioral drift.
@@ -8620,6 +8629,13 @@ impl Default for AutomationAdoptionSchemaConfig {
 // =============================================================================
 
 /// Configuration for market drift (economic cycles, commodities, price shocks).
+///
+/// **Deprecated (v4.1.2):** validated-but-inert. Use
+/// `distributions.regime_changes.economic_cycle` +
+/// `distributions.regime_changes.parameter_drifts` for the
+/// equivalent runtime behaviour (shipped in v3.5.2). The schema
+/// type remains for backward-compatible YAML loading; will be
+/// removed in v5.0.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct MarketDriftSchemaConfig {
     /// Enable market drift.
@@ -8813,6 +8829,13 @@ fn default_volatility() -> f64 {
 // =============================================================================
 
 /// Configuration for drift ground truth labeling.
+///
+/// **Deprecated (v4.1.2):** validated-but-inert. The v3.3.0
+/// analytics-metadata phase (`DriftEventGenerator` +
+/// `AnalyticsMetadataSnapshot.drift_events`) produces drift labels
+/// at runtime — configure it via `analytics_metadata.drift_events`
+/// instead. The schema type remains for backward-compatible YAML
+/// loading; will be removed in v5.0.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct DriftLabelingSchemaConfig {
     /// Enable drift labeling.

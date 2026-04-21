@@ -5,6 +5,58 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.1.2] - 2026-04-21
+
+### `datasynth-data optimizer` — audit-optimizer CLI (6 subcommands)
+
+New top-level CLI command `optimizer` surfaces the
+`datasynth-audit-optimizer` crate's analytics through 6 subcommands:
+
+- `risk-scope` — rank in-scope accounts by residual risk
+- `portfolio` — allocate audit hours across engagements under budget
+- `resources` — resource allocation across engagement phases
+- `conformance` — compare observed audit trace against FSM blueprint
+- `monte-carlo` — simulate risk-weighted cost/duration across N runs
+- `calibration` — fit control-strength / inherent-risk weights
+  against historical findings
+
+Each subcommand parses its args (input paths, budget/runs/seed as
+appropriate) and emits a structured JSON report at `--output`. The
+report schema is stable; deeper per-subcommand analytics are wired
+incrementally in v4.1.x patch releases as the library APIs harden
+for CLI consumption.
+
+### Schema deprecations (documentation-only)
+
+Three schema sections are validated-but-inert as confirmed by the
+v4.1 audit. Each now carries a doc-comment deprecation note pointing
+to its replacement:
+
+- `behavioral_drift` → use `distributions.regime_changes`
+- `market_drift` → use `distributions.regime_changes.economic_cycle`
+- `drift_labeling` → use `analytics_metadata.drift_events`
+
+Doc-only (no `#[deprecated]` attribute to avoid tripping internal
+`-D warnings` users). These types will be removed in v5.0 once
+downstream configs migrate. Schema validation + loading continue to
+work for now.
+
+### Tests
+
+- New integration crate `optimizer_smoke.rs` (6 CLI tests, one per
+  subcommand) covering arg parsing + structured-report emission.
+- All 67 prior runtime + 12 CLI smokes still green.
+- `cargo clippy --workspace --all-targets -- -D warnings` clean.
+
+### Compatibility
+
+- All new CLI surface is additive (new top-level `optimizer`
+  command). Existing subcommands unchanged.
+- Deprecation is doc-only — existing YAML configs continue to load
+  with no warnings.
+
+---
+
 ## [4.1.1] - 2026-04-21
 
 LLM track completion per [v4.1 plan](docs/plans/2026-04-21-v4.1-plan.md).
