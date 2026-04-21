@@ -5,6 +5,82 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.1.7] - 2026-04-21
+
+### Full YAML mirror of embedded default pools
+
+Every hardcoded name pool in `DefaultTemplateProvider` is now
+mirrored in `crates/datasynth-core/templates/defaults.yaml` in the
+same order:
+
+- `person_names.cultures.german` / `.us` — male / female first names
+  + last names
+- `vendor_names.categories.manufacturing` / `.services`
+- `customer_names.industries.automotive` / `.retail`
+
+All entries preserve the exact string and order of the embedded
+`fn embedded_*` arrays. Consequence: when a caller uses
+`DefaultTemplateProvider::bundled()`, every seeded draw produces
+the SAME string sequence as `DefaultTemplateProvider::new()`.
+Byte-identity verified by regression tests.
+
+### Byte-identity regression tests
+
+Two new unit tests in `templates::provider::tests`:
+
+- `bundled_matches_embedded_for_person_names` — 500 draws each of
+  first + last names, both cultures, both genders, compared between
+  `new()` and `bundled()` under identical seeds. All pairs must
+  match exactly.
+- `bundled_matches_embedded_for_vendor_customer_names` — 200 draws
+  each of vendor (manufacturing / services) and customer
+  (automotive / retail) names, compared across providers.
+
+This is the hard check that the v4.1.7 migration increment doesn't
+change output under the same seed. Future patches can delete the
+embedded `fn embedded_*` arrays once all consumers migrate to
+`bundled()` — as long as this regression suite keeps passing.
+
+### Migration status
+
+v4.1.4 shipped the `bundled()` loader + curated extensions.
+v4.1.7 ships the full mirror of the embedded arrays. What's left:
+
+- Delete the `fn embedded_*` functions in `provider.rs` once
+  external consumers using `new()` migrate to `bundled()`. A
+  follow-up minor (v4.2.x) can flip the default of `new()` to
+  internally call `bundled()` and remove the redundancy.
+- Additional curated content (more cultures, more industries,
+  more sectors) — additive, ship as demand surfaces.
+- `build.rs` validator that asserts the YAML parses at build time
+  (runtime parse failure currently panics in tests; build-time
+  validation would catch it earlier).
+
+### Compatibility
+
+- `DefaultTemplateProvider::new()` unchanged; byte-identical to
+  v4.1.6 for the same seed.
+- `DefaultTemplateProvider::bundled()` now produces byte-identical
+  output to `new()` for the cultures / categories listed above.
+  Earlier v4.1.4+ callers using `bundled()` will see slight pool
+  changes since v4.1.4's curated retail / office_supplies entries
+  are replaced by the exact embedded mirror. Users relying on the
+  v4.1.4 curated content should either (a) keep using `new()` (no
+  change), or (b) load a custom `TemplateData` via `with_templates(
+  …)` + `MergeStrategy::Extend` on top of `bundled()`.
+
+### Tests
+
+- 2 new byte-identity regression tests.
+- Previously-passing `bundled_defaults_include_curated_entries`
+  renamed to `bundled_defaults_include_embedded_mirrored_entries`
+  and rewritten to spot-check the mirror (vs. the old curated
+  content).
+- All 80+ runtime + 12 CLI smokes still green.
+- `cargo clippy --workspace --all-targets -- -D warnings` clean.
+
+---
+
 ## [4.1.6] - 2026-04-21
 
 ### Rank-preserving inverse-CDF copula sampling

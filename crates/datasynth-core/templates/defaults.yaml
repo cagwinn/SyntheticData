@@ -1,57 +1,161 @@
-# DataSynth embedded defaults — v4.1.4+
+# DataSynth embedded defaults — v4.1.7+
 #
 # This file is bundled into `datasynth-core` via `include_str!` and
-# loaded by `DefaultTemplateProvider::bundled()`. It extends (not
-# replaces) the hardcoded `const &[&str]` arrays in the provider.
+# loaded by `DefaultTemplateProvider::bundled()`. It mirrors every
+# hardcoded `const &[&str]` / `fn embedded_*` array in
+# `provider.rs`, in the exact same order, so:
 #
-# This is the first step toward full YAML-as-source-of-truth
-# migration (see `crates/datasynth-core/src/templates/
-# YAML_AS_SOT_MIGRATION.md`). v4.1.4 ships the loader wiring; future
-# v4.x releases progressively export the embedded arrays here.
+#   DefaultTemplateProvider::bundled() → byte-identical to
+#   DefaultTemplateProvider::new() for any seeded draw.
 #
-# Keep entries sorted within each pool for byte-identical reproducibility.
-# Entries are ADDITIVE — they supplement the embedded arrays, never replace.
+# v4.1.7 ships the full mirror (person names × {us, german},
+# vendor names × {manufacturing, services}, customer names ×
+# {automotive, retail}). Future patches can safely delete the
+# embedded arrays once downstream consumers migrate to `bundled()`.
+#
+# IMPORTANT: Keep entries in the SAME ORDER as `provider.rs` —
+# `CultureNames::male_first_names` etc. are `Vec<String>` which
+# preserves order, and the selector uses `rng.choose(&vec)` which is
+# order-dependent. Any reorder breaks byte-identity.
 
 metadata:
-  name: "DataSynth bundled defaults (v4.1.4)"
-  version: "4.1.4"
+  name: "DataSynth bundled defaults (v4.1.7)"
+  version: "4.1.7"
   region: null
   sector: null
-  description: "Bundled additive extensions to the embedded default template pools."
+  description: "Full mirror of the embedded default template pools — byte-identical to DefaultTemplateProvider::new() when used via bundled()."
 
-# v4.1.4 seed entries — small curated additions per category. Downstream
-# releases expand per demand. These entries prove the bundle loader
-# works end-to-end without committing to the full migration today.
+person_names:
+  cultures:
+    # Order must match embedded_german_first_names_male / _female / embedded_german_last_names
+    german:
+      male_first_names:
+        - "Hans"
+        - "Klaus"
+        - "Wolfgang"
+        - "Dieter"
+        - "Michael"
+        - "Stefan"
+        - "Thomas"
+        - "Andreas"
+        - "Peter"
+        - "Jürgen"
+        - "Matthias"
+        - "Frank"
+        - "Martin"
+        - "Bernd"
+      female_first_names:
+        - "Anna"
+        - "Maria"
+        - "Elisabeth"
+        - "Ursula"
+        - "Monika"
+        - "Petra"
+        - "Karin"
+        - "Sabine"
+        - "Andrea"
+        - "Christine"
+        - "Gabriele"
+        - "Heike"
+        - "Birgit"
+      last_names:
+        - "Müller"
+        - "Schmidt"
+        - "Schneider"
+        - "Fischer"
+        - "Weber"
+        - "Meyer"
+        - "Wagner"
+        - "Becker"
+        - "Schulz"
+        - "Hoffmann"
+        - "Schäfer"
+        - "Koch"
+        - "Bauer"
+        - "Richter"
+    # Order must match embedded_us_first_names_male / _female / embedded_us_last_names
+    us:
+      male_first_names:
+        - "James"
+        - "John"
+        - "Robert"
+        - "Michael"
+        - "William"
+        - "David"
+        - "Richard"
+        - "Joseph"
+        - "Thomas"
+        - "Charles"
+        - "Christopher"
+        - "Daniel"
+        - "Matthew"
+      female_first_names:
+        - "Mary"
+        - "Patricia"
+        - "Jennifer"
+        - "Linda"
+        - "Barbara"
+        - "Elizabeth"
+        - "Susan"
+        - "Jessica"
+        - "Sarah"
+        - "Karen"
+        - "Lisa"
+        - "Nancy"
+        - "Betty"
+        - "Margaret"
+      last_names:
+        - "Smith"
+        - "Johnson"
+        - "Williams"
+        - "Brown"
+        - "Jones"
+        - "Garcia"
+        - "Miller"
+        - "Davis"
+        - "Rodriguez"
+        - "Martinez"
+        - "Hernandez"
+        - "Lopez"
+        - "Gonzalez"
 
 vendor_names:
   categories:
-    office_supplies:
-      - "Global Office Essentials Ltd"
-      - "Metro Supply Partners"
-      - "Meridian Stationery Co"
-    raw_materials:
-      - "Northridge Materials Group"
-      - "Apex Industrial Supply"
-      - "Summit Raw Materials Inc"
-    it_services:
-      - "Atlas Systems Consulting"
-      - "Catalyst Technology Partners"
-      - "Pinnacle IT Services"
+    manufacturing:
+      - "Precision Parts Inc."
+      - "Industrial Components LLC"
+      - "Advanced Materials Corp."
+      - "Steel Solutions GmbH"
+      - "Quality Fasteners Ltd."
+      - "Machining Excellence Inc."
+    services:
+      - "Consulting Partners LLP"
+      - "Technical Services Inc."
+      - "Professional Solutions LLC"
+      - "Business Advisory Group"
+      - "Strategic Consulting Co."
+      - "Expert Services Ltd."
 
 customer_names:
   industries:
+    automotive:
+      - "AutoWerke Industries"
+      - "Vehicle Tech Solutions"
+      - "Motor Parts Direct"
+      - "Automotive Excellence Corp."
+      - "Drive Systems Inc."
+      - "Engine Components Ltd."
     retail:
-      - "Crestwood Retail Holdings"
-      - "Highland Market Group"
-      - "Lakeside Consumer Brands"
-    financial_services:
-      - "Keystone Financial Partners"
-      - "Waypoint Capital Group"
-      - "Heritage Investment Services"
-    manufacturing:
-      - "Ironworks Manufacturing Corp"
-      - "Precision Components Inc"
-      - "Foundry Industrial Group"
+      - "Retail Solutions Corp."
+      - "Consumer Goods Direct"
+      - "Shop Smart Inc."
+      - "Merchandise Holdings LLC"
+      - "Retail Distribution Co."
+      - "Store Systems Ltd."
+
+# v4.1.4 curated extensions — additive on top of the embedded mirror.
+# These ADD new categories that weren't in the embedded arrays;
+# they don't override existing entries.
 
 material_descriptions:
   by_type:

@@ -663,27 +663,92 @@ mod tests {
     }
 
     #[test]
-    fn bundled_defaults_include_curated_entries() {
-        // Spot-check a specific curated entry from defaults.yaml so the
-        // loader isn't silently swallowing the file.
+    fn bundled_matches_embedded_for_person_names() {
+        // v4.1.7 byte-identity regression: the bundled YAML mirrors the
+        // embedded arrays (same entries, same order). Therefore
+        // `bundled()` and `new()` must produce the same sequence of
+        // names for the same seed.
+        for culture in [NameCulture::German, NameCulture::WesternUs] {
+            for is_male in [true, false] {
+                let p_embedded = DefaultTemplateProvider::new();
+                let p_bundled = DefaultTemplateProvider::bundled().unwrap();
+                let mut rng_e = ChaCha8Rng::seed_from_u64(12345);
+                let mut rng_b = ChaCha8Rng::seed_from_u64(12345);
+                for _ in 0..500 {
+                    let ne = p_embedded.get_person_first_name(culture, is_male, &mut rng_e);
+                    let nb = p_bundled.get_person_first_name(culture, is_male, &mut rng_b);
+                    assert_eq!(
+                        ne, nb,
+                        "first name mismatch for culture={culture:?} male={is_male}"
+                    );
+                }
+            }
+            let p_embedded = DefaultTemplateProvider::new();
+            let p_bundled = DefaultTemplateProvider::bundled().unwrap();
+            let mut rng_e = ChaCha8Rng::seed_from_u64(54321);
+            let mut rng_b = ChaCha8Rng::seed_from_u64(54321);
+            for _ in 0..500 {
+                let ne = p_embedded.get_person_last_name(culture, &mut rng_e);
+                let nb = p_bundled.get_person_last_name(culture, &mut rng_b);
+                assert_eq!(ne, nb, "last name mismatch for culture={culture:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn bundled_matches_embedded_for_vendor_customer_names() {
+        // Categories mirrored in YAML: manufacturing, services (vendors);
+        // automotive, retail (customers).
+        for category in ["manufacturing", "services"] {
+            let p_embedded = DefaultTemplateProvider::new();
+            let p_bundled = DefaultTemplateProvider::bundled().unwrap();
+            let mut rng_e = ChaCha8Rng::seed_from_u64(99);
+            let mut rng_b = ChaCha8Rng::seed_from_u64(99);
+            for _ in 0..200 {
+                let ne = p_embedded.get_vendor_name(category, &mut rng_e);
+                let nb = p_bundled.get_vendor_name(category, &mut rng_b);
+                assert_eq!(ne, nb, "vendor mismatch for category={category}");
+            }
+        }
+        for industry in ["automotive", "retail"] {
+            let p_embedded = DefaultTemplateProvider::new();
+            let p_bundled = DefaultTemplateProvider::bundled().unwrap();
+            let mut rng_e = ChaCha8Rng::seed_from_u64(77);
+            let mut rng_b = ChaCha8Rng::seed_from_u64(77);
+            for _ in 0..200 {
+                let ne = p_embedded.get_customer_name(industry, &mut rng_e);
+                let nb = p_bundled.get_customer_name(industry, &mut rng_b);
+                assert_eq!(ne, nb, "customer mismatch for industry={industry}");
+            }
+        }
+    }
+
+    #[test]
+    fn bundled_defaults_include_embedded_mirrored_entries() {
+        // v4.1.7: YAML now mirrors the embedded arrays. Spot-check
+        // that the loader isn't silently swallowing the file by
+        // confirming drawn names match the known pool contents.
         let provider = DefaultTemplateProvider::bundled().expect("bundled YAML parses");
         let mut rng = ChaCha8Rng::seed_from_u64(1);
-        // Draw many customer names under "retail"; our curated pool
-        // must appear at least once with high probability.
-        let mut saw_curated = false;
+        let expected = [
+            "Retail Solutions Corp.",
+            "Consumer Goods Direct",
+            "Shop Smart Inc.",
+            "Merchandise Holdings LLC",
+            "Retail Distribution Co.",
+            "Store Systems Ltd.",
+        ];
+        let mut saw_expected = false;
         for _ in 0..500 {
             let name = provider.get_customer_name("retail", &mut rng);
-            if name == "Crestwood Retail Holdings"
-                || name == "Highland Market Group"
-                || name == "Lakeside Consumer Brands"
-            {
-                saw_curated = true;
+            if expected.contains(&name.as_str()) {
+                saw_expected = true;
                 break;
             }
         }
         assert!(
-            saw_curated,
-            "bundled retail customer names should appear in the draw stream"
+            saw_expected,
+            "bundled retail customer names (mirrored from embedded) should appear in the draw stream"
         );
     }
 
