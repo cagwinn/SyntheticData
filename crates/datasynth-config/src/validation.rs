@@ -887,13 +887,69 @@ fn validate_correlation_config(config: &crate::schema::CorrelationSchemaConfig) 
         )));
     }
 
-    // Validate correlation values are in [-1, 1]
+    // Validate correlation/dependency values.
+    //
+    // Semantics depend on `copula_type`:
+    // - Gaussian / Student-t: entries are correlation coefficients, must be in [-1, 1].
+    // - Clayton:              θ > 0 (higher = stronger lower-tail dependence).
+    // - Gumbel:               θ ≥ 1 (higher = stronger upper-tail dependence).
+    // - Frank:                θ ≠ 0 (|θ| higher = stronger dependence; no upper bound in practice).
+    //
+    // For Archimedean copulas (Clayton/Gumbel/Frank) we check the lower-bound constraint
+    // but not an upper cap (θ can realistically be very large). Diagonal entries (1.0
+    // at positions `i == j`) are always allowed regardless of copula.
+    use crate::schema::CopulaSchemaType;
+    let n = config.fields.len();
+    let is_archimedean = matches!(
+        config.copula_type,
+        CopulaSchemaType::Clayton | CopulaSchemaType::Gumbel | CopulaSchemaType::Frank
+    );
     for (i, &r) in config.matrix.iter().enumerate() {
-        if !(-1.0..=1.0).contains(&r) {
-            return Err(SynthError::validation(format!(
-                "distributions.correlations.matrix[{i}] must be in [-1, 1], got {r}"
-            )));
+        // Detect "diagonal" entries in full n×n layout (position i such that
+        // i / n == i % n → on the main diagonal). In upper-triangular layout,
+        // there's no diagonal so this branch doesn't fire.
+        let is_diagonal = config.matrix.len() == n * n && i / n == i % n;
+        if is_diagonal {
+            if (r - 1.0).abs() > 1e-9 {
+                return Err(SynthError::validation(format!(
+                    "distributions.correlations.matrix[{i}] is a diagonal entry; must be 1.0, got {r}"
+                )));
+            }
+            continue;
         }
+        match config.copula_type {
+            CopulaSchemaType::Gaussian | CopulaSchemaType::StudentT => {
+                if !(-1.0..=1.0).contains(&r) {
+                    return Err(SynthError::validation(format!(
+                        "distributions.correlations.matrix[{i}] must be in [-1, 1] for \
+                         {:?} copula, got {r}",
+                        config.copula_type
+                    )));
+                }
+            }
+            CopulaSchemaType::Clayton => {
+                if r <= 0.0 {
+                    return Err(SynthError::validation(format!(
+                        "distributions.correlations.matrix[{i}] must be > 0 for Clayton copula (θ), got {r}"
+                    )));
+                }
+            }
+            CopulaSchemaType::Gumbel => {
+                if r < 1.0 {
+                    return Err(SynthError::validation(format!(
+                        "distributions.correlations.matrix[{i}] must be ≥ 1 for Gumbel copula (θ), got {r}"
+                    )));
+                }
+            }
+            CopulaSchemaType::Frank => {
+                if r.abs() < 1e-9 {
+                    return Err(SynthError::validation(format!(
+                        "distributions.correlations.matrix[{i}] must be ≠ 0 for Frank copula (θ), got {r}"
+                    )));
+                }
+            }
+        }
+        let _ = is_archimedean; // retained for future generic checks
     }
 
     // Validate expected correlations

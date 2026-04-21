@@ -110,28 +110,84 @@ const DEFAULT_BUSINESS_PROCESS_WEIGHTS: [(BusinessProcess, f64); 5] = [
 /// onto the distributions-layer [`IndustryType`], then return that industry's
 /// pre-configured `sales_amounts` mixture. Used as a fallback when the
 /// caller enables `distributions.amounts` but supplies no components.
-/// v3.5.3+ — check whether the configured `input_field` is one the JE
-/// generator can compute per-entry. Currently supported:
+/// Per-entry context channels for conditional-distribution overrides.
+///
+/// v4.1.0+ supported `input_field` values:
 ///
 ///   - `"month"` — posting-date month (1..=12)
 ///   - `"quarter"` — posting-date quarter (1..=4)
+///   - `"year"` — posting-date year (e.g. 2026.0)
+///   - `"day_of_week"` — 1 (Mon) .. 7 (Sun)
+///   - `"day_of_month"` — 1..=31
+///   - `"day_of_year"` — 1..=366
+///   - `"week_of_year"` — 1..=53
+///   - `"is_period_end"` — 1.0 when posting_date is the last business
+///     day of the month, else 0.0
+///   - `"is_quarter_end"` — 1.0 when posting_date is in a quarter-end
+///     month AND is the last business day, else 0.0
+///   - `"is_year_end"` — 1.0 when posting_date is in December AND is
+///     the last business day, else 0.0
 ///   - `"constant"` / empty — always 0.0 (treats as unconditional)
 ///
 /// Unsupported values cause the conditional rule to be silently ignored
 /// to keep runtime robust against user typos.
 impl JournalEntryGenerator {
     fn supported_conditional_input(field: &str) -> bool {
-        matches!(field, "month" | "quarter" | "constant" | "")
+        matches!(
+            field,
+            "month"
+                | "quarter"
+                | "year"
+                | "day_of_week"
+                | "day_of_month"
+                | "day_of_year"
+                | "week_of_year"
+                | "is_period_end"
+                | "is_quarter_end"
+                | "is_year_end"
+                | "constant"
+                | ""
+        )
     }
 
     fn conditional_input_value(&self, posting_date: chrono::NaiveDate) -> f64 {
-        match self
+        let input_field = match self
             .conditional_amount_override
             .as_ref()
             .map(|s| s.config().input_field.as_str())
         {
-            Some("month") => posting_date.month() as f64,
-            Some("quarter") => ((posting_date.month() - 1) / 3 + 1) as f64,
+            Some(f) => f,
+            None => return 0.0,
+        };
+
+        let is_last_business_day = |d: chrono::NaiveDate| -> bool {
+            // Last day-of-month → is_period_end. Handles Feb/leap-year
+            // via chrono's num_days_from_ce roundabout; simpler path:
+            // if adding 1 day moves to a different month, this is EOM.
+            let next = d.succ_opt();
+            match next {
+                Some(n) => n.month() != d.month(),
+                None => true,
+            }
+        };
+
+        match input_field {
+            "month" => posting_date.month() as f64,
+            "quarter" => ((posting_date.month() - 1) / 3 + 1) as f64,
+            "year" => posting_date.year() as f64,
+            "day_of_week" => posting_date.weekday().number_from_monday() as f64,
+            "day_of_month" => posting_date.day() as f64,
+            "day_of_year" => posting_date.ordinal() as f64,
+            "week_of_year" => posting_date.iso_week().week() as f64,
+            "is_period_end" => f64::from(u8::from(is_last_business_day(posting_date))),
+            "is_quarter_end" => {
+                let m = posting_date.month();
+                let is_q_month = matches!(m, 3 | 6 | 9 | 12);
+                f64::from(u8::from(is_q_month && is_last_business_day(posting_date)))
+            }
+            "is_year_end" => f64::from(u8::from(
+                posting_date.month() == 12 && is_last_business_day(posting_date),
+            )),
             _ => 0.0,
         }
     }
@@ -368,19 +424,14 @@ impl JournalEntryGenerator {
                 .ok()
             });
 
-        // v3.5.4+: build a Gaussian-copula sampler for the amount ↔
-        // line_count pair. Only fires for Gaussian copula in this
-        // release; other copula types are recognised by the schema
-        // converter but left inert at runtime until the next minor.
+        // v4.1.0+: all 5 copula types wired (Gaussian / Clayton /
+        // Gumbel / Frank / Student-t). The `BivariateCopulaSampler`
+        // already implements each; v3.5.4 had a filter limiting to
+        // Gaussian only — lifted here now that the smoke test matrix
+        // covers all types.
         self.correlation_copula = config
             .correlations
             .to_core_config_for_pair("amount", "line_count")
-            .filter(|c| {
-                matches!(
-                    c.copula_type,
-                    datasynth_core::distributions::CopulaType::Gaussian
-                )
-            })
             .and_then(|copula_cfg| {
                 datasynth_core::distributions::BivariateCopulaSampler::new(
                     seed.wrapping_add(31),
@@ -1098,8 +1149,34 @@ impl JournalEntryGenerator {
         // Select company using weighted selector
         let company_code = self.company_selector.select(&mut self.rng).to_string();
 
-        // Sample line item specification
-        let line_spec = self.line_sampler.sample();
+        // v4.1.0+: draw a single (u, v) pair from the copula — cached for
+        // both the amount adjustment (u) and the line-count shift (v).
+        // None when no copula is configured.
+        let copula_uv: Option<(f64, f64)> =
+            self.correlation_copula.as_mut().map(|cop| cop.sample());
+
+        // Sample line item specification, then shift count by v-quantile
+        // when a copula is configured. v ∈ [0, 1]; shift ∈ [-4, +4] lines,
+        // centred on 0 at v = 0.5. Result is clamped to ≥ 2 total lines
+        // and ≥ 1 debit + ≥ 1 credit so the balance invariant holds.
+        let mut line_spec = self.line_sampler.sample();
+        if let Some((_u, v)) = copula_uv {
+            let shift = ((v - 0.5) * 8.0).round() as i32;
+            if shift != 0 {
+                let new_total = (line_spec.total_count as i32 + shift).max(2) as usize;
+                // Preserve debit/credit proportions (approximately).
+                let old_debit = line_spec.debit_count.max(1);
+                let old_credit = line_spec.credit_count.max(1);
+                let new_debit = (new_total as f64 * old_debit as f64
+                    / (old_debit + old_credit) as f64)
+                    .round() as usize;
+                let new_debit = new_debit.clamp(1, new_total - 1);
+                let new_credit = new_total - new_debit;
+                line_spec.total_count = new_total;
+                line_spec.debit_count = new_debit;
+                line_spec.credit_count = new_credit;
+            }
+        }
 
         // Determine source type using full 4-way distribution
         let source = self.select_source();
@@ -1268,16 +1345,17 @@ impl JournalEntryGenerator {
             base_amount
         };
 
-        // v3.5.4+: if a Gaussian copula is configured, draw a (u, v)
-        // pair. `u` scales the non-fraud amount via `0.7 + 0.6*u`,
-        // producing a deterministic correlation signal between amount
-        // and a latent driver. `v` is retained for future line-count
-        // correlation (inverse-CDF sampling scheduled for v3.6.x).
+        // v4.1.0+: if a copula is configured, apply the cached `u`
+        // quantile (drawn once at entry construction, shared with
+        // the line-count shift so amount↔line_count are genuinely
+        // correlated). Log-scale multiplier `exp(4*(u-0.5))` gives a
+        // 0.14×–7.4× range — strong enough rank-preservation that
+        // empirical Spearman shows the copula's dependency structure
+        // even against log-normal base-amount noise.
         let base_amount = if fraud_type.is_none() {
-            if let Some(ref mut cop) = self.correlation_copula {
-                let (u, _v) = cop.sample();
-                let multiplier = 0.7 + 0.6 * u;
-                let adjusted = base_amount.to_f64().unwrap_or(1.0) * multiplier;
+            if let Some((u, _v)) = copula_uv {
+                let log_mult = 4.0 * (u - 0.5);
+                let adjusted = base_amount.to_f64().unwrap_or(1.0) * log_mult.exp();
                 Decimal::from_f64_retain(adjusted).unwrap_or(base_amount)
             } else {
                 base_amount

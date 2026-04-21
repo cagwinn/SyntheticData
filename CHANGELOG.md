@@ -5,6 +5,101 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.1.0] - 2026-04-21
+
+Distributions-completion track (per [v4.1 plan](docs/plans/2026-04-21-v4.1-plan.md)).
+
+### Copulas — all 5 types wired
+
+- `BivariateCopulaSampler` for Gaussian / Clayton / Gumbel / Frank /
+  Student-t now fires at runtime when the matching `copula_type` is
+  set. The v3.5.4 Gaussian-only filter is lifted.
+- Each non-fraud JE draws `(u, v)` once at entry construction. `u`
+  applies a log-scale multiplier `exp(4*(u-0.5))` to the amount
+  (range ~0.14×–7.4×); `v` shifts `line_spec` by ±4 lines (clamped
+  to balanced ≥2 total, ≥1 debit + ≥1 credit).
+- Validator now accepts the correct parameter semantics per copula
+  type: Gaussian/Student-t use correlation ∈ [-1, 1]; Clayton θ > 0;
+  Gumbel θ ≥ 1; Frank θ ≠ 0. Full n×n symmetric matrices allow a
+  1.0 diagonal regardless of copula. This enables Archimedean
+  copulas that always rejected before.
+- **Caveat**: the nudge approach (multiplier on independently-drawn
+  amount) dilutes the copula's theoretical Kendall-τ. Empirical
+  Spearman ρ is positive and statistically significant but smaller
+  than theory. Full rank-preserving inverse-CDF sampling is a v4.1.1
+  follow-up.
+
+### Expanded `conditional.input_field` support
+
+The conditional-distribution override now accepts:
+
+  - `month` (v3.5.3), `quarter` (v3.5.3)
+  - **`year`** — absolute calendar year
+  - **`day_of_week`** — 1 (Mon) .. 7 (Sun)
+  - **`day_of_month`** — 1..=31
+  - **`day_of_year`** — 1..=366
+  - **`week_of_year`** — 1..=53
+  - **`is_period_end`** — 1.0 on the last business day of the month
+  - **`is_quarter_end`** — 1.0 on the last business day of Mar/Jun/Sep/Dec
+  - **`is_year_end`** — 1.0 on the last business day of Dec
+  - `constant` / `""` (v3.5.3)
+
+Unsupported values continue to silently disable the rule (robust
+against user typos).
+
+### Statistical validation — `AndersonDarling` + `CorrelationCheck`
+
+Both previously emitted `Skipped`. Now:
+
+- **`AndersonDarling`** — classical A*² statistic against log-normal
+  on the log-scale, with n-adjusted critical values from
+  D'Agostino & Stephens. Uses a 7-digit erf approximation
+  (Abramowitz & Stegun 7.1.26) so no new heavy-weight stats dep.
+- **`CorrelationCheck` / `ExpectedCorrelationConfig`** — Spearman
+  rank correlation for each declared `(field1, field2)` pair, fail
+  when |ρ − expected_r| > tolerance. Currently wired for the
+  `(amount, line_count)` pair; other pairs resolve to `Skipped` with
+  a descriptive message (scheduled for v4.1.x as more per-entry
+  attributes are surfaced).
+- New public helpers: `spearman_rank_correlation`,
+  `run_correlation_check`, `run_anderson_darling`.
+
+### Tests
+
+- 6 new unit tests in `datasynth-core::distributions::validation`
+  (Spearman edge cases, correlation check pass/fail, Anderson-
+  Darling pass/fail).
+- New integration crate `v4_1_0_smoke.rs` (9 tests) covering each
+  copula type, new conditional input fields, and live
+  `CorrelationCheck` + `AndersonDarling` runs.
+- All 54 prior runtime smoke + 6 CLI smoke tests still green.
+
+### Compatibility
+
+- Defaults unchanged — `distributions.correlations.enabled = false`
+  (default) preserves v4.0.1 byte-identical output for the same
+  seed.
+- The new erf / Anderson-Darling / Spearman helpers are pure
+  additions in `datasynth-core`; no signature churn on existing
+  public functions.
+- Validator change on `.matrix`: *widens* the accepted parameter
+  range for Clayton/Gumbel/Frank copulas. Configs that previously
+  validated continue to validate.
+
+### Still deferred (v4.1.1+)
+
+- **Rank-preserving inverse-CDF sampling** for amount↔line_count.
+  Requires `ppf()` on `LogNormalMixtureSampler` / `Pareto` /
+  `GaussianMixtureSampler`.
+- **Field-to-field conditional DAG** — `output_field=line_count`
+  depends on `output_field=amount` drawn earlier. Needs a
+  `ConditionalEngine` with topo-sort.
+- **Correlation-check for additional pairs** (e.g. amount↔approval_
+  level) — requires surfacing more per-entry attributes through
+  the validation phase.
+
+---
+
 ## [4.0.1] - 2026-04-20
 
 ### CI fix — clippy `-D warnings` compliance

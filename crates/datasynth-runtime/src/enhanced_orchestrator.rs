@@ -14475,9 +14475,10 @@ impl EnhancedOrchestrator {
     ) -> SynthResult<Option<datasynth_core::distributions::StatisticalValidationReport>> {
         use datasynth_config::schema::StatisticalTestConfig;
         use datasynth_core::distributions::{
-            run_benford_first_digit, run_chi_squared, run_ks_uniform_log, StatisticalTestResult,
-            StatisticalValidationReport, TestOutcome,
+            run_anderson_darling, run_benford_first_digit, run_chi_squared, run_correlation_check,
+            run_ks_uniform_log, StatisticalTestResult, StatisticalValidationReport, TestOutcome,
         };
+        use rust_decimal::prelude::ToPrimitive;
 
         let cfg = &self.config.distributions.validation;
         if !cfg.enabled {
@@ -14490,6 +14491,21 @@ impl EnhancedOrchestrator {
             .iter()
             .flat_map(|je| je.lines.iter().map(|l| l.debit_amount + l.credit_amount))
             .filter(|a| *a > rust_decimal::Decimal::ZERO)
+            .collect();
+
+        // v4.1.0+ paired (amount, line_count) per entry for correlation
+        // checks. Amount per entry is the debit-side total (= credit-side
+        // total for a balanced entry).
+        let paired_amount_linecount: Vec<(f64, f64)> = entries
+            .iter()
+            .filter_map(|je| {
+                let amt: rust_decimal::Decimal = je.lines.iter().map(|l| l.debit_amount).sum();
+                if amt > rust_decimal::Decimal::ZERO {
+                    amt.to_f64().map(|a| (a, je.lines.len() as f64))
+                } else {
+                    None
+                }
+            })
             .collect();
 
         let mut results: Vec<StatisticalTestResult> = Vec::with_capacity(cfg.tests.len());
@@ -14513,24 +14529,64 @@ impl EnhancedOrchestrator {
                     ks_significance,
                     method: _,
                 } => {
-                    // v3.5.1 only implements a log-uniformity KS check;
-                    // target-specific fits land in a follow-up.
+                    // v3.5.1+: log-uniformity KS check. Target-specific
+                    // fits against Normal / Exponential land in v4.1.1+.
                     results.push(run_ks_uniform_log(&amounts, *ks_significance));
                 }
-                StatisticalTestConfig::CorrelationCheck { .. }
-                | StatisticalTestConfig::AndersonDarling { .. } => {
-                    results.push(StatisticalTestResult {
-                        name: match test_cfg {
-                            StatisticalTestConfig::CorrelationCheck { .. } => "correlation_check",
-                            StatisticalTestConfig::AndersonDarling { .. } => "anderson_darling",
-                            _ => "unknown",
+                StatisticalTestConfig::AndersonDarling {
+                    target: _,
+                    significance,
+                } => {
+                    // v4.1.0+: A*² statistic against log-normal on the
+                    // log-scale. Other targets follow the same pattern.
+                    results.push(run_anderson_darling(&amounts, *significance));
+                }
+                StatisticalTestConfig::CorrelationCheck {
+                    expected_correlations,
+                } => {
+                    // v4.1.0+: (amount, line_count) is tracked today.
+                    // Other pairs resolve to Skipped pending richer
+                    // per-entry attribute collection.
+                    if expected_correlations.is_empty() {
+                        results.push(StatisticalTestResult {
+                            name: "correlation_check".to_string(),
+                            outcome: TestOutcome::Skipped,
+                            statistic: 0.0,
+                            threshold: 0.0,
+                            message: "no expected correlations declared".to_string(),
+                        });
+                    } else {
+                        for ec in expected_correlations {
+                            let pair_key = format!("{}_{}", ec.field1, ec.field2);
+                            let is_amount_linecount = (ec.field1 == "amount"
+                                && ec.field2 == "line_count")
+                                || (ec.field1 == "line_count" && ec.field2 == "amount");
+                            if is_amount_linecount {
+                                let xs: Vec<f64> =
+                                    paired_amount_linecount.iter().map(|(a, _)| *a).collect();
+                                let ys: Vec<f64> =
+                                    paired_amount_linecount.iter().map(|(_, l)| *l).collect();
+                                results.push(run_correlation_check(
+                                    &pair_key,
+                                    &xs,
+                                    &ys,
+                                    ec.expected_r,
+                                    ec.tolerance,
+                                ));
+                            } else {
+                                results.push(StatisticalTestResult {
+                                    name: format!("correlation_check_{pair_key}"),
+                                    outcome: TestOutcome::Skipped,
+                                    statistic: 0.0,
+                                    threshold: ec.tolerance,
+                                    message: format!(
+                                        "pair ({},{}) not tracked; only (amount, line_count) supported in v4.1.0",
+                                        ec.field1, ec.field2
+                                    ),
+                                });
+                            }
                         }
-                        .to_string(),
-                        outcome: TestOutcome::Skipped,
-                        statistic: 0.0,
-                        threshold: 0.0,
-                        message: "not implemented in v3.5.1; scheduled for follow-up".to_string(),
-                    });
+                    }
                 }
             }
         }

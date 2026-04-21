@@ -266,6 +266,7 @@ enum Commands {
 }
 
 #[derive(Subcommand)]
+#[allow(clippy::large_enum_variant)]
 enum TemplatesCommands {
     /// Export a starter template pack as YAML files.
     ///

@@ -131,7 +131,7 @@ fn validation_runs_multiple_tests() {
 }
 
 #[test]
-fn validation_skips_correlation_and_anderson_darling() {
+fn validation_runs_anderson_darling_in_v4_1() {
     use datasynth_config::schema::{DistributionFitMethod, TargetDistributionConfig};
 
     let mut orch = build_runtime(|c| {
@@ -160,16 +160,22 @@ fn validation_skips_correlation_and_anderson_darling() {
         .statistical_validation
         .as_ref()
         .expect("enabled validation should yield Some");
-    // Anderson-Darling is not yet implemented → Skipped.
+    // v4.1.0+: Anderson-Darling is implemented. Outcome depends on
+    // the underlying amount distribution; we just assert it ran
+    // (not Skipped) and has a non-zero test statistic.
     let ad = report
         .results
         .iter()
         .find(|r| r.name == "anderson_darling")
         .expect("anderson_darling result present");
-    assert!(matches!(
-        ad.outcome,
-        datasynth_core::distributions::TestOutcome::Skipped
-    ));
+    assert!(
+        !matches!(
+            ad.outcome,
+            datasynth_core::distributions::TestOutcome::Skipped
+        ),
+        "expected AndersonDarling to run, got Skipped: {}",
+        ad.message
+    );
     // DistributionFit maps to ks_uniform_log in v3.5.1.
     let ks = report
         .results

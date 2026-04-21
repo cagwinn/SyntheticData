@@ -322,6 +322,185 @@ pub fn run_ks_uniform_log(amounts: &[Decimal], significance: f64) -> Statistical
     }
 }
 
+/// Spearman rank correlation between two equal-length samples.
+///
+/// Returns a value in `[-1, 1]`. Used by [`run_correlation_check`]
+/// and [`run_expected_correlations`].
+pub fn spearman_rank_correlation(xs: &[f64], ys: &[f64]) -> f64 {
+    let n = xs.len().min(ys.len());
+    if n < 2 {
+        return 0.0;
+    }
+    let rank = |v: &[f64]| -> Vec<f64> {
+        let mut idx: Vec<usize> = (0..v.len()).collect();
+        idx.sort_by(|&a, &b| v[a].partial_cmp(&v[b]).unwrap_or(std::cmp::Ordering::Equal));
+        let mut ranks = vec![0.0; v.len()];
+        // Handle ties via average-rank. Walk the sorted idx in groups.
+        let mut i = 0;
+        while i < idx.len() {
+            let mut j = i;
+            while j + 1 < idx.len() && v[idx[j + 1]] == v[idx[i]] {
+                j += 1;
+            }
+            // Positions i..=j all tied; average rank is (i + j) / 2 + 1.
+            let avg = (i + j) as f64 / 2.0 + 1.0;
+            for k in i..=j {
+                ranks[idx[k]] = avg;
+            }
+            i = j + 1;
+        }
+        ranks
+    };
+    let rx = rank(&xs[..n]);
+    let ry = rank(&ys[..n]);
+    let mean_x = rx.iter().sum::<f64>() / n as f64;
+    let mean_y = ry.iter().sum::<f64>() / n as f64;
+    let mut num = 0.0;
+    let mut den_x = 0.0;
+    let mut den_y = 0.0;
+    for i in 0..n {
+        let dx = rx[i] - mean_x;
+        let dy = ry[i] - mean_y;
+        num += dx * dy;
+        den_x += dx * dx;
+        den_y += dy * dy;
+    }
+    let denom = (den_x * den_y).sqrt();
+    if denom == 0.0 {
+        0.0
+    } else {
+        num / denom
+    }
+}
+
+/// Correlation check: assert that the empirical Spearman correlation
+/// between two paired samples falls within `±tolerance` of the
+/// expected value. Used by the v3.5.1 statistical-validation phase to
+/// honour `distributions.correlations.expected_correlations`.
+pub fn run_correlation_check(
+    name: &str,
+    xs: &[f64],
+    ys: &[f64],
+    expected: f64,
+    tolerance: f64,
+) -> StatisticalTestResult {
+    if xs.len().min(ys.len()) < 100 {
+        return StatisticalTestResult {
+            name: format!("correlation_check_{name}"),
+            outcome: TestOutcome::Skipped,
+            statistic: 0.0,
+            threshold: tolerance,
+            message: format!("only {} paired samples; need ≥100", xs.len().min(ys.len())),
+        };
+    }
+    let rho = spearman_rank_correlation(xs, ys);
+    let diff = (rho - expected).abs();
+    let outcome = if diff > tolerance {
+        TestOutcome::Failed
+    } else {
+        TestOutcome::Passed
+    };
+    StatisticalTestResult {
+        name: format!("correlation_check_{name}"),
+        outcome,
+        statistic: rho,
+        threshold: tolerance,
+        message: format!(
+            "Spearman ρ={rho:.4} (expected {expected:.4} ±{tolerance:.4}; diff {diff:.4})"
+        ),
+    }
+}
+
+/// Anderson-Darling test for log-normality on the log-scale.
+///
+/// Applies the classical A² statistic to the standardised log-amounts
+/// and compares against the critical value at the configured
+/// significance. Log-normal fit ≡ Gaussian fit on `ln(amount)`.
+pub fn run_anderson_darling(amounts: &[Decimal], significance: f64) -> StatisticalTestResult {
+    let positives: Vec<f64> = amounts
+        .iter()
+        .filter_map(|a| a.to_f64())
+        .filter(|v| *v > 0.0)
+        .collect();
+    if positives.len() < 100 {
+        return StatisticalTestResult {
+            name: "anderson_darling".to_string(),
+            outcome: TestOutcome::Skipped,
+            statistic: 0.0,
+            threshold: 0.0,
+            message: format!("only {} positive samples; need ≥100", positives.len()),
+        };
+    }
+    let mut logs: Vec<f64> = positives.iter().map(|v| v.ln()).collect();
+    let n = logs.len() as f64;
+    let mean = logs.iter().sum::<f64>() / n;
+    let var = logs.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / (n - 1.0);
+    let sd = var.sqrt();
+    if sd == 0.0 {
+        return StatisticalTestResult {
+            name: "anderson_darling".to_string(),
+            outcome: TestOutcome::Skipped,
+            statistic: 0.0,
+            threshold: 0.0,
+            message: "zero log-variance (degenerate input)".to_string(),
+        };
+    }
+    logs.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    // Standardise + CDF-map via standard normal.
+    let standard_normal_cdf = |x: f64| -> f64 { 0.5 * (1.0 + erf(x / std::f64::consts::SQRT_2)) };
+    let mut s = 0.0;
+    for (i, v) in logs.iter().enumerate() {
+        let z = (v - mean) / sd;
+        let p = standard_normal_cdf(z).clamp(1e-12, 1.0 - 1e-12);
+        let q = 1.0
+            - standard_normal_cdf((logs[logs.len() - 1 - i] - mean) / sd).clamp(1e-12, 1.0 - 1e-12);
+        s += (2.0 * (i + 1) as f64 - 1.0) * (p.ln() + q.ln());
+    }
+    let a_sq = -n - s / n;
+    // Case-corrected A² for mean+sd both estimated: A*² = A²(1 + 0.75/n + 2.25/n²).
+    let a_sq_star = a_sq * (1.0 + 0.75 / n + 2.25 / n.powi(2));
+    // Critical values for mean+sd-estimated A* at common α (D'Agostino & Stephens).
+    let critical = if significance <= 0.011 {
+        1.035
+    } else if significance <= 0.026 {
+        0.873
+    } else if significance <= 0.051 {
+        0.752
+    } else if significance <= 0.101 {
+        0.631
+    } else {
+        0.500
+    };
+    let outcome = if a_sq_star > critical {
+        TestOutcome::Failed
+    } else {
+        TestOutcome::Passed
+    };
+    StatisticalTestResult {
+        name: "anderson_darling".to_string(),
+        outcome,
+        statistic: a_sq_star,
+        threshold: critical,
+        message: format!(
+            "A*²={a_sq_star:.4} vs log-normal, critical={critical:.4} at α={significance} (n={n})"
+        ),
+    }
+}
+
+/// Error function approximation for the standard normal CDF.
+/// Accurate to ~1e-7 (Abramowitz & Stegun 7.1.26).
+fn erf(x: f64) -> f64 {
+    let sign = if x < 0.0 { -1.0 } else { 1.0 };
+    let x = x.abs();
+    let t = 1.0 / (1.0 + 0.3275911 * x);
+    let y = 1.0
+        - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t
+            + 0.254829592)
+            * t
+            * (-x * x).exp();
+    sign * y
+}
+
 /// Chi-squared critical values for common (df, α) combinations.
 /// Returns a generous upper ceiling for rarely-used df values so the
 /// test defaults to passing in ambiguous cases.
@@ -436,6 +615,65 @@ mod tests {
         assert!(
             matches!(r.outcome, TestOutcome::Failed),
             "expected Failed for bimodal, got {:?}: {}",
+            r.outcome,
+            r.message
+        );
+    }
+
+    #[test]
+    fn spearman_rho_perfect_positive() {
+        let xs: Vec<f64> = (1..=100).map(|i| i as f64).collect();
+        let ys: Vec<f64> = (1..=100).map(|i| i as f64).collect();
+        let rho = spearman_rank_correlation(&xs, &ys);
+        assert!((rho - 1.0).abs() < 1e-6, "expected ρ=1.0, got {rho}");
+    }
+
+    #[test]
+    fn spearman_rho_perfect_negative() {
+        let xs: Vec<f64> = (1..=100).map(|i| i as f64).collect();
+        let ys: Vec<f64> = (1..=100).rev().map(|i| i as f64).collect();
+        let rho = spearman_rank_correlation(&xs, &ys);
+        assert!((rho + 1.0).abs() < 1e-6, "expected ρ=-1.0, got {rho}");
+    }
+
+    #[test]
+    fn correlation_check_passes_when_within_tolerance() {
+        let xs: Vec<f64> = (1..=200).map(|i| i as f64).collect();
+        let ys: Vec<f64> = xs.iter().map(|v| v + 0.5).collect();
+        let r = run_correlation_check("test", &xs, &ys, 1.0, 0.05);
+        assert!(matches!(r.outcome, TestOutcome::Passed));
+    }
+
+    #[test]
+    fn correlation_check_fails_when_off_target() {
+        let xs: Vec<f64> = (1..=200).map(|i| i as f64).collect();
+        let ys: Vec<f64> = xs.iter().rev().copied().collect();
+        let r = run_correlation_check("test", &xs, &ys, 1.0, 0.05);
+        assert!(matches!(r.outcome, TestOutcome::Failed));
+    }
+
+    #[test]
+    fn anderson_darling_passes_for_lognormal() {
+        let samples = lognormal_samples(2000, 7.0, 1.5, 42);
+        let r = run_anderson_darling(&samples, 0.05);
+        assert!(
+            !matches!(r.outcome, TestOutcome::Failed),
+            "expected pass/warning for log-normal, got {:?}: {}",
+            r.outcome,
+            r.message
+        );
+    }
+
+    #[test]
+    fn anderson_darling_fails_for_uniform() {
+        // Uniform data is very unlike log-normal.
+        let samples: Vec<Decimal> = (0..2000)
+            .map(|i| Decimal::from(1000 + (i % 500) * 20))
+            .collect();
+        let r = run_anderson_darling(&samples, 0.05);
+        assert!(
+            matches!(r.outcome, TestOutcome::Failed),
+            "expected fail for uniform-like data, got {:?}: {}",
             r.outcome,
             r.message
         );
