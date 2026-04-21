@@ -27,7 +27,9 @@ use std::path::Path;
 
 use chrono::Datelike;
 use datasynth_core::error::SynthResult;
-use datasynth_core::models::{Customer, Material, Vendor};
+use datasynth_core::models::{
+    ChartOfAccounts, CostCenter, Customer, FixedAsset, GLAccount, Material, Vendor,
+};
 
 use super::sap::{
     SapCustomer, SapCustomerExportable, SapExportConfig, SapVendor, SapVendorExportable,
@@ -697,6 +699,425 @@ fn language_for_country(iso: &str) -> &'static str {
 fn today_ymd() -> String {
     let now = chrono::Utc::now().date_naive();
     format!("{:04}{:02}{:02}", now.year(), now.month(), now.day())
+}
+
+// ===========================================================================
+// v4.3.0c — Asset / Cost-center / GL-account masters
+// ===========================================================================
+
+/// SAP ANLA — asset master general data (one row per FixedAsset).
+#[derive(Debug, Clone)]
+pub struct SapAsset {
+    pub mandt: String,
+    pub bukrs: String,
+    /// Main asset number (ANLN1).
+    pub anln1: String,
+    /// Asset sub-number (ANLN2) — "0000" for the main record.
+    pub anln2: String,
+    /// Asset class (ANLKL).
+    pub anlkl: String,
+    /// Description (TXT50).
+    pub txt50: String,
+    /// Capitalisation date (AKTIV).
+    pub aktiv: Option<chrono::NaiveDate>,
+    /// Acquisition date (ZUGDT).
+    pub zugdt: chrono::NaiveDate,
+    /// Deactivation / retirement date (DEAKT).
+    pub deakt: Option<chrono::NaiveDate>,
+    /// Cost centre (KOSTL).
+    pub kostl: Option<String>,
+    /// Serial number (SERNR).
+    pub sernr: Option<String>,
+    /// Manufacturer (HERST).
+    pub herst: Option<String>,
+    /// Creation date (ERDAT).
+    pub erdat: chrono::NaiveDate,
+    /// Created by (ERNAM).
+    pub ernam: String,
+}
+
+/// Extension trait for mapping `FixedAsset` → SAP ANLA.
+pub trait SapAssetExportable {
+    fn to_sap_asset(&self, client: &str) -> SapAsset;
+}
+
+impl SapAssetExportable for FixedAsset {
+    fn to_sap_asset(&self, client: &str) -> SapAsset {
+        SapAsset {
+            mandt: client.to_string(),
+            bukrs: self.company_code.clone(),
+            anln1: self.asset_id.clone(),
+            anln2: format!("{:04}", self.sub_number),
+            anlkl: asset_class_to_anlkl(&self.asset_class),
+            txt50: self.description.clone(),
+            aktiv: self.capitalized_date,
+            zugdt: self.acquisition_date,
+            deakt: self.disposal_date,
+            kostl: self.cost_center.clone(),
+            sernr: self.serial_number.clone(),
+            herst: self.manufacturer.clone(),
+            erdat: self.acquisition_date,
+            ernam: "SYSTEM".to_string(),
+        }
+    }
+}
+
+/// Write ANLA (fixed-asset master).
+pub fn write_anla(cfg: &SapExportConfig, assets: &[FixedAsset], path: &Path) -> SynthResult<()> {
+    let mut writer = open_master_file(cfg, path)?;
+    let delim = cfg.delimiter();
+    write_header(
+        &mut writer,
+        delim,
+        &[
+            "MANDT", "BUKRS", "ANLN1", "ANLN2", "ANLKL", "TXT50", "AKTIV", "ZUGDT", "DEAKT",
+            "KOSTL", "SERNR", "HERST", "ERDAT", "ERNAM",
+        ],
+    )?;
+    for a in assets {
+        let s = a.to_sap_asset(&cfg.client);
+        let fields: Vec<String> = vec![
+            s.mandt,
+            s.bukrs,
+            s.anln1,
+            s.anln2,
+            s.anlkl,
+            escape(&s.txt50),
+            s.aktiv.map(|d| cfg.format_date(d)).unwrap_or_default(),
+            cfg.format_date(s.zugdt),
+            s.deakt.map(|d| cfg.format_date(d)).unwrap_or_default(),
+            s.kostl.unwrap_or_default(),
+            s.sernr.unwrap_or_default(),
+            escape(&s.herst.unwrap_or_default()),
+            cfg.format_date(s.erdat),
+            s.ernam,
+        ];
+        write_row(&mut writer, delim, &fields)?;
+    }
+    writer.flush()?;
+    Ok(())
+}
+
+// ===========================================================================
+// CSKS — Cost center master
+// ===========================================================================
+
+/// SAP CSKS — cost-centre master. One row per (controlling area, cost
+/// centre, validity period). DataSynth emits one row per cost centre
+/// using the company code as the controlling area (1:1 mapping in
+/// small demos; enterprises typically split).
+#[derive(Debug, Clone)]
+pub struct SapCostCenter {
+    pub mandt: String,
+    /// Controlling area (KOKRS) — defaults to the company code.
+    pub kokrs: String,
+    /// Cost-centre ID (KOSTL).
+    pub kostl: String,
+    /// Valid-from (DATBI … DATAB in SAP; the validity-to is stored in DATBI
+    /// which we leave as 9999-12-31 for "open ended").
+    pub datbi: chrono::NaiveDate,
+    pub datab: chrono::NaiveDate,
+    /// Name / description (KTEXT — via CSKT table in real SAP, flattened
+    /// here for analytics convenience).
+    pub ktext: String,
+    /// Category — `1` = overhead, `F` = production, etc. (KOSAR).
+    pub kosar: String,
+    /// Responsible person (VERAK_USER).
+    pub verak_user: Option<String>,
+    /// Blocked-for-actuals flag (BKZKP).
+    pub bkzkp: bool,
+}
+
+/// Extension trait for mapping `CostCenter` → SAP CSKS.
+pub trait SapCostCenterExportable {
+    fn to_sap_cost_center(&self, client: &str) -> SapCostCenter;
+}
+
+impl SapCostCenterExportable for CostCenter {
+    fn to_sap_cost_center(&self, client: &str) -> SapCostCenter {
+        SapCostCenter {
+            mandt: client.to_string(),
+            kokrs: self.company_code.clone(),
+            kostl: self.id.clone(),
+            datbi: chrono::NaiveDate::from_ymd_opt(9999, 12, 31)
+                .expect("9999-12-31 is a valid date"),
+            datab: chrono::NaiveDate::from_ymd_opt(2000, 1, 1).expect("2000-01-01 is a valid date"),
+            ktext: self.name.clone(),
+            kosar: cost_center_category_to_kosar(&self.category),
+            verak_user: self.responsible_person.clone(),
+            bkzkp: !self.is_active,
+        }
+    }
+}
+
+/// Write CSKS (cost-centre master).
+pub fn write_csks(
+    cfg: &SapExportConfig,
+    cost_centers: &[CostCenter],
+    path: &Path,
+) -> SynthResult<()> {
+    let mut writer = open_master_file(cfg, path)?;
+    let delim = cfg.delimiter();
+    write_header(
+        &mut writer,
+        delim,
+        &[
+            "MANDT",
+            "KOKRS",
+            "KOSTL",
+            "DATBI",
+            "DATAB",
+            "KTEXT",
+            "KOSAR",
+            "VERAK_USER",
+            "BKZKP",
+        ],
+    )?;
+    for cc in cost_centers {
+        let s = cc.to_sap_cost_center(&cfg.client);
+        let fields: Vec<String> = vec![
+            s.mandt,
+            s.kokrs,
+            s.kostl,
+            cfg.format_date(s.datbi),
+            cfg.format_date(s.datab),
+            escape(&s.ktext),
+            s.kosar,
+            s.verak_user.unwrap_or_default(),
+            if s.bkzkp {
+                "X".to_string()
+            } else {
+                String::new()
+            },
+        ];
+        write_row(&mut writer, delim, &fields)?;
+    }
+    writer.flush()?;
+    Ok(())
+}
+
+// ===========================================================================
+// SKA1 / SKB1 — GL account masters
+// ===========================================================================
+
+/// SAP SKA1 — chart-of-accounts-level GL account (client-wide).
+#[derive(Debug, Clone)]
+pub struct SapGlAccountGeneral {
+    pub mandt: String,
+    /// Chart of accounts code (KTOPL).
+    pub ktopl: String,
+    /// GL account number (SAKNR).
+    pub saknr: String,
+    /// Account group (KTOKS).
+    pub ktoks: String,
+    /// Balance sheet (1) or P&L (2) (XBILK).
+    pub xbilk: u8,
+    /// P&L statement account type (GVTYP) — blank for balance-sheet accounts.
+    pub gvtyp: Option<String>,
+    /// Creation date (ERDAT).
+    pub erdat: chrono::NaiveDate,
+    /// Created by (ERNAM).
+    pub ernam: String,
+}
+
+/// SAP SKB1 — company-code-level GL account data.
+#[derive(Debug, Clone)]
+pub struct SapGlAccountCompanyCode {
+    pub mandt: String,
+    pub bukrs: String,
+    pub saknr: String,
+    /// Account currency (WAERS).
+    pub waers: String,
+    /// Open-item management flag (XOPVW).
+    pub xopvw: bool,
+    /// Line-item display flag (XKRES).
+    pub xkres: bool,
+    /// Posting blocked flag (XSPEB).
+    pub xspeb: bool,
+    /// Tax category (MWSKZ).
+    pub mwskz: Option<String>,
+    /// Reconciliation account type (MITKZ) — "D" (debtor), "K" (vendor),
+    /// "A" (asset), blank for regular GL accounts.
+    pub mitkz: Option<String>,
+}
+
+/// Extension trait for mapping `GLAccount` → SAP SKA1.
+pub trait SapGlAccountExportable {
+    fn to_sap_gl_general(&self, client: &str, ktopl: &str) -> SapGlAccountGeneral;
+    fn to_sap_gl_company_code(
+        &self,
+        client: &str,
+        company_code: &str,
+        currency: &str,
+    ) -> SapGlAccountCompanyCode;
+}
+
+impl SapGlAccountExportable for GLAccount {
+    fn to_sap_gl_general(&self, client: &str, ktopl: &str) -> SapGlAccountGeneral {
+        use datasynth_core::models::AccountType;
+        let xbilk = matches!(
+            self.account_type,
+            AccountType::Asset | AccountType::Liability | AccountType::Equity
+        );
+        SapGlAccountGeneral {
+            mandt: client.to_string(),
+            ktopl: ktopl.to_string(),
+            saknr: self.account_number.clone(),
+            ktoks: self.account_group.clone(),
+            xbilk: if xbilk { 1 } else { 2 },
+            gvtyp: if !xbilk { Some("H".to_string()) } else { None },
+            erdat: chrono::Utc::now().date_naive(),
+            ernam: "SYSTEM".to_string(),
+        }
+    }
+
+    fn to_sap_gl_company_code(
+        &self,
+        client: &str,
+        company_code: &str,
+        currency: &str,
+    ) -> SapGlAccountCompanyCode {
+        use datasynth_core::models::AccountType;
+        let mitkz = if self.is_control_account {
+            match self.account_type {
+                AccountType::Asset => Some("D".to_string()), // AR control
+                AccountType::Liability => Some("K".to_string()), // AP control
+                _ => None,
+            }
+        } else {
+            None
+        };
+        SapGlAccountCompanyCode {
+            mandt: client.to_string(),
+            bukrs: company_code.to_string(),
+            saknr: self.account_number.clone(),
+            waers: currency.to_string(),
+            xopvw: self.is_control_account || self.is_suspense_account,
+            xkres: self.is_postable,
+            xspeb: self.is_blocked,
+            mwskz: None,
+            mitkz,
+        }
+    }
+}
+
+/// Write SKA1 (chart-of-accounts-level GL master).
+///
+/// Takes a `ChartOfAccounts` rather than a `&[GLAccount]` so the
+/// `KTOPL` column (chart-of-accounts code) is available — SAP separates
+/// the chart of accounts (country/group-specific, like INT/SKR04/CAUS)
+/// from the individual account rows.
+pub fn write_ska1(cfg: &SapExportConfig, coa: &ChartOfAccounts, path: &Path) -> SynthResult<()> {
+    let mut writer = open_master_file(cfg, path)?;
+    let delim = cfg.delimiter();
+    write_header(
+        &mut writer,
+        delim,
+        &[
+            "MANDT", "KTOPL", "SAKNR", "KTOKS", "XBILK", "GVTYP", "ERDAT", "ERNAM",
+        ],
+    )?;
+    let ktopl = coa.coa_id.as_str();
+    for acct in &coa.accounts {
+        let s = acct.to_sap_gl_general(&cfg.client, ktopl);
+        let fields: Vec<String> = vec![
+            s.mandt,
+            s.ktopl,
+            s.saknr,
+            s.ktoks,
+            s.xbilk.to_string(),
+            s.gvtyp.unwrap_or_default(),
+            cfg.format_date(s.erdat),
+            s.ernam,
+        ];
+        write_row(&mut writer, delim, &fields)?;
+    }
+    writer.flush()?;
+    Ok(())
+}
+
+/// Write SKB1 (company-code-level GL master) — one row per (account, company).
+pub fn write_skb1(
+    cfg: &SapExportConfig,
+    coa: &ChartOfAccounts,
+    company_codes: &[String],
+    path: &Path,
+) -> SynthResult<()> {
+    let mut writer = open_master_file(cfg, path)?;
+    let delim = cfg.delimiter();
+    write_header(
+        &mut writer,
+        delim,
+        &[
+            "MANDT", "BUKRS", "SAKNR", "WAERS", "XOPVW", "XKRES", "XSPEB", "MWSKZ", "MITKZ",
+        ],
+    )?;
+    for acct in &coa.accounts {
+        for company in company_codes {
+            let s = acct.to_sap_gl_company_code(&cfg.client, company, &cfg.local_currency);
+            let fields: Vec<String> = vec![
+                s.mandt,
+                s.bukrs,
+                s.saknr,
+                s.waers,
+                if s.xopvw {
+                    "X".to_string()
+                } else {
+                    String::new()
+                },
+                if s.xkres {
+                    "X".to_string()
+                } else {
+                    String::new()
+                },
+                if s.xspeb {
+                    "X".to_string()
+                } else {
+                    String::new()
+                },
+                s.mwskz.unwrap_or_default(),
+                s.mitkz.unwrap_or_default(),
+            ];
+            write_row(&mut writer, delim, &fields)?;
+        }
+    }
+    writer.flush()?;
+    Ok(())
+}
+
+// ===========================================================================
+// Helper mappings for v4.3.0c
+// ===========================================================================
+
+/// Map `FixedAsset.asset_class` → SAP ANLKL asset-class code (4-digit).
+fn asset_class_to_anlkl(class: &datasynth_core::models::AssetClass) -> String {
+    use datasynth_core::models::AssetClass;
+    match class {
+        AssetClass::Buildings | AssetClass::BuildingImprovements => "1000",
+        AssetClass::Land => "1100",
+        AssetClass::MachineryEquipment | AssetClass::Machinery => "2000",
+        AssetClass::ComputerHardware | AssetClass::ItEquipment => "5000",
+        AssetClass::FurnitureFixtures | AssetClass::Furniture => "4000",
+        AssetClass::Vehicles => "3000",
+        AssetClass::LeaseholdImprovements => "4500",
+        AssetClass::Intangibles | AssetClass::Software => "7000",
+        AssetClass::ConstructionInProgress => "8000",
+        AssetClass::LowValueAssets => "9000",
+    }
+    .to_string()
+}
+
+/// Map `CostCenter.category` → SAP KOSAR cost-centre category code.
+fn cost_center_category_to_kosar(category: &datasynth_core::models::CostCenterCategory) -> String {
+    use datasynth_core::models::CostCenterCategory;
+    match category {
+        CostCenterCategory::Production => "F",
+        CostCenterCategory::Administration => "H",
+        CostCenterCategory::Sales => "V",
+        CostCenterCategory::RAndD => "E",
+        CostCenterCategory::Corporate => "1",
+    }
+    .to_string()
 }
 
 #[cfg(test)]

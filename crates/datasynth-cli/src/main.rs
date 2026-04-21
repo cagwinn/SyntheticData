@@ -1499,6 +1499,72 @@ fn main() -> Result<()> {
                                     Err(e) => tracing::warn!("MARD export failed: {}", e),
                                 }
                             }
+                            // v4.3.0c — asset, cost-centre, GL account masters.
+                            if want_table("anla") && !result.master_data.assets.is_empty() {
+                                let path = sap_dir.join("anla.csv");
+                                match datasynth_output::write_anla(
+                                    &sap_config,
+                                    &result.master_data.assets,
+                                    &path,
+                                ) {
+                                    Ok(()) => tracing::info!(
+                                        "  SAP ANLA ({} assets) → {}",
+                                        result.master_data.assets.len(),
+                                        path.display()
+                                    ),
+                                    Err(e) => tracing::warn!("ANLA export failed: {}", e),
+                                }
+                            }
+                            if want_table("csks") && !result.master_data.cost_centers.is_empty() {
+                                let path = sap_dir.join("csks.csv");
+                                match datasynth_output::write_csks(
+                                    &sap_config,
+                                    &result.master_data.cost_centers,
+                                    &path,
+                                ) {
+                                    Ok(()) => tracing::info!(
+                                        "  SAP CSKS ({} cost centers) → {}",
+                                        result.master_data.cost_centers.len(),
+                                        path.display()
+                                    ),
+                                    Err(e) => tracing::warn!("CSKS export failed: {}", e),
+                                }
+                            }
+                            if want_table("ska1") && !result.chart_of_accounts.accounts.is_empty() {
+                                let path = sap_dir.join("ska1.csv");
+                                match datasynth_output::write_ska1(
+                                    &sap_config,
+                                    &result.chart_of_accounts,
+                                    &path,
+                                ) {
+                                    Ok(()) => tracing::info!(
+                                        "  SAP SKA1 ({} GL accounts) → {}",
+                                        result.chart_of_accounts.accounts.len(),
+                                        path.display()
+                                    ),
+                                    Err(e) => tracing::warn!("SKA1 export failed: {}", e),
+                                }
+                            }
+                            if want_table("skb1")
+                                && !result.chart_of_accounts.accounts.is_empty()
+                                && !company_codes.is_empty()
+                            {
+                                let path = sap_dir.join("skb1.csv");
+                                match datasynth_output::write_skb1(
+                                    &sap_config,
+                                    &result.chart_of_accounts,
+                                    &company_codes,
+                                    &path,
+                                ) {
+                                    Ok(()) => tracing::info!(
+                                        "  SAP SKB1 ({} accounts × {} companies) → {}",
+                                        result.chart_of_accounts.accounts.len(),
+                                        company_codes.len(),
+                                        path.display()
+                                    ),
+                                    Err(e) => tracing::warn!("SKB1 export failed: {}", e),
+                                }
+                            }
                         }
                     }
                     "fec" => {
@@ -3903,13 +3969,24 @@ fn build_sap_config(settings: &datasynth_config::SapExportSettings) -> SapExport
                 // the CLI body and don't map 1:1 to SapTableType. That's OK —
                 // unknown-table names here become a tracing warn + filter-out
                 // at the SapExporter level but still drive master-data writes.
-                "lfa1" | "lfb1" | "kna1" | "knb1" | "mara" | "mard" | "csks" | "cepc" => {
+                // Master-data tables — LFA1/KNA1/MARA/CSKS/CEPC map to
+                // dedicated SapTableType variants; LFB1/KNB1/MARD/ANLA/SKA1/
+                // SKB1 are routed through standalone writers driven by the
+                // `want_table(...)` check in the CLI body, so there's no
+                // 1:1 SapTableType for them. Filter them to the closest
+                // parent variant here to keep SapExporter happy; the CLI
+                // body reads the original table-name list for routing.
+                "lfa1" | "lfb1" | "kna1" | "knb1" | "mara" | "mard" | "csks" | "cepc" | "anla"
+                | "ska1" | "skb1" => {
                     match t.to_ascii_lowercase().as_str() {
                         "lfa1" | "lfb1" => Some(SapTableType::Lfa1),
                         "kna1" | "knb1" => Some(SapTableType::Kna1),
                         "mara" | "mard" => Some(SapTableType::Mara),
                         "csks" => Some(SapTableType::Csks),
                         "cepc" => Some(SapTableType::Cepc),
+                        // ANLA/SKA1/SKB1 don't have a SapTableType variant —
+                        // emit nothing at the SapExporter level; the CLI
+                        // body dispatches to write_anla / write_ska1 / write_skb1.
                         _ => None,
                     }
                 }
@@ -3917,7 +3994,7 @@ fn build_sap_config(settings: &datasynth_config::SapExportSettings) -> SapExport
                     tracing::warn!(
                         "SAP export config: ignoring unknown table '{}' \
                          (known: bkpf, bseg, acdoca, lfa1, lfb1, kna1, knb1, \
-                         mara, mard, csks, cepc)",
+                         mara, mard, csks, cepc, anla, ska1, skb1)",
                         other
                     );
                     None
