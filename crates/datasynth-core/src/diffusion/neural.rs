@@ -56,7 +56,10 @@ impl NeuralDiffusionBackend {
         col_stds: Vec<f32>,
     ) -> Result<Self, SynthError> {
         let schedule = config.diffusion.build_schedule();
-        let vb = VarBuilder::from_varmap(&var_map, DType::F32, &Device::Cpu);
+        // v4.2.0+: honour CUDA when the `neural-cuda` feature is on and
+        // a GPU is present; fall back to CPU otherwise.
+        let device = super::preferred_device();
+        let vb = VarBuilder::from_varmap(&var_map, DType::F32, &device);
         let network = ScoreNetwork::new(&config.network, vb)
             .map_err(|e| SynthError::generation(format!("Failed to build score network: {e}")))?;
 
@@ -108,7 +111,8 @@ impl NeuralDiffusionBackend {
             .map_err(|e| SynthError::generation(format!("Failed to parse config.json: {e}")))?;
 
         let var_map = VarMap::new();
-        let vb = VarBuilder::from_varmap(&var_map, DType::F32, &Device::Cpu);
+        let device = super::preferred_device();
+        let vb = VarBuilder::from_varmap(&var_map, DType::F32, &device);
 
         // Build network (this initializes the var_map with the right structure)
         let _network = ScoreNetwork::new(&meta.config.network, vb)
@@ -123,7 +127,7 @@ impl NeuralDiffusionBackend {
         Self::new(meta.config, var_map, meta.col_means, meta.col_stds)
     }
 
-    /// Convert `Vec<Vec<f64>>` to a candle Tensor (f32).
+    /// Convert `Vec<Vec<f64>>` to a candle Tensor (f32) on the active device.
     fn vecs_to_tensor(data: &[Vec<f64>]) -> Result<Tensor, SynthError> {
         let n_rows = data.len();
         let n_cols = data.first().map_or(0, |r| r.len());
@@ -134,7 +138,8 @@ impl NeuralDiffusionBackend {
             .iter()
             .flat_map(|r| r.iter().map(|&v| v as f32))
             .collect();
-        Tensor::from_vec(flat, (n_rows, n_cols), &Device::Cpu)
+        let device = super::preferred_device();
+        Tensor::from_vec(flat, (n_rows, n_cols), &device)
             .map_err(|e| SynthError::generation(format!("Tensor creation failed: {e}")))
     }
 

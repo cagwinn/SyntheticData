@@ -19,6 +19,8 @@ pub mod training;
 pub mod utils;
 
 #[cfg(feature = "neural")]
+pub mod device;
+#[cfg(feature = "neural")]
 pub mod gnn_generator;
 #[cfg(feature = "neural")]
 pub mod neural;
@@ -36,6 +38,8 @@ pub use statistical::*;
 pub use training::*;
 pub use utils::*;
 
+#[cfg(feature = "neural")]
+pub use device::{cuda_available, preferred_device};
 #[cfg(feature = "neural")]
 pub use gnn_generator::{
     GnnEdgePredictor, GnnGeneratorConfig, GnnGraphTrainer, GnnTrainingConfig, TrainedGnnGenerator,

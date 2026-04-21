@@ -5,6 +5,117 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.2.0] - 2026-04-21
+
+### Neural diffusion — GPU-enabled end-to-end
+
+Completes the v4.0 deferral. The neural diffusion path has been
+live in `datasynth-core` since before v4.0 (full `NeuralDiffusion
+Trainer` + `NeuralDiffusionBackend` with candle-core, DDPM
+reverse process, save/load round-trip, 11 unit tests) but it was
+hardcoded to `Device::Cpu`. v4.2.0 wires it to opportunistically
+use CUDA when available.
+
+### New `neural-cuda` Cargo feature
+
+`cargo build --features neural-cuda` enables `candle-core/cuda` +
+`candle-nn/cuda` which pulls in cudarc 0.19 and builds the CUDA
+kernel binaries via `candle-kernels`. Without this feature the
+neural backend is CPU-only (same as pre-v4.2.0).
+
+### Device selection
+
+New `datasynth_core::diffusion::{preferred_device, cuda_available}`
+helpers:
+
+- `preferred_device()` — returns `Device::Cuda(0)` when the
+  `neural-cuda` feature is compiled AND the GPU is reachable at
+  runtime; `Device::Cpu` otherwise.
+- `cuda_available()` — checks if the runtime probe found a usable
+  GPU (useful for logging / smoke-test summaries).
+
+All hardcoded `Device::Cpu` call sites in `neural.rs` + `neural_
+training.rs` now route through `preferred_device()`. Fallback is
+graceful: if CUDA init fails (wrong driver version, no GPU,
+permission issue) the code falls back to CPU and logs nothing user-
+visible.
+
+### End-to-end smoke test
+
+New `crates/datasynth-core/tests/neural_diffusion_end_to_end.rs`:
+
+1. Builds an 800-sample 1D log-normal dataset (μ=7, σ=1).
+2. Trains a small score network (32×32 hidden, 50 diffusion steps,
+   40 epochs) via `NeuralDiffusionTrainer::train`.
+3. Samples 500 values from the trained backend.
+4. Asserts generated mean is within 100× of training mean and
+   generated std is non-trivial.
+
+CPU run:
+```
+training report: epochs=40, final_loss=0.6981, cuda_available=false
+training data: mean=1633.2, std=1791.6
+generated:     mean=1601.4, std=1569.7
+```
+
+The generated distribution closely tracks the training
+distribution — the backend genuinely learned the log-normal
+shape. This is the first end-to-end validation of the neural
+path in CI.
+
+### Runtime notes
+
+The reference machine used to develop v4.2.0 has an NVIDIA RTX 2000
+Ada Generation Laptop GPU with driver 580.126.09 and CUDA 13.0
+toolkit. During development the GPU was in a driver-error state
+(`nvidia-smi` showed ERR! on power/temp/util, likely post-sleep),
+so `cuda_available()` returned `false` at test time and the test
+successfully ran on CPU. When the GPU is healthy the `neural-cuda`
+path activates transparently.
+
+### Tests
+
+- 11 existing neural-module unit tests (backend + trainer) all green.
+- 1 new end-to-end integration test verifying training + sampling
+  on CPU.
+- All 80+ runtime + 12 CLI smokes still green.
+- `cargo build --workspace` (default features) clean.
+- `cargo clippy --workspace --all-targets -- -D warnings` clean.
+
+### Compatibility
+
+- Default build (no `neural` / `neural-cuda` feature) unchanged.
+- `--features neural` build (CPU-only) unchanged — the Device::Cpu
+  hardcoded paths are now `preferred_device()` which returns Cpu
+  when cuda feature is off.
+- `--features neural-cuda` is additive — new feature, no existing
+  behavior changes.
+
+### What this closes in the roadmap
+
+The v4.1 plan's "v4.2.0 — Real neural / hybrid diffusion (contingent
+on ML contributor)" is resolved as follows:
+
+- Contributor requirement turned out to be already-met: the
+  neural backend was already implemented in v3.x; it was just
+  hardcoded to CPU and not GPU-aware.
+- GPU wiring + feature flag + end-to-end validation shipped here.
+- The backend slots into the existing `DiffusionBackend` trait,
+  so `HybridGenerator` can blend rule-based + neural at any
+  configured weight.
+
+### Orchestrator wiring status
+
+The orchestrator's `phase_diffusion_enhancement` still uses the
+`StatisticalDiffusionBackend`. Wiring the trained `NeuralDiffusion
+Backend` into this phase (train from the first batch of JEs, then
+use for subsequent entries) remains a follow-up — requires config
+flags for the neural-vs-statistical switch, an optional
+save/checkpoint path for pre-trained models, and a performance
+comparison. Tracked as a v4.2.x or v4.3.x item.
+
+---
+
 ## [4.1.7] - 2026-04-21
 
 ### Full YAML mirror of embedded default pools

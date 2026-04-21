@@ -34,6 +34,10 @@ libc = "0.2"
 [features]
 llm = ["dep:reqwest"]
 neural = ["dep:candle-core", "dep:candle-nn", "dep:safetensors"]
+# v4.2.0+ — opt in to CUDA acceleration for the neural-diffusion
+# backend. Requires drivers + CUDA toolkit; falls back to CPU at
+# runtime if the GPU isn't available.
+neural-cuda = ["neural", "candle-core/cuda", "candle-nn/cuda"]
 
 [dependencies.reqwest]
 workspace = true

@@ -127,7 +127,8 @@ impl NeuralDiffusionTrainer {
             ));
         }
 
-        let device = Device::Cpu;
+        // v4.2.0+: honour CUDA when `neural-cuda` is compiled in + GPU present.
+        let device = super::preferred_device();
 
         // Normalize data to zero mean, unit variance (reuse utils)
         let (normalized, col_means, col_stds) = super::utils::normalize_features(data);
