@@ -122,24 +122,102 @@ impl Default for BkpfEntry {
     }
 }
 
+/// SAP export dialect — controls delimiter, decimal separator, date
+/// format, and text-encoding hints applied to every generated table.
+///
+/// - `Classic` — ASCII-CSV as expected by SAP BODS / Data Services
+///   imports and by tools that read the legacy R/3 CSV dumps: comma
+///   delimiter, `YYYYMMDD` dates, dot decimal, no BOM.
+/// - `Hana` — semicolon delimiter, UTF-8 BOM, decimal comma,
+///   `YYYY-MM-DD` dates, and CDS-ingestion-friendly quoting. Matches
+///   what HANA `IMPORT FROM CSV FILE` expects with German-locale
+///   regional settings (the default for most EU S/4HANA customers).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SapDialect {
+    /// Legacy R/3 / BODS-compatible CSV. ASCII, comma, YYYYMMDD, dot decimal.
+    #[default]
+    Classic,
+    /// S/4HANA CDS-ingestion dialect. UTF-8 BOM, semicolon, ISO dates, comma decimal.
+    Hana,
+}
+
+impl SapDialect {
+    /// Field delimiter for this dialect.
+    pub fn delimiter(&self) -> char {
+        match self {
+            Self::Classic => ',',
+            Self::Hana => ';',
+        }
+    }
+
+    /// Decimal separator for monetary / quantity fields.
+    pub fn decimal_separator(&self) -> char {
+        match self {
+            Self::Classic => '.',
+            Self::Hana => ',',
+        }
+    }
+
+    /// Leading BOM bytes to write at the start of each file (empty for Classic).
+    pub fn bom(&self) -> &'static [u8] {
+        match self {
+            Self::Classic => &[],
+            // UTF-8 BOM — required by HANA CSV imports when the file contains
+            // German/Scandinavian characters and the client locale is non-UTF-8.
+            Self::Hana => &[0xEF, 0xBB, 0xBF],
+        }
+    }
+
+    /// Format a `NaiveDate` per this dialect.
+    pub fn format_date(&self, date: NaiveDate) -> String {
+        match self {
+            Self::Classic => date.format("%Y%m%d").to_string(),
+            Self::Hana => date.format("%Y-%m-%d").to_string(),
+        }
+    }
+
+    /// Format a `Decimal` per this dialect's decimal convention.
+    pub fn format_decimal(&self, value: &Decimal) -> String {
+        match self {
+            Self::Classic => value.to_string(),
+            Self::Hana => value.to_string().replace('.', ","),
+        }
+    }
+}
+
 /// Configuration for SAP export.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct SapExportConfig {
-    /// SAP client number
+    /// SAP client number (MANDT column on every table).
     pub client: String,
-    /// Ledger for ACDOCA
+    /// Ledger for ACDOCA (0L = leading, 1L/2L = non-leading parallel ledgers).
     pub ledger: String,
-    /// Source system identifier
+    /// Source system identifier — becomes AWSYS on ACDOCA rows so consumers
+    /// can distinguish synthetic rows from production ones after merge.
     pub source_system: String,
-    /// Local currency
+    /// Local currency (RWCUR on ACDOCA, WAERS on BKPF/BSEG).
     pub local_currency: String,
-    /// Group currency (optional)
+    /// Group / consolidation currency — emits the RHCUR / HSL pair when set.
     pub group_currency: Option<String>,
-    /// Tables to export
+    /// Tables to export. Unknown types are silently skipped by the writer
+    /// so future SAP table additions can land behind a schema-only flag
+    /// without breaking existing configs.
     pub tables: Vec<SapTableType>,
-    /// Include extension fields (ZSIM_*)
+    /// Include the ZSIM_* extension columns on ACDOCA rows so downstream
+    /// ML consumers can read fraud / SOX / SoD labels directly from the
+    /// SAP table rather than joining back to the label files.
     pub include_extension_fields: bool,
-    /// Date format (SAP internal: YYYYMMDD)
+    /// Dialect — controls delimiter / decimal / date format / BOM.
+    /// Prefer the dedicated `dialect` field; `use_sap_date_format` is kept
+    /// for backward compatibility but is overridden by `dialect` when set
+    /// to anything other than `Classic`.
+    pub dialect: SapDialect,
+    /// DEPRECATED as of v4.3.0 — set via `dialect` instead. Kept for
+    /// backward compatibility: when true (the default), Classic dialect
+    /// emits YYYYMMDD dates. When false, Classic dialect emits ISO
+    /// `YYYY-MM-DD` dates. Has no effect on Hana dialect (always ISO).
     pub use_sap_date_format: bool,
 }
 
@@ -153,8 +231,31 @@ impl Default for SapExportConfig {
             group_currency: None,
             tables: vec![SapTableType::Bkpf, SapTableType::Bseg, SapTableType::Acdoca],
             include_extension_fields: true,
+            dialect: SapDialect::Classic,
             use_sap_date_format: true,
         }
+    }
+}
+
+impl SapExportConfig {
+    /// Render a date using the configured dialect, honouring the legacy
+    /// `use_sap_date_format` flag for Classic dialect only.
+    pub fn format_date(&self, date: NaiveDate) -> String {
+        match self.dialect {
+            SapDialect::Classic if self.use_sap_date_format => date.format("%Y%m%d").to_string(),
+            SapDialect::Classic => date.format("%Y-%m-%d").to_string(),
+            SapDialect::Hana => date.format("%Y-%m-%d").to_string(),
+        }
+    }
+
+    /// Render a decimal using the configured dialect.
+    pub fn format_decimal(&self, value: &Decimal) -> String {
+        self.dialect.format_decimal(value)
+    }
+
+    /// Delimiter character for CSV writers.
+    pub fn delimiter(&self) -> char {
+        self.dialect.delimiter()
     }
 }
 
@@ -265,57 +366,56 @@ impl SapExporter {
         Ok(output_files)
     }
 
-    /// Export BKPF (document headers).
-    fn export_bkpf(&mut self, entries: &[JournalEntry], filepath: &Path) -> SynthResult<()> {
+    /// Create the configured file, write the dialect-specific BOM (if any),
+    /// and return the buffered writer.
+    fn open_sap_file(&self, filepath: &Path) -> SynthResult<BufWriter<File>> {
         let file = File::create(filepath)?;
         let mut writer = BufWriter::with_capacity(256 * 1024, file);
+        let bom = self.config.dialect.bom();
+        if !bom.is_empty() {
+            writer.write_all(bom)?;
+        }
+        Ok(writer)
+    }
 
-        // Write header
-        writeln!(
-            writer,
-            "MANDT,BUKRS,BELNR,GJAHR,BLART,BLDAT,BUDAT,MONAT,CPUDT,CPUTM,USNAM,TCODE,XBLNR,BKTXT,WAERS,KURSF"
+    /// Export BKPF (document headers).
+    fn export_bkpf(&mut self, entries: &[JournalEntry], filepath: &Path) -> SynthResult<()> {
+        let mut writer = self.open_sap_file(filepath)?;
+        let delim = self.config.delimiter();
+
+        // Header row.
+        write_header(
+            &mut writer,
+            delim,
+            &[
+                "MANDT", "BUKRS", "BELNR", "GJAHR", "BLART", "BLDAT", "BUDAT", "MONAT", "CPUDT",
+                "CPUTM", "USNAM", "TCODE", "XBLNR", "BKTXT", "WAERS", "KURSF",
+            ],
         )?;
 
         for je in entries {
             let doc_num = self.next_document_number(&je.header.company_code);
             let bkpf = self.to_bkpf(je, &doc_num);
 
-            let bldat = if self.config.use_sap_date_format {
-                bkpf.bldat.format("%Y%m%d").to_string()
-            } else {
-                bkpf.bldat.to_string()
-            };
-            let budat = if self.config.use_sap_date_format {
-                bkpf.budat.format("%Y%m%d").to_string()
-            } else {
-                bkpf.budat.to_string()
-            };
-            let cpudt = if self.config.use_sap_date_format {
-                bkpf.cpudt.format("%Y%m%d").to_string()
-            } else {
-                bkpf.cpudt.to_string()
-            };
-
-            writeln!(
-                writer,
-                "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}",
+            let fields: Vec<String> = vec![
                 bkpf.mandt,
                 bkpf.bukrs,
                 bkpf.belnr,
-                bkpf.gjahr,
+                bkpf.gjahr.to_string(),
                 bkpf.blart,
-                bldat,
-                budat,
-                bkpf.monat,
-                cpudt,
+                self.config.format_date(bkpf.bldat),
+                self.config.format_date(bkpf.budat),
+                bkpf.monat.to_string(),
+                self.config.format_date(bkpf.cpudt),
                 bkpf.cputm,
                 bkpf.usnam,
                 bkpf.tcode,
-                bkpf.xblnr.as_deref().unwrap_or(""),
+                bkpf.xblnr.unwrap_or_default(),
                 escape_csv_field(bkpf.bktxt.as_deref().unwrap_or("")),
                 bkpf.waers,
-                bkpf.kursf,
-            )?;
+                self.config.format_decimal(&bkpf.kursf),
+            ];
+            write_row(&mut writer, delim, &fields)?;
         }
 
         writer.flush()?;
@@ -324,13 +424,16 @@ impl SapExporter {
 
     /// Export BSEG (document segments).
     fn export_bseg(&mut self, entries: &[JournalEntry], filepath: &Path) -> SynthResult<()> {
-        let file = File::create(filepath)?;
-        let mut writer = BufWriter::with_capacity(256 * 1024, file);
+        let mut writer = self.open_sap_file(filepath)?;
+        let delim = self.config.delimiter();
 
-        // Write header
-        writeln!(
-            writer,
-            "MANDT,BUKRS,BELNR,GJAHR,BUZEI,BSCHL,HKONT,WRBTR,SHKZG,DMBTR,WAERS,KOSTL,PRCTR,SGTXT,ZUONR,MWSKZ"
+        write_header(
+            &mut writer,
+            delim,
+            &[
+                "MANDT", "BUKRS", "BELNR", "GJAHR", "BUZEI", "BSCHL", "HKONT", "WRBTR", "SHKZG",
+                "DMBTR", "WAERS", "KOSTL", "PRCTR", "SGTXT", "ZUONR", "MWSKZ",
+            ],
         )?;
 
         // Reset document counter for BSEG to match BKPF
@@ -341,26 +444,25 @@ impl SapExporter {
             let bseg_entries = self.acdoca_factory.to_bseg_entries(je, &doc_num);
 
             for bseg in bseg_entries {
-                writeln!(
-                    writer,
-                    "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}",
+                let fields: Vec<String> = vec![
                     bseg.mandt,
                     bseg.bukrs,
                     bseg.belnr,
-                    bseg.gjahr,
-                    bseg.buzei,
+                    bseg.gjahr.to_string(),
+                    bseg.buzei.to_string(),
                     bseg.bschl,
                     bseg.hkont,
-                    bseg.wrbtr,
+                    self.config.format_decimal(&bseg.wrbtr),
                     bseg.shkzg,
-                    bseg.dmbtr,
+                    self.config.format_decimal(&bseg.dmbtr),
                     bseg.waers,
-                    bseg.kostl.as_deref().unwrap_or(""),
-                    bseg.prctr.as_deref().unwrap_or(""),
+                    bseg.kostl.unwrap_or_default(),
+                    bseg.prctr.unwrap_or_default(),
                     escape_csv_field(bseg.sgtxt.as_deref().unwrap_or("")),
-                    bseg.zuonr.as_deref().unwrap_or(""),
-                    bseg.mwskz.as_deref().unwrap_or(""),
-                )?;
+                    bseg.zuonr.unwrap_or_default(),
+                    bseg.mwskz.unwrap_or_default(),
+                ];
+                write_row(&mut writer, delim, &fields)?;
             }
         }
 
@@ -370,22 +472,27 @@ impl SapExporter {
 
     /// Export ACDOCA (Universal Journal).
     fn export_acdoca(&mut self, entries: &[JournalEntry], filepath: &Path) -> SynthResult<()> {
-        let file = File::create(filepath)?;
-        let mut writer = BufWriter::with_capacity(256 * 1024, file);
+        let mut writer = self.open_sap_file(filepath)?;
+        let delim = self.config.delimiter();
 
-        // Write header - includes extension fields if configured
-        let mut header =
-            "RLDNR,RBUKRS,GJAHR,BELNR,DOCLN,BLART,BUDAT,BLDAT,CPUDT,CPUTM,USNAM,POPER,\
-            RACCT,RCNTR,PRCTR,WSL,RWCUR,HSL,RHCUR,DRCRK,BSCHL,SGTXT,ZUONR,AWSYS,AWTYP,AWKEY"
-                .to_string();
-
+        // Header row (extension columns appended when configured).
+        let mut header_cols: Vec<&'static str> = vec![
+            "RLDNR", "RBUKRS", "GJAHR", "BELNR", "DOCLN", "BLART", "BUDAT", "BLDAT", "CPUDT",
+            "CPUTM", "USNAM", "POPER", "RACCT", "RCNTR", "PRCTR", "WSL", "RWCUR", "HSL", "RHCUR",
+            "DRCRK", "BSCHL", "SGTXT", "ZUONR", "AWSYS", "AWTYP", "AWKEY",
+        ];
         if self.config.include_extension_fields {
-            header.push_str(
-                ",ZSIM_BATCH_ID,ZSIM_IS_FRAUD,ZSIM_FRAUD_TYPE,ZSIM_BUSINESS_PROCESS,\
-                ZSIM_CONTROL_IDS,ZSIM_SOX_RELEVANT,ZSIM_SOD_VIOLATION",
-            );
+            header_cols.extend_from_slice(&[
+                "ZSIM_BATCH_ID",
+                "ZSIM_IS_FRAUD",
+                "ZSIM_FRAUD_TYPE",
+                "ZSIM_BUSINESS_PROCESS",
+                "ZSIM_CONTROL_IDS",
+                "ZSIM_SOX_RELEVANT",
+                "ZSIM_SOD_VIOLATION",
+            ]);
         }
-        writeln!(writer, "{header}")?;
+        write_header(&mut writer, delim, &header_cols)?;
 
         // Reset document counter for ACDOCA
         self.document_counter.clear();
@@ -395,69 +502,49 @@ impl SapExporter {
             let acdoca_entries = self.acdoca_factory.from_journal_entry(je, &doc_num);
 
             for entry in acdoca_entries {
-                let budat = if self.config.use_sap_date_format {
-                    entry.budat.format("%Y%m%d").to_string()
-                } else {
-                    entry.budat.to_string()
-                };
-                let bldat = if self.config.use_sap_date_format {
-                    entry.bldat.format("%Y%m%d").to_string()
-                } else {
-                    entry.bldat.to_string()
-                };
-                let cpudt = if self.config.use_sap_date_format {
-                    entry.cpudt.format("%Y%m%d").to_string()
-                } else {
-                    entry.cpudt.to_string()
-                };
-
-                let mut line = format!(
-                    "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}",
+                let mut fields: Vec<String> = vec![
                     entry.rldnr,
                     entry.rbukrs,
-                    entry.gjahr,
+                    entry.gjahr.to_string(),
                     entry.belnr,
-                    entry.docln,
+                    entry.docln.to_string(),
                     entry.blart,
-                    budat,
-                    bldat,
-                    cpudt,
+                    self.config.format_date(entry.budat),
+                    self.config.format_date(entry.bldat),
+                    self.config.format_date(entry.cpudt),
                     entry.cputm,
                     entry.usnam,
-                    entry.poper,
+                    entry.poper.to_string(),
                     entry.racct,
-                    entry.rcntr.as_deref().unwrap_or(""),
-                    entry.prctr.as_deref().unwrap_or(""),
-                    entry.wsl,
+                    entry.rcntr.unwrap_or_default(),
+                    entry.prctr.unwrap_or_default(),
+                    self.config.format_decimal(&entry.wsl),
                     entry.rwcur,
-                    entry.hsl,
+                    self.config.format_decimal(&entry.hsl),
                     entry.rhcur,
                     entry.drcrk,
                     entry.bschl,
                     escape_csv_field(entry.sgtxt.as_deref().unwrap_or("")),
-                    entry.zuonr.as_deref().unwrap_or(""),
+                    entry.zuonr.unwrap_or_default(),
                     entry.awsys,
                     entry.awtyp,
                     entry.awkey,
-                );
-
+                ];
                 if self.config.include_extension_fields {
-                    line.push_str(&format!(
-                        ",{},{},{},{},{},{},{}",
+                    fields.push(
                         entry
                             .sim_batch_id
                             .map(|u| u.to_string())
                             .unwrap_or_default(),
-                        entry.sim_is_fraud,
-                        entry.sim_fraud_type.as_deref().unwrap_or(""),
-                        entry.sim_business_process.as_deref().unwrap_or(""),
-                        entry.sim_control_ids.as_deref().unwrap_or(""),
-                        entry.sim_sox_relevant,
-                        entry.sim_sod_violation,
-                    ));
+                    );
+                    fields.push(entry.sim_is_fraud.to_string());
+                    fields.push(entry.sim_fraud_type.unwrap_or_default());
+                    fields.push(entry.sim_business_process.unwrap_or_default());
+                    fields.push(entry.sim_control_ids.unwrap_or_default());
+                    fields.push(entry.sim_sox_relevant.to_string());
+                    fields.push(entry.sim_sod_violation.to_string());
                 }
-
-                writeln!(writer, "{line}")?;
+                write_row(&mut writer, delim, &fields)?;
             }
         }
 
@@ -471,32 +558,35 @@ impl SapExporter {
         vendors: &[V],
         filepath: &Path,
     ) -> SynthResult<()> {
-        let file = File::create(filepath)?;
-        let mut writer = BufWriter::with_capacity(256 * 1024, file);
+        let mut writer = self.open_sap_file(filepath)?;
+        let delim = self.config.delimiter();
 
-        writeln!(
-            writer,
-            "MANDT,LIFNR,LAND1,NAME1,NAME2,ORT01,PSTLZ,STRAS,REGIO,SPRAS,STCD1,KTOKK"
+        write_header(
+            &mut writer,
+            delim,
+            &[
+                "MANDT", "LIFNR", "LAND1", "NAME1", "NAME2", "ORT01", "PSTLZ", "STRAS", "REGIO",
+                "SPRAS", "STCD1", "KTOKK",
+            ],
         )?;
 
         for vendor in vendors {
             let v = vendor.to_sap_vendor(&self.config.client);
-            writeln!(
-                writer,
-                "{},{},{},{},{},{},{},{},{},{},{},{}",
+            let fields: Vec<String> = vec![
                 v.mandt,
                 v.lifnr,
                 v.land1,
                 escape_csv_field(&v.name1),
                 escape_csv_field(&v.name2.unwrap_or_default()),
                 escape_csv_field(&v.ort01.unwrap_or_default()),
-                v.pstlz.as_deref().unwrap_or(""),
+                v.pstlz.unwrap_or_default(),
                 escape_csv_field(&v.stras.unwrap_or_default()),
-                v.regio.as_deref().unwrap_or(""),
+                v.regio.unwrap_or_default(),
                 v.spras,
-                v.stcd1.as_deref().unwrap_or(""),
+                v.stcd1.unwrap_or_default(),
                 v.ktokk,
-            )?;
+            ];
+            write_row(&mut writer, delim, &fields)?;
         }
 
         writer.flush()?;
@@ -509,37 +599,67 @@ impl SapExporter {
         customers: &[C],
         filepath: &Path,
     ) -> SynthResult<()> {
-        let file = File::create(filepath)?;
-        let mut writer = BufWriter::with_capacity(256 * 1024, file);
+        let mut writer = self.open_sap_file(filepath)?;
+        let delim = self.config.delimiter();
 
-        writeln!(
-            writer,
-            "MANDT,KUNNR,LAND1,NAME1,NAME2,ORT01,PSTLZ,STRAS,REGIO,SPRAS,STCD1,KTOKD"
+        write_header(
+            &mut writer,
+            delim,
+            &[
+                "MANDT", "KUNNR", "LAND1", "NAME1", "NAME2", "ORT01", "PSTLZ", "STRAS", "REGIO",
+                "SPRAS", "STCD1", "KTOKD",
+            ],
         )?;
 
         for customer in customers {
             let c = customer.to_sap_customer(&self.config.client);
-            writeln!(
-                writer,
-                "{},{},{},{},{},{},{},{},{},{},{},{}",
+            let fields: Vec<String> = vec![
                 c.mandt,
                 c.kunnr,
                 c.land1,
                 escape_csv_field(&c.name1),
                 escape_csv_field(&c.name2.unwrap_or_default()),
                 escape_csv_field(&c.ort01.unwrap_or_default()),
-                c.pstlz.as_deref().unwrap_or(""),
+                c.pstlz.unwrap_or_default(),
                 escape_csv_field(&c.stras.unwrap_or_default()),
-                c.regio.as_deref().unwrap_or(""),
+                c.regio.unwrap_or_default(),
                 c.spras,
-                c.stcd1.as_deref().unwrap_or(""),
+                c.stcd1.unwrap_or_default(),
                 c.ktokd,
-            )?;
+            ];
+            write_row(&mut writer, delim, &fields)?;
         }
 
         writer.flush()?;
         Ok(())
     }
+}
+
+/// Write a CSV header row (alias of `write_row` — the function expects
+/// identifier strings and does not apply field escaping, since SAP DDIC
+/// column names are always plain ASCII).
+fn write_row_plain<W: Write>(writer: &mut W, delim: char, fields: &[&str]) -> std::io::Result<()> {
+    for (i, f) in fields.iter().enumerate() {
+        if i > 0 {
+            write!(writer, "{delim}")?;
+        }
+        write!(writer, "{f}")?;
+    }
+    writeln!(writer)
+}
+
+fn write_header<W: Write>(writer: &mut W, delim: char, cols: &[&str]) -> std::io::Result<()> {
+    write_row_plain(writer, delim, cols)
+}
+
+fn write_row<W: Write>(writer: &mut W, delim: char, fields: &[String]) -> std::io::Result<()> {
+    for (i, f) in fields.iter().enumerate() {
+        if i > 0 {
+            write!(writer, "{delim}")?;
+        }
+        write!(writer, "{f}")?;
+    }
+    writeln!(writer)
 }
 
 /// SAP vendor record (LFA1).
@@ -587,8 +707,13 @@ pub trait SapCustomerExportable {
 }
 
 /// Escape a field for CSV output.
+///
+/// Delimiter-agnostic: quotes the field if it contains a comma, semicolon,
+/// double quote, or newline. Classic dialect uses commas and Hana dialect
+/// uses semicolons, so escaping on both means a field like
+/// `"Müller, GmbH; München"` emerges quoted in either dialect.
 fn escape_csv_field(field: &str) -> String {
-    if field.contains(',') || field.contains('"') || field.contains('\n') {
+    if field.contains(',') || field.contains(';') || field.contains('"') || field.contains('\n') {
         format!("\"{}\"", field.replace('"', "\"\""))
     } else {
         field.to_string()
@@ -648,5 +773,89 @@ mod tests {
         assert_eq!(num1, "0000000001");
         assert_eq!(num2, "0000000002");
         assert_eq!(num3, "0000000001"); // Different company code
+    }
+
+    // ========================================================================
+    // v4.3.0a — Dialect smoke tests
+    // ========================================================================
+
+    #[test]
+    fn classic_dialect_uses_comma_no_bom_yyyymmdd_dot_decimal() {
+        let temp_dir = TempDir::new().unwrap();
+        let config = SapExportConfig {
+            dialect: SapDialect::Classic,
+            use_sap_date_format: true,
+            ..SapExportConfig::default()
+        };
+        let mut exporter = SapExporter::new(config);
+        exporter
+            .export_to_files(&[create_test_je()], temp_dir.path())
+            .unwrap();
+        let bkpf = std::fs::read(temp_dir.path().join("bkpf.csv")).unwrap();
+        // No UTF-8 BOM at file start.
+        assert_ne!(&bkpf[..3], [0xEF, 0xBB, 0xBF]);
+        // Header uses comma delimiter.
+        let head = std::str::from_utf8(&bkpf).unwrap().lines().next().unwrap();
+        assert!(head.contains(','), "Classic header must use comma: {head}");
+        assert!(!head.contains(';'), "Classic header must not use semicolon");
+        // Body: YYYYMMDD date (8-digit, no dash) somewhere in the second line.
+        let body = std::str::from_utf8(&bkpf).unwrap().lines().nth(1).unwrap();
+        let has_yyyymmdd = body
+            .split(',')
+            .any(|f| f.len() == 8 && f.chars().all(|c| c.is_ascii_digit()));
+        assert!(
+            has_yyyymmdd,
+            "Classic body must contain YYYYMMDD date: {body}"
+        );
+    }
+
+    #[test]
+    fn hana_dialect_uses_semicolon_utf8_bom_iso_date_comma_decimal() {
+        let temp_dir = TempDir::new().unwrap();
+        let config = SapExportConfig {
+            dialect: SapDialect::Hana,
+            ..SapExportConfig::default()
+        };
+        let mut exporter = SapExporter::new(config);
+        exporter
+            .export_to_files(&[create_test_je()], temp_dir.path())
+            .unwrap();
+
+        let bkpf = std::fs::read(temp_dir.path().join("bkpf.csv")).unwrap();
+        // UTF-8 BOM at file start.
+        assert_eq!(
+            &bkpf[..3],
+            [0xEF, 0xBB, 0xBF],
+            "Hana dialect must prefix files with a UTF-8 BOM"
+        );
+        // Header uses semicolon delimiter (after stripping BOM).
+        let text = std::str::from_utf8(&bkpf[3..]).unwrap();
+        let head = text.lines().next().unwrap();
+        assert!(head.contains(';'), "Hana header must use semicolon: {head}");
+        assert!(!head.contains(','), "Hana header must not use comma");
+        // Body: ISO-dashed date appears somewhere in the second line.
+        let body = text.lines().nth(1).unwrap();
+        assert!(
+            body.split(';')
+                .any(|f| { f.len() == 10 && f.chars().filter(|c| *c == '-').count() == 2 }),
+            "Hana body must contain a YYYY-MM-DD date: {body}"
+        );
+    }
+
+    #[test]
+    fn dialect_format_decimal_uses_comma_for_hana_dot_for_classic() {
+        let d = Decimal::new(12345, 2); // 123.45
+        assert_eq!(SapDialect::Classic.format_decimal(&d), "123.45");
+        assert_eq!(SapDialect::Hana.format_decimal(&d), "123,45");
+    }
+
+    #[test]
+    fn escape_csv_field_quotes_fields_containing_either_delimiter() {
+        // Classic (comma) consumers + Hana (semicolon) consumers both
+        // break on their delimiter inside a field, so we always quote
+        // when either is present.
+        assert_eq!(escape_csv_field("Müller, GmbH"), "\"Müller, GmbH\"");
+        assert_eq!(escape_csv_field("Müller; GmbH"), "\"Müller; GmbH\"");
+        assert_eq!(escape_csv_field("Straight"), "Straight");
     }
 }

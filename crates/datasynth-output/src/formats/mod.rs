@@ -18,5 +18,8 @@ pub use fec::write_fec_csv;
 pub use gobd::{write_gobd_accounts_csv, write_gobd_index_xml, write_gobd_journal_csv};
 pub use netsuite::{NetSuiteExporter, NetSuiteJournalEntry, NetSuiteJournalLine};
 pub use oracle::{OracleExporter, OracleJeHeader, OracleJeLine};
-pub use sap::{SapExportConfig, SapExporter, SapTableType};
+pub use sap::{
+    SapCustomer, SapCustomerExportable, SapDialect, SapExportConfig, SapExporter, SapTableType,
+    SapVendor, SapVendorExportable,
+};
 pub use xbrl::XbrlExporter;

@@ -24,7 +24,8 @@ pub use esg_export::*;
 pub use formats::{
     write_fec_csv, write_gobd_accounts_csv, write_gobd_index_xml, write_gobd_journal_csv,
     NetSuiteExporter, NetSuiteJournalEntry, NetSuiteJournalLine, OracleExporter, OracleJeHeader,
-    OracleJeLine, SapExportConfig, SapExporter, SapTableType, XbrlExporter,
+    OracleJeLine, SapCustomer, SapCustomerExportable, SapDialect, SapExportConfig, SapExporter,
+    SapTableType, SapVendor, SapVendorExportable, XbrlExporter,
 };
 pub use json_sink::*;
 pub use parquet_sink::*;

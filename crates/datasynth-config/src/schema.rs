@@ -1675,6 +1675,92 @@ pub struct OutputConfig {
     /// layout, but manifests didn't match the expected flat shape).
     #[serde(default, alias = "exportLayout")]
     pub export_layout: ExportLayout,
+    /// SAP / HANA export settings (only read when the CLI
+    /// `--export-format sap` flag is passed). Empty by default so
+    /// existing configs don't change behaviour; dialect defaults to
+    /// `classic` for backward compatibility.
+    #[serde(default, alias = "sapExport")]
+    pub sap: SapExportSettings,
+}
+
+/// Configuration for the SAP export writers (BKPF / BSEG / ACDOCA and
+/// master-data tables).
+///
+/// Mirror of `datasynth_output::SapExportConfig` in YAML form — the CLI
+/// translates this into the runtime struct before invoking the exporter,
+/// replacing the v3.x hardcoded `SapExportConfig::default()`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SapExportSettings {
+    /// SAP client / MANDT column value on every table.
+    #[serde(default = "default_sap_client")]
+    pub client: String,
+    /// Leading ledger for ACDOCA rows (0L for S/4HANA default).
+    #[serde(default = "default_sap_ledger")]
+    pub ledger: String,
+    /// Source system identifier — written to ACDOCA.AWSYS so downstream
+    /// consumers can distinguish synthetic rows from production ones.
+    #[serde(default = "default_sap_source_system")]
+    pub source_system: String,
+    /// Local currency (WAERS / RWCUR).
+    #[serde(default = "default_sap_currency")]
+    pub local_currency: String,
+    /// Optional group / consolidation currency (triggers the HSL / RHCUR columns).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub group_currency: Option<String>,
+    /// Which SAP tables to export. Empty = default set (bkpf, bseg, acdoca).
+    #[serde(default)]
+    pub tables: Vec<String>,
+    /// Include ZSIM_* extension columns on ACDOCA rows.
+    #[serde(default = "default_true")]
+    pub include_extension_fields: bool,
+    /// Export dialect — `classic` (R/3 / BODS) or `hana` (S/4HANA CDS).
+    #[serde(default)]
+    pub dialect: SapDialectSetting,
+    /// Legacy flag, retained for backward compatibility. Has no effect
+    /// when `dialect = hana`.
+    #[serde(default = "default_true")]
+    pub use_sap_date_format: bool,
+}
+
+impl Default for SapExportSettings {
+    fn default() -> Self {
+        Self {
+            client: default_sap_client(),
+            ledger: default_sap_ledger(),
+            source_system: default_sap_source_system(),
+            local_currency: default_sap_currency(),
+            group_currency: None,
+            tables: Vec::new(),
+            include_extension_fields: true,
+            dialect: SapDialectSetting::default(),
+            use_sap_date_format: true,
+        }
+    }
+}
+
+fn default_sap_client() -> String {
+    "100".to_string()
+}
+fn default_sap_ledger() -> String {
+    "0L".to_string()
+}
+fn default_sap_source_system() -> String {
+    "SYNTH".to_string()
+}
+fn default_sap_currency() -> String {
+    "USD".to_string()
+}
+
+/// SAP export dialect (wire form — `datasynth_output::SapDialect` is the
+/// runtime form).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SapDialectSetting {
+    /// Legacy R/3 / BODS-compatible CSV (default).
+    #[default]
+    Classic,
+    /// S/4HANA CDS dialect (semicolon + UTF-8 BOM + decimal comma + ISO dates).
+    Hana,
 }
 
 fn default_formats() -> Vec<FileFormat> {
@@ -1698,6 +1784,7 @@ impl Default for OutputConfig {
             partition_by_company: false,
             numeric_mode: NumericMode::default(),
             export_layout: ExportLayout::default(),
+            sap: SapExportSettings::default(),
         }
     }
 }
@@ -1817,12 +1904,12 @@ pub struct FraudConfig {
     /// If `document_fraud_rate = Some(d)` and `propagate_to_lines = true`,
     /// the observed line-level fraud prevalence is roughly:
     ///
-    ///     P(line is_fraud) ≈ fraud_rate + d × avg_lines_per_fraud_doc / total_lines
+    /// > `P(line is_fraud) ≈ fraud_rate + d × avg_lines_per_fraud_doc / total_lines`
     ///
     /// For a typical retail job (avg 3 lines per document, ~30 % of lines
     /// come from doc-flow-derived JEs) the combined rate lands near:
     ///
-    ///     fraud_rate + 0.3 × d
+    /// > `fraud_rate + 0.3 × d`
     ///
     /// so setting `fraud_rate=0.02, document_fraud_rate=0.05, propagate_to_lines=true`
     /// produces ~3.5 % line-level fraud, not 2 %. To target a specific

@@ -1339,14 +1339,25 @@ fn main() -> Result<()> {
             for fmt in &export_format {
                 match fmt.to_ascii_lowercase().as_str() {
                     "sap" => {
-                        // SAP S/4HANA BKPF / BSEG / ACDOCA export
+                        // SAP S/4HANA BKPF / BSEG / ACDOCA export, honouring
+                        // config.output.sap (or falling back to defaults
+                        // when the YAML block is absent).
                         let sap_dir = output.join("sap_export");
                         if let Err(e) = std::fs::create_dir_all(&sap_dir) {
                             tracing::warn!("Could not create sap_export directory: {}", e);
                         } else if result.journal_entries.is_empty() {
                             tracing::warn!("SAP export skipped: no journal entries");
                         } else {
-                            let sap_config = SapExportConfig::default();
+                            let sap_config = build_sap_config(&config_for_manifest.output.sap);
+                            tracing::info!(
+                                "SAP export config: client={} ledger={} dialect={:?} \
+                                 tables={:?} extension_fields={}",
+                                sap_config.client,
+                                sap_config.ledger,
+                                sap_config.dialect,
+                                sap_config.tables,
+                                sap_config.include_extension_fields,
+                            );
                             let mut sap_exporter = SapExporter::new(sap_config);
                             match sap_exporter.export_to_files(&result.journal_entries, &sap_dir) {
                                 Ok(files) => {
@@ -3735,6 +3746,60 @@ fn apply_safety_limits(config: &mut GeneratorConfig) {
     // Force conservative settings
     config.global.parallel = false;
     config.global.worker_threads = config.global.worker_threads.min(4);
+}
+
+/// Translate the YAML `output.sap` block into the runtime `SapExportConfig`.
+///
+/// Unknown / unrecognised table names in `settings.tables` are silently
+/// dropped with a tracing warning so a config with a typo doesn't hard-fail
+/// the run. An empty `tables` list produces the default BKPF / BSEG /
+/// ACDOCA triple for backward compatibility with pre-v4.3.0 callers.
+fn build_sap_config(settings: &datasynth_config::SapExportSettings) -> SapExportConfig {
+    use datasynth_output::SapTableType;
+
+    let dialect = match settings.dialect {
+        datasynth_config::SapDialectSetting::Classic => datasynth_output::SapDialect::Classic,
+        datasynth_config::SapDialectSetting::Hana => datasynth_output::SapDialect::Hana,
+    };
+
+    let tables = if settings.tables.is_empty() {
+        vec![SapTableType::Bkpf, SapTableType::Bseg, SapTableType::Acdoca]
+    } else {
+        settings
+            .tables
+            .iter()
+            .filter_map(|t| match t.to_ascii_lowercase().as_str() {
+                "bkpf" => Some(SapTableType::Bkpf),
+                "bseg" => Some(SapTableType::Bseg),
+                "acdoca" => Some(SapTableType::Acdoca),
+                "lfa1" => Some(SapTableType::Lfa1),
+                "kna1" => Some(SapTableType::Kna1),
+                "mara" => Some(SapTableType::Mara),
+                "csks" => Some(SapTableType::Csks),
+                "cepc" => Some(SapTableType::Cepc),
+                other => {
+                    tracing::warn!(
+                        "SAP export config: ignoring unknown table '{}' \
+                         (known: bkpf, bseg, acdoca, lfa1, kna1, mara, csks, cepc)",
+                        other
+                    );
+                    None
+                }
+            })
+            .collect()
+    };
+
+    SapExportConfig {
+        client: settings.client.clone(),
+        ledger: settings.ledger.clone(),
+        source_system: settings.source_system.clone(),
+        local_currency: settings.local_currency.clone(),
+        group_currency: settings.group_currency.clone(),
+        tables,
+        include_extension_fields: settings.include_extension_fields,
+        dialect,
+        use_sap_date_format: settings.use_sap_date_format,
+    }
 }
 
 /// Get safe memory limit based on available system memory.
