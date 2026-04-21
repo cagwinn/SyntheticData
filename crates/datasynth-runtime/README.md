@@ -4,69 +4,98 @@ Runtime orchestration, parallel execution, and memory management.
 
 ## Overview
 
-`datasynth-runtime` provides the execution layer for SyntheticData:
+`datasynth-runtime` provides the execution layer for DataSynth:
 
-- **GenerationOrchestrator**: Coordinates the complete generation workflow
-- **Parallel Execution**: Multi-threaded generation with Rayon
-- **Memory Management**: Integration with memory guard for OOM prevention
-- **Progress Tracking**: Real-time progress reporting with pause/resume
+- **`EnhancedOrchestrator`**: The primary orchestrator — ~30 phases,
+  full enterprise feature integration, multi-threaded, streaming-capable.
+- **`StreamingOrchestrator`**: Real-time per-phase streaming variant.
+- Parallel execution via Rayon, memory / CPU / disk guards,
+  progress reporting, pause/resume.
 
-## Key Components
+> **v4.0 note:** the legacy `GenerationOrchestrator` (basic 2-phase
+> CoA + JE) was removed in v4.0.0 after a v3.x deprecation window.
+> All production call paths already routed through
+> `EnhancedOrchestrator`. Migration:
+> ```rust
+> use datasynth_runtime::{EnhancedOrchestrator, PhaseConfig};
+> let phases = PhaseConfig::from_config(&config);
+> let mut orch = EnhancedOrchestrator::new(config, phases)?;
+> let result = orch.generate()?;
+> ```
+
+## Key components
 
 | Component | Description |
 |-----------|-------------|
-| `GenerationOrchestrator` | Main workflow coordinator |
-| `EnhancedOrchestrator` | Extended orchestrator with all enterprise features |
-| `ParallelExecutor` | Thread pool management |
-| `ProgressTracker` | Progress bars and status reporting |
+| `EnhancedOrchestrator` | Full workflow coordinator; `generate()` returns `EnhancedGenerationResult` |
+| `StreamingOrchestrator` | Phase-by-phase streaming variant |
+| `PhaseConfig` | Per-phase enable flags, auto-derived from `GeneratorConfig` |
+| `EnhancedGenerationResult` | Complete snapshot of generated data + statistics + reports |
 
-## Generation Workflow
+## Generation pipeline (v4.0.1)
 
-The `generate()` method orchestrates 19 focused phase methods in sequence:
+Roughly ~30 phases in sequence. Key ones in execution order:
 
-1. **Chart of Accounts**: CoA generation with industry-specific structures
-2. **Master Data**: Vendors, customers, materials, fixed assets, employees
-3. **Document Flows**: P2P and O2C document chain generation
-4. **OCPM Events**: OCEL 2.0 event log generation
-5. **Journal Entries**: JEs from document flows and standalone transactions
-6. **Anomaly Injection**: Entity-aware anomaly injection with risk-adjusted rates
-7. **Balance Validation**: Balance sheet equation verification
-8. **Data Quality**: Typos, missing values, format variations injection
-9. **Audit Data**: Engagements, workpapers, evidence, findings, judgments
-10. **Banking Data**: KYC/AML banking transaction generation
-11. **Graph Export**: PyTorch Geometric, Neo4j, DGL, RustGraph export
-12. **Hypergraph Export**: Multi-layer hypergraph for RustGraph
-13-15. *(Reserved)*
-16. **HR** (v0.6.0): Payroll runs, time entries, expense reports
-17. **Accounting Standards** (v0.6.0): Revenue recognition, impairment testing, financial statements
-18. **Manufacturing** (v0.6.0): Production orders, quality inspections, cycle counts
-19. **Sales/KPIs/Budgets** (v0.6.0): Sales quotations, management KPIs, budget plans
+1. **Chart of accounts** — industry-specific structure
+2. **Master data** — vendors, customers, materials, fixed assets, employees; LLM-enrichable via `phase_llm_enrichment`
+3. **Document flows** — P2P and O2C chains, business-day snapped (v3.4.1+)
+4. **Intercompany** — IC transactions, matching, eliminations
+5. **OCPM events** — OCEL 2.0 event log
+6. **Journal entries** — from documents + standalone; applies the distribution cascade (fraud → advanced mixture → Pareto → copula → conditional → drift → seasonality)
+7. **Anomaly injection** — entity-aware, risk-adjusted
+8. **Fraud-bias sweep** — applies weekend / round-dollar / off-hours / post-close bias to every `is_fraud=true` entry
+9. **Balance validation** — debits = credits, Assets = Liabilities + Equity
+10. **Accruals + period close** — reversal dates snapped to business days (v3.4.3+)
+11. **Financial reporting** — BS/IS/CF, segments, notes
+12. **HR** — payroll, time entries (holiday-aware v3.4.2+), expense reports
+13. **Manufacturing** — production orders with business-day-snapped dates
+14. **Treasury / tax / ESG / project accounting**
+15. **Audit data** — engagements, workpapers, evidence, findings, SOX
+16. **Banking + AML** — KYC, transactions, typology labels
+17. **Analytics metadata** (v3.3.0+) — prior-year comparatives, benchmarks, drift events
+18. **Statistical validation** (v3.5.1+) — Benford / chi² / KS; attaches `StatisticalValidationReport`
+19. **Graph + hypergraph export** — PyG, Neo4j, DGL, hypergraph
 
-### Snapshot Structs (v0.6.0)
+Determinism: seed-in → byte-identical-out on default configs.
 
-Each new phase produces a typed snapshot that feeds into downstream phases:
+## TemporalContext (v3.4.1+)
 
-| Snapshot | Contents |
-|----------|----------|
-| `HrSnapshot` | Payroll runs, time entries, expense reports |
-| `AccountingStandardsSnapshot` | Revenue schedules, impairment results, financial statements |
-| `ManufacturingSnapshot` | Production orders, quality inspections, cycle counts |
-| `SalesKpiBudgetsSnapshot` | Sales quotes, KPI metrics, budget plans with variances |
+Shared `Arc<TemporalContext>` bundle built once per pipeline from
+`config.temporal_patterns`, threaded into:
+
+- Document-flow generators (P2P, O2C)
+- HR (time entries, expense reports)
+- Manufacturing (production orders)
+- Period-close (accrual reversals)
+
+Methods: `is_business_day`, `adjust_to_business_day`,
+`sample_business_day_in_range`. 15 region calendars pre-loaded.
+
+## Statistical validation phase (v3.5.1+)
+
+New `phase_statistical_validation` runs after all JE-adding phases
+and emits a `StatisticalValidationReport` on
+`EnhancedGenerationResult.statistical_validation`. Supported tests
+today: Benford first-digit (MAD), chi-squared on log-uniform,
+KS-on-log-uniform. CorrelationCheck + AndersonDarling scheduled for
+v4.1.0 (see [v4.1 plan](../../docs/plans/2026-04-21-v4.1-plan.md)).
 
 ## Usage
 
 ```rust
-use datasynth_runtime::GenerationOrchestrator;
+use datasynth_runtime::{EnhancedOrchestrator, PhaseConfig};
+use datasynth_config::schema::GeneratorConfig;
 
-let orchestrator = GenerationOrchestrator::new(config)?;
+let config: GeneratorConfig = /* load from YAML or build in code */;
+let phases = PhaseConfig::from_config(&config);
+let mut orch = EnhancedOrchestrator::new(config, phases)?;
+let result = orch.generate()?;
 
-// Full generation
-orchestrator.run()?;
-
-// With progress callback
-orchestrator.run_with_progress(|progress| {
-    println!("Generated: {}/{}", progress.completed, progress.total);
-})?;
+println!("Generated {} journal entries", result.journal_entries.len());
+if let Some(report) = &result.statistical_validation {
+    println!("Validation: {} tests, all passed = {}",
+        report.results.len(), report.all_passed());
+}
 ```
 
 ## Pause/Resume
@@ -79,4 +108,4 @@ kill -USR1 $(pgrep datasynth-data)
 
 ## License
 
-Apache-2.0 - See [LICENSE](../../LICENSE) for details.
+Apache-2.0 — see [LICENSE](../../LICENSE) for details.

@@ -1,4 +1,4 @@
-# DataSynth v3.0.0
+# DataSynth v4.0.1
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-green.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/rust-1.88%2B-orange.svg)](https://www.rust-lang.org)
@@ -6,9 +6,17 @@
 
 **Synthetic enterprise data generation for ML training, audit analytics, and system testing.**
 
-DataSynth generates statistically realistic, fully interconnected enterprise financial data across 20+ process families. Generated data respects accounting identities (debits = credits, Assets = Liabilities + Equity), follows empirical distributions (Benford's Law, log-normal mixtures), and maintains referential integrity across 100+ output tables. Generation-time assertions enforce these invariants at scale.
+DataSynth generates statistically realistic, fully interconnected enterprise financial data across 20+ process families. Generated data respects accounting identities (debits = credits, Assets = Liabilities + Equity), follows empirical distributions (Benford's Law, log-normal mixtures, Pareto heavy tails, Gaussian copula correlations), and maintains referential integrity across 100+ output tables. Generation-time assertions enforce these invariants at scale.
 
-**[Full Documentation](docs/book/src/SUMMARY.md)** | **[Commercial SDKs](https://vynfi.com)** | **[CHANGELOG](CHANGELOG.md)**
+**[Full Documentation](docs/book/src/SUMMARY.md)** | **[Commercial SDKs](https://vynfi.com)** | **[CHANGELOG](CHANGELOG.md)** | **[v4.1 Roadmap](docs/plans/2026-04-21-v4.1-plan.md)**
+
+**What's new in v4.0.1 (April 2026)**
+- v3.3.2–v4.0.0 closed every `[Not yet wired]` schema gap — `distributions.amounts`, `.regime_changes`, `.conditional`, `.correlations`, `.validation`, `.pareto` all drive runtime behaviour.
+- `TemporalContext` — unified business-day + holiday awareness threaded into P2P, O2C, HR, manufacturing, and period-close generators.
+- **LLM template enrichment CLI** — offline deterministic expansion of vendor / customer / material name pools against OpenRouter, OpenAI, or any compatible endpoint. Live-tested with Claude Sonnet 4.5.
+- **`LlmTemplateProvider`** — runtime LLM-backed template provider (opt-in, cached) for deployments that want real-time enrichment.
+- **Statistical validation phase** — Benford, chi-squared, KS-on-log-uniform run post-generation with a structured report.
+- **Breaking:** legacy `GenerationOrchestrator` removed; use `EnhancedOrchestrator::new(config, PhaseConfig::from_config(&config))`.
 
 ---
 
@@ -54,6 +62,15 @@ cargo build --release --features llm
 OPENAI_API_KEY=sk-... ./target/release/datasynth-data init \
   --from-description "12 months of mid-market retail data with fraud and SOX controls" -o config.yaml
 
+# LLM-powered template enrichment — expand name pools via OpenRouter / OpenAI / Anthropic
+# (v3.5.0+ offline CLI; the LLM only runs here, not at `generate` time)
+OPENROUTER_API_KEY=sk-or-... cargo run --release --features llm -- \
+  templates enrich \
+  --input ./templates/in.yaml --output ./templates/enriched.yaml \
+  --category customer_name --industry retail --region DE \
+  --sub-category enterprise --count 50 \
+  --backend http --model anthropic/claude-sonnet-4.5
+
 # Counterfactual scenario simulation
 ./target/release/datasynth-data scenario list --config config.yaml
 ./target/release/datasynth-data scenario generate --config config.yaml --output ./output
@@ -93,8 +110,11 @@ Every process chain generates cross-referenced master data, documents, and journ
 
 | Feature | Description | Feature Flag |
 |---------|-------------|--------------|
-| Neural Diffusion | Candle-powered score network, denoising score matching, hybrid blending | `neural` |
+| Neural Diffusion | Candle-powered score network, denoising score matching (*training loop slated for v4.2; v4.0 acknowledges config + warns*) | `neural` |
+| Statistical Diffusion | Denoising / enhancement via the statistical `DiffusionBackend` — always on | — |
 | LLM Config Generation | Natural language → YAML config (OpenAI/Anthropic/OpenRouter) | `llm` |
+| **LLM Template Enrichment** | Offline deterministic CLI: expand vendor/customer/material pools via any OpenAI-compatible endpoint. Cached YAML, byte-identical runs. | `llm` |
+| **LlmTemplateProvider** | Runtime LLM-backed provider wrapping the default one; opt-in per category with in-memory cache. | `llm` |
 | Auto-Tune | Generate → evaluate → AI patch → regenerate closed loop | — |
 | Adversarial Testing | ONNX model boundary probing via `ort` | `adversarial` |
 | Anomaly Designer | LLM-designed fraud schemes adapted to control environment | — |
@@ -102,6 +122,24 @@ Every process chain generates cross-referenced master data, documents, and journ
 | GNN Graph Generator | Message-passing GNN for entity relationship structure | `neural` |
 
 See [AI Capabilities](docs/book/src/ai/README.md) for details.
+
+### Advanced distributions (v3.4–v4.0)
+
+Every distribution knob in `config.distributions` now drives runtime behaviour:
+
+| Sub-block | Effect |
+|-----------|--------|
+| `amounts` | Log-normal / Gaussian mixture models override the legacy amount sampler |
+| `industry_profile` | Retail / manufacturing / financial-services / healthcare / technology preset mixtures |
+| `pareto` | Heavy-tailed amount sampling (capex, strategic contracts, fraud) |
+| `regime_changes` | Point-in-time regime events (acquisition, price-increase, …) + economic cycles + parameter drifts |
+| `conditional` | Calendar-conditional amount distributions (e.g. Q4-larger) via `input_field ∈ {month, quarter, constant}` |
+| `correlations` | Gaussian copula drives amount↔line_count correlation; Clayton/Gumbel/Frank/Student-t parsed and scheduled for v4.1 |
+| `validation` | Benford, chi-squared, KS-log-uniform tests run post-generation; report attached to `EnhancedGenerationResult.statistical_validation` |
+
+### Temporal awareness (v3.4.1–v3.4.3)
+
+Shared `TemporalContext` bundle (multi-year holiday union + business-day calculator) threaded through P2P, O2C, time entries, expense reports, production orders, and accrual reversals. Posting dates snap to business days; 15 region calendars (US, DE, GB, FR, IT, ES, CA, CN, JP, IN, BR, MX, AU, SG, KR) supported out of the box.
 
 ### Counterfactual Simulation
 
@@ -140,14 +178,14 @@ YAML-driven methodology-agnostic state machine with 10 built-in blueprints (FSA,
 16 crates in a Rust workspace:
 
 ```
-datasynth-cli              CLI binary (generate, validate, init, scenario, adversarial, audit)
+datasynth-cli              CLI binary (generate, validate, init, scenario, adversarial, audit, templates)
 datasynth-server           REST / gRPC / WebSocket server with auth and rate limiting
-datasynth-runtime          Generation orchestrator (phases, assertions, streaming)
-datasynth-generators       50+ generators across all process families
+datasynth-runtime          EnhancedOrchestrator (~30 phases, assertions, streaming, validation phase)
+datasynth-generators       50+ generators across all process families, LLM enrichers
 datasynth-banking          KYC/AML with 20 typologies and criminal networks
 datasynth-eval             Evaluation framework, auto-tuning, adversarial testing
 datasynth-config           YAML configuration, validation, industry presets
-datasynth-core             306 domain models, distributions, diffusion, LLM provider
+datasynth-core             306 domain models, distributions, diffusion, LLM provider, TemplateProvider, TemporalContext
 datasynth-graph            Graph export (PyG, Neo4j, DGL, hypergraph)
 datasynth-standards        IFRS, US GAAP, ISA, SOX, PCAOB standards
 datasynth-audit-fsm        YAML-driven audit FSM (10 blueprints)

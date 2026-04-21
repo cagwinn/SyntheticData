@@ -32,6 +32,33 @@ Configuration schema, validation, and industry presets for synthetic data genera
 | `data_quality` | Missing values, typos, duplicates |
 | `graph_export` | ML graph export formats |
 | `output` | Output format and compression |
+| `templates` | User-supplied template packs (`path`, `merge_strategy`) |
+| `llm` | LLM provider + enrichment flags (gated by `llm` feature) |
+
+### Advanced distributions (v3.4–v4.0)
+
+Every knob in `distributions` now drives runtime behavior:
+
+| Sub-section | Controls |
+|---|---|
+| `distributions.amounts` | Log-normal / Gaussian mixture components; `industry_profile` fallback |
+| `distributions.pareto` | Heavy-tailed amount override (`enabled`, `alpha`, `x_min`, `max_value`) |
+| `distributions.regime_changes` | Acquisition / price-increase / … events + economic cycles + parameter drifts |
+| `distributions.conditional` | Breakpoint-based distribution switching; `input_field ∈ {month, quarter, constant}` |
+| `distributions.correlations` | Gaussian copula for amount↔line_count (others v4.1); full symmetric or upper-triangular matrix |
+| `distributions.validation` | Benford / chi² / KS tests run post-generation; report on `EnhancedGenerationResult.statistical_validation` |
+
+### Temporal patterns (v3.4.1+)
+
+| Sub-section | Controls |
+|---|---|
+| `temporal_patterns.business_days` | Weekend / half-day / month-end conventions; T+N settlement rules |
+| `temporal_patterns.calendars` | 15 regions (US, DE, GB, FR, IT, ES, CA, CN, JP, IN, BR, MX, AU, SG, KR) |
+| `temporal_patterns.period_end` | Flat / exponential / extended-crunch / daily-profile decay curves |
+| `temporal_patterns.processing_lags` | Event-to-posting lag distributions |
+| `temporal_patterns.fiscal_calendar` | Calendar / custom / 4-4-5 patterns |
+| `temporal_patterns.timezones` | Multi-region timezone handling |
+| `temporal_patterns.intraday` | Per-segment multipliers (morning spike / lunch dip / eod rush) |
 
 ### Enterprise Process Chain Sections (v0.6.0)
 

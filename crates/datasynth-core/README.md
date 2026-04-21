@@ -49,21 +49,42 @@ The UUID factory (`uuid_factory.rs`) has been extended with 18 new `GeneratorTyp
 
 ### Statistical Distributions (`distributions/`)
 
-| Distribution | Description |
-|--------------|-------------|
+| Module | Description |
+|--------|-------------|
 | `LineItemSampler` | Empirical distribution (60.68% two-line, 88% even counts) |
-| `AmountSampler` | Log-normal with round-number bias, Benford compliance |
+| `AmountSampler` | Log-normal with round-number bias, Benford compliance (legacy path) |
+| `AdvancedAmountSampler` | Enum over LogNormal / Gaussian mixture + **Pareto** heavy-tailed (v3.4.4+) |
+| `LogNormalMixtureSampler` / `GaussianMixtureSampler` | Multi-component mixture models |
+| `BivariateCopulaSampler` | Gaussian / Clayton / Gumbel / Frank / Student-t (Gaussian wired at runtime in v3.5.4; others v4.1.0) |
+| `ConditionalSampler` | Breakpoint-based distribution selection; `input_field` from calendar context |
 | `TemporalSampler` | Seasonality patterns with industry integration |
 | `BenfordSampler` | First-digit distribution following P(d) = log10(1 + 1/d) |
+| `IndustryAmountProfile` | Pre-configured mixtures: retail / manufacturing / financial_services / healthcare / technology |
+| `DriftController` | Regime changes + economic cycles + parameter drifts |
+| `TemporalContext` (v3.4.1+) | Multi-year holiday calendar + business-day calculator bundle |
+| `StatisticalValidationReport` (v3.5.1+) | Benford / chi² / KS goodness-of-fit runners |
+
+### LLM + Template Infrastructure
+
+| Component | Description |
+|-----------|-------------|
+| `llm::LlmProvider` | Trait for LLM backends (Mock, HttpLlmProvider via `llm` feature) |
+| `llm::HttpLlmProvider` | OpenAI-compatible HTTP client; OpenRouter / Anthropic / OpenAI |
+| `templates::TemplateProvider` | Abstraction for name/description pools |
+| `templates::DefaultTemplateProvider` | Embedded arrays (v4.0 — v4.1.4 migrates to YAML-as-SoT) |
+| `templates::LlmTemplateProvider` (v4.0.0+) | Runtime LLM-backed provider wrapping a base; opt-in per category with in-memory cache |
+| `templates::TemplateLoader` | YAML/JSON load + save + merge; `load_from_yaml_str` for compile-time bundling |
 
 ### Infrastructure
 
 | Component | Description |
 |-----------|-------------|
-| `uuid_factory.rs` | Deterministic FNV-1a hash-based UUID generation |
-| `memory_guard.rs` | Cross-platform memory tracking with soft/hard limits |
+| `uuid_factory.rs` | Deterministic FNV-1a hash-based UUID generation, 18 generator-type discriminators |
+| `memory_guard.rs` / `disk_guard.rs` / `cpu_monitor.rs` | Resource monitors |
+| `resource_guard.rs` | Unified resource orchestration with graceful degradation |
 | `accounts.rs` | Centralized GL control account numbers |
-| `templates/` | YAML/JSON template loading and merging |
+| `fraud_bias.rs` | Weekend / round-dollar / off-hours / post-close bias applied to every `is_fraud=true` entry |
+| `templates/` | YAML/JSON template loading, merging, LlmTemplateProvider |
 
 ## Usage
 
