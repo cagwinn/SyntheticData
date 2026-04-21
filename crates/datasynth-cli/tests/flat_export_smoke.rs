@@ -111,4 +111,54 @@ output:
         first.get("lines").is_none(),
         "flat record has a nested `lines` array — flatten did not unwrap"
     );
+
+    // Subledger AP / AR invoices: top-level scalar fields + a `lines`
+    // array with NO `header` sub-object. SDK team reported flat mode was
+    // broken for these — the writer used to require a nested `header`
+    // before flattening and therefore passed AP/AR/inventory_valuation
+    // through unchanged. Regress that here.
+    for (path_rel, header_field, line_field) in [
+        ("subledger/ap_invoices.json", "invoice_number", "gl_account"),
+        (
+            "subledger/ar_invoices.json",
+            "invoice_number",
+            "revenue_account",
+        ),
+        (
+            "subledger/inventory_valuation.json",
+            "as_of_date",
+            "material_id",
+        ),
+    ] {
+        let file_path = output_path.join(path_rel);
+        if !file_path.exists() {
+            // Some configs may not produce every file; only check when present.
+            continue;
+        }
+        let bytes = fs::read(&file_path).expect("read subledger file");
+        let json: serde_json::Value =
+            serde_json::from_slice(&bytes).expect("subledger flat file is not valid JSON");
+        let arr = json
+            .as_array()
+            .unwrap_or_else(|| panic!("{} is not a JSON array", path_rel));
+        if arr.is_empty() {
+            continue;
+        }
+        let first = &arr[0];
+        assert!(
+            first.get("lines").is_none(),
+            "{path_rel}: flat record still has nested `lines` array — \
+             write_json_flat did not flatten subledger invoices"
+        );
+        assert!(
+            first.get(header_field).is_some(),
+            "{path_rel}: flat record missing header field `{header_field}` — \
+             header context did not carry onto line rows"
+        );
+        assert!(
+            first.get(line_field).is_some(),
+            "{path_rel}: flat record missing line field `{line_field}` — \
+             line-level fields were not emitted"
+        );
+    }
 }

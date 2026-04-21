@@ -3,6 +3,7 @@
 [![License](https://img.shields.io/badge/license-Apache%202.0-green.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/rust-1.88%2B-orange.svg)](https://www.rust-lang.org)
 [![CI](https://github.com/mivertowski/SyntheticData/actions/workflows/ci.yml/badge.svg)](https://github.com/mivertowski/SyntheticData/actions/workflows/ci.yml)
+[![DOI](https://img.shields.io/badge/DOI-10.13140%2FRG.2.2.13943.79523-blue.svg)](https://doi.org/10.13140/RG.2.2.13943.79523)
 
 **Synthetic enterprise data generation for ML training, audit analytics, and system testing.**
 
@@ -264,6 +265,24 @@ REST, gRPC, and WebSocket APIs with JWT/OIDC authentication, rate limiting, and 
 | [Changelog](CHANGELOG.md) | Full version history |
 
 Build the documentation site locally: `cd docs/book && mdbook serve`
+
+---
+
+## Citation
+
+If you use DataSynth in academic work, please cite:
+
+> Ivertowski, M. (2026). *DataSynth: Synthetic enterprise data generation for ML training, audit analytics, and system testing.* https://doi.org/10.13140/RG.2.2.13943.79523
+
+```bibtex
+@software{ivertowski_datasynth_2026,
+  author  = {Ivertowski, Michael},
+  title   = {DataSynth: Synthetic enterprise data generation for ML training, audit analytics, and system testing},
+  year    = {2026},
+  doi     = {10.13140/RG.2.2.13943.79523},
+  url     = {https://doi.org/10.13140/RG.2.2.13943.79523}
+}
+```
 
 ---
 

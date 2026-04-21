@@ -2542,15 +2542,24 @@ fn write_json_always<T: serde::Serialize>(data: &[T], path: &Path, label: &str) 
     }
 }
 
-/// Write a flat JSON file by merging nested `header` fields onto each top-level item.
+/// Write a flat JSON file by expanding a primary items array and merging the
+/// surrounding context onto each line.
 ///
-/// For structures like `{"header": {...}, "items": [...], "field": val}`, this
-/// merges header fields and top-level scalar fields onto each item. If the struct
-/// has no `header` key, it writes the data as-is (passthrough).
+/// Flattens any record that contains a recognised items array
+/// (`items`, `lines`, `line_items`, or `allocations`) into one row per line,
+/// carrying over both the optional `header` sub-object and all other
+/// top-level fields. Records without a recognised items array are emitted
+/// as-is, except that an optional nested `header` sub-object is unwrapped
+/// onto the top level so consumers see a uniformly flat shape.
 ///
-/// Uses heap-allocated intermediates to avoid stack overflow with large records
-/// in constrained environments (e.g., distroless containers with glibc 2.36).
-/// Fixes #116.
+/// Flow-style documents (`{header, items}`) and subledger-style documents
+/// (`{..top-level scalars.., lines}`, e.g. AP/AR invoices, inventory
+/// valuation runs) are both handled — fixing the SDK-team-reported gap
+/// where subledger invoices were left with `lines` nested in flat mode.
+///
+/// Uses heap-allocated intermediates to avoid stack overflow with large
+/// records in constrained environments (e.g., distroless containers with
+/// glibc 2.36). Fixes #116.
 fn write_json_flat<T: serde::Serialize>(data: &[T], path: &Path, label: &str) {
     if data.is_empty() {
         return;
@@ -2573,64 +2582,86 @@ fn write_json_flat<T: serde::Serialize>(data: &[T], path: &Path, label: &str) {
             continue;
         };
 
-        // Find the header object and items array key
+        // Find the primary items array key (first match wins).
         let items_key = ["items", "lines", "allocations", "line_items"]
             .iter()
             .find(|k| map.contains_key(**k))
             .copied();
 
-        let header = map.get("header");
-        let has_structure =
-            matches!(header, Some(serde_json::Value::Object(_))) && items_key.is_some();
+        // Optional nested header sub-object (used by document flows).
+        let header_map = match map.get("header") {
+            Some(serde_json::Value::Object(h)) => Some(h),
+            _ => None,
+        };
 
-        if !has_structure {
-            // Passthrough: no header/items structure
+        let Some(items_key) = items_key else {
+            // No items array. Emit one row, unwrapping the optional header
+            // sub-object so consumers see a flat shape regardless of model
+            // layout (e.g. Payments have `header` but no items/allocations
+            // when allocations are empty).
+            if let Some(header_map) = header_map {
+                let mut merged = map.clone();
+                merged.remove("header");
+                for (k, v) in header_map {
+                    merged.entry(k.clone()).or_insert_with(|| v.clone());
+                }
+                flat.push(serde_json::Value::Object(merged));
+            } else {
+                flat.push(serde_json::Value::Object(map));
+            }
+            continue;
+        };
+
+        let Some(serde_json::Value::Array(items)) = map.get(items_key) else {
+            // `items_key` present but not an array — passthrough.
             flat.push(serde_json::Value::Object(map));
+            continue;
+        };
+
+        // Empty items array: emit one row with the (unwrapped) header
+        // context so downstream consumers can still find the parent
+        // record — prevents silently dropping empty-lines invoices.
+        if items.is_empty() {
+            let mut merged = map.clone();
+            merged.remove(items_key);
+            if let Some(header_map) = header_map {
+                merged.remove("header");
+                for (k, v) in header_map {
+                    merged.entry(k.clone()).or_insert_with(|| v.clone());
+                }
+            }
+            flat.push(serde_json::Value::Object(merged));
             continue;
         }
 
-        let items_key = items_key.expect("checked above");
-        // Extract header map (borrow, don't clone the whole thing)
-        let header_map = match map.get("header") {
-            Some(serde_json::Value::Object(h)) => h,
-            _ => {
-                flat.push(serde_json::Value::Object(map));
-                continue;
-            }
-        };
-
-        // Collect top-level scalar field keys+values (small — just scalars)
+        // Collect all other top-level fields (scalars, objects, arrays)
+        // so they carry over onto every flattened line — matching pandas
+        // `explode()` semantics. This is the behaviour SDK consumers
+        // expect: header context is repeated per line, nested objects
+        // like `net_amount: {amount, currency}` come along for the ride.
         let top_fields: Vec<(&String, &serde_json::Value)> = map
             .iter()
-            .filter(|(k, v)| {
-                k.as_str() != "header" && k.as_str() != items_key && !v.is_array() && !v.is_object()
-            })
+            .filter(|(k, _)| k.as_str() != "header" && k.as_str() != items_key)
             .collect();
 
-        if let Some(serde_json::Value::Array(items)) = map.get(items_key) {
-            flat.reserve(items.len());
-            for item_val in items {
-                let mut merged = serde_json::Map::new();
-                // Line/item fields first (take precedence)
-                if let serde_json::Value::Object(m) = item_val {
-                    merged.extend(m.iter().map(|(k, v)| (k.clone(), v.clone())));
-                }
-                // Header fields (don't overwrite line fields)
-                for (k, v) in header_map {
-                    if !merged.contains_key(k) {
-                        merged.insert(k.clone(), v.clone());
-                    }
-                }
-                // Top-level scalars
-                for &(k, v) in &top_fields {
-                    if !merged.contains_key(k) {
-                        merged.insert(k.clone(), v.clone());
-                    }
-                }
-                flat.push(serde_json::Value::Object(merged));
+        flat.reserve(items.len());
+        for item_val in items {
+            let mut merged = serde_json::Map::new();
+            // Line/item fields first (take precedence on collisions).
+            if let serde_json::Value::Object(m) = item_val {
+                merged.extend(m.iter().map(|(k, v)| (k.clone(), v.clone())));
             }
-        } else {
-            flat.push(serde_json::Value::Object(map));
+            // Header sub-object (when present) — don't overwrite line fields.
+            if let Some(header_map) = header_map {
+                for (k, v) in header_map {
+                    merged.entry(k.clone()).or_insert_with(|| v.clone());
+                }
+            }
+            // All other top-level fields.
+            for &(k, v) in &top_fields {
+                merged.entry(k.clone()).or_insert_with(|| v.clone());
+            }
+            flat.push(serde_json::Value::Object(merged));
         }
     }
 
