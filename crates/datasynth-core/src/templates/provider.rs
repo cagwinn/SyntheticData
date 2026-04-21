@@ -118,34 +118,38 @@ pub struct DefaultTemplateProvider {
 pub const BUNDLED_DEFAULTS_YAML: &str = include_str!("../../templates/defaults.yaml");
 
 impl DefaultTemplateProvider {
-    /// Create a new provider with embedded templates only.
+    /// Create a new provider backed by the bundled `defaults.yaml`.
+    ///
+    /// As of v4.2.4 this is a thin alias for [`Self::bundled`]: the YAML
+    /// bundled via `include_str!` is the sole source of truth for the
+    /// default name pools. Parse failure would mean `defaults.yaml` is
+    /// malformed, which `build.rs` validates at compile time — so the
+    /// `.expect` below is effectively infallible for any shipped build.
     pub fn new() -> Self {
-        Self {
-            template_data: None,
-            merge_strategy: MergeStrategy::Extend,
-        }
+        Self::bundled().expect(
+            "bundled defaults.yaml must parse — validated at build time by \
+             datasynth-core/build.rs; a panic here means the YAML was edited \
+             without re-running the build validator",
+        )
     }
 
-    /// v4.1.4+ — create a provider backed by the bundled `defaults.yaml`
-    /// (included at compile time) *extended on top of* the embedded
-    /// arrays.
+    /// Create a provider backed directly by the bundled `defaults.yaml`
+    /// (included at compile time via `include_str!`).
     ///
-    /// This is the first step toward full YAML-as-source-of-truth
-    /// for the default name pools. The bundled YAML supplements (not
-    /// replaces) the hardcoded `const` arrays, so byte-identity under
-    /// the same seed is preserved when callers use
-    /// [`DefaultTemplateProvider::new`].
-    ///
-    /// If the bundled YAML is malformed at build time, `include_str!`
-    /// fails the build; at runtime this fn only fails if the YAML
-    /// structure doesn't match the `TemplateData` shape, which a
-    /// build-time lint would catch.
+    /// Equivalent to [`Self::new`] but surfaces the parse `Result` for
+    /// callers that want to handle malformed YAML explicitly (e.g. tests
+    /// that validate the loader against hand-crafted malformed inputs).
     pub fn bundled() -> Result<Self, super::loader::TemplateError> {
         let data = TemplateLoader::load_from_yaml_str(BUNDLED_DEFAULTS_YAML)?;
         Ok(Self::with_templates(data, MergeStrategy::Extend))
     }
 
-    /// Create a provider with file-based templates.
+    /// Create a provider with user-supplied template data.
+    ///
+    /// The data replaces the bundled defaults wholesale. Callers who want
+    /// to *merge* custom content on top of the bundled defaults should
+    /// start from [`Self::new`] and use [`TemplateLoader::merge`] / the
+    /// `MergeStrategy::Extend` path explicitly.
     pub fn with_templates(template_data: TemplateData, strategy: MergeStrategy) -> Self {
         Self {
             template_data: Some(template_data),
@@ -169,150 +173,6 @@ impl DefaultTemplateProvider {
     pub fn with_merge_strategy(mut self, strategy: MergeStrategy) -> Self {
         self.merge_strategy = strategy;
         self
-    }
-
-    /// Get embedded German first names (sample).
-    fn embedded_german_first_names_male() -> Vec<&'static str> {
-        vec![
-            "Hans", "Klaus", "Wolfgang", "Dieter", "Michael", "Stefan", "Thomas", "Andreas",
-            "Peter", "Jürgen", "Matthias", "Frank", "Martin", "Bernd",
-        ]
-    }
-
-    fn embedded_german_first_names_female() -> Vec<&'static str> {
-        vec![
-            "Anna",
-            "Maria",
-            "Elisabeth",
-            "Ursula",
-            "Monika",
-            "Petra",
-            "Karin",
-            "Sabine",
-            "Andrea",
-            "Christine",
-            "Gabriele",
-            "Heike",
-            "Birgit",
-        ]
-    }
-
-    fn embedded_german_last_names() -> Vec<&'static str> {
-        vec![
-            "Müller",
-            "Schmidt",
-            "Schneider",
-            "Fischer",
-            "Weber",
-            "Meyer",
-            "Wagner",
-            "Becker",
-            "Schulz",
-            "Hoffmann",
-            "Schäfer",
-            "Koch",
-            "Bauer",
-            "Richter",
-        ]
-    }
-
-    fn embedded_us_first_names_male() -> Vec<&'static str> {
-        vec![
-            "James",
-            "John",
-            "Robert",
-            "Michael",
-            "William",
-            "David",
-            "Richard",
-            "Joseph",
-            "Thomas",
-            "Charles",
-            "Christopher",
-            "Daniel",
-            "Matthew",
-        ]
-    }
-
-    fn embedded_us_first_names_female() -> Vec<&'static str> {
-        vec![
-            "Mary",
-            "Patricia",
-            "Jennifer",
-            "Linda",
-            "Barbara",
-            "Elizabeth",
-            "Susan",
-            "Jessica",
-            "Sarah",
-            "Karen",
-            "Lisa",
-            "Nancy",
-            "Betty",
-            "Margaret",
-        ]
-    }
-
-    fn embedded_us_last_names() -> Vec<&'static str> {
-        vec![
-            "Smith",
-            "Johnson",
-            "Williams",
-            "Brown",
-            "Jones",
-            "Garcia",
-            "Miller",
-            "Davis",
-            "Rodriguez",
-            "Martinez",
-            "Hernandez",
-            "Lopez",
-            "Gonzalez",
-        ]
-    }
-
-    fn embedded_vendor_names_manufacturing() -> Vec<&'static str> {
-        vec![
-            "Precision Parts Inc.",
-            "Industrial Components LLC",
-            "Advanced Materials Corp.",
-            "Steel Solutions GmbH",
-            "Quality Fasteners Ltd.",
-            "Machining Excellence Inc.",
-        ]
-    }
-
-    fn embedded_vendor_names_services() -> Vec<&'static str> {
-        vec![
-            "Consulting Partners LLP",
-            "Technical Services Inc.",
-            "Professional Solutions LLC",
-            "Business Advisory Group",
-            "Strategic Consulting Co.",
-            "Expert Services Ltd.",
-        ]
-    }
-
-    fn embedded_customer_names_automotive() -> Vec<&'static str> {
-        vec![
-            "AutoWerke Industries",
-            "Vehicle Tech Solutions",
-            "Motor Parts Direct",
-            "Automotive Excellence Corp.",
-            "Drive Systems Inc.",
-            "Engine Components Ltd.",
-        ]
-    }
-
-    fn embedded_customer_names_retail() -> Vec<&'static str> {
-        vec![
-            "Retail Solutions Corp.",
-            "Consumer Goods Direct",
-            "Shop Smart Inc.",
-            "Merchandise Holdings LLC",
-            "Retail Distribution Co.",
-            "Store Systems Ltd.",
-        ]
     }
 
     fn culture_to_key(culture: NameCulture) -> &'static str {
@@ -353,15 +213,29 @@ impl TemplateProvider for DefaultTemplateProvider {
     ) -> String {
         let key = Self::culture_to_key(culture);
 
-        // Try file templates first
         if let Some(ref data) = self.template_data {
+            // Primary lookup: the requested culture.
             if let Some(culture_names) = data.person_names.cultures.get(key) {
                 let names = if is_male {
                     &culture_names.male_first_names
                 } else {
                     &culture_names.female_first_names
                 };
-                if !names.is_empty() {
+                if let Some(name) = names.choose(rng) {
+                    return name.clone();
+                }
+            }
+            // Secondary lookup: the "us" pool as a universal default
+            // for cultures not yet mirrored in defaults.yaml (matches
+            // pre-v4.2.4 behaviour where non-German cultures fell back
+            // to the embedded US arrays).
+            if key != "us" {
+                if let Some(us_names) = data.person_names.cultures.get("us") {
+                    let names = if is_male {
+                        &us_names.male_first_names
+                    } else {
+                        &us_names.female_first_names
+                    };
                     if let Some(name) = names.choose(rng) {
                         return name.clone();
                     }
@@ -369,86 +243,43 @@ impl TemplateProvider for DefaultTemplateProvider {
             }
         }
 
-        // Fall back to embedded templates
-        let embedded = match culture {
-            NameCulture::German => {
-                if is_male {
-                    Self::embedded_german_first_names_male()
-                } else {
-                    Self::embedded_german_first_names_female()
-                }
-            }
-            _ => {
-                if is_male {
-                    Self::embedded_us_first_names_male()
-                } else {
-                    Self::embedded_us_first_names_female()
-                }
-            }
-        };
-
-        embedded.choose(rng).unwrap_or(&"Unknown").to_string()
+        "Unknown".to_string()
     }
 
     fn get_person_last_name(&self, culture: NameCulture, rng: &mut dyn Rng) -> String {
         let key = Self::culture_to_key(culture);
 
-        // Try file templates first
         if let Some(ref data) = self.template_data {
             if let Some(culture_names) = data.person_names.cultures.get(key) {
-                if !culture_names.last_names.is_empty() {
-                    if let Some(name) = culture_names.last_names.choose(rng) {
+                if let Some(name) = culture_names.last_names.choose(rng) {
+                    return name.clone();
+                }
+            }
+            if key != "us" {
+                if let Some(us_names) = data.person_names.cultures.get("us") {
+                    if let Some(name) = us_names.last_names.choose(rng) {
                         return name.clone();
                     }
                 }
             }
         }
 
-        // Fall back to embedded templates
-        let embedded = match culture {
-            NameCulture::German => Self::embedded_german_last_names(),
-            _ => Self::embedded_us_last_names(),
-        };
-
-        embedded.choose(rng).unwrap_or(&"Unknown").to_string()
+        "Unknown".to_string()
     }
 
     fn get_vendor_name(&self, category: &str, rng: &mut dyn Rng) -> String {
-        // Try file templates first
         if let Some(ref data) = self.template_data {
             if let Some(names) = data.vendor_names.categories.get(category) {
-                if !names.is_empty() {
-                    if let Some(name) = names.choose(rng) {
-                        return name.clone();
-                    }
+                if let Some(name) = names.choose(rng) {
+                    return name.clone();
                 }
             }
-        }
-
-        // Fall back to embedded templates
-        let embedded = match category {
-            "manufacturing" => Self::embedded_vendor_names_manufacturing(),
-            "services" => Self::embedded_vendor_names_services(),
-            _ => {
+            if category != "manufacturing" {
                 tracing::debug!(
                     "Unknown vendor name category '{}', falling back to manufacturing",
                     category
                 );
-                Self::embedded_vendor_names_manufacturing()
-            }
-        };
-
-        embedded
-            .choose(rng)
-            .unwrap_or(&"Unknown Vendor")
-            .to_string()
-    }
-
-    fn get_customer_name(&self, industry: &str, rng: &mut dyn Rng) -> String {
-        // Try file templates first
-        if let Some(ref data) = self.template_data {
-            if let Some(names) = data.customer_names.industries.get(industry) {
-                if !names.is_empty() {
+                if let Some(names) = data.vendor_names.categories.get("manufacturing") {
                     if let Some(name) = names.choose(rng) {
                         return name.clone();
                     }
@@ -456,23 +287,30 @@ impl TemplateProvider for DefaultTemplateProvider {
             }
         }
 
-        // Fall back to embedded templates
-        let embedded = match industry {
-            "automotive" => Self::embedded_customer_names_automotive(),
-            "retail" => Self::embedded_customer_names_retail(),
-            _ => {
+        "Unknown Vendor".to_string()
+    }
+
+    fn get_customer_name(&self, industry: &str, rng: &mut dyn Rng) -> String {
+        if let Some(ref data) = self.template_data {
+            if let Some(names) = data.customer_names.industries.get(industry) {
+                if let Some(name) = names.choose(rng) {
+                    return name.clone();
+                }
+            }
+            if industry != "retail" {
                 tracing::debug!(
                     "Unknown customer name industry '{}', falling back to retail",
                     industry
                 );
-                Self::embedded_customer_names_retail()
+                if let Some(names) = data.customer_names.industries.get("retail") {
+                    if let Some(name) = names.choose(rng) {
+                        return name.clone();
+                    }
+                }
             }
-        };
+        }
 
-        embedded
-            .choose(rng)
-            .unwrap_or(&"Unknown Customer")
-            .to_string()
+        "Unknown Customer".to_string()
     }
 
     fn get_material_description(&self, material_type: &str, rng: &mut dyn Rng) -> String {
