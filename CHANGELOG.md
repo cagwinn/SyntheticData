@@ -5,6 +5,83 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.1.5] - 2026-04-21
+
+Graph-export consolidation closeout — final v4.1.x release per
+[v4.1 plan](docs/plans/2026-04-21-v4.1-plan.md).
+
+### `datasynth-graph-export` moved to `attic/`
+
+The excluded-from-workspace `datasynth-graph-export` crate — which
+has shipped a full test suite but zero production callers since it
+was added — moves from `crates/datasynth-graph-export/` to
+`attic/datasynth-graph-export/`. Rationale:
+
+- The active graph-export surface is `datasynth-graph` (embedded in
+  `EnhancedOrchestrator`, exported on `EnhancedGenerationResult.
+  graph_export`). Every production call path — CLI, server, Python
+  wrapper — consumes this path.
+- `datasynth-graph-export` duplicated some writers and added a
+  standalone pipeline, but was never wired into the orchestrator.
+- Parking (vs deletion) preserves the code for future consolidation
+  work. Un-park checklist lives at `attic/README.md`.
+
+### New `attic/` directory
+
+New top-level `attic/` directory with a README explaining the policy
+for parked crates:
+
+- Preserved in git + on disk.
+- Excluded from `cargo build --workspace`.
+- Un-park = git mv back to `crates/` + Cargo.toml `members` edit.
+
+### CLAUDE.md architecture update
+
+Updated the "16 active + 1 excluded" note in `CLAUDE.md` to just
+"16 active" since the excluded crate is now under `attic/`.
+
+### Compatibility
+
+- No public API changes.
+- No schema changes.
+- No runtime behavioural changes.
+- `cargo build --workspace` unchanged for the 16 active crates.
+- Anyone building `datasynth-graph-export` standalone should switch
+  path from `crates/datasynth-graph-export` to
+  `attic/datasynth-graph-export`.
+
+### v4.1.x series recap
+
+This release closes out v4.1.x. Across the 6 releases:
+
+| Release | Highlight |
+|---|---|
+| v4.1.0 | All 5 copulas wired + AndersonDarling + CorrelationCheck + expanded conditional inputs |
+| v4.1.1 | FindingLlmEnricher + broadened phase_llm_enrichment + CI feature matrix |
+| v4.1.2 | 6 audit-optimizer CLI subcommands + inert-schema doc deprecations |
+| v4.1.3 | vendor_network / customer_segmentation / industry_specific wiring → InterconnectivitySnapshot |
+| v4.1.4 | YAML-as-SoT foundation (`bundled()` provider path) |
+| v4.1.5 | graph-export consolidation — parked crate moved to `attic/` |
+
+### Genuinely deferred past v4.1.x
+
+- **v4.2.0 — real neural / hybrid diffusion**: requires ML
+  infrastructure (candle-core / tch-rs bindings, GPU access,
+  training loops). v4.0.0 replaced the silent no-op with an
+  explicit WARN; contribution welcome on the `DiffusionBackend`
+  trait.
+- **Full YAML-as-SoT migration**: every `const` array exported to
+  YAML with build.rs round-trip validation + byte-identical
+  regression on seed 42. ~1-2 weeks of careful work; v4.1.4 ships
+  the foundation, future patches migrate pools incrementally.
+- **Inverse-CDF copula sampling**: v4.1.0 uses a "nudge" that
+  dilutes theoretical Kendall-τ. Full rank-preserving sampling
+  requires `ppf()` on every marginal distribution. Pragmatic
+  follow-up when empirical Kendall-τ fidelity becomes a
+  requirement.
+
+---
+
 ## [4.1.4] - 2026-04-21
 
 YAML-as-source-of-truth foundation per [v4.1 plan](docs/plans/2026-04-21-v4.1-plan.md).
