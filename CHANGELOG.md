@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.2.1] - 2026-04-21
+
+### Fix — `cargo build --features adversarial` compile error
+
+The `Commands::Adversarial` match arm in the CLI returns
+`Result<(), anyhow::Error>`, but its `#[cfg(feature = "adversarial")]`
+block ended with a unit-valued `if let`. Default builds never saw it
+because the feature gate hid the branch; the v4.1.1 CI Feature Matrix
+workflow was the first path that actually compiled it.
+
+Fix: add a trailing `Ok(())` inside the cfg block at
+`crates/datasynth-cli/src/main.rs:2453`.
+
+No runtime behaviour change. All other v4.2.0 functionality unchanged.
+
 ## [4.2.0] - 2026-04-21
 
 ### Neural diffusion — GPU-enabled end-to-end

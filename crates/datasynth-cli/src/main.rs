@@ -2451,6 +2451,7 @@ fn main() -> Result<()> {
                     std::fs::write(path, json)?;
                     tracing::info!("Results written to: {}", path.display());
                 }
+                Ok(())
             }
             #[cfg(not(feature = "adversarial"))]
             {
