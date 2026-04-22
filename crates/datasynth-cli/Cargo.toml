@@ -19,6 +19,9 @@ default = ["streaming"]
 streaming = ["dep:reqwest", "datasynth-runtime/streaming"]
 llm = ["datasynth-core/llm"]
 adversarial = ["datasynth-eval/adversarial"]
+# v4.4.0+: neural diffusion backend. Pulls candle-core via datasynth-core.
+neural = ["datasynth-core/neural", "datasynth-runtime/neural"]
+neural-cuda = ["neural", "datasynth-core/neural-cuda", "datasynth-runtime/neural-cuda"]
 
 [dependencies]
 datasynth-core = { workspace = true }

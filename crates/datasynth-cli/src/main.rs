@@ -1916,7 +1916,7 @@ fn main() -> Result<()> {
                         // year/month arithmetic; clamp day to 28 to avoid
                         // month-overrun on Feb.
                         let mut ey = sy as i32;
-                        let mut em = sm + u32::from(config_for_manifest.global.period_months);
+                        let mut em = sm + config_for_manifest.global.period_months;
                         while em > 12 {
                             ey += 1;
                             em -= 12;

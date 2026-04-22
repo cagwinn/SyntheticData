@@ -2974,7 +2974,7 @@ impl EnhancedOrchestrator {
         self.phase_llm_enrichment(&mut stats);
 
         // Phase 15: Diffusion Enhancement
-        self.phase_diffusion_enhancement(&mut stats);
+        self.phase_diffusion_enhancement(&entries, &mut stats);
 
         // Phase 16: Causal Overlay
         self.phase_causal_overlay(&mut stats);
@@ -4975,10 +4975,20 @@ impl EnhancedOrchestrator {
 
     /// Phase 12: Diffusion Enhancement.
     ///
-    /// Generates a sample set using the statistical diffusion backend to
-    /// demonstrate distribution-matching data generation. This phase is
-    /// non-blocking: failures log a warning but do not stop the pipeline.
-    fn phase_diffusion_enhancement(&self, stats: &mut EnhancedGenerationStatistics) {
+    /// Generates a sample set matching distribution properties from the
+    /// generated data. v4.4.0+ honours `config.diffusion.backend`:
+    /// - `"statistical"` (default) — moment-matching backend, always fast.
+    /// - `"neural"` / `"hybrid"` — candle-based score network. Requires
+    ///   the `neural` Cargo feature; falls back to statistical when the
+    ///   feature isn't compiled in, with a loud warning.
+    ///
+    /// This phase is non-blocking: failures log a warning but do not
+    /// stop the pipeline.
+    fn phase_diffusion_enhancement(
+        &self,
+        #[cfg_attr(not(feature = "neural"), allow(unused_variables))] entries: &[JournalEntry],
+        stats: &mut EnhancedGenerationStatistics,
+    ) {
         if !self.config.diffusion.enabled {
             debug!("Phase 12: Skipped (diffusion enhancement disabled)");
             return;
@@ -4987,9 +4997,50 @@ impl EnhancedOrchestrator {
         info!("Phase 12: Starting Diffusion Enhancement");
         let start = std::time::Instant::now();
 
+        let backend_choice = self.config.diffusion.backend.as_str();
+        let use_neural = matches!(backend_choice, "neural" | "hybrid");
+
+        if use_neural {
+            #[cfg(feature = "neural")]
+            {
+                match self.run_neural_diffusion_phase(entries) {
+                    Ok(sample_count) => {
+                        stats.diffusion_samples_generated = sample_count;
+                        let elapsed = start.elapsed();
+                        stats.diffusion_enhancement_ms = elapsed.as_millis() as u64;
+                        info!(
+                            "Phase 12 complete ({}): {} samples in {}ms",
+                            backend_choice, sample_count, stats.diffusion_enhancement_ms
+                        );
+                        return;
+                    }
+                    Err(e) => {
+                        warn!(
+                            "Phase 12: neural diffusion failed: {e}. Falling back to statistical."
+                        );
+                        // Fall through to statistical path below.
+                    }
+                }
+            }
+            #[cfg(not(feature = "neural"))]
+            {
+                warn!(
+                    "Phase 12: backend='{}' requested but the `neural` Cargo feature is \
+                     not compiled in — falling back to statistical. Rebuild with \
+                     `--features neural` (or `neural-cuda` for GPU) to enable.",
+                    backend_choice
+                );
+            }
+        } else if !matches!(backend_choice, "statistical" | "") {
+            warn!(
+                "Phase 12: unknown backend '{}', falling back to statistical",
+                backend_choice
+            );
+        }
+
+        // Statistical path (default + fallback).
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            // Target distribution: transaction amounts (log-normal-like)
-            let means = vec![5000.0, 3.0, 2.0]; // amount, line_items, approval_level
+            let means = vec![5000.0, 3.0, 2.0];
             let stds = vec![2000.0, 1.5, 1.0];
 
             let diffusion_config = DiffusionConfig {
@@ -4999,12 +5050,9 @@ impl EnhancedOrchestrator {
             };
 
             let backend = StatisticalDiffusionBackend::new(means, stds, diffusion_config);
-
             let n_samples = self.config.diffusion.sample_size;
-            let n_features = 3; // amount, line_items, approval_level
-            let samples = backend.generate(n_samples, n_features, self.seed);
-
-            samples.len()
+            let n_features = 3;
+            backend.generate(n_samples, n_features, self.seed).len()
         }));
 
         match result {
@@ -5013,7 +5061,7 @@ impl EnhancedOrchestrator {
                 let elapsed = start.elapsed();
                 stats.diffusion_enhancement_ms = elapsed.as_millis() as u64;
                 info!(
-                    "Phase 12 complete: {} diffusion samples generated in {}ms",
+                    "Phase 12 complete (statistical): {} samples in {}ms",
                     sample_count, stats.diffusion_enhancement_ms
                 );
             }
@@ -5023,6 +5071,94 @@ impl EnhancedOrchestrator {
                 warn!("Phase 12: Diffusion enhancement failed (panic caught), continuing");
             }
         }
+    }
+
+    /// Neural-backend execution — either load a pre-trained checkpoint
+    /// (when `config.diffusion.neural.checkpoint_path` is set) or train
+    /// from the first batch of JE amounts. Returns the sample count
+    /// produced; any error bubbles up to the statistical fallback.
+    #[cfg(feature = "neural")]
+    fn run_neural_diffusion_phase(&self, entries: &[JournalEntry]) -> Result<usize, SynthError> {
+        use datasynth_core::diffusion::{DiffusionBackend, NeuralDiffusionBackend};
+
+        if entries.is_empty() {
+            return Err(SynthError::generation(
+                "neural diffusion: no journal entries available as training data",
+            ));
+        }
+
+        let training_data: Vec<Vec<f64>> = entries
+            .iter()
+            .take(5000)
+            .map(|je| {
+                let total_amount: f64 = je
+                    .lines
+                    .iter()
+                    .filter(|l| l.debit_amount > rust_decimal::Decimal::ZERO)
+                    .map(|l| {
+                        use rust_decimal::prelude::ToPrimitive;
+                        l.debit_amount.to_f64().unwrap_or(0.0)
+                    })
+                    .sum();
+                let line_count = je.lines.len() as f64;
+                // Use the approval-workflow depth as the third feature
+                // (proxy for complexity / risk). `None` → 1.
+                let approval_level = je
+                    .header
+                    .approval_workflow
+                    .as_ref()
+                    .map(|w| w.required_levels as f64)
+                    .unwrap_or(1.0);
+                vec![total_amount, line_count, approval_level]
+            })
+            .collect();
+
+        let n_features = training_data.first().map(|r| r.len()).unwrap_or(3);
+
+        let cfg = &self.config.diffusion;
+        let neural_cfg = &cfg.neural;
+
+        let backend: NeuralDiffusionBackend = if let Some(ckpt_path) =
+            neural_cfg.checkpoint_path.as_ref()
+        {
+            let path = std::path::Path::new(ckpt_path);
+            info!(
+                "  Neural diffusion: loading checkpoint from {}",
+                path.display()
+            );
+            NeuralDiffusionBackend::load(path)
+                .map_err(|e| SynthError::generation(format!("checkpoint load failed: {e}")))?
+        } else {
+            use datasynth_core::diffusion::{NeuralDiffusionTrainer, NeuralTrainingConfig};
+            info!(
+                "  Neural diffusion: training score network on {} rows × {} features, \
+                     {} epochs, hidden_dims={:?}",
+                training_data.len(),
+                n_features,
+                neural_cfg.training_epochs,
+                neural_cfg.hidden_dims
+            );
+            let training_config = NeuralTrainingConfig {
+                n_steps: cfg.n_steps,
+                schedule: cfg.schedule.clone(),
+                hidden_dims: neural_cfg.hidden_dims.clone(),
+                timestep_embed_dim: neural_cfg.timestep_embed_dim,
+                learning_rate: neural_cfg.learning_rate,
+                epochs: neural_cfg.training_epochs,
+                batch_size: neural_cfg.batch_size,
+            };
+            let (backend, report) =
+                NeuralDiffusionTrainer::train(&training_data, &training_config, self.seed)
+                    .map_err(|e| SynthError::generation(format!("neural training failed: {e}")))?;
+            info!(
+                "  Neural diffusion: training done — {} epochs, final_loss={:.4}",
+                report.epochs_completed, report.final_loss
+            );
+            backend
+        };
+
+        let samples = backend.generate(cfg.sample_size, n_features, self.seed);
+        Ok(samples.len())
     }
 
     /// Phase 13: Causal Overlay.

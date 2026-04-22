@@ -13,6 +13,12 @@ categories.workspace = true
 [features]
 default = ["streaming"]
 streaming = ["dep:reqwest"]
+# v4.4.0+: enables the neural-diffusion backend for
+# phase_diffusion_enhancement. Pulls candle-core transitively via
+# datasynth-core. Opt in explicitly — CPU training adds seconds per
+# run, so we don't enable it by default.
+neural = ["datasynth-core/neural"]
+neural-cuda = ["neural", "datasynth-core/neural-cuda"]
 
 [dependencies]
 datasynth-core = { workspace = true, features = ["llm"] }

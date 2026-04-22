@@ -404,6 +404,14 @@ pub struct NeuralDiffusionSchemaConfig {
     /// Columns to apply neural generation to (empty = all numeric columns).
     #[serde(default)]
     pub neural_columns: Vec<String>,
+    /// v4.4.0+ Optional path to a pre-trained score-network checkpoint
+    /// (`.safetensors`). When set, the orchestrator loads the
+    /// checkpoint instead of training from the first batch — useful
+    /// for long-running production deployments where training cost
+    /// dominates per-run cost. When empty, the orchestrator trains
+    /// on the first generated JE amounts.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub checkpoint_path: Option<String>,
 }
 
 fn default_neural_hidden_dims() -> Vec<usize> {
@@ -445,6 +453,7 @@ impl Default for NeuralDiffusionSchemaConfig {
             hybrid_weight: default_neural_hybrid_weight(),
             hybrid_strategy: default_neural_hybrid_strategy(),
             neural_columns: Vec::new(),
+            checkpoint_path: None,
         }
     }
 }
