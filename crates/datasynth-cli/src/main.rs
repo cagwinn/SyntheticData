@@ -1565,6 +1565,226 @@ fn main() -> Result<()> {
                                     Err(e) => tracing::warn!("SKB1 export failed: {}", e),
                                 }
                             }
+
+                            // v4.3.0d — transactional document-flow tables.
+                            if want_table("ekko")
+                                && !result.document_flows.purchase_orders.is_empty()
+                            {
+                                let path = sap_dir.join("ekko.csv");
+                                if let Err(e) = datasynth_output::write_ekko(
+                                    &sap_config,
+                                    &result.document_flows.purchase_orders,
+                                    &path,
+                                ) {
+                                    tracing::warn!("EKKO export failed: {}", e);
+                                } else {
+                                    tracing::info!(
+                                        "  SAP EKKO ({} POs) → {}",
+                                        result.document_flows.purchase_orders.len(),
+                                        path.display()
+                                    );
+                                }
+                            }
+                            if want_table("ekpo")
+                                && !result.document_flows.purchase_orders.is_empty()
+                            {
+                                let path = sap_dir.join("ekpo.csv");
+                                if let Err(e) = datasynth_output::write_ekpo(
+                                    &sap_config,
+                                    &result.document_flows.purchase_orders,
+                                    &path,
+                                ) {
+                                    tracing::warn!("EKPO export failed: {}", e);
+                                } else {
+                                    tracing::info!("  SAP EKPO (PO items) → {}", path.display());
+                                }
+                            }
+                            if want_table("vbak") && !result.document_flows.sales_orders.is_empty()
+                            {
+                                let path = sap_dir.join("vbak.csv");
+                                if let Err(e) = datasynth_output::write_vbak(
+                                    &sap_config,
+                                    &result.document_flows.sales_orders,
+                                    &path,
+                                ) {
+                                    tracing::warn!("VBAK export failed: {}", e);
+                                } else {
+                                    tracing::info!(
+                                        "  SAP VBAK ({} SOs) → {}",
+                                        result.document_flows.sales_orders.len(),
+                                        path.display()
+                                    );
+                                }
+                            }
+                            if want_table("vbap") && !result.document_flows.sales_orders.is_empty()
+                            {
+                                let path = sap_dir.join("vbap.csv");
+                                if let Err(e) = datasynth_output::write_vbap(
+                                    &sap_config,
+                                    &result.document_flows.sales_orders,
+                                    &path,
+                                ) {
+                                    tracing::warn!("VBAP export failed: {}", e);
+                                } else {
+                                    tracing::info!("  SAP VBAP (SO items) → {}", path.display());
+                                }
+                            }
+                            if want_table("likp") && !result.document_flows.deliveries.is_empty() {
+                                let path = sap_dir.join("likp.csv");
+                                if let Err(e) = datasynth_output::write_likp(
+                                    &sap_config,
+                                    &result.document_flows.deliveries,
+                                    &path,
+                                ) {
+                                    tracing::warn!("LIKP export failed: {}", e);
+                                } else {
+                                    tracing::info!(
+                                        "  SAP LIKP ({} deliveries) → {}",
+                                        result.document_flows.deliveries.len(),
+                                        path.display()
+                                    );
+                                }
+                            }
+                            if want_table("lips") && !result.document_flows.deliveries.is_empty() {
+                                let path = sap_dir.join("lips.csv");
+                                if let Err(e) = datasynth_output::write_lips(
+                                    &sap_config,
+                                    &result.document_flows.deliveries,
+                                    &path,
+                                ) {
+                                    tracing::warn!("LIPS export failed: {}", e);
+                                } else {
+                                    tracing::info!(
+                                        "  SAP LIPS (delivery items) → {}",
+                                        path.display()
+                                    );
+                                }
+                            }
+                            if want_table("mkpf")
+                                && !result.document_flows.goods_receipts.is_empty()
+                            {
+                                let path = sap_dir.join("mkpf.csv");
+                                if let Err(e) = datasynth_output::write_mkpf(
+                                    &sap_config,
+                                    &result.document_flows.goods_receipts,
+                                    &path,
+                                ) {
+                                    tracing::warn!("MKPF export failed: {}", e);
+                                } else {
+                                    tracing::info!(
+                                        "  SAP MKPF ({} mat-docs) → {}",
+                                        result.document_flows.goods_receipts.len(),
+                                        path.display()
+                                    );
+                                }
+                            }
+                            if want_table("mseg")
+                                && !result.document_flows.goods_receipts.is_empty()
+                            {
+                                let path = sap_dir.join("mseg.csv");
+                                if let Err(e) = datasynth_output::write_mseg(
+                                    &sap_config,
+                                    &result.document_flows.goods_receipts,
+                                    &path,
+                                ) {
+                                    tracing::warn!("MSEG export failed: {}", e);
+                                } else {
+                                    tracing::info!(
+                                        "  SAP MSEG (mat-doc items) → {}",
+                                        path.display()
+                                    );
+                                }
+                            }
+
+                            // v4.3.0d — subledger open/cleared items.
+                            if want_table("bsis") && !result.journal_entries.is_empty() {
+                                let path = sap_dir.join("bsis.csv");
+                                if let Err(e) = datasynth_output::write_bsis(
+                                    &sap_config,
+                                    &result.journal_entries,
+                                    &path,
+                                ) {
+                                    tracing::warn!("BSIS export failed: {}", e);
+                                } else {
+                                    tracing::info!(
+                                        "  SAP BSIS (open GL items) → {}",
+                                        path.display()
+                                    );
+                                }
+                            }
+                            if want_table("bsas") {
+                                let path = sap_dir.join("bsas.csv");
+                                if let Err(e) = datasynth_output::write_bsas(&sap_config, &path) {
+                                    tracing::warn!("BSAS export failed: {}", e);
+                                } else {
+                                    tracing::info!(
+                                        "  SAP BSAS (cleared GL items, empty) → {}",
+                                        path.display()
+                                    );
+                                }
+                            }
+                            if want_table("bsid") && !result.subledger.ar_invoices.is_empty() {
+                                let path = sap_dir.join("bsid.csv");
+                                if let Err(e) = datasynth_output::write_bsid(
+                                    &sap_config,
+                                    &result.subledger.ar_invoices,
+                                    &path,
+                                ) {
+                                    tracing::warn!("BSID export failed: {}", e);
+                                } else {
+                                    tracing::info!(
+                                        "  SAP BSID (open AR items, from {} invoices) → {}",
+                                        result.subledger.ar_invoices.len(),
+                                        path.display()
+                                    );
+                                }
+                            }
+                            if want_table("bsad") && !result.subledger.ar_invoices.is_empty() {
+                                let path = sap_dir.join("bsad.csv");
+                                if let Err(e) = datasynth_output::write_bsad(
+                                    &sap_config,
+                                    &result.subledger.ar_invoices,
+                                    &path,
+                                ) {
+                                    tracing::warn!("BSAD export failed: {}", e);
+                                } else {
+                                    tracing::info!(
+                                        "  SAP BSAD (cleared AR items) → {}",
+                                        path.display()
+                                    );
+                                }
+                            }
+                            if want_table("bsik") && !result.subledger.ap_invoices.is_empty() {
+                                let path = sap_dir.join("bsik.csv");
+                                if let Err(e) = datasynth_output::write_bsik(
+                                    &sap_config,
+                                    &result.subledger.ap_invoices,
+                                    &path,
+                                ) {
+                                    tracing::warn!("BSIK export failed: {}", e);
+                                } else {
+                                    tracing::info!(
+                                        "  SAP BSIK (open AP items, from {} invoices) → {}",
+                                        result.subledger.ap_invoices.len(),
+                                        path.display()
+                                    );
+                                }
+                            }
+                            if want_table("bsak") && !result.subledger.ap_invoices.is_empty() {
+                                let path = sap_dir.join("bsak.csv");
+                                if let Err(e) = datasynth_output::write_bsak(
+                                    &sap_config,
+                                    &result.subledger.ap_invoices,
+                                    &path,
+                                ) {
+                                    tracing::warn!("BSAK export failed: {}", e);
+                                } else {
+                                    tracing::info!(
+                                        "  SAP BSAK (cleared AP items) → {}",
+                                        path.display()
+                                    );
+                                }
+                            }
                         }
                     }
                     "fec" => {
@@ -3977,16 +4197,20 @@ fn build_sap_config(settings: &datasynth_config::SapExportSettings) -> SapExport
                 // parent variant here to keep SapExporter happy; the CLI
                 // body reads the original table-name list for routing.
                 "lfa1" | "lfb1" | "kna1" | "knb1" | "mara" | "mard" | "csks" | "cepc" | "anla"
-                | "ska1" | "skb1" => {
+                | "ska1" | "skb1"
+                // v4.3.0d document-flow + subledger tables. No SapTableType
+                // variant exists for these; dispatch is by `want_table(...)`
+                // in the CLI body.
+                | "ekko" | "ekpo" | "vbak" | "vbap" | "likp" | "lips" | "mkpf" | "mseg"
+                | "bsis" | "bsas" | "bsid" | "bsad" | "bsik" | "bsak" => {
                     match t.to_ascii_lowercase().as_str() {
                         "lfa1" | "lfb1" => Some(SapTableType::Lfa1),
                         "kna1" | "knb1" => Some(SapTableType::Kna1),
                         "mara" | "mard" => Some(SapTableType::Mara),
                         "csks" => Some(SapTableType::Csks),
                         "cepc" => Some(SapTableType::Cepc),
-                        // ANLA/SKA1/SKB1 don't have a SapTableType variant —
-                        // emit nothing at the SapExporter level; the CLI
-                        // body dispatches to write_anla / write_ska1 / write_skb1.
+                        // Everything else doesn't map to a SapTableType —
+                        // the CLI body routes via dedicated write_* helpers.
                         _ => None,
                     }
                 }
@@ -3994,7 +4218,9 @@ fn build_sap_config(settings: &datasynth_config::SapExportSettings) -> SapExport
                     tracing::warn!(
                         "SAP export config: ignoring unknown table '{}' \
                          (known: bkpf, bseg, acdoca, lfa1, lfb1, kna1, knb1, \
-                         mara, mard, csks, cepc, anla, ska1, skb1)",
+                         mara, mard, csks, cepc, anla, ska1, skb1, \
+                         ekko, ekpo, vbak, vbap, likp, lips, mkpf, mseg, \
+                         bsis, bsas, bsid, bsad, bsik, bsak)",
                         other
                     );
                     None

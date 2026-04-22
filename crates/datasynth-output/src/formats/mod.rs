@@ -13,6 +13,8 @@ pub mod netsuite;
 pub mod oracle;
 pub mod sap;
 pub mod sap_master_data;
+pub mod sap_subledger;
+pub mod sap_transactional;
 pub mod xbrl;
 
 pub use fec::write_fec_csv;
@@ -30,5 +32,15 @@ pub use sap_master_data::{
     SapGlAccountExportable, SapGlAccountGeneral, SapMaterial, SapMaterialExportable,
     SapMaterialStorage, SapMaterialStorageExportable, SapVendorCompanyCode,
     SapVendorCompanyCodeExportable,
+};
+pub use sap_subledger::{
+    write_bsad, write_bsak, write_bsas, write_bsid, write_bsik, write_bsis, SapClearedItemRow,
+    SapOpenItemRow,
+};
+pub use sap_transactional::{
+    write_ekko, write_ekpo, write_likp, write_lips, write_mkpf, write_mseg, write_vbak, write_vbap,
+    SapDeliveryExportable, SapDeliveryHeader, SapDeliveryItem, SapMatDocExportable,
+    SapMatDocHeader, SapMatDocItem, SapPoExportable, SapPoHeader, SapPoItem, SapSoExportable,
+    SapSoHeader, SapSoItem,
 };
 pub use xbrl::XbrlExporter;
