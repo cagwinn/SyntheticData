@@ -38,3 +38,4 @@
 
 - [Python SDK](python-sdk.md)
 - [Server & API](server-api.md)
+- [SAP Integration](integrations/sap.md)
