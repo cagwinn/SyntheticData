@@ -4267,7 +4267,7 @@ fn build_sap_config(settings: &datasynth_config::SapExportSettings) -> SapExport
     let tables = if settings.tables.is_empty() {
         vec![SapTableType::Bkpf, SapTableType::Bseg, SapTableType::Acdoca]
     } else {
-        settings
+        let mapped: Vec<SapTableType> = settings
             .tables
             .iter()
             .filter_map(|t| match t.to_ascii_lowercase().as_str() {
@@ -4319,11 +4319,26 @@ fn build_sap_config(settings: &datasynth_config::SapExportSettings) -> SapExport
                     None
                 }
             })
-            .collect::<Vec<SapTableType>>()
-            .into_iter()
-            .collect::<std::collections::HashSet<_>>()
-            .into_iter()
-            .collect()
+            .collect::<Vec<SapTableType>>();
+        // v4.4.2: preserve the canonical BKPF → BSEG → ACDOCA order
+        // via an explicit priority sort. `SapExporter::export_to_files`
+        // shares `document_counter` across the three transactional
+        // tables, so iterating in any other order (e.g. the
+        // non-deterministic HashSet order used pre-v4.4.2) leaves
+        // BKPF.BELNR desynced from BSEG.BELNR. Dedup after sort.
+        let mut sorted = mapped;
+        sorted.sort_by_key(|t| match t {
+            SapTableType::Bkpf => 0,
+            SapTableType::Bseg => 1,
+            SapTableType::Acdoca => 2,
+            SapTableType::Lfa1 => 3,
+            SapTableType::Kna1 => 4,
+            SapTableType::Mara => 5,
+            SapTableType::Csks => 6,
+            SapTableType::Cepc => 7,
+        });
+        sorted.dedup();
+        sorted
     };
 
     SapExportConfig {

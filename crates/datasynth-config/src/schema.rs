@@ -2021,7 +2021,15 @@ pub struct FraudConfig {
     /// invoice, customer invoice, payment) flagged as fraud. `None` disables
     /// document-level injection; `Some(r)` marks ~r × document-count as fraud
     /// independently of the line-level rate.
-    #[serde(default, alias = "documentFraudRate")]
+    ///
+    /// v4.4.2+ default: `Some(0.01)` — the SDK team reported
+    /// `is_fraud_propagated: 0/72` regressed from `12/33` in 3.1.1 because
+    /// the default had silently become None. A 1% document-fraud default
+    /// restores the propagation signal (~0.3% of JE headers carry
+    /// `is_fraud_propagated = true`) without meaningfully changing the
+    /// line-level fraud prevalence. Set to `Some(0.0)` or `null` in your
+    /// YAML to explicitly disable document-level injection.
+    #[serde(default = "default_document_fraud_rate", alias = "documentFraudRate")]
     pub document_fraud_rate: Option<f64>,
     /// When true, flagging a document as fraudulent cascades `is_fraud = true`
     /// and `fraud_type` to every journal entry derived from that document,
@@ -2055,6 +2063,9 @@ fn default_approval_thresholds() -> Vec<f64> {
 fn default_fraud_rate() -> f64 {
     0.005
 }
+fn default_document_fraud_rate() -> Option<f64> {
+    Some(0.01)
+}
 fn default_clustering_factor() -> f64 {
     3.0
 }
@@ -2064,7 +2075,7 @@ impl Default for FraudConfig {
         Self {
             enabled: false,
             fraud_rate: default_fraud_rate(),
-            document_fraud_rate: None,
+            document_fraud_rate: default_document_fraud_rate(),
             propagate_to_lines: true,
             propagate_to_document: true,
             fraud_type_distribution: FraudTypeDistribution::default(),

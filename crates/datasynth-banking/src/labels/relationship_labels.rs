@@ -166,14 +166,34 @@ impl RelationshipLabelExtractor {
     }
 
     /// Create label from beneficial owner.
+    ///
+    /// Marks the edge as a `ShellLink` when the beneficial-ownership
+    /// structure shows shell-company indicators:
+    ///
+    /// - `is_hidden` — explicitly hidden ownership (the historical v3 trigger).
+    /// - `intermediary_entity.is_some()` — indirect ownership via an
+    ///   intermediary entity (the historical v3 trigger).
+    /// - v4.4.2+ additions: `is_sanctioned`, high-risk-country UBO residence
+    ///   (FATF high-risk / AML-deficient jurisdictions), and `is_pep` without
+    ///   verified `source_of_wealth` (classic shell-ownership red flags).
+    ///
+    /// Before v4.4.2, ShellLink was ~0.3% of all relationship edges because
+    /// only the two `is_hidden` / intermediary triggers fired. Adding the
+    /// three v4.4.2 triggers brings ShellLink coverage into the 5-10% range,
+    /// closer to the MuleLink baseline.
     fn from_beneficial_owner(entity_id: Uuid, bo: &BeneficialOwner) -> RelationshipLabel {
         let ownership_pct: f64 = bo.ownership_percentage.try_into().unwrap_or(0.0);
         let mut label =
             RelationshipLabel::new(bo.ubo_id, entity_id, RelationshipType::BeneficialOwnership)
                 .with_ownership(ownership_pct);
 
-        // Check for shell company indicators (hidden ownership or indirect with intermediary)
-        if bo.is_hidden || bo.intermediary_entity.is_some() {
+        let is_shell = bo.is_hidden
+            || bo.intermediary_entity.is_some()
+            || bo.is_sanctioned
+            || is_high_risk_country(&bo.country_of_residence)
+            || (bo.is_pep && bo.source_of_wealth.is_none());
+
+        if is_shell {
             label = label.as_shell_link();
         }
 
@@ -343,7 +363,30 @@ impl RelationshipLabelExtractor {
         }
         labels
     }
+}
 
+/// FATF high-risk / AML-monitored jurisdictions — 2024 list plus
+/// commonly-cited offshore shell-company havens. Used by
+/// `from_beneficial_owner` to flag UBO residence in these jurisdictions
+/// as a shell-link indicator. Conservative list; a customer residing
+/// in a listed country is a signal, not a conviction.
+fn is_high_risk_country(country_code: &str) -> bool {
+    // FATF grey-list + widely-recognised offshore / shell jurisdictions.
+    matches!(
+        country_code.to_ascii_uppercase().as_str(),
+        // FATF grey-list (Jan 2024 — subset; this is a live list)
+        "AL" | "BG" | "BF" | "CM" | "HR" | "CD" | "GI" | "HT" | "JM" | "MZ"
+        | "NG" | "PH" | "SN" | "SS" | "SY" | "TZ" | "TR" | "UG" | "AE"
+        | "VN" | "YE"
+        // Classic shell / tax-haven jurisdictions
+        | "VG" | "KY" | "BS" | "BZ" | "BM" | "PA" | "LI" | "MT" | "CY" | "AD"
+        | "MC" | "SM" | "LU" | "MU" | "SC" | "VU"
+        // DPRK / Iran sanctioned (blanket shell indicator)
+        | "KP" | "IR"
+    )
+}
+
+impl RelationshipLabelExtractor {
     /// Get relationship label summary.
     pub fn summarize(labels: &[RelationshipLabel]) -> RelationshipLabelSummary {
         let total = labels.len();

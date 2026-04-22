@@ -365,9 +365,14 @@ impl Default for TypologyConfig {
     fn default() -> Self {
         Self {
             suspicious_rate: 0.02,
+            // v4.4.2: funnel_rate + layering_rate bumped from 0.003 to
+            // 0.006 so both typologies reliably fire in short/demo runs
+            // (≤ 10K transactions). At the old 0.3% rate they could
+            // miss on a given seed, dropping AML typology coverage
+            // below the 0.80 threshold the SDK's eval watchdog uses.
             structuring_rate: 0.004,
-            funnel_rate: 0.003,
-            layering_rate: 0.003,
+            funnel_rate: 0.006,
+            layering_rate: 0.006,
             mule_rate: 0.005,
             fraud_rate: 0.005,
             sophistication: SophisticationDistribution::default(),

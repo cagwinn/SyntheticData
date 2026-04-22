@@ -177,7 +177,9 @@ pub struct BankingCustomer {
     pub onboarding_date: NaiveDate,
     /// KYC profile with expected activity
     pub kyc_profile: KycProfile,
-    /// Risk tier assigned
+    /// Risk tier assigned. Deserialization also accepts `risk_level`
+    /// as an alias for SDK consumers that use that key.
+    #[serde(alias = "risk_level")]
     pub risk_tier: RiskTier,
     /// Account IDs owned by this customer
     pub account_ids: Vec<Uuid>,

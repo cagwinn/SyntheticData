@@ -214,6 +214,29 @@ fn write_journal_entries_flat_json(
     Ok(())
 }
 
+/// v4.4.2 helper — walk a serialized OCEL event-log `Value` tree and
+/// mirror `object_type_id` into `object_type` on every
+/// `object_refs[*]` entry. The canonical OCEL 2.0 field name is
+/// `object_type`; DataSynth's internal model carries it as
+/// `object_type_id` for historical reasons. Emitting both keys lets
+/// OCEL-spec-compliant consumers (pm4py, Celonis, etc.) see the type
+/// without a rename step.
+fn add_ocel_object_type_alias(value: &mut serde_json::Value) {
+    if let Some(events) = value.get_mut("events").and_then(|v| v.as_array_mut()) {
+        for event in events.iter_mut() {
+            if let Some(refs) = event.get_mut("object_refs").and_then(|r| r.as_array_mut()) {
+                for oref in refs.iter_mut() {
+                    if let Some(obj) = oref.as_object_mut() {
+                        if let Some(oti) = obj.get("object_type_id").cloned() {
+                            obj.entry("object_type").or_insert(oti);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 /// Escape a string for CSV output by quoting if it contains commas or quotes.
 fn csv_escape(s: &str) -> String {
     if s.contains(',') || s.contains('"') || s.contains('\n') {
@@ -455,12 +478,49 @@ pub fn write_all_output_with_layout(
             flat_mode,
         );
 
-        // Document cross-references (PO→GR, GR→Invoice, Invoice→Payment, etc.)
-        write_json_safe(
-            &result.document_flows.document_references,
-            &df_dir.join("document_references.json"),
-            "Document references",
-        );
+        // Document cross-references (PO→GR, GR→Invoice, Invoice→Payment, etc.).
+        // v4.4.2+: inject SDK-friendly `from_type`/`from_id`/`to_type`/`to_id`
+        // aliases so consumers that follow the graph convention see the
+        // types populated. The canonical `source_doc_*`/`target_doc_*`
+        // keys continue to emit unchanged for backwards compatibility.
+        match serde_json::to_value(&result.document_flows.document_references) {
+            Ok(mut v) => {
+                if let Some(arr) = v.as_array_mut() {
+                    for r in arr.iter_mut() {
+                        if let Some(obj) = r.as_object_mut() {
+                            if let Some(st) = obj.get("source_doc_type").cloned() {
+                                obj.entry("from_type").or_insert(st);
+                            }
+                            if let Some(si) = obj.get("source_doc_id").cloned() {
+                                obj.entry("from_id").or_insert(si);
+                            }
+                            if let Some(tt) = obj.get("target_doc_type").cloned() {
+                                obj.entry("to_type").or_insert(tt);
+                            }
+                            if let Some(ti) = obj.get("target_doc_id").cloned() {
+                                obj.entry("to_id").or_insert(ti);
+                            }
+                        }
+                    }
+                }
+                match serde_json::to_string_pretty(&v) {
+                    Ok(json) => {
+                        let path = df_dir.join("document_references.json");
+                        if let Err(e) = std::fs::write(&path, json) {
+                            warn!("Failed to write document references: {}", e);
+                        } else {
+                            info!(
+                                "  Document references written: {} records -> {}",
+                                result.document_flows.document_references.len(),
+                                path.display()
+                            );
+                        }
+                    }
+                    Err(e) => warn!("Failed to serialize document references: {}", e),
+                }
+            }
+            Err(e) => warn!("Failed to build document references Value: {}", e),
+        }
 
         // Note: P2P/O2C chain types do not implement Serialize, so we log
         // their counts instead. The individual documents above capture all data.
@@ -867,11 +927,40 @@ pub fn write_all_output_with_layout(
         std::fs::create_dir_all(&banking_dir)?;
         info!("Writing banking data...");
 
-        write_json_safe(
-            &result.banking.customers,
-            &banking_dir.join("banking_customers.json"),
-            "Banking customers",
-        );
+        // v4.4.2: dual-key risk tier. SDK consumers inspect `risk_level`;
+        // the struct stores it as `risk_tier` for historical reasons.
+        // Serialize through a `serde_json::Value` so we can inject the
+        // `risk_level` alias key on every customer row without touching
+        // the `BankingCustomer` Serialize impl (which has 40+ fields).
+        match serde_json::to_value(&result.banking.customers) {
+            Ok(mut v) => {
+                if let Some(arr) = v.as_array_mut() {
+                    for c in arr.iter_mut() {
+                        if let Some(obj) = c.as_object_mut() {
+                            if let Some(rt) = obj.get("risk_tier").cloned() {
+                                obj.entry("risk_level").or_insert(rt);
+                            }
+                        }
+                    }
+                }
+                match serde_json::to_string_pretty(&v) {
+                    Ok(json) => {
+                        let path = banking_dir.join("banking_customers.json");
+                        if let Err(e) = std::fs::write(&path, json) {
+                            warn!("Failed to write banking_customers.json: {}", e);
+                        } else {
+                            info!(
+                                "  Banking customers written: {} records -> {}",
+                                result.banking.customers.len(),
+                                path.display()
+                            );
+                        }
+                    }
+                    Err(e) => warn!("Failed to serialize banking customers: {}", e),
+                }
+            }
+            Err(e) => warn!("Failed to build banking customers Value: {}", e),
+        }
         write_json_safe(
             &result.banking.accounts,
             &banking_dir.join("banking_accounts.json"),
@@ -1452,19 +1541,29 @@ pub fn write_all_output_with_layout(
             std::fs::create_dir_all(&pm_dir)?;
             info!("Writing process mining (OCPM) data...");
 
-            // Write the full OCEL 2.0 event log
-            match serde_json::to_string_pretty(event_log) {
-                Ok(json) => {
-                    if let Err(e) = std::fs::write(pm_dir.join("event_log.json"), json) {
-                        warn!("Failed to write OCPM event log: {}", e);
-                    } else {
-                        info!(
-                            "  Event log written: {} events, {} objects",
-                            result.ocpm.event_count, result.ocpm.object_count
-                        );
+            // Write the full OCEL 2.0 event log. v4.4.2+ patches every
+            // `object_refs[*].object_type_id` with a companion
+            // `object_type` key, matching the OCEL 2.0 spec and SDK
+            // consumer expectations that previously saw `object_type`
+            // arrive as null. See `add_ocel_object_type_alias` below.
+            match serde_json::to_value(event_log) {
+                Ok(mut v) => {
+                    add_ocel_object_type_alias(&mut v);
+                    match serde_json::to_string_pretty(&v) {
+                        Ok(json) => {
+                            if let Err(e) = std::fs::write(pm_dir.join("event_log.json"), json) {
+                                warn!("Failed to write OCPM event log: {}", e);
+                            } else {
+                                info!(
+                                    "  Event log written: {} events, {} objects",
+                                    result.ocpm.event_count, result.ocpm.object_count
+                                );
+                            }
+                        }
+                        Err(e) => warn!("Failed to serialize OCPM event log: {}", e),
                     }
                 }
-                Err(e) => warn!("Failed to serialize OCPM event log: {}", e),
+                Err(e) => warn!("Failed to build OCPM event log Value: {}", e),
             }
 
             // Write events separately for easy consumption

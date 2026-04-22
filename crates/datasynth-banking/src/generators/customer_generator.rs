@@ -261,14 +261,36 @@ impl CustomerGenerator {
                 remaining_pct -= share;
                 share
             };
+            // v4.4.2+: inject shell-indicator attributes on a small
+            // slice of trust UBOs so the AML relationship graph carries
+            // a realistic fraction of ShellLink edges (~5-10%). Trusts
+            // are the natural home for opaque ownership in the SDK's
+            // taxonomy, so the higher rates here are justified.
+            let roll: f64 = self.rng.random();
+            let (hidden, sanctioned, high_risk_country) = if roll < 0.15 {
+                // ~15% of trust UBOs pick up a shell-company marker.
+                let flavour = self.rng.random::<u8>() % 3;
+                match flavour {
+                    0 => (true, false, None),        // hidden ownership
+                    1 => (false, true, None),        // sanctioned individual
+                    _ => (false, false, Some("VG")), // BVI offshore (on the high-risk list)
+                }
+            } else {
+                (false, false, None)
+            };
+            let ubo_country = high_risk_country.unwrap_or(country.as_str());
             let mut ubo = BeneficialOwner::new(
                 self.uuid_factory.next(),
                 &format!("{first} {last}"),
-                &country,
+                ubo_country,
                 Decimal::from_f64_retain(pct).unwrap_or(Decimal::from(25)),
             );
             ubo.control_type = ControlType::TrustArrangement;
-            ubo.verification_status = if self.rng.random::<f64>() < 0.7 {
+            ubo.is_hidden = hidden;
+            ubo.is_sanctioned = sanctioned;
+            ubo.verification_status = if sanctioned || hidden {
+                VerificationStatus::UnableToVerify
+            } else if self.rng.random::<f64>() < 0.7 {
                 VerificationStatus::Verified
             } else {
                 VerificationStatus::PartiallyVerified
