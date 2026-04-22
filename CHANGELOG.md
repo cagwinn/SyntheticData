@@ -5,6 +5,124 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.4.1] - 2026-04-22
+
+### Fix — SDK camelCase regression: enabling the 6 feature subsections collapsed the archive
+
+The SDK team reported that submitting a feature-matrix config with
+camelCase keys (`documentFlows`, `accountingStandards`,
+`complianceRegulations`, `analyticsMetadata`, `audit`, `llm`) collapsed
+the output archive from 99 files (1.8 GB) to 19 files (2.8 MB), with
+`journal_entries.csv` landing instead of `.json` despite
+`exportFormat: "json"`. Reproduced: exactly 19 files, 6.5 MB.
+
+Root cause: many multi-word config fields lacked
+`#[serde(alias = "camelCaseName")]`, so SDK submissions silently fell
+through to defaults. Same class of bug as the v3.1.1 `exportLayout`
+fix but on many more fields. The runtime then skipped every requested
+generator and wrote default output formats.
+
+Fix: add camelCase aliases across the config schema, plus a
+dispatcher for `exportFormat` (single-string form). 30+ aliases
+added, touching:
+
+- **`GeneratorConfig`** top-level: `chartOfAccounts`, `dataQuality`,
+  `internalControls`, `businessProcesses`, `userPersonas`,
+  `masterData`, `documentFlows`, `graphExport`, `rateLimit`,
+  `temporalAttributes`, `accountingStandards`, `auditStandards`,
+  `temporalPatterns`, `vendorNetwork`, `customerSegmentation`,
+  `relationshipStrength`, `crossProcessLinks`, `organizationalEvents`,
+  `behavioralDrift`, `marketDrift`, `driftLabeling`,
+  `anomalyInjection`, `industrySpecific`, `fingerprintPrivacy`,
+  `qualityGates`, `sourceToPay`, `financialReporting`, `salesQuotes`,
+  `projectAccounting`, `countryPacks`, `complianceRegulations`,
+  `analyticsMetadata`.
+- **`OutputConfig`**: `outputDirectory`, `batchSize`, `includeAcdoca`,
+  `includeBseg`, `partitionByPeriod`, `partitionByCompany`,
+  `numericMode`, plus `exportFormat` / `exportFormats` accepted via
+  a custom `one_or_many_formats` deserializer that handles both
+  `exportFormat: "json"` (single string) and `formats: ["json", "csv"]`
+  (list). Before v4.4.1 the single-string form would fail to parse
+  (serde expects a sequence for `Vec`) and silently fall through to
+  the Parquet default.
+- **`CompanyConfig`**: `functionalCurrency`, `fiscalYearVariant`,
+  `annualTransactionVolume`, `volumeWeight`.
+- **`GlobalConfig`**: `startDate`, `periodMonths`, `groupCurrency`,
+  `presentationCurrency`, `workerThreads`, `memoryLimitMb`,
+  `fiscalYearMonths`.
+
+### Fix — `data_quality_stats.total_records: 0` regression
+
+SDK team reported `total_records: 0` across every baseline run
+("broken for several releases"). Root cause: when the data-quality
+injection phase was skipped (by config or resource degradation), the
+orchestrator emitted `DataQualityStats::default()` with all zero
+counters, leaving consumers unable to distinguish "skipped" from "ran
+and saw nothing".
+
+v4.4.1 populates `total_records` (and the per-sub-category
+`total_records` / `total_processed` denominators) with the actual JE
+count even when injection was skipped — so skipped runs now emit
+e.g. `{total_records: 2800, records_with_issues: 0}` rather than all
+zeros.
+
+### Fix — CoA `accounting_framework` null
+
+SDK team reported `CoA.accounting_framework` arriving as null across
+all runs. Root cause: the field simply didn't exist on the
+`ChartOfAccounts` model. Fix:
+
+- Added `accounting_framework: Option<String>` on `ChartOfAccounts`.
+- Orchestrator populates from
+  `config.accounting_standards.framework` when
+  `accounting_standards.enabled = true` — emits one of `"us_gaap"`,
+  `"ifrs"`, `"french_gaap"`, `"german_gaap"`, `"dual_reporting"`.
+- New `chart_of_accounts_meta.json` companion file in the output
+  directory carries the framework plus coa_id / country / industry /
+  complexity / account_count metadata. The primary
+  `chart_of_accounts.json` shape (flat array of accounts) is
+  unchanged for backwards compatibility.
+
+### Regression test
+
+New `crates/datasynth-cli/tests/camelcase_sdk_config.rs` — feeds a
+camelCase feature-matrix config via the CLI binary and asserts:
+
+1. `journal_entries.json` (not `.csv`) exists.
+2. Sentinel files for each enabled subsection are present
+   (`document_flows/purchase_orders.json`, `accounting_standards/`,
+   `compliance_regulations/compliance_standards.json`, `analytics/`,
+   `audit/audit_engagements.json`, `master_data/vendors.json`).
+3. Archive has > 50 files (the SDK team saw 19 pre-fix).
+4. `chart_of_accounts_meta.json.accounting_framework == "us_gaap"`
+   per config.
+
+Runs end-to-end through the CLI, so any future schema regression
+that reintroduces the camelCase silent-fallthrough fails CI loudly.
+
+### What remains open from the SDK report (deferred)
+
+Tracked but not addressed in v4.4.1:
+
+- **`is_fraud_propagated` line-level regression** — needs separate
+  investigation of the fraud-bias sweep; `documentFraudRate` default
+  may need a non-None value.
+- **AML typology coverage 0.71 < 0.80** — deeper banking-AML tuning
+  pass.
+- **ShellLink 0.3% rebalance** — analogous to the MuleLink fix.
+- **Remaining null fields** — `OCEL object_refs.object_type`,
+  `DocumentReference.{from,to}_type`, AML `customer.risk_level`.
+
+Will land in v4.4.2 / v4.4.3 patches once each is root-caused.
+
+### Verification
+
+- `cargo fmt --check` clean
+- `cargo clippy --release -p datasynth-config -p datasynth-core -p datasynth-runtime -p datasynth-cli -- -D warnings` clean
+- `cargo test --release -p datasynth-cli --test camelcase_sdk_config` — 1 passed
+- `cargo test --release -p datasynth-cli --test flat_export_smoke --test sap_export_smoke --test camelcase_sdk_config` — 3 passed
+- End-to-end retail demo with camelCase config: 106 files / 1.7 GB (vs 19 / 6.5 MB pre-fix).
+
 ## [4.2.1] - 2026-04-21
 
 ### Fix — `cargo build --features adversarial` compile error

@@ -9,6 +9,21 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 /// Root configuration for the synthetic data generator.
+///
+/// # camelCase alias policy
+///
+/// Every multi-word field carries `#[serde(alias = "camelCaseName")]`
+/// so SDK clients that follow JSON conventions can submit configs
+/// without round-tripping through a snake_case transformer.
+///
+/// Before v4.4.1 several fields — `documentFlows`, `accountingStandards`,
+/// `complianceRegulations`, `analyticsMetadata` — had no alias, so SDK
+/// submissions silently fell through to defaults. The symptom was
+/// "enabling the 6 feature subsections together collapses the archive
+/// from 99 files to 19". Root cause: those four fields never parsed;
+/// the orchestrator produced far less data than requested, and
+/// `output.exportFormat` similarly fell through so journal_entries
+/// landed as the default Parquet/CSV rather than JSON.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GeneratorConfig {
     /// Global settings
@@ -16,6 +31,7 @@ pub struct GeneratorConfig {
     /// Company configuration
     pub companies: Vec<CompanyConfig>,
     /// Chart of Accounts configuration
+    #[serde(alias = "chartOfAccounts")]
     pub chart_of_accounts: ChartOfAccountsConfig,
     /// Transaction generation settings
     #[serde(default)]
@@ -26,16 +42,16 @@ pub struct GeneratorConfig {
     #[serde(default)]
     pub fraud: FraudConfig,
     /// Data quality variation settings
-    #[serde(default)]
+    #[serde(default, alias = "dataQuality")]
     pub data_quality: DataQualitySchemaConfig,
     /// Internal Controls System settings
-    #[serde(default)]
+    #[serde(default, alias = "internalControls")]
     pub internal_controls: InternalControlsConfig,
     /// Business process mix
-    #[serde(default)]
+    #[serde(default, alias = "businessProcesses")]
     pub business_processes: BusinessProcessConfig,
     /// User persona distribution
-    #[serde(default)]
+    #[serde(default, alias = "userPersonas")]
     pub user_personas: UserPersonaConfig,
     /// Template configuration for realistic data
     #[serde(default)]
@@ -47,10 +63,10 @@ pub struct GeneratorConfig {
     #[serde(default)]
     pub departments: DepartmentConfig,
     /// Master data generation settings
-    #[serde(default)]
+    #[serde(default, alias = "masterData")]
     pub master_data: MasterDataConfig,
     /// Document flow generation settings
-    #[serde(default)]
+    #[serde(default, alias = "documentFlows")]
     pub document_flows: DocumentFlowConfig,
     /// Intercompany transaction settings
     #[serde(default)]
@@ -74,67 +90,67 @@ pub struct GeneratorConfig {
     #[serde(default)]
     pub temporal: TemporalDriftConfig,
     /// Graph export configuration for accounting network export
-    #[serde(default)]
+    #[serde(default, alias = "graphExport")]
     pub graph_export: GraphExportConfig,
     /// Streaming output API configuration
     #[serde(default)]
     pub streaming: StreamingSchemaConfig,
     /// Rate limiting configuration
-    #[serde(default)]
+    #[serde(default, alias = "rateLimit")]
     pub rate_limit: RateLimitSchemaConfig,
     /// Temporal attribute generation configuration
-    #[serde(default)]
+    #[serde(default, alias = "temporalAttributes")]
     pub temporal_attributes: TemporalAttributeSchemaConfig,
     /// Relationship generation configuration
     #[serde(default)]
     pub relationships: RelationshipSchemaConfig,
     /// Accounting standards framework configuration (IFRS, US GAAP)
-    #[serde(default)]
+    #[serde(default, alias = "accountingStandards")]
     pub accounting_standards: AccountingStandardsConfig,
     /// Audit standards framework configuration (ISA, PCAOB)
-    #[serde(default)]
+    #[serde(default, alias = "auditStandards")]
     pub audit_standards: AuditStandardsConfig,
     /// Advanced distribution configuration (mixture models, correlations, regime changes)
     #[serde(default)]
     pub distributions: AdvancedDistributionConfig,
     /// Temporal patterns configuration (business days, period-end dynamics, processing lags)
-    #[serde(default)]
+    #[serde(default, alias = "temporalPatterns")]
     pub temporal_patterns: TemporalPatternsConfig,
     /// Vendor network configuration (multi-tier supply chain modeling)
-    #[serde(default)]
+    #[serde(default, alias = "vendorNetwork")]
     pub vendor_network: VendorNetworkSchemaConfig,
     /// Customer segmentation configuration (value segments, lifecycle stages)
-    #[serde(default)]
+    #[serde(default, alias = "customerSegmentation")]
     pub customer_segmentation: CustomerSegmentationSchemaConfig,
     /// Relationship strength calculation configuration
-    #[serde(default)]
+    #[serde(default, alias = "relationshipStrength")]
     pub relationship_strength: RelationshipStrengthSchemaConfig,
     /// Cross-process link configuration (P2P ↔ O2C via inventory)
-    #[serde(default)]
+    #[serde(default, alias = "crossProcessLinks")]
     pub cross_process_links: CrossProcessLinksSchemaConfig,
     /// Organizational events configuration (acquisitions, divestitures, etc.)
-    #[serde(default)]
+    #[serde(default, alias = "organizationalEvents")]
     pub organizational_events: OrganizationalEventsSchemaConfig,
     /// Behavioral drift configuration (vendor, customer, employee behavior)
-    #[serde(default)]
+    #[serde(default, alias = "behavioralDrift")]
     pub behavioral_drift: BehavioralDriftSchemaConfig,
     /// Market drift configuration (economic cycles, commodities, price shocks)
-    #[serde(default)]
+    #[serde(default, alias = "marketDrift")]
     pub market_drift: MarketDriftSchemaConfig,
     /// Drift labeling configuration for ground truth generation
-    #[serde(default)]
+    #[serde(default, alias = "driftLabeling")]
     pub drift_labeling: DriftLabelingSchemaConfig,
     /// Enhanced anomaly injection configuration (multi-stage schemes, correlated injection, near-miss)
-    #[serde(default)]
+    #[serde(default, alias = "anomalyInjection")]
     pub anomaly_injection: EnhancedAnomalyConfig,
     /// Industry-specific transaction and anomaly generation configuration
-    #[serde(default)]
+    #[serde(default, alias = "industrySpecific")]
     pub industry_specific: IndustrySpecificConfig,
     /// Fingerprint privacy configuration for extraction/synthesis
-    #[serde(default)]
+    #[serde(default, alias = "fingerprintPrivacy")]
     pub fingerprint_privacy: FingerprintPrivacyConfig,
     /// Quality gate configuration for pass/fail thresholds
-    #[serde(default)]
+    #[serde(default, alias = "qualityGates")]
     pub quality_gates: QualityGatesSchemaConfig,
     /// Compliance configuration (EU AI Act, content marking)
     #[serde(default)]
@@ -154,10 +170,10 @@ pub struct GeneratorConfig {
 
     // ===== Enterprise Process Chain Extensions =====
     /// Source-to-Pay (S2C/S2P) configuration (sourcing, contracts, catalogs, scorecards)
-    #[serde(default)]
+    #[serde(default, alias = "sourceToPay")]
     pub source_to_pay: SourceToPayConfig,
     /// Financial reporting configuration (financial statements, KPIs, budgets)
-    #[serde(default)]
+    #[serde(default, alias = "financialReporting")]
     pub financial_reporting: FinancialReportingConfig,
     /// HR process configuration (payroll, time & attendance, expenses)
     #[serde(default)]
@@ -166,7 +182,7 @@ pub struct GeneratorConfig {
     #[serde(default)]
     pub manufacturing: ManufacturingProcessConfig,
     /// Sales quote configuration (quote-to-order pipeline)
-    #[serde(default)]
+    #[serde(default, alias = "salesQuotes")]
     pub sales_quotes: SalesQuoteConfig,
     /// Tax accounting configuration (VAT/GST, sales tax, withholding, provisions, payroll tax)
     #[serde(default)]
@@ -175,13 +191,13 @@ pub struct GeneratorConfig {
     #[serde(default)]
     pub treasury: TreasuryConfig,
     /// Project accounting configuration
-    #[serde(default)]
+    #[serde(default, alias = "projectAccounting")]
     pub project_accounting: ProjectAccountingConfig,
     /// ESG / Sustainability reporting configuration
     #[serde(default)]
     pub esg: EsgConfig,
     /// Country pack configuration (external packs directory, per-country overrides)
-    #[serde(default)]
+    #[serde(default, alias = "countryPacks")]
     pub country_packs: Option<CountryPacksSchemaConfig>,
     /// Counterfactual simulation scenario configuration
     #[serde(default)]
@@ -190,12 +206,12 @@ pub struct GeneratorConfig {
     #[serde(default)]
     pub session: SessionSchemaConfig,
     /// Compliance regulations framework configuration (standards registry, jurisdictions, temporal versioning, audit templates, graph integration)
-    #[serde(default)]
+    #[serde(default, alias = "complianceRegulations")]
     pub compliance_regulations: ComplianceRegulationsConfig,
     /// v3.3.0: analytics metadata phase — prior-year comparatives,
     /// industry benchmarks, management reports, drift events. Off by
     /// default so v3.2.1 archives are byte-identical.
-    #[serde(default)]
+    #[serde(default, alias = "analyticsMetadata")]
     pub analytics_metadata: AnalyticsMetadataConfig,
 }
 
@@ -1381,28 +1397,30 @@ pub struct GlobalConfig {
     /// Industry sector
     pub industry: IndustrySector,
     /// Simulation start date (YYYY-MM-DD)
+    #[serde(alias = "startDate")]
     pub start_date: String,
     /// Simulation period in months
+    #[serde(alias = "periodMonths")]
     pub period_months: u32,
     /// Base currency for group reporting
-    #[serde(default = "default_currency")]
+    #[serde(default = "default_currency", alias = "groupCurrency")]
     pub group_currency: String,
     /// Presentation currency for consolidated financial statements (ISO 4217).
     /// If not set, defaults to `group_currency`.
-    #[serde(default)]
+    #[serde(default, alias = "presentationCurrency")]
     pub presentation_currency: Option<String>,
     /// Enable parallel generation
     #[serde(default = "default_true")]
     pub parallel: bool,
     /// Number of worker threads (0 = auto-detect)
-    #[serde(default)]
+    #[serde(default, alias = "workerThreads")]
     pub worker_threads: usize,
     /// Memory limit in MB (0 = unlimited)
-    #[serde(default)]
+    #[serde(default, alias = "memoryLimitMb")]
     pub memory_limit_mb: usize,
     /// Fiscal year length in months (defaults to 12 if not set).
     /// Used by session-based generation to split the total period into fiscal years.
-    #[serde(default)]
+    #[serde(default, alias = "fiscalYearMonths")]
     pub fiscal_year_months: Option<u32>,
 }
 
@@ -1455,17 +1473,18 @@ pub struct CompanyConfig {
     pub currency: String,
     /// Functional currency for IAS 21 translation (ISO 4217).
     /// If not set, defaults to the `currency` field (i.e. local == functional).
-    #[serde(default)]
+    #[serde(default, alias = "functionalCurrency")]
     pub functional_currency: Option<String>,
     /// Country code (ISO 3166-1 alpha-2)
     pub country: String,
     /// Fiscal year variant
-    #[serde(default = "default_fiscal_variant")]
+    #[serde(default = "default_fiscal_variant", alias = "fiscalYearVariant")]
     pub fiscal_year_variant: String,
     /// Transaction volume per year
+    #[serde(alias = "annualTransactionVolume")]
     pub annual_transaction_volume: TransactionVolume,
     /// Company-specific transaction weight
-    #[serde(default = "default_weight")]
+    #[serde(default = "default_weight", alias = "volumeWeight")]
     pub volume_weight: f64,
 }
 
@@ -1644,32 +1663,44 @@ pub struct OutputConfig {
     #[serde(default)]
     pub mode: OutputMode,
     /// Output directory
+    #[serde(alias = "outputDirectory")]
     pub output_directory: PathBuf,
-    /// File formats to generate
-    #[serde(default = "default_formats")]
+    /// File formats to generate. Accepts both `formats: [json, csv]`
+    /// (canonical YAML) and `exportFormat: "json"` / `exportFormats:
+    /// ["json", "csv"]` (SDK-style camelCase). The single-string
+    /// `exportFormat` form is deserialised via `one_or_many_formats`
+    /// so SDK clients submitting `exportFormat: "json"` hit the right
+    /// code path instead of silently falling through to the Parquet
+    /// default — the bug the SDK team flagged in v4.4.0.
+    #[serde(
+        default = "default_formats",
+        alias = "exportFormats",
+        alias = "exportFormat",
+        deserialize_with = "one_or_many_formats"
+    )]
     pub formats: Vec<FileFormat>,
     /// Compression settings
     #[serde(default)]
     pub compression: CompressionConfig,
     /// Batch size for writes
-    #[serde(default = "default_batch_size")]
+    #[serde(default = "default_batch_size", alias = "batchSize")]
     pub batch_size: usize,
     /// Include ACDOCA format
-    #[serde(default = "default_true")]
+    #[serde(default = "default_true", alias = "includeAcdoca")]
     pub include_acdoca: bool,
     /// Include BSEG format
-    #[serde(default)]
+    #[serde(default, alias = "includeBseg")]
     pub include_bseg: bool,
     /// Partition by fiscal period
-    #[serde(default = "default_true")]
+    #[serde(default = "default_true", alias = "partitionByPeriod")]
     pub partition_by_period: bool,
     /// Partition by company code
-    #[serde(default)]
+    #[serde(default, alias = "partitionByCompany")]
     pub partition_by_company: bool,
     /// Numeric serialization mode for JSON output.
     /// "string" (default): decimals as `"1729237.30"` — lossless precision.
     /// "native": decimals as `1729237.30` — friendlier for pandas/analytics.
-    #[serde(default)]
+    #[serde(default, alias = "numericMode")]
     pub numeric_mode: NumericMode,
     /// JSON export layout for journal entries and document flows.
     /// "nested" (default): `{"header": {...}, "lines": [...]}` — natural ERP structure.
@@ -1816,6 +1847,27 @@ fn default_formats() -> Vec<FileFormat> {
 }
 fn default_batch_size() -> usize {
     100_000
+}
+
+/// Custom deserializer for `formats` that accepts either a single
+/// `FileFormat` (e.g. `"json"` for SDK `exportFormat: "json"`) or a
+/// vector (e.g. `["json", "csv"]`). Without this shim an SDK config
+/// with `exportFormat: "json"` would fail to parse (serde expects a
+/// sequence for a `Vec` field) and silently fall through to defaults.
+fn one_or_many_formats<'de, D>(deserializer: D) -> Result<Vec<FileFormat>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum OneOrMany {
+        One(FileFormat),
+        Many(Vec<FileFormat>),
+    }
+    match OneOrMany::deserialize(deserializer)? {
+        OneOrMany::One(f) => Ok(vec![f]),
+        OneOrMany::Many(v) => Ok(v),
+    }
 }
 
 impl Default for OutputConfig {

@@ -447,6 +447,15 @@ pub struct ChartOfAccounts {
     /// Account number format (e.g., "######" for 6 digits)
     pub account_format: String,
 
+    /// v4.4.1+ accounting framework for this CoA — "us_gaap", "ifrs",
+    /// "french_gaap", "german_gaap", or "dual_reporting". Populated by
+    /// the orchestrator from `config.accounting_standards.framework`
+    /// when `accounting_standards.enabled = true`; `None` otherwise.
+    /// SDK consumers previously reported this field as null across
+    /// the board — before v4.4.1 it simply didn't exist.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub accounting_framework: Option<String>,
+
     /// Index by account number for fast lookup
     #[serde(skip)]
     account_index: HashMap<String, usize>,
@@ -469,8 +478,17 @@ impl ChartOfAccounts {
             accounts: Vec::new(),
             complexity,
             account_format: "######".to_string(),
+            accounting_framework: None,
             account_index: HashMap::new(),
         }
+    }
+
+    /// v4.4.1+ builder for the accounting framework label (e.g.
+    /// `"us_gaap"`, `"ifrs"`). Typically invoked by the orchestrator
+    /// from the parsed `AccountingFrameworkConfig`.
+    pub fn with_accounting_framework(mut self, framework: impl Into<String>) -> Self {
+        self.accounting_framework = Some(framework.into());
+        self
     }
 
     /// Add an account to the CoA.

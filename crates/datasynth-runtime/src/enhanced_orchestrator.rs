@@ -181,6 +181,24 @@ use rayon::prelude::*;
 // ============================================================================
 
 /// Convert P2P flow config from schema to generator config.
+/// v4.4.1 — build a `DataQualityStats` with only `total_records`
+/// populated to `n_entries`. Used when the data-quality phase is
+/// skipped (by config or resource pressure) so downstream consumers
+/// can still see the denominator. Before v4.4.1 the writer emitted
+/// `total_records: 0` in those cases, which the SDK team flagged as
+/// indistinguishable from "ran but processed nothing".
+fn stats_with_denominator(n_entries: usize) -> DataQualityStats {
+    #[allow(clippy::field_reassign_with_default)]
+    {
+        let mut s = DataQualityStats::default();
+        s.total_records = n_entries;
+        s.missing_values.total_records = n_entries;
+        s.format_variations.total_processed = n_entries;
+        s.duplicates.total_processed = n_entries;
+        s
+    }
+}
+
 fn convert_p2p_config(schema_config: &P2PFlowConfig) -> P2PGeneratorConfig {
     let payment_behavior = &schema_config.payment_behavior;
     let late_dist = &payment_behavior.late_payment_days_distribution;
@@ -4255,10 +4273,13 @@ impl EnhancedOrchestrator {
             Ok((dq_stats, quality_issues))
         } else if actions.skip_data_quality {
             warn!("Phase 7: Skipped due to resource degradation");
-            Ok((DataQualityStats::default(), Vec::new()))
+            // v4.4.1: report the denominator (entries seen) even when
+            // injection is skipped, so downstream consumers can tell
+            // "skipped, 0/N" apart from "ran but found nothing".
+            Ok((stats_with_denominator(entries.len()), Vec::new()))
         } else {
             debug!("Phase 7: Skipped (data quality injection disabled or no entries)");
-            Ok((DataQualityStats::default(), Vec::new()))
+            Ok((stats_with_denominator(entries.len()), Vec::new()))
         }
     }
 
@@ -10191,7 +10212,24 @@ impl EnhancedOrchestrator {
         )
         .with_coa_framework(coa_framework);
 
-        let coa = Arc::new(gen.generate());
+        let mut built = gen.generate();
+        // v4.4.1: propagate the accounting framework label from config
+        // onto the CoA struct so SDK consumers can read it without
+        // cross-referencing the config (they previously saw null).
+        if self.config.accounting_standards.enabled {
+            use datasynth_config::schema::AccountingFrameworkConfig;
+            built.accounting_framework = self.config.accounting_standards.framework.map(|f| {
+                match f {
+                    AccountingFrameworkConfig::UsGaap => "us_gaap",
+                    AccountingFrameworkConfig::Ifrs => "ifrs",
+                    AccountingFrameworkConfig::FrenchGaap => "french_gaap",
+                    AccountingFrameworkConfig::GermanGaap => "german_gaap",
+                    AccountingFrameworkConfig::DualReporting => "dual_reporting",
+                }
+                .to_string()
+            });
+        }
+        let coa = Arc::new(built);
         self.coa = Some(Arc::clone(&coa));
 
         if let Some(pb) = pb {

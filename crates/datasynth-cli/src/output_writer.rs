@@ -1519,8 +1519,8 @@ pub fn write_all_output_with_layout(
     // ========================================================================
     // Chart of Accounts
     // ========================================================================
-    // Write accounts as a flat array for consistency with other entity files.
-    // CoA metadata (coa_id, country, industry) is preserved in the generation manifest.
+    // Primary file: flat array of accounts (shape stable since v3.x —
+    // consumers iterate over it).
     match serde_json::to_string_pretty(&result.chart_of_accounts.accounts) {
         Ok(json) => {
             if let Err(e) = std::fs::write(output_dir.join("chart_of_accounts.json"), json) {
@@ -1530,6 +1530,34 @@ pub fn write_all_output_with_layout(
             }
         }
         Err(e) => warn!("Failed to serialize chart of accounts: {}", e),
+    }
+    // v4.4.1 — companion metadata file so SDK consumers can read the
+    // accounting framework + complexity + ID without having to infer
+    // them from each account row. The SDK team flagged
+    // `CoA.accounting_framework` arriving as null in v4.1.x; the field
+    // didn't exist at all until v4.4.1.
+    let coa_meta = serde_json::json!({
+        "coa_id": result.chart_of_accounts.coa_id,
+        "name": result.chart_of_accounts.name,
+        "country": result.chart_of_accounts.country,
+        "industry": result.chart_of_accounts.industry,
+        "complexity": result.chart_of_accounts.complexity,
+        "account_format": result.chart_of_accounts.account_format,
+        "accounting_framework": result.chart_of_accounts.accounting_framework,
+        "account_count": result.chart_of_accounts.accounts.len(),
+    });
+    match serde_json::to_string_pretty(&coa_meta) {
+        Ok(json) => {
+            if let Err(e) = std::fs::write(output_dir.join("chart_of_accounts_meta.json"), json) {
+                warn!("Failed to write CoA metadata: {}", e);
+            } else {
+                info!(
+                    "  Chart of accounts metadata written (accounting_framework: {:?})",
+                    result.chart_of_accounts.accounting_framework
+                );
+            }
+        }
+        Err(e) => warn!("Failed to serialize CoA metadata: {}", e),
     }
 
     // ========================================================================
