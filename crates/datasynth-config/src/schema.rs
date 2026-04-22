@@ -1681,6 +1681,13 @@ pub struct OutputConfig {
     /// `classic` for backward compatibility.
     #[serde(default, alias = "sapExport")]
     pub sap: SapExportSettings,
+    /// SAF-T (Standard Audit File for Tax) export settings. Read when
+    /// the CLI `--export-format saft` flag is passed. Defaults to
+    /// Portugal (`pt`) because the PT variant is the most mature and
+    /// cross-jurisdiction compatible. Override with
+    /// `jurisdiction: pl|ro|no|lu` for the other supported countries.
+    #[serde(default, alias = "saftExport")]
+    pub saft: SaftExportSettings,
 }
 
 /// Configuration for the SAP export writers (BKPF / BSEG / ACDOCA and
@@ -1763,6 +1770,38 @@ pub enum SapDialectSetting {
     Hana,
 }
 
+/// SAF-T export settings (v4.3.1).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SaftExportSettings {
+    /// ISO-ish two-letter code: `pt` / `pl` / `ro` / `no` / `lu`.
+    /// Defaults to `pt` (Portugal, most mature variant).
+    #[serde(default = "default_saft_jurisdiction")]
+    pub jurisdiction: String,
+    /// Company tax registration number / VAT ID / TIN used in the
+    /// `Header.TaxRegistrationNumber` element. Falls back to
+    /// `"Desconhecido"` (Portuguese for "unknown") when empty.
+    #[serde(default)]
+    pub company_tax_id: String,
+    /// Optional override for the company name used in the Header.
+    /// When empty, the first configured company's `name` is used.
+    #[serde(default)]
+    pub company_name: String,
+}
+
+impl Default for SaftExportSettings {
+    fn default() -> Self {
+        Self {
+            jurisdiction: default_saft_jurisdiction(),
+            company_tax_id: String::new(),
+            company_name: String::new(),
+        }
+    }
+}
+
+fn default_saft_jurisdiction() -> String {
+    "pt".to_string()
+}
+
 fn default_formats() -> Vec<FileFormat> {
     vec![FileFormat::Parquet]
 }
@@ -1785,6 +1824,7 @@ impl Default for OutputConfig {
             numeric_mode: NumericMode::default(),
             export_layout: ExportLayout::default(),
             sap: SapExportSettings::default(),
+            saft: SaftExportSettings::default(),
         }
     }
 }

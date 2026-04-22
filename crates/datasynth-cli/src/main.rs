@@ -1868,9 +1868,102 @@ fn main() -> Result<()> {
                             }
                         }
                     }
+                    "saft" => {
+                        // SAF-T (Standard Audit File for Tax) — OECD-originated
+                        // XML format used by tax authorities in PT/PL/RO/NO/LU
+                        // and cousins. One XML file per run; jurisdiction comes
+                        // from `config.output.saft.jurisdiction` (default: pt).
+                        let cfg = &config_for_manifest.output.saft;
+                        let jurisdiction = match datasynth_output::SaftJurisdiction::from_code(
+                            &cfg.jurisdiction,
+                        ) {
+                            Some(j) => j,
+                            None => {
+                                tracing::warn!(
+                                    "SAF-T export: unknown jurisdiction '{}' — \
+                                     valid codes: pt, pl, ro, no, lu. Defaulting to pt.",
+                                    cfg.jurisdiction
+                                );
+                                datasynth_output::SaftJurisdiction::Portugal
+                            }
+                        };
+                        let (company_name, default_tax_id) = config_for_manifest
+                            .companies
+                            .first()
+                            .map(|c| (c.name.clone(), c.code.clone()))
+                            .unwrap_or_else(|| {
+                                ("Unknown Co.".to_string(), "000000000".to_string())
+                            });
+                        // Parse "YYYY-MM-DD" manually — we don't want to
+                        // pull chrono into the CLI directly. Fall back to
+                        // 2024-01-01 on parse failure.
+                        let parse_ymd = |s: &str| -> (u16, u32, u32) {
+                            let parts: Vec<&str> = s.split('-').collect();
+                            let y = parts
+                                .first()
+                                .and_then(|p| p.parse().ok())
+                                .unwrap_or(2024_u16);
+                            let m = parts.get(1).and_then(|p| p.parse().ok()).unwrap_or(1_u32);
+                            let d = parts.get(2).and_then(|p| p.parse().ok()).unwrap_or(1_u32);
+                            (y, m, d)
+                        };
+                        let (sy, sm, sd) = parse_ymd(&config_for_manifest.global.start_date);
+                        let start_date = std::panic::catch_unwind(|| {
+                            datasynth_output::saft_naive_date(sy as i32, sm, sd)
+                        })
+                        .unwrap_or_else(|_| datasynth_output::saft_naive_date(2024, 1, 1));
+                        // End date = start + period_months. Compute via
+                        // year/month arithmetic; clamp day to 28 to avoid
+                        // month-overrun on Feb.
+                        let mut ey = sy as i32;
+                        let mut em = sm + u32::from(config_for_manifest.global.period_months);
+                        while em > 12 {
+                            ey += 1;
+                            em -= 12;
+                        }
+                        let end_date = datasynth_output::saft_naive_date(ey, em, sd.min(28));
+                        let saft_cfg = datasynth_output::SaftConfig {
+                            jurisdiction,
+                            company_tax_id: if cfg.company_tax_id.is_empty() {
+                                default_tax_id
+                            } else {
+                                cfg.company_tax_id.clone()
+                            },
+                            company_name: if cfg.company_name.is_empty() {
+                                company_name
+                            } else {
+                                cfg.company_name.clone()
+                            },
+                            fiscal_year: sy,
+                            start_date,
+                            end_date,
+                            currency_code: config_for_manifest
+                                .companies
+                                .first()
+                                .map(|c| c.currency.clone())
+                                .unwrap_or_else(|| "EUR".to_string()),
+                        };
+                        let path = output.join(jurisdiction.filename());
+                        let data = datasynth_output::SaftData {
+                            accounts: &result.chart_of_accounts,
+                            customers: &result.master_data.customers,
+                            vendors: &result.master_data.vendors,
+                            materials: &result.master_data.materials,
+                            journal_entries: &result.journal_entries,
+                        };
+                        match datasynth_output::write_saft(&saft_cfg, &data, &path) {
+                            Ok(()) => tracing::info!(
+                                "SAF-T ({:?} / {}) written to {}",
+                                jurisdiction,
+                                jurisdiction.version_string(),
+                                path.display()
+                            ),
+                            Err(e) => tracing::warn!("SAF-T export failed: {}", e),
+                        }
+                    }
                     unknown => {
                         tracing::warn!(
-                            "Unknown --export-format value '{}'; valid options: sap, fec, gobd",
+                            "Unknown --export-format value '{}'; valid options: sap, saft, fec, gobd",
                             unknown
                         );
                     }

@@ -11,6 +11,7 @@ pub mod fec;
 pub mod gobd;
 pub mod netsuite;
 pub mod oracle;
+pub mod saft;
 pub mod sap;
 pub mod sap_master_data;
 pub mod sap_subledger;
@@ -21,6 +22,7 @@ pub use fec::write_fec_csv;
 pub use gobd::{write_gobd_accounts_csv, write_gobd_index_xml, write_gobd_journal_csv};
 pub use netsuite::{NetSuiteExporter, NetSuiteJournalEntry, NetSuiteJournalLine};
 pub use oracle::{OracleExporter, OracleJeHeader, OracleJeLine};
+pub use saft::{saft_naive_date, write_saft, SaftConfig, SaftData, SaftJurisdiction};
 pub use sap::{
     SapCustomer, SapCustomerExportable, SapDialect, SapExportConfig, SapExporter, SapTableType,
     SapVendor, SapVendorExportable,
