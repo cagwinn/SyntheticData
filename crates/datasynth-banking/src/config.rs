@@ -364,9 +364,14 @@ fn default_spoofing_rate() -> f64 {
 impl Default for TypologyConfig {
     fn default() -> Self {
         Self {
-            suspicious_rate: 0.02,
-            // v4.4.2: funnel_rate + layering_rate bumped from 0.003 to
-            // 0.006 so both typologies reliably fire in short/demo runs
+            // v4.4.2: suspicious_rate bumped from 0.02 → 0.03 to
+            // accommodate the per-typology bumps below while keeping
+            // `validate()`'s `sum(rates) ≤ suspicious_rate` invariant
+            // satisfied. 3 % overall suspicious activity is still
+            // realistic (production ranges 2-4 %).
+            suspicious_rate: 0.03,
+            // funnel_rate + layering_rate bumped from 0.003 to 0.006
+            // so both typologies reliably fire in short/demo runs
             // (≤ 10K transactions). At the old 0.3% rate they could
             // miss on a given seed, dropping AML typology coverage
             // below the 0.80 threshold the SDK's eval watchdog uses.
