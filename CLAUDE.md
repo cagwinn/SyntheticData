@@ -606,21 +606,6 @@ Output files are organized by domain directory. All files are JSON unless otherw
 
 ~200K+ entries/second single-threaded, scales with cores, memory-efficient streaming
 
-## Python Wrapper
+## Python Integration
 
-```bash
-cd python && pip install -e ".[all]"
-```
-
-```python
-from datasynth_py import DataSynth, Config, GlobalSettings, CompanyConfig, ChartOfAccountsSettings
-
-config = Config(
-    global_settings=GlobalSettings(industry="retail", start_date="2024-01-01", period_months=12),
-    companies=[CompanyConfig(code="C001", name="Retail Corp", currency="USD", country="US")],
-    chart_of_accounts=ChartOfAccountsSettings(complexity="small"),
-)
-result = DataSynth().generate(config=config, output={"format": "csv", "sink": "temp_dir"})
-```
-
-Blueprints: `blueprints.retail_small()`, `blueprints.banking_medium()`, `blueprints.manufacturing_large()`, `blueprints.ml_training()`, `blueprints.statistical_validation()`, `blueprints.with_distributions()`
+The open-source `datasynth-py` wrapper has been retired. For Python integrations use the official commercial SDKs from [VynFi](https://vynfi.com), or invoke the `datasynth-data` CLI from Python via `subprocess` and read the generated CSV/JSON/Parquet outputs with pandas / polars / pyarrow.

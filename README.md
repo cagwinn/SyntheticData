@@ -1,4 +1,4 @@
-# DataSynth v4.0.1
+# DataSynth v4.4.3
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-green.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/rust-1.88%2B-orange.svg)](https://www.rust-lang.org)
@@ -9,15 +9,19 @@
 
 DataSynth generates statistically realistic, fully interconnected enterprise financial data across 20+ process families. Generated data respects accounting identities (debits = credits, Assets = Liabilities + Equity), follows empirical distributions (Benford's Law, log-normal mixtures, Pareto heavy tails, Gaussian copula correlations), and maintains referential integrity across 100+ output tables. Generation-time assertions enforce these invariants at scale.
 
-**[Full Documentation](docs/book/src/SUMMARY.md)** | **[Commercial SDKs](https://vynfi.com)** | **[CHANGELOG](CHANGELOG.md)** | **[v4.1 Roadmap](docs/plans/2026-04-21-v4.1-plan.md)**
+**[Full Documentation](docs/book/src/SUMMARY.md)** | **[Commercial SDKs](https://vynfi.com)** | **[CHANGELOG](CHANGELOG.md)**
 
-**What's new in v4.0.1 (April 2026)**
-- v3.3.2–v4.0.0 closed every `[Not yet wired]` schema gap — `distributions.amounts`, `.regime_changes`, `.conditional`, `.correlations`, `.validation`, `.pareto` all drive runtime behaviour.
-- `TemporalContext` — unified business-day + holiday awareness threaded into P2P, O2C, HR, manufacturing, and period-close generators.
-- **LLM template enrichment CLI** — offline deterministic expansion of vendor / customer / material name pools against OpenRouter, OpenAI, or any compatible endpoint. Live-tested with Claude Sonnet 4.5.
-- **`LlmTemplateProvider`** — runtime LLM-backed template provider (opt-in, cached) for deployments that want real-time enrichment.
-- **Statistical validation phase** — Benford, chi-squared, KS-on-log-uniform run post-generation with a structured report.
-- **Breaking:** legacy `GenerationOrchestrator` removed; use `EnhancedOrchestrator::new(config, PhaseConfig::from_config(&config))`.
+**What's new in v4.1 → v4.4.3 (April 2026)**
+- **Python SDK retired** (v4.4.3) — the in-tree `datasynth-py` wrapper is gone; use the official commercial SDKs from [VynFi](https://vynfi.com), or drive the CLI via `subprocess` for ad-hoc Python work.
+- **SAP Integration Pack** — 27-table export (BKPF/BSEG/ACDOCA transactional; LFA1/LFB1/KNA1/KNB1/MARA/MARD/ANLA/CSKS/SKA1/SKB1 master data; EKKO/EKPO/VBAK/VBAP/LIKP/LIPS/MKPF/MSEG plus BSIS/BSAS/BSID/BSAD/BSIK/BSAK subledger). Classic R/3 and S/4 HANA dialects (delimiter, decimal separator, UTF-8 BOM, date format). Priority-sorted so BKPF always precedes BSEG — foreign-key integrity guaranteed across multi-table configs.
+- **SAF-T XML export** — Standard Audit File for Tax for Portugal, Poland, Romania, Norway, and Luxembourg.
+- **Neural diffusion — GPU-enabled end-to-end** — candle-core score network wires opportunistically to CUDA via the `neural-cuda` feature; `preferred_device()` / `cuda_available()` helpers gracefully fall back to CPU. End-to-end smoke test validates training + sampling on a 1D log-normal dataset.
+- **SDK-friendly camelCase aliases** — 30+ `#[serde(alias = "...")]` attributes across `GeneratorConfig`, `OutputConfig`, `CompanyConfig`, `GlobalConfig`; custom deserializer handles `exportFormat: "json"` single-string form. Feature-matrix configs that previously collapsed from 99 files to 19 now produce the full archive.
+- **AML / fraud wiring fixes** — `document_fraud_rate` defaults to `Some(0.01)` (restoring `is_fraud_propagated` coverage); AML typology coverage now uses canonical/alias matching (7-of-7 on the retail demo); ShellLink triggers expanded from 2 to 5 conditions with Trust-UBO shell-indicator injection.
+- **Null-field compat aliases** — `risk_level` mirrored alongside `risk_tier` on banking customers; `from_type/id` + `to_type/id` mirrored on `DocumentReference`; OCEL 2.0 `object_type` mirrored on every object ref.
+- **YAML-as-Source-of-Truth** — embedded default pools mirrored into version-controlled YAML with a `build.rs` validator enforcing byte-identity between YAML and the compiled constants.
+- **Rank-preserving inverse-CDF copula sampling** (v4.1.6) for exact marginal preservation under Gaussian/Clayton/Gumbel/Frank/Student-t dependence.
+- **Security**: `rustls-webpki` bumped 0.103.12 → 0.103.13 (RUSTSEC-2026-0104).
 
 ---
 
@@ -111,7 +115,7 @@ Every process chain generates cross-referenced master data, documents, and journ
 
 | Feature | Description | Feature Flag |
 |---------|-------------|--------------|
-| Neural Diffusion | Candle-powered score network, denoising score matching (*training loop slated for v4.2; v4.0 acknowledges config + warns*) | `neural` |
+| Neural Diffusion | Candle-powered score network (DDPM); end-to-end training + sampling. Orchestrator wired to honor `diffusion.backend: neural \| hybrid \| statistical` with graceful CPU fallback. GPU via `neural-cuda`. | `neural` / `neural-cuda` |
 | Statistical Diffusion | Denoising / enhancement via the statistical `DiffusionBackend` — always on | — |
 | LLM Config Generation | Natural language → YAML config (OpenAI/Anthropic/OpenRouter) | `llm` |
 | **LLM Template Enrichment** | Offline deterministic CLI: expand vendor/customer/material pools via any OpenAI-compatible endpoint. Cached YAML, byte-identical runs. | `llm` |
@@ -166,7 +170,7 @@ scenarios:
 
 ### Accounting & Compliance Standards
 
-US GAAP, IFRS, French GAAP (PCG), German GAAP (HGB), dual reporting. Revenue recognition (ASC 606/IFRS 15), leases (ASC 842/IFRS 16), fair value (ASC 820/IFRS 13), impairment, deferred tax, ECL, pensions, stock comp, business combinations, segment reporting. ISA (34 standards), PCAOB (19+), SOX 302/404, COSO 2013 (5 components, 17 principles). FEC and GoBD audit file exports.
+US GAAP, IFRS, French GAAP (PCG), German GAAP (HGB), dual reporting. Revenue recognition (ASC 606/IFRS 15), leases (ASC 842/IFRS 16), fair value (ASC 820/IFRS 13), impairment, deferred tax, ECL, pensions, stock comp, business combinations, segment reporting. ISA (34 standards), PCAOB (19+), SOX 302/404, COSO 2013 (5 components, 17 principles). FEC, GoBD, and SAF-T (PT / PL / RO / NO / LU) audit file exports.
 
 ### Audit FSM Engine
 
@@ -217,21 +221,9 @@ See [Performance Benchmarks](docs/book/src/architecture/performance.md).
 
 ## Python SDK
 
-```bash
-cd python && pip install -e ".[all]"
-```
+The previous open-source Python wrapper (`datasynth-py`) has been retired. For production Python integrations — including first-class support for Spark, dbt, Apache Airflow, MLflow, and enterprise blueprints — use the official commercial SDKs from **[VynFi](https://vynfi.com)**.
 
-```python
-from datasynth_py import DataSynth
-from datasynth_py.config import blueprints
-
-config = blueprints.retail_small(companies=4, transactions=10000)
-result = DataSynth().generate(config=config, output={"format": "csv", "sink": "temp_dir"})
-```
-
-Blueprints: `retail_small()`, `banking_medium()`, `manufacturing_large()`, `ml_training()`, `with_distributions()`, `with_diffusion()`, `with_causal()`
-
-Integrations: Apache Spark, dbt, Apache Airflow, MLflow. See [Python SDK](docs/book/src/python-sdk.md).
+For ad-hoc Python usage against the open-source core, invoke the `datasynth-data` CLI via `subprocess` and read the generated CSV/JSON/Parquet outputs with pandas / polars / pyarrow.
 
 ---
 
@@ -258,7 +250,6 @@ REST, gRPC, and WebSocket APIs with JWT/OIDC authentication, rate limiting, and 
 | [Banking & AML](docs/book/src/banking-aml.md) | 20 typologies, networks, velocity features |
 | [Fingerprinting](docs/book/src/fingerprinting.md) | Extract → synthesize pipeline |
 | [Architecture](docs/book/src/architecture/crates.md) | 16 crates, pipeline phases, performance |
-| [Python SDK](docs/book/src/python-sdk.md) | Client, blueprints, Spark/dbt/Airflow/MLflow |
 | [Server & API](docs/book/src/server-api.md) | REST/gRPC/WebSocket, auth, rate limiting |
 | [Deployment](deploy/README.md) | Docker, Kubernetes, systemd |
 | [Contributing](CONTRIBUTING.md) | Development setup, PR guidelines |

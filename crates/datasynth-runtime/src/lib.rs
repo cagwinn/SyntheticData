@@ -15,7 +15,7 @@
 //!
 //! The legacy `GenerationOrchestrator` (basic 2-phase CoA + JE) was
 //! removed in v4.0 after a v3.x deprecation window. All production
-//! call paths — CLI `generate`, server endpoints, Python wrapper —
+//! call paths — CLI `generate`, server endpoints —
 //! already routed through `EnhancedOrchestrator`. Users embedding
 //! `GenerationOrchestrator` directly should migrate to
 //! `EnhancedOrchestrator::new(config, PhaseConfig::from_config(&config))`.

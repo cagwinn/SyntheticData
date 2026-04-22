@@ -13,7 +13,6 @@ DataSynth generates statistically realistic, fully interconnected enterprise fin
 - **Generation-time assertions** — every non-anomaly JE balances, IC eliminations net to zero
 - **XXL performance** — 200K+ JEs in 20.6s (CSV-only), 4x speedup with format-aware output
 - **10 audit methodology blueprints** — ISA, PCAOB, Big 4 approaches, SOC 2
-- **Python SDK** with Spark, dbt, Airflow, MLflow integrations
 
 ## Example Datasets
 

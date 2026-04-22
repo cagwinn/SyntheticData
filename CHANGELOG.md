@@ -5,6 +5,40 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.4.3] - 2026-04-22
+
+### Removed — open-source Python wrapper (`datasynth-py`)
+
+The in-tree Python wrapper under `python/` has been removed, along
+with its PyPI publish script (`scripts/publish-python.sh`) and the
+mdBook `python-sdk.md` page. The wrapper was a thin `subprocess`
+shim over the CLI — it duplicated surface area, carried its own
+version track (2.1.0 on PyPI), and was diverging from the Rust
+schema as the workspace moved fast through v4.1 → v4.4.2.
+
+**What to use instead:**
+- For production Python integrations (Spark, dbt, Airflow, MLflow,
+  enterprise blueprints): the official commercial SDKs from
+  [VynFi](https://vynfi.com).
+- For ad-hoc scripting: invoke the `datasynth-data` CLI from Python
+  via `subprocess` and read the generated CSV / JSON / Parquet
+  outputs with pandas / polars / pyarrow. The CLI's config schema
+  is the single source of truth; no wrapper needed.
+
+The README, CLAUDE.md, and mdBook index have been updated to point
+at the VynFi SDKs. Historical planning documents that reference the
+wrapper are left unchanged as period-correct artifacts.
+
+### Workspace version alignment
+
+The v4.4.0 / 4.4.1 / 4.4.2 releases shipped CHANGELOG entries
+without bumping `Cargo.toml`, which stayed pinned at `4.2.1`. Users
+running `cargo publish` would have seen a no-op against crates.io.
+v4.4.3 bumps the workspace package and all 14 internal crate
+dependencies to 4.4.3, so the next `cargo publish` will land the
+accumulated v4.1 → v4.4.x work on crates.io under a single coherent
+version.
+
 ## [4.4.2] - 2026-04-22
 
 ### Fix — remaining items from the SDK v4.1.x regression report
