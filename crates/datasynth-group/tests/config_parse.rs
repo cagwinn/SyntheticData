@@ -5,8 +5,7 @@ use datasynth_group::{validate::validate, GroupConfig};
 #[test]
 fn test_mini_nestle_parses() {
     let yaml = include_str!("fixtures/mini_nestle_minimal.yaml");
-    let cfg: GroupConfig = serde_yaml::from_str(yaml)
-        .expect("mini_nestle fixture must parse");
+    let cfg: GroupConfig = serde_yaml::from_str(yaml).expect("mini_nestle fixture must parse");
 
     assert_eq!(cfg.id, "MINI_NESTLE_2024_Q1");
     assert_eq!(cfg.presentation_currency, "CHF");
@@ -19,13 +18,17 @@ fn test_full_mini_nestle_parses() {
     use rust_decimal_macros::dec;
 
     let yaml = include_str!("fixtures/mini_nestle.yaml");
-    let cfg: datasynth_group::GroupConfig = serde_yaml::from_str(yaml)
-        .expect("full mini_nestle must parse");
+    let cfg: datasynth_group::GroupConfig =
+        serde_yaml::from_str(yaml).expect("full mini_nestle must parse");
 
     // Spot-check all sections are present.
     assert_eq!(cfg.id, "MINI_NESTLE_2024_Q1");
     assert_eq!(cfg.scoping_profiles.len(), 2, "significant + material");
-    assert_eq!(cfg.ownership.entities.len(), 5, "parent + 4 subsidiaries/JV");
+    assert_eq!(
+        cfg.ownership.entities.len(),
+        5,
+        "parent + 4 subsidiaries/JV"
+    );
 
     // Verify consolidation methods exercised.
     use datasynth_group::ConsolidationMethod::*;

@@ -9,7 +9,6 @@ pub mod errors;
 pub mod resolve;
 pub mod validate;
 
-pub use resolve::{resolve_entity, ResolvedEntity};
 pub use config::{
     AuditEngagementConfig, CbcReportConfig, ComponentScopeThresholds, ConsolidationMethod,
     EntityConfig, FleetConfig, FxConfig, FxPolicyConfig, FxRateBasis, FxRateSource,
@@ -20,3 +19,4 @@ pub use config::{
     PeriodLength, PillarTwoConfig, TaxGroupConfig, TpConfig, TransferPricingMethod,
 };
 pub use errors::{GroupError, GroupResult};
+pub use resolve::{resolve_entity, ResolvedEntity};

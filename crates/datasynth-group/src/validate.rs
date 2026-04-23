@@ -145,17 +145,13 @@ pub fn validate(cfg: &GroupConfig) -> GroupResult<()> {
                 // Check 6c: seller_scoping_profile (if Some and not "any") must exist
                 if let Some(ref sp) = p.seller_scoping_profile {
                     if sp != "any" && !cfg.scoping_profiles.contains_key(sp) {
-                        errors.push(format!(
-                            "IC pattern references unknown entity/profile {sp}"
-                        ));
+                        errors.push(format!("IC pattern references unknown entity/profile {sp}"));
                     }
                 }
                 // Check 6d: buyer_scoping_profile (if Some and not "any") must exist
                 if let Some(ref sp) = p.buyer_scoping_profile {
                     if sp != "any" && !cfg.scoping_profiles.contains_key(sp) {
-                        errors.push(format!(
-                            "IC pattern references unknown entity/profile {sp}"
-                        ));
+                        errors.push(format!("IC pattern references unknown entity/profile {sp}"));
                     }
                 }
             }

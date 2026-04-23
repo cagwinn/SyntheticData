@@ -52,7 +52,10 @@ fx:
 
     // S1: significant profile + per-entity accounting_framework override.
     let s1 = resolve_entity(&cfg, "S1").unwrap();
-    assert_eq!(s1.accounting_framework, "us_gaap", "per-entity override wins");
+    assert_eq!(
+        s1.accounting_framework, "us_gaap",
+        "per-entity override wins"
+    );
     assert_eq!(
         s1.process_models,
         vec!["o2c", "p2p", "h2r", "audit"],
