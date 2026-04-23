@@ -1,0 +1,32 @@
+[package]
+name = "datasynth-group"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[dependencies]
+datasynth-core = { workspace = true }
+datasynth-config = { workspace = true }
+datasynth-generators = { workspace = true }
+datasynth-runtime = { workspace = true }
+datasynth-standards = { workspace = true }
+datasynth-output = { workspace = true }
+datasynth-audit-fsm = { workspace = true }
+
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+chrono = { workspace = true }
+rust_decimal = { workspace = true }
+rand = { workspace = true }
+rand_chacha = { workspace = true }
+blake3 = { workspace = true }
+
+[dev-dependencies]
+datasynth-test-utils = { workspace = true }
+rust_decimal_macros = { workspace = true }
+pretty_assertions = "1"
