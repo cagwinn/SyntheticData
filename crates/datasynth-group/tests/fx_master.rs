@@ -26,6 +26,7 @@ fn make_entity(code: &str, functional_currency: &str) -> ExpandedEntity {
         industry: None,
         source: EntitySource::Explicit,
         generated_block_index: None,
+        rows: None,
     }
 }
 

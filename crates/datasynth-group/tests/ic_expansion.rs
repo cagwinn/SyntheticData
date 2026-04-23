@@ -25,6 +25,7 @@ fn ent(code: &str, profile: &str, cm: ConsolidationMethod) -> ExpandedEntity {
         industry: None,
         source: EntitySource::Explicit,
         generated_block_index: None,
+        rows: None,
     }
 }
 

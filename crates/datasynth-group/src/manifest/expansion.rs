@@ -28,6 +28,9 @@ pub struct ExpandedEntity {
     pub source: EntitySource,
     /// Which generated-block index produced this entity (if Generated).
     pub generated_block_index: Option<usize>,
+    /// Override row budget from the entity config (propagated from `EntityConfig.rows`).
+    /// When `None`, consumers fall back to the scoping-profile default or a hardcoded stub.
+    pub rows: Option<u64>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -67,6 +70,7 @@ pub fn expand_ownership(
             industry: e.industry.clone(),
             source: EntitySource::Explicit,
             generated_block_index: None,
+            rows: e.rows,
         });
     }
 
@@ -157,6 +161,7 @@ fn expand_block(
             industry: block.industry.clone(),
             source: EntitySource::Generated,
             generated_block_index: Some(block_idx),
+            rows: None, // generated blocks don't specify per-entity row budgets
         });
     }
     Ok(())

@@ -22,6 +22,7 @@ fn make_entity(code: &str, country: &str, framework: Option<&str>) -> ExpandedEn
         industry: None,
         source: EntitySource::Explicit,
         generated_block_index: None,
+        rows: None,
     }
 }
 
