@@ -22,6 +22,6 @@ pub use config::{
 pub use errors::{GroupError, GroupResult};
 pub use manifest::{
     chacha_rng_from_seed, derive_aggregate_seed, derive_entity_seed, derive_ic_pair_id,
-    derive_manifest_seed,
+    derive_manifest_seed, expand_ownership, EntitySource, ExpandedEntity,
 };
 pub use resolve::{resolve_entity, ResolvedEntity};
