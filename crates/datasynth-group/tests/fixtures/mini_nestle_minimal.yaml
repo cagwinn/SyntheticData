@@ -1,0 +1,17 @@
+id: "MINI_NESTLE_2024_Q1"
+name: "Mini Nestlé Reference Group"
+presentation_currency: "CHF"
+period:
+  start_date: "2024-01-01"
+  length: quarterly
+  fiscal_year_end: "2024-12-31"
+seed: 0x1234567890ABCDEF
+
+ownership:
+  parent_entity_code: NESTLE_SA
+  entities:
+    - code: NESTLE_SA
+      country: CH
+      functional_currency: CHF
+      scoping_profile: significant
+      consolidation_method: parent

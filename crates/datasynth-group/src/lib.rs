@@ -7,5 +7,13 @@
 pub mod config;
 pub mod errors;
 
-pub use config::GroupConfig;
+pub use config::{
+    AuditEngagementConfig, CbcReportConfig, ComponentScopeThresholds, ConsolidationMethod,
+    EntityConfig, FleetConfig, FxConfig, FxPolicyConfig, FxRateBasis, FxRateSource,
+    GeneratedEntityBlock, GroupConfig, GroupMaterialityConfig, IcMatchingConfig,
+    IcMatchingStrategy, IcPattern, IcRelationshipConfig, IcRelationshipExplicit,
+    IcRelationshipPattern, IcTransactionType, IntercompanyConfig, MaterialityBasis,
+    OutputCompression, OutputLayout, OutputLayoutConfig, OwnershipConfig, PeriodConfig,
+    PeriodLength, PillarTwoConfig, TaxGroupConfig, TpConfig, TransferPricingMethod,
+};
 pub use errors::{GroupError, GroupResult};
