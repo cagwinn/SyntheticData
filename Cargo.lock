@@ -1581,6 +1581,7 @@ dependencies = [
  "datasynth-runtime",
  "datasynth-standards",
  "datasynth-test-utils",
+ "hex",
  "pretty_assertions",
  "rand 0.10.1",
  "rand_chacha 0.10.0",
