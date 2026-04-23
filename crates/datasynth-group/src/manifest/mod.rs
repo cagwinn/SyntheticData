@@ -1,10 +1,12 @@
 //! Manifest builder — produces the JSON artifact that drives shard and
 //! aggregate phases. See spec §4.
 
+pub mod coa_master;
 pub mod expansion;
 pub mod ic_expansion;
 pub mod seeds;
 
+pub use coa_master::{build_coa_master, ChartOfAccountsMaster};
 pub use expansion::{expand_ownership, EntitySource, ExpandedEntity};
 pub use ic_expansion::{expand_ic_relationships, IcSource, ResolvedIcRelationship};
 pub use seeds::{
