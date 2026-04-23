@@ -326,3 +326,28 @@ fn test_valid_config_passes() {
     let cfg: GroupConfig = serde_yaml::from_str(yaml).expect("fixture must parse");
     validate(&cfg).expect("mini_nestle.yaml must pass validation");
 }
+
+// ---------------------------------------------------------------------------
+// Check 7 — IC Pattern: scoping_profile references (non-`any`) resolve
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_ic_pattern_unknown_scoping_profile_fails() {
+    // Pattern with buyer_scoping_profile pointing to a non-existent profile
+    // (not the `any` wildcard, which is allowed).
+    let extra_sections = r#"
+intercompany:
+  relationships:
+    - pattern: { seller_scoping_profile: std, buyer_scoping_profile: does_not_exist }
+      types: [management_fee]
+      per_pair_volume: 100000
+"#;
+    let yaml = base_yaml("", extra_sections);
+    let cfg = parse(&yaml);
+    let err = validate(&cfg).unwrap_err();
+    let msg = err.to_string();
+    assert!(
+        msg.contains("does_not_exist"),
+        "error should mention the unknown scoping_profile in pattern, got: {msg}"
+    );
+}
