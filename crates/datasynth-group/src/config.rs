@@ -140,6 +140,7 @@ pub enum IcRelationshipConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct IcRelationshipExplicit {
     pub seller: String,
     pub buyer: String,
@@ -152,6 +153,7 @@ pub struct IcRelationshipExplicit {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct IcRelationshipPattern {
     pub pattern: IcPattern,
     pub types: Vec<IcTransactionType>,

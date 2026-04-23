@@ -1,6 +1,6 @@
 //! Spec §3.1 — `group:` config YAML parses into GroupConfig.
 
-use datasynth_group::GroupConfig;
+use datasynth_group::{validate::validate, GroupConfig};
 
 #[test]
 fn test_mini_nestle_parses() {
@@ -83,4 +83,7 @@ fn test_full_mini_nestle_parses() {
             .unwrap_or(false),
         "pillar_two enabled"
     );
+
+    // Structural validation must also pass on this fixture.
+    validate(&cfg).expect("mini_nestle.yaml must pass structural validation");
 }

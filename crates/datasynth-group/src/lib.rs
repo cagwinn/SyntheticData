@@ -7,6 +7,7 @@
 pub mod config;
 pub mod errors;
 pub mod resolve;
+pub mod validate;
 
 pub use resolve::{resolve_entity, ResolvedEntity};
 pub use config::{

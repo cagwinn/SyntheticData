@@ -25,6 +25,7 @@ rust_decimal = { workspace = true }
 rand = { workspace = true }
 rand_chacha = { workspace = true }
 blake3 = { workspace = true }
+strsim = "0.11"
 
 [dev-dependencies]
 datasynth-test-utils = { workspace = true }
