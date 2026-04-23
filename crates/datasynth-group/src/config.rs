@@ -26,7 +26,6 @@ pub struct GroupConfig {
     #[serde(default)]
     pub intercompany: IntercompanyConfig,
 
-    #[serde(default)]
     pub fx: FxConfig,
 
     #[serde(default)]
@@ -227,15 +226,13 @@ pub enum IcMatchingStrategy {
     EmergentFuzzy,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FxConfig {
-    #[serde(default)]
     pub base_currency: String,
     #[serde(default)]
     pub rate_source: FxRateSource,
     #[serde(default)]
     pub rates: BTreeMap<String, BTreeMap<NaiveDate, Decimal>>,
-    #[serde(default)]
     pub policy: FxPolicyConfig,
 }
 
@@ -250,22 +247,9 @@ pub enum FxRateSource {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FxPolicyConfig {
-    #[serde(default)]
     pub balance_sheet: FxRateBasis,
-    #[serde(default)]
     pub income_statement: FxRateBasis,
-    #[serde(default)]
     pub equity: FxRateBasis,
-}
-
-impl Default for FxPolicyConfig {
-    fn default() -> Self {
-        Self {
-            balance_sheet: FxRateBasis::Closing,
-            income_statement: FxRateBasis::Average,
-            equity: FxRateBasis::Historical,
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]

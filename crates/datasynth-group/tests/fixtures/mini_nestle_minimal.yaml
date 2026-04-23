@@ -15,3 +15,12 @@ ownership:
       functional_currency: CHF
       scoping_profile: significant
       consolidation_method: parent
+
+fx:
+  base_currency: CHF
+  rate_source: inline
+  rates: {}
+  policy:
+    balance_sheet: closing
+    income_statement: average
+    equity: historical
