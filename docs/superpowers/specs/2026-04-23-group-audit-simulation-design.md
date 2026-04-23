@@ -758,7 +758,7 @@ Reference artifacts:
 
 ## 13. Phased rollout
 
-Four releases, each shippable independently. Dependencies flow strictly v5.0 → v5.1, v5.0 → v5.2, v5.0 → v5.3; v5.1 and v5.2 can overlap.
+Four releases, each shippable independently, sequenced strictly serially: **v5.0 → v5.1 → v5.2 → v5.3**. Each phase must land in `main` (tests green, docs updated, CLAUDE.md updated, changelog cut) before the next phase begins. Rationale: each phase changes shared surfaces (manifest schema, aggregate contract, output archive layout) — parallel development risks schema divergence and retrospective merge pain. Serial sequencing trades a few weeks of wall-clock for a cleaner integration story.
 
 ### v5.0 — Group engine foundation
 
@@ -817,7 +817,7 @@ Four releases, each shippable independently. Dependencies flow strictly v5.0 →
 
 ### Aggregate estimate
 
-12–20 weeks aggregate engineering, assuming ~1–2 FTE per phase with v5.1 and v5.2 overlapping where dependencies allow.
+14–22 weeks wall-clock at ~1–2 FTE with strict serial phase sequencing. Per-phase rough ranges: v5.0 ≈ 5–7 weeks, v5.1 ≈ 3–5 weeks, v5.2 ≈ 3–5 weeks, v5.3 ≈ 3–5 weeks. Adjust to phase scope as implementation plans land.
 
 ## 14. Risks & open questions
 
