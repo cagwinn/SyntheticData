@@ -6,7 +6,9 @@
 
 pub mod config;
 pub mod errors;
+pub mod resolve;
 
+pub use resolve::{resolve_entity, ResolvedEntity};
 pub use config::{
     AuditEngagementConfig, CbcReportConfig, ComponentScopeThresholds, ConsolidationMethod,
     EntityConfig, FleetConfig, FxConfig, FxPolicyConfig, FxRateBasis, FxRateSource,
