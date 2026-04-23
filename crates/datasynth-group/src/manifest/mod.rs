@@ -2,6 +2,7 @@
 //! aggregate phases. See spec §4.
 
 pub mod audit_plan;
+pub mod builder;
 pub mod coa_master;
 pub mod expansion;
 pub mod fx_master;
@@ -13,6 +14,10 @@ pub mod tax_plan;
 pub use audit_plan::{
     build_audit_engagement_plan, AuditEngagementPlan, ComponentAuditor,
     ComponentMaterialityAllocation, ComponentScope,
+};
+pub use builder::{
+    build_manifest, GroupManifest, ManifestEntity, ManifestPeriod, OwnershipGraphSection,
+    MANIFEST_SCHEMA_VERSION,
 };
 pub use coa_master::{build_coa_master, ChartOfAccountsMaster};
 pub use expansion::{expand_ownership, EntitySource, ExpandedEntity};

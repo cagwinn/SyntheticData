@@ -21,11 +21,13 @@ pub use config::{
 };
 pub use errors::{GroupError, GroupResult};
 pub use manifest::{
-    build_audit_engagement_plan, build_coa_master, build_shard_plan, build_tax_group_plan,
-    chacha_rng_from_seed, derive_aggregate_seed, derive_entity_seed, derive_ic_pair_id,
-    derive_manifest_seed, expand_ic_relationships, expand_ownership, AuditEngagementPlan,
-    CbcReportPlan, ChartOfAccountsMaster, ComponentAuditor, ComponentMaterialityAllocation,
-    ComponentScope, EntitySource, ExpandedEntity, IcSource, PillarTwoPlan, ResolvedIcRelationship,
-    ShardAssignment, ShardPlan, TaxGroupPlan, TransferPricingPlan,
+    build_audit_engagement_plan, build_coa_master, build_manifest, build_shard_plan,
+    build_tax_group_plan, chacha_rng_from_seed, derive_aggregate_seed, derive_entity_seed,
+    derive_ic_pair_id, derive_manifest_seed, expand_ic_relationships, expand_ownership,
+    AuditEngagementPlan, CbcReportPlan, ChartOfAccountsMaster, ComponentAuditor,
+    ComponentMaterialityAllocation, ComponentScope, EntitySource, ExpandedEntity, FxRateMaster,
+    GroupManifest, IcSource, ManifestEntity, ManifestPeriod, OwnershipGraphSection, PillarTwoPlan,
+    ResolvedIcRelationship, ShardAssignment, ShardPlan, TaxGroupPlan, TransferPricingPlan,
+    MANIFEST_SCHEMA_VERSION,
 };
 pub use resolve::{resolve_entity, ResolvedEntity};

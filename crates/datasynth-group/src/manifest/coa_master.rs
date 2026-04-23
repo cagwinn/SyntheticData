@@ -12,6 +12,7 @@ use datasynth_core::models::{ChartOfAccounts, CoAComplexity, IndustrySector};
 use datasynth_core::pcg_loader;
 use datasynth_core::skr_loader;
 use datasynth_generators::ChartOfAccountsGenerator;
+use serde::{Deserialize, Serialize};
 
 use crate::errors::{GroupError, GroupResult};
 use crate::manifest::expansion::ExpandedEntity;
@@ -93,7 +94,7 @@ fn defaults_industry(defaults: &serde_yaml::Value) -> IndustrySector {
 /// One [`ChartOfAccounts`] entry per distinct framework string encountered
 /// across the expanded entity list.  Shard generators resolve their entity's
 /// framework and look up the pre-built CoA here.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChartOfAccountsMaster {
     /// The group's primary / consolidation framework.
     ///

@@ -12,10 +12,11 @@ use crate::config::{
 use crate::errors::{GroupError, GroupResult};
 use crate::manifest::expansion::ExpandedEntity;
 use rust_decimal::Decimal;
+use serde::{Deserialize, Serialize};
 
 /// A fully-resolved IC relationship edge with a stable id. Both explicit
 /// and pattern-derived relationships land here as a flat list.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ResolvedIcRelationship {
     /// Stable id: blake3("icr" || group_seed || seller || buyer || types[0] (as snake_case)).
     /// Written lowercase hex so JSON round-trips cleanly.
@@ -31,7 +32,7 @@ pub struct ResolvedIcRelationship {
     pub pattern_index: Option<usize>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum IcSource {
     Explicit,
     Pattern,

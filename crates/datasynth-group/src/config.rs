@@ -336,7 +336,7 @@ pub struct TpConfig {
     pub local_files_for: Vec<String>,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct OutputLayoutConfig {
     #[serde(default = "default_layout")]
     pub layout: OutputLayout,

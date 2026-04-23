@@ -5,6 +5,8 @@
 
 use std::collections::BTreeSet;
 
+use serde::{Deserialize, Serialize};
+
 use crate::config::TaxGroupConfig;
 use crate::errors::{GroupError, GroupResult};
 use crate::manifest::expansion::ExpandedEntity;
@@ -12,7 +14,7 @@ use crate::manifest::expansion::ExpandedEntity;
 // ── Public types ──────────────────────────────────────────────────────────────
 
 /// Pillar Two coverage plan (OECD GloBE rules).
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PillarTwoPlan {
     /// Jurisdictions declared in-scope via config (validated against entities).
     pub in_scope_jurisdictions: Vec<String>,
@@ -21,7 +23,7 @@ pub struct PillarTwoPlan {
 }
 
 /// Country-by-country report plan (OECD BEPS Action 13).
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CbcReportPlan {
     /// Jurisdiction where the CBC report is filed.
     pub reporting_jurisdiction: String,
@@ -30,7 +32,7 @@ pub struct CbcReportPlan {
 }
 
 /// Transfer pricing documentation plan.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TransferPricingPlan {
     /// Whether a group master file is required.
     pub master_file: bool,
@@ -40,7 +42,7 @@ pub struct TransferPricingPlan {
 
 /// Combined tax group plan.  Each sub-plan is `None` when its config block is
 /// absent or disabled.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct TaxGroupPlan {
     pub pillar_two: Option<PillarTwoPlan>,
     pub cbc_report: Option<CbcReportPlan>,

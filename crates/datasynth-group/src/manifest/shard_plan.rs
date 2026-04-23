@@ -6,6 +6,8 @@
 
 use std::collections::BTreeMap;
 
+use serde::{Deserialize, Serialize};
+
 use crate::errors::GroupResult;
 use crate::manifest::expansion::ExpandedEntity;
 
@@ -30,7 +32,7 @@ const BYTES_PER_MB: u64 = 1_000_000;
 // ── Public types ──────────────────────────────────────────────────────────────
 
 /// A single shard assignment.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ShardAssignment {
     /// Shard identifier, e.g. `"S_SIG_0001"`.
     ///
@@ -55,7 +57,7 @@ pub struct ShardAssignment {
 }
 
 /// Full shard plan: all shard assignments across all profiles.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ShardPlan {
     /// All shard assignments, in profile-name order, then shard-index order.
     pub shards: Vec<ShardAssignment>,
@@ -186,6 +188,22 @@ fn read_row_budget(scoping_profiles: &BTreeMap<String, serde_yaml::Value>, profi
         .and_then(|v| v.get("row_budget"))
         .and_then(|v| v.as_u64())
         .unwrap_or(FALLBACK_ROW_BUDGET)
+}
+
+impl ShardPlan {
+    /// Build a `entity_code → shard_id` lookup map from the shard plan.
+    ///
+    /// Used by the manifest builder to stamp `shard_id` onto each
+    /// [`crate::manifest::builder::ManifestEntity`] without an O(n²) scan.
+    pub fn shard_by_code(&self) -> BTreeMap<String, String> {
+        let mut m = BTreeMap::new();
+        for s in &self.shards {
+            for code in &s.entity_codes {
+                m.insert(code.clone(), s.shard_id.clone());
+            }
+        }
+        m
+    }
 }
 
 /// Construct a [`ShardAssignment`] from accumulated data.

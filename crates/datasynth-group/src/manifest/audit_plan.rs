@@ -12,6 +12,7 @@ use rust_decimal::Decimal;
 use crate::config::{AuditEngagementConfig, MaterialityBasis};
 use crate::errors::{GroupError, GroupResult};
 use crate::manifest::expansion::ExpandedEntity;
+use serde::{Deserialize, Serialize};
 
 // ── Row proxy constants ───────────────────────────────────────────────────────
 
@@ -33,7 +34,7 @@ const DEFAULT_SPECIFIC_SCOPE: f64 = 0.05;
 // ── Public types ──────────────────────────────────────────────────────────────
 
 /// ISA 600-level scope assigned to a single component.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ComponentScope {
     /// Full-scope audit work performed for the component.
     Full,
@@ -44,7 +45,7 @@ pub enum ComponentScope {
 }
 
 /// Per-component materiality allocation and scope decision.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ComponentMaterialityAllocation {
     pub entity_code: String,
     /// Component materiality (≤ group materiality).
@@ -57,7 +58,7 @@ pub struct ComponentMaterialityAllocation {
 }
 
 /// Stub component auditor grouping (v5.1 fills in the real generator).
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ComponentAuditor {
     /// `"CA_<FIRM>_<JURISDICTION>"`.
     pub id: String,
@@ -68,7 +69,7 @@ pub struct ComponentAuditor {
 }
 
 /// Full audit engagement plan produced during the manifest phase.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AuditEngagementPlan {
     pub engagement_id: String,
     pub lead_auditor: String,

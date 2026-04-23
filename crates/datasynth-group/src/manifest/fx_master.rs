@@ -9,13 +9,14 @@ use crate::errors::{GroupError, GroupResult};
 use crate::manifest::expansion::ExpandedEntity;
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
+use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
 /// Resolved FX rate master for an engagement period.
 ///
 /// Provides pre-computed closing and average rates that IAS 21 translation
 /// (Chunk 6) consumes without needing access to the raw `FxConfig`.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FxRateMaster {
     /// The group presentation currency — equals `cfg.base_currency`.
     pub base_currency: String,
