@@ -247,7 +247,7 @@ pub enum FxRateSource {
     HistoricalSeries,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FxPolicyConfig {
     pub balance_sheet: FxRateBasis,
     pub income_statement: FxRateBasis,
