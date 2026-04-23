@@ -94,7 +94,7 @@ pub struct EntityConfig {
     pub overrides: BTreeMap<String, serde_yaml::Value>, // generic per-entity overrides
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 #[serde(rename_all = "snake_case")]
 pub enum ConsolidationMethod {
     Parent,
