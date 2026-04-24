@@ -10,9 +10,11 @@
 pub mod context;
 pub mod ic_je_injector;
 pub mod ic_plan;
+pub mod per_entity_config;
 
 pub use context::build_shard_context;
 pub use ic_je_injector::{
     buyer_accounts, inject_ic_journal_entries, seller_accounts, InjectionCtx,
 };
 pub use ic_plan::{avg_amount, derive_ic_pair_plans, IcPairPlan, IcRole};
+pub use per_entity_config::build_entity_generator_config;

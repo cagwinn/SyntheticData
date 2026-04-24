@@ -1,0 +1,366 @@
+//! Per-entity [`GeneratorConfig`] builder (Task 4.2).
+//!
+//! Projects a [`ManifestEntity`] into a single-company [`GeneratorConfig`]
+//! suitable for invocation of the standalone `EnhancedOrchestrator`.
+//!
+//! # Architecture note — ManifestEntity vs ResolvedEntity
+//!
+//! This builder takes `(&GroupManifest, &ManifestEntity)` — *not*
+//! [`crate::resolve::ResolvedEntity`] — because the manifest builder
+//! (see `manifest/builder.rs`) has already flattened the three-level
+//! merge (`defaults → scoping_profile → entity overrides`) into every
+//! [`ManifestEntity`]'s scalar fields.  Re-running
+//! [`crate::resolve::resolve_entity`] here would duplicate that work
+//! and force callers to carry the full `GroupConfig` alongside the
+//! manifest — a layering violation that offers no benefit for v5.0.
+//!
+//! Everything the builder needs (`code`, `country`, `functional_currency`,
+//! `industry`, `name`, `scoping_profile`) is already on
+//! [`ManifestEntity`]; the scoping profile's `row_budget` is read from
+//! `manifest.scoping_profiles[entity.scoping_profile]["row_budget"]` with
+//! a 100,000-row default if the key is absent.
+//!
+//! # v5.0 scope
+//!
+//! `accounting_framework` is not threaded through to a dedicated
+//! [`GeneratorConfig`] field in v5.0 — it is documented on the
+//! [`ManifestEntity`] for aggregate-phase consumption (US GAAP ↔ IFRS
+//! bridge packs) but does not gate generator behaviour at the shard
+//! level.  `process_models` from the resolved profile are likewise not
+//! yet wired into [`GeneratorConfig`]; the preset's
+//! `business_processes` weights stand in until the process-selection
+//! surface lands in a later task.  This matches the plan's Task 4.2
+//! acceptance criteria (a valid config that builds for every entity),
+//! not the full enablement matrix.
+
+use datasynth_config::presets::create_preset;
+use datasynth_config::{CompanyConfig, GeneratorConfig, TransactionVolume};
+use datasynth_core::models::{CoAComplexity, IndustrySector};
+
+use crate::config::PeriodLength;
+use crate::errors::{GroupError, GroupResult};
+use crate::manifest::builder::{GroupManifest, ManifestEntity};
+
+/// Default row budget applied when a scoping profile omits `row_budget`.
+const DEFAULT_ROW_BUDGET: u64 = 100_000;
+
+/// Build the [`GeneratorConfig`] for a single manifest entity.
+///
+/// The caller already holds both `manifest` and `entity` when dispatching
+/// a shard (see spec §5 "Shard phase") — every field needed to drive the
+/// orchestrator is either on the [`ManifestEntity`] directly or reachable
+/// via the manifest's scoping-profile map.
+///
+/// The resulting config:
+///
+/// - carries exactly **one** company keyed by `entity.code`, with
+///   `currency` / `functional_currency` / `country` taken verbatim from
+///   `entity`;
+/// - stamps the manifest's `group_seed` onto `global.seed`, the
+///   presentation currency onto `global.group_currency` /
+///   `global.presentation_currency`, and `period.start` onto
+///   `global.start_date`;
+/// - sizes the company's `annual_transaction_volume` off the scoping
+///   profile's `row_budget` via the standard [`TransactionVolume`]
+///   buckets (see [`volume_from_rows`]);
+/// - validates against the `datasynth-config` schema before returning —
+///   downstream callers can rely on it being valid.
+///
+/// # Errors
+///
+/// Returns [`GroupError::Config`] if the synthesized [`GeneratorConfig`]
+/// fails [`datasynth_config::validate_config`] — this should only
+/// happen if one of the manifest-provided scalars (start_date,
+/// functional_currency, country) is itself malformed, which the
+/// manifest builder should already have caught.
+pub fn build_entity_generator_config(
+    manifest: &GroupManifest,
+    entity: &ManifestEntity,
+) -> GroupResult<GeneratorConfig> {
+    // 1. Derive industry, period months, volume, and complexity.
+    let industry = map_industry(entity.industry.as_deref());
+    let period_months = period_months_from_length(manifest.period.length);
+    let row_budget = lookup_row_budget(manifest, &entity.scoping_profile);
+    let volume = volume_from_rows(row_budget);
+    let complexity = CoAComplexity::Medium;
+
+    // 2. Start from a fully-populated preset template so every nested
+    //    config struct has sensible defaults.  We seed it with `1` company
+    //    because we immediately replace the companies vector below.
+    let mut cfg = create_preset(industry, 1, period_months, complexity, volume);
+
+    // 3. Global overrides — stamp the manifest-derived values.
+    cfg.global.seed = Some(manifest.group_seed);
+    cfg.global.industry = industry;
+    cfg.global.start_date = manifest.period.start.format("%Y-%m-%d").to_string();
+    cfg.global.period_months = period_months;
+    cfg.global.group_currency = manifest.presentation_currency.clone();
+    cfg.global.presentation_currency = Some(manifest.presentation_currency.clone());
+
+    // 4. Replace companies with a single entry tailored to this shard.
+    //    `fiscal_year_variant` defaults to "K4" in the schema — we hard-code
+    //    it here since `default_fiscal_variant` is private to datasynth-config.
+    cfg.companies = vec![CompanyConfig {
+        code: entity.code.clone(),
+        name: entity.name.clone().unwrap_or_else(|| entity.code.clone()),
+        currency: entity.functional_currency.clone(),
+        functional_currency: Some(entity.functional_currency.clone()),
+        country: entity.country.clone(),
+        fiscal_year_variant: "K4".to_string(),
+        annual_transaction_volume: volume,
+        volume_weight: 1.0,
+    }];
+
+    // 5. Validate.  Any failure here is effectively a builder bug — surface
+    //    it with the entity code so the caller can pinpoint the shard.
+    datasynth_config::validate_config(&cfg).map_err(|e| {
+        GroupError::Config(format!(
+            "per-entity GeneratorConfig failed validation for {}: {e}",
+            entity.code
+        ))
+    })?;
+
+    Ok(cfg)
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+/// Map the entity's optional `industry` string to an [`IndustrySector`].
+///
+/// Unknown or absent values fall back to `Manufacturing` — the preset
+/// template has the widest coverage there, so downstream generators still
+/// produce something sensible even when the YAML carries a typo or
+/// leaves the field unset.
+fn map_industry(s: Option<&str>) -> IndustrySector {
+    match s.map(|v| v.to_ascii_lowercase()).as_deref() {
+        Some("manufacturing") => IndustrySector::Manufacturing,
+        Some("retail") => IndustrySector::Retail,
+        Some("financial_services" | "banking" | "finance") => IndustrySector::FinancialServices,
+        Some("healthcare" | "pharma" | "pharmaceutical") => IndustrySector::Healthcare,
+        Some("technology" | "tech" | "software") => IndustrySector::Technology,
+        Some("professional_services" | "consulting") => IndustrySector::ProfessionalServices,
+        Some("energy" | "oil_gas" | "utilities") => IndustrySector::Energy,
+        Some("transportation" | "logistics") => IndustrySector::Transportation,
+        Some("real_estate") => IndustrySector::RealEstate,
+        Some("telecommunications" | "telecom") => IndustrySector::Telecommunications,
+        _ => IndustrySector::Manufacturing,
+    }
+}
+
+/// Convert [`PeriodLength`] into the `period_months` integer the
+/// `datasynth-config` schema expects.
+fn period_months_from_length(len: PeriodLength) -> u32 {
+    match len {
+        PeriodLength::Monthly => 1,
+        PeriodLength::Quarterly => 3,
+        PeriodLength::SemiAnnual => 6,
+        PeriodLength::Annual => 12,
+    }
+}
+
+/// Look up the scoping profile's `row_budget`, defaulting to
+/// [`DEFAULT_ROW_BUDGET`] if the key is missing or the profile name
+/// doesn't resolve.
+fn lookup_row_budget(manifest: &GroupManifest, profile: &str) -> u64 {
+    manifest
+        .scoping_profiles
+        .get(profile)
+        .and_then(|v| v.as_mapping())
+        .and_then(|m| m.get(serde_yaml::Value::String("row_budget".to_string())))
+        .and_then(|v| v.as_u64())
+        .unwrap_or(DEFAULT_ROW_BUDGET)
+}
+
+/// Bucket a row budget into a [`TransactionVolume`] preset.
+///
+/// The mapping is intentionally lossy — v5.0 doesn't need byte-exact
+/// alignment between `row_budget` and the orchestrator's volume counter.
+/// Callers who need exact control can bypass this helper entirely and
+/// construct `TransactionVolume::Custom(n)` themselves.
+fn volume_from_rows(rows: u64) -> TransactionVolume {
+    if rows <= 10_000 {
+        TransactionVolume::TenK
+    } else if rows <= 100_000 {
+        TransactionVolume::HundredK
+    } else if rows <= 1_000_000 {
+        TransactionVolume::OneM
+    } else if rows <= 10_000_000 {
+        TransactionVolume::TenM
+    } else {
+        TransactionVolume::HundredM
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── map_industry ──────────────────────────────────────────────────────────
+
+    #[test]
+    fn map_industry_covers_every_variant() {
+        assert_eq!(
+            map_industry(Some("manufacturing")),
+            IndustrySector::Manufacturing
+        );
+        assert_eq!(map_industry(Some("retail")), IndustrySector::Retail);
+        assert_eq!(
+            map_industry(Some("financial_services")),
+            IndustrySector::FinancialServices
+        );
+        assert_eq!(
+            map_industry(Some("banking")),
+            IndustrySector::FinancialServices
+        );
+        assert_eq!(
+            map_industry(Some("finance")),
+            IndustrySector::FinancialServices
+        );
+        assert_eq!(map_industry(Some("healthcare")), IndustrySector::Healthcare);
+        assert_eq!(map_industry(Some("pharma")), IndustrySector::Healthcare);
+        assert_eq!(
+            map_industry(Some("pharmaceutical")),
+            IndustrySector::Healthcare
+        );
+        assert_eq!(map_industry(Some("technology")), IndustrySector::Technology);
+        assert_eq!(map_industry(Some("tech")), IndustrySector::Technology);
+        assert_eq!(map_industry(Some("software")), IndustrySector::Technology);
+        assert_eq!(
+            map_industry(Some("professional_services")),
+            IndustrySector::ProfessionalServices
+        );
+        assert_eq!(
+            map_industry(Some("consulting")),
+            IndustrySector::ProfessionalServices
+        );
+        assert_eq!(map_industry(Some("energy")), IndustrySector::Energy);
+        assert_eq!(map_industry(Some("oil_gas")), IndustrySector::Energy);
+        assert_eq!(map_industry(Some("utilities")), IndustrySector::Energy);
+        assert_eq!(
+            map_industry(Some("transportation")),
+            IndustrySector::Transportation
+        );
+        assert_eq!(
+            map_industry(Some("logistics")),
+            IndustrySector::Transportation
+        );
+        assert_eq!(
+            map_industry(Some("real_estate")),
+            IndustrySector::RealEstate
+        );
+        assert_eq!(
+            map_industry(Some("telecommunications")),
+            IndustrySector::Telecommunications
+        );
+        assert_eq!(
+            map_industry(Some("telecom")),
+            IndustrySector::Telecommunications
+        );
+    }
+
+    #[test]
+    fn map_industry_is_case_insensitive() {
+        assert_eq!(
+            map_industry(Some("MANUFACTURING")),
+            IndustrySector::Manufacturing
+        );
+        assert_eq!(map_industry(Some("Retail")), IndustrySector::Retail);
+        assert_eq!(
+            map_industry(Some("FINANCIAL_SERVICES")),
+            IndustrySector::FinancialServices
+        );
+    }
+
+    #[test]
+    fn map_industry_unknown_defaults_to_manufacturing() {
+        assert_eq!(
+            map_industry(Some("spacefaring_megacorp")),
+            IndustrySector::Manufacturing
+        );
+        assert_eq!(map_industry(Some("")), IndustrySector::Manufacturing);
+    }
+
+    #[test]
+    fn map_industry_none_defaults_to_manufacturing() {
+        assert_eq!(map_industry(None), IndustrySector::Manufacturing);
+    }
+
+    // ── period_months_from_length ─────────────────────────────────────────────
+
+    #[test]
+    fn period_months_covers_every_length() {
+        assert_eq!(period_months_from_length(PeriodLength::Monthly), 1);
+        assert_eq!(period_months_from_length(PeriodLength::Quarterly), 3);
+        assert_eq!(period_months_from_length(PeriodLength::SemiAnnual), 6);
+        assert_eq!(period_months_from_length(PeriodLength::Annual), 12);
+    }
+
+    // ── volume_from_rows — boundary and inside-bucket coverage ────────────────
+
+    #[test]
+    fn volume_from_rows_lower_boundary_is_tenk() {
+        // `0` lands in the TenK bucket since the boundaries are inclusive-upper.
+        assert!(matches!(volume_from_rows(0), TransactionVolume::TenK));
+        assert!(matches!(volume_from_rows(1), TransactionVolume::TenK));
+        assert!(matches!(volume_from_rows(10_000), TransactionVolume::TenK));
+    }
+
+    #[test]
+    fn volume_from_rows_honours_bucket_boundaries() {
+        // Each bucket's upper edge goes *into* that bucket; one above flips
+        // to the next bucket.
+        assert!(matches!(
+            volume_from_rows(10_001),
+            TransactionVolume::HundredK
+        ));
+        assert!(matches!(
+            volume_from_rows(100_000),
+            TransactionVolume::HundredK
+        ));
+        assert!(matches!(volume_from_rows(100_001), TransactionVolume::OneM));
+        assert!(matches!(
+            volume_from_rows(1_000_000),
+            TransactionVolume::OneM
+        ));
+        assert!(matches!(
+            volume_from_rows(1_000_001),
+            TransactionVolume::TenM
+        ));
+        assert!(matches!(
+            volume_from_rows(10_000_000),
+            TransactionVolume::TenM
+        ));
+        assert!(matches!(
+            volume_from_rows(10_000_001),
+            TransactionVolume::HundredM
+        ));
+    }
+
+    #[test]
+    fn volume_from_rows_interior_samples() {
+        // Inside-bucket samples — useful as a sanity check that no off-by-one
+        // pulled a mid-bucket value into an adjacent bucket.
+        assert!(matches!(
+            volume_from_rows(50_000),
+            TransactionVolume::HundredK
+        ));
+        assert!(matches!(volume_from_rows(500_000), TransactionVolume::OneM));
+        assert!(matches!(
+            volume_from_rows(5_000_000),
+            TransactionVolume::TenM
+        ));
+        assert!(matches!(
+            volume_from_rows(50_000_000),
+            TransactionVolume::HundredM
+        ));
+    }
+
+    #[test]
+    fn volume_from_rows_saturates_at_hundredm() {
+        // Anything above 10M lands in the top bucket — no Custom(n) promotion.
+        assert!(matches!(
+            volume_from_rows(u64::MAX),
+            TransactionVolume::HundredM
+        ));
+    }
+}
