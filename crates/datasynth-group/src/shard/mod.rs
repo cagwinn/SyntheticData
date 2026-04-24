@@ -7,9 +7,11 @@
 //!
 //! [`GroupManifest`]: crate::manifest::GroupManifest
 
+pub mod context;
 pub mod ic_je_injector;
 pub mod ic_plan;
 
+pub use context::build_shard_context;
 pub use ic_je_injector::{
     buyer_accounts, inject_ic_journal_entries, seller_accounts, InjectionCtx,
 };
