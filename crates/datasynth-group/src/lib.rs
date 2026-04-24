@@ -8,6 +8,7 @@ pub mod config;
 pub mod errors;
 pub mod manifest;
 pub mod resolve;
+pub mod shard;
 pub mod validate;
 
 pub use config::{
