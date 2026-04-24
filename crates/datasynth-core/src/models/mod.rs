@@ -18,6 +18,10 @@ mod anomaly;
 // Graph property mapping trait (DS-001)
 mod approval;
 
+// Intercompany pair identifier (group audit v5.0, Task 3.1)
+pub mod ic_pair;
+pub use ic_pair::IcPairId;
+
 // Cost center hierarchy model (D.2)
 mod chart_of_accounts;
 mod company;

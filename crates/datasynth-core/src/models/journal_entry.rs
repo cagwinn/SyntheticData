@@ -380,6 +380,18 @@ pub struct JournalEntryHeader {
     #[serde(default)]
     pub is_elimination: bool,
 
+    // --- Intercompany Pair Linkage (group audit v5.0, Task 3.1) ---
+    /// Intercompany pair identifier. Set on both seller-side and buyer-side JEs
+    /// that are two halves of the same IC transaction. Aggregate-phase matching
+    /// joins JEs on this value. `None` for non-IC transactions.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ic_pair_id: Option<crate::models::IcPairId>,
+
+    /// Entity code of the IC counterparty. For a seller JE, this is the
+    /// buyer's entity; for a buyer JE, the seller's. `None` for non-IC transactions.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ic_partner_entity: Option<String>,
+
     // --- Approval Workflow ---
     /// Approval workflow for high-value transactions
     #[serde(default)]
@@ -453,6 +465,9 @@ impl JournalEntryHeader {
             sod_conflict_type: None,
             // Consolidation elimination flag
             is_elimination: false,
+            // Intercompany pair linkage (group audit v5.0, Task 3.1)
+            ic_pair_id: None,
+            ic_partner_entity: None,
             // Approval workflow
             approval_workflow: None,
             // Source document + approval tracking
@@ -515,6 +530,9 @@ impl JournalEntryHeader {
             sod_conflict_type: None,
             // Consolidation elimination flag
             is_elimination: false,
+            // Intercompany pair linkage (group audit v5.0, Task 3.1)
+            ic_pair_id: None,
+            ic_partner_entity: None,
             // Approval workflow
             approval_workflow: None,
             // Source document + approval tracking
