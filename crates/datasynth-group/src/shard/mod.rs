@@ -7,6 +7,10 @@
 //!
 //! [`GroupManifest`]: crate::manifest::GroupManifest
 
+pub mod ic_je_injector;
 pub mod ic_plan;
 
+pub use ic_je_injector::{
+    buyer_accounts, inject_ic_journal_entries, seller_accounts, InjectionCtx,
+};
 pub use ic_plan::{avg_amount, derive_ic_pair_plans, IcPairPlan, IcRole};

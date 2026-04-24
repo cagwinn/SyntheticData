@@ -30,6 +30,7 @@ pub mod lineage;
 pub mod prov;
 pub mod run_manifest;
 pub mod scenario_engine;
+pub mod shard_context;
 #[cfg(feature = "streaming")]
 pub mod stream_client;
 pub mod stream_pipeline;
@@ -39,4 +40,5 @@ pub mod webhooks;
 pub use enhanced_orchestrator::*;
 pub use label_export::*;
 pub use run_manifest::*;
+pub use shard_context::ShardContext;
 pub use streaming_orchestrator::*;
