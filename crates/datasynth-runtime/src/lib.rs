@@ -27,6 +27,7 @@ pub mod generation_session;
 pub mod intervention_manager;
 pub mod label_export;
 pub mod lineage;
+pub mod output_writer;
 pub mod prov;
 pub mod run_manifest;
 pub mod scenario_engine;

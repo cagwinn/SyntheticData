@@ -8,9 +8,9 @@ use std::cell::Cell;
 use std::io::Write;
 use std::path::Path;
 
+use crate::enhanced_orchestrator::EnhancedGenerationResult;
 use datasynth_core::documents::PaymentType;
 use datasynth_output::OutputRootConfig;
-use datasynth_runtime::enhanced_orchestrator::EnhancedGenerationResult;
 use tracing::{info, warn};
 
 thread_local! {
@@ -2892,7 +2892,7 @@ struct BalanceValidationSummary {
 }
 
 impl BalanceValidationSummary {
-    fn from(v: &datasynth_runtime::enhanced_orchestrator::BalanceValidationResult) -> Self {
+    fn from(v: &crate::enhanced_orchestrator::BalanceValidationResult) -> Self {
         Self {
             validated: v.validated,
             is_balanced: v.is_balanced,

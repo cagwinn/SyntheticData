@@ -1,6 +1,6 @@
 //! Integration test for per-entity output routing via `OutputRootConfig`.
 //!
-//! Exercises [`datasynth_cli::output_writer::write_all_output_with_root`]
+//! Exercises [`datasynth_runtime::output_writer::write_all_output_with_root`]
 //! directly with a minimal [`EnhancedGenerationResult::default()`] so the
 //! test doesn't spin up a full `EnhancedOrchestrator` — the SAF-T smoke
 //! test already covers the full pipeline end-to-end and is memory-heavy.
@@ -8,9 +8,9 @@
 //! The assertions here are purely about routing: flat mode writes at the
 //! root, per-entity mode writes under `{root}/entities/{code}/`.
 
-use datasynth_cli::output_writer::write_all_output_with_root;
 use datasynth_output::OutputRootConfig;
 use datasynth_runtime::enhanced_orchestrator::EnhancedGenerationResult;
+use datasynth_runtime::output_writer::write_all_output_with_root;
 use tempfile::TempDir;
 
 fn minimal_result() -> EnhancedGenerationResult {

@@ -1,6 +1,6 @@
 //! CLI for synthetic accounting data generation.
 
-use datasynth_cli::output_writer;
+use datasynth_runtime::output_writer;
 
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
