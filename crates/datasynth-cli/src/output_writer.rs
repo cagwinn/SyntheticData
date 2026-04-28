@@ -9,6 +9,7 @@ use std::io::Write;
 use std::path::Path;
 
 use datasynth_core::documents::PaymentType;
+use datasynth_output::OutputRootConfig;
 use datasynth_runtime::enhanced_orchestrator::EnhancedGenerationResult;
 use tracing::{info, warn};
 
@@ -274,6 +275,30 @@ pub fn write_all_output(
             datasynth_config::FileFormat::Json,
         ],
     )
+}
+
+/// Variant of [`write_all_output_with_layout`] that routes output through
+/// an [`OutputRootConfig`] instead of a raw `&Path`.
+///
+/// Per-entity subtree mode is used by the group-audit shard runner
+/// (v5.0+): the runner sets `per_entity_subtree: true` and
+/// `entity_code: Some(code)` on `root`, and this helper drops each
+/// entity's archive under `{root_dir}/entities/{code}/` so group-wide
+/// artifacts can still live at `{root_dir}/`.
+///
+/// In flat mode (the default for single-entity runs) this is exactly
+/// equivalent to calling [`write_all_output_with_layout`] with
+/// `output_dir = root.root_dir`, so the signature and behavior of the
+/// existing single-entity entrypoints are unchanged.
+#[allow(dead_code)]
+pub fn write_all_output_with_root(
+    result: &EnhancedGenerationResult,
+    root: &OutputRootConfig,
+    export_layout: datasynth_config::ExportLayout,
+    formats: &[datasynth_config::FileFormat],
+) -> Result<(), Box<dyn std::error::Error>> {
+    let effective = root.effective_dir();
+    write_all_output_with_layout(result, &effective, export_layout, formats)
 }
 
 /// Write all generated data with a configurable export layout and format set.

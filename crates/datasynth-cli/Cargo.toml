@@ -10,6 +10,10 @@ description = "Command-line interface for synthetic enterprise data generation"
 keywords.workspace = true
 categories.workspace = true
 
+[lib]
+name = "datasynth_cli"
+path = "src/lib.rs"
+
 [[bin]]
 name = "datasynth-data"
 path = "src/main.rs"
