@@ -25,6 +25,7 @@ pub mod ic_matcher;
 pub mod post_elim;
 pub mod pre_elim;
 pub mod tb_loader;
+pub mod translation;
 
 pub use coverage_report::{
     build_coverage_report, write_coverage_report, CoverageReport, COVERAGE_REPORT_FILENAME,
@@ -37,3 +38,4 @@ pub use ic_matcher::{
 pub use post_elim::apply_eliminations_to_tb;
 pub use pre_elim::{aggregate_pre_elimination, AggregatedAccount, AggregatedTb, DeferredEntity};
 pub use tb_loader::load_entity_trial_balance;
+pub use translation::{classify_account, TranslationAccountType};

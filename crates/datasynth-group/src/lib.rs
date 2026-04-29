@@ -13,11 +13,12 @@ pub mod shard;
 pub mod validate;
 
 pub use aggregate::{
-    aggregate_pre_elimination, apply_eliminations_to_tb, build_coverage_report,
+    aggregate_pre_elimination, apply_eliminations_to_tb, build_coverage_report, classify_account,
     eliminations_to_journal_entries, generate_eliminations, load_entity_trial_balance,
     match_ic_pairs, write_coverage_report, AggregatedAccount, AggregatedTb, CoverageReport,
-    DeferredEntity, EliminationResult, IcMatchResult, IcMatchedPair, UnmatchedReason,
-    UnmatchedSide, COVERAGE_REPORT_FILENAME, COVERAGE_REPORT_SUBDIR, UNMATCHED_SAMPLE_CAP,
+    DeferredEntity, EliminationResult, IcMatchResult, IcMatchedPair, TranslationAccountType,
+    UnmatchedReason, UnmatchedSide, COVERAGE_REPORT_FILENAME, COVERAGE_REPORT_SUBDIR,
+    UNMATCHED_SAMPLE_CAP,
 };
 pub use config::{
     AuditEngagementConfig, CbcReportConfig, ComponentScopeThresholds, ConsolidationMethod,
