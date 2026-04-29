@@ -46,7 +46,7 @@ pub use nci::{
     compute_nci_rollforward, ingest_opening_nci_balances, write_nci_rollforward, NciInputs,
     NciRollforward, NCI_ROLLFORWARD_FILENAME,
 };
-pub use post_elim::apply_eliminations_to_tb;
+pub use post_elim::{apply_eliminations_to_tb, apply_nci_and_equity_method};
 pub use pre_elim::{aggregate_pre_elimination, AggregatedAccount, AggregatedTb, DeferredEntity};
 pub use tb_loader::load_entity_trial_balance;
 pub use translation::{

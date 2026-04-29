@@ -64,8 +64,48 @@ use rust_decimal::Decimal;
 
 use datasynth_core::models::JournalEntry;
 
+use crate::aggregate::equity_method::EquityMethodInvestment;
+use crate::aggregate::nci::NciRollforward;
 use crate::aggregate::pre_elim::{AggregatedAccount, AggregatedTb};
 use crate::errors::{GroupError, GroupResult};
+
+// ── Account constants (v5.0) ──────────────────────────────────────────────────
+//
+// Hard-coded GL accounts for the v5.0 NCI + equity-method overlay.  Per
+// spec these will be promoted to a configurable mapping in v5.1 once
+// per-entity / per-engagement chart-of-accounts variations are wired
+// in.  For Mini-Nestlé (the only v5.0 fixture) these mirror the
+// canonical IFRS / US-GAAP-aligned account ranges:
+//
+// | Code | Role                                       |
+// |------|--------------------------------------------|
+// | 1850 | Investment in associates / JVs (BS asset)  |
+// | 3300 | Retained earnings (BS equity)              |
+// | 3400 | Equity-method bridge (BS equity sidecar)   |
+// | 3500 | Non-controlling interest equity (BS equity)|
+// | 4900 | Share of profit of associates (IS pickup)  |
+
+/// GL account for non-controlling-interest equity (IFRS 10.22 / ASC
+/// 810-10-45-15 separate equity component).
+const NCI_EQUITY: &str = "3500";
+
+/// GL account for investment in associates / joint ventures (IAS 28
+/// single-line BS asset).
+const EQUITY_METHOD_INVESTMENT: &str = "1850";
+
+/// Bridge equity account used by the v5.0 equity-method overlay so the
+/// investment line and the P&L pickup each post against a balanced
+/// counterparty.  Full integration with retained earnings / dividends
+/// is deferred to v5.1.
+const EQUITY_METHOD_BRIDGE: &str = "3400";
+
+/// GL account for the investor's share of associate profit (IS line
+/// per IAS 28.10).
+const SHARE_OF_PROFIT_OF_ASSOCIATES: &str = "4900";
+
+/// GL account for retained earnings — the controlling-interest equity
+/// component the closing NCI is moved out of.
+const RETAINED_EARNINGS: &str = "3300";
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
@@ -170,6 +210,158 @@ pub fn apply_eliminations_to_tb(
     verify_balance_invariant(&post)?;
 
     Ok(post)
+}
+
+/// Apply the Chunk-7 NCI + equity-method overlays on top of the
+/// post-elimination consolidated trial balance.
+///
+/// # Behaviour
+///
+/// 1. **Currency check.**  Every [`NciRollforward`] and
+///    [`EquityMethodInvestment`] must already be denominated in
+///    `post_elim_tb.currency` (translation per Chunk 6 must precede
+///    this overlay).  Mismatches surface as [`GroupError::Aggregate`].
+/// 2. **NCI overlay** (per IFRS 10.22 / ASC 810-10-45-15).  The sum of
+///    closing NCI balances is moved out of retained earnings (`3300`)
+///    and into the separate NCI equity component (`3500`):
+///
+///    ```text
+///    3500 (NCI equity)         credit  Σ closing_nci
+///    3300 (retained earnings)  debit   Σ closing_nci
+///    ```
+///
+///    Net effect on aggregate `total_debits` / `total_credits` is
+///    zero — the overlay is internal-equity reclassification only.
+///
+/// 3. **Equity-method overlay** (v5.0 simplified).  For every
+///    [`EquityMethodInvestment`] the function posts a balanced pair of
+///    bridge entries:
+///
+///    - **Investment line** (BS):
+///      ```text
+///      1850 (investment in associates) debit  closing_carrying_value
+///      3400 (equity-method bridge)     credit closing_carrying_value
+///      ```
+///    - **P&L pickup** (IS):
+///      ```text
+///      4900 (share of profit)          credit share_of_profit
+///      3400 (equity-method bridge)     debit  share_of_profit
+///      ```
+///
+///    The bridge account `3400` is a v5.0 simplification — full
+///    integration with retained earnings / dividends comes in v5.1.
+///    Each post is balanced individually so the aggregate stays
+///    balanced.
+///
+/// 4. **Defensive balance postcondition.**  After applying both
+///    overlays the function recomputes `total_debits` /
+///    `total_credits` from the per-account view and verifies the
+///    `total_debits == total_credits` invariant within the standard
+///    0.01 tolerance.
+///
+/// The function is **pure** with respect to its arguments: the input
+/// `post_elim_tb` is cloned, the overlays are applied to the clone, and
+/// the result is returned.  Callers may keep both pre-overlay and
+/// post-overlay views.
+///
+/// # Errors
+///
+/// - [`GroupError::Aggregate`] if any rollforward / investment record
+///   has a currency that doesn't match `post_elim_tb.currency`.
+/// - [`GroupError::Aggregate`] if the post-overlay TB fails the
+///   balance invariant (should be impossible given upstream contracts;
+///   guarded as a defensive postcondition).
+pub fn apply_nci_and_equity_method(
+    post_elim_tb: &AggregatedTb,
+    nci_rollforwards: &[NciRollforward],
+    equity_method_investments: &[EquityMethodInvestment],
+) -> GroupResult<AggregatedTb> {
+    let mut overlay = post_elim_tb.clone();
+
+    // ── 1. Currency consistency ──────────────────────────────────────
+    for rf in nci_rollforwards {
+        if rf.currency != overlay.currency {
+            return Err(GroupError::Aggregate(format!(
+                "apply_nci_and_equity_method: NCI rollforward for entity \
+                 `{}` is denominated in `{}` but consolidated TB is in \
+                 `{}` — translation needed first (Chunk 6)",
+                rf.entity_code, rf.currency, overlay.currency,
+            )));
+        }
+    }
+    for inv in equity_method_investments {
+        if inv.currency != overlay.currency {
+            return Err(GroupError::Aggregate(format!(
+                "apply_nci_and_equity_method: equity-method investment for \
+                 investee `{}` is denominated in `{}` but consolidated TB \
+                 is in `{}` — translation needed first (Chunk 6)",
+                inv.investee_code, inv.currency, overlay.currency,
+            )));
+        }
+    }
+
+    // ── 2. NCI overlay ───────────────────────────────────────────────
+    //
+    // Single aggregate posting per the IFRS 10.22 / ASC 810-10-45-15
+    // separate-equity-component requirement: total closing NCI moves
+    // out of retained earnings into the NCI equity sub-component.
+    let total_closing_nci: Decimal = nci_rollforwards
+        .iter()
+        .map(|rf| rf.closing_nci)
+        .fold(Decimal::ZERO, |acc, v| acc + v);
+    if total_closing_nci != Decimal::ZERO {
+        // 3500 (NCI equity) credit Σ closing_nci
+        apply_line_to_account(&mut overlay, NCI_EQUITY, Decimal::ZERO, total_closing_nci);
+        // 3300 (retained earnings) debit Σ closing_nci
+        apply_line_to_account(&mut overlay, RETAINED_EARNINGS, total_closing_nci, Decimal::ZERO);
+    }
+
+    // ── 3. Equity-method overlay ─────────────────────────────────────
+    //
+    // Per investment: balanced BS pair + balanced IS pair, each
+    // posting against the v5.0 bridge account `3400`.
+    for inv in equity_method_investments {
+        // Investment line on BS.
+        if inv.closing_carrying_value != Decimal::ZERO {
+            apply_line_to_account(
+                &mut overlay,
+                EQUITY_METHOD_INVESTMENT,
+                inv.closing_carrying_value,
+                Decimal::ZERO,
+            );
+            apply_line_to_account(
+                &mut overlay,
+                EQUITY_METHOD_BRIDGE,
+                Decimal::ZERO,
+                inv.closing_carrying_value,
+            );
+        }
+
+        // Share-of-profit pickup on IS.
+        if inv.share_of_profit != Decimal::ZERO {
+            apply_line_to_account(
+                &mut overlay,
+                SHARE_OF_PROFIT_OF_ASSOCIATES,
+                Decimal::ZERO,
+                inv.share_of_profit,
+            );
+            apply_line_to_account(
+                &mut overlay,
+                EQUITY_METHOD_BRIDGE,
+                inv.share_of_profit,
+                Decimal::ZERO,
+            );
+        }
+    }
+
+    // ── 4. Re-derive aggregate totals + verify the balance ───────────
+    let (total_debits, total_credits) = recompute_totals(&overlay);
+    overlay.total_debits = total_debits;
+    overlay.total_credits = total_credits;
+
+    verify_balance_invariant(&overlay)?;
+
+    Ok(overlay)
 }
 
 // ── Internal helpers ──────────────────────────────────────────────────────────
