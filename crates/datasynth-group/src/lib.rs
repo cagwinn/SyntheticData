@@ -14,15 +14,18 @@ pub mod validate;
 
 pub use aggregate::{
     aggregate_pre_elimination, apply_eliminations_to_tb, build_coverage_report, classify_account,
-    compute_cta, compute_nci_rollforward, cta_rollforward, eliminations_to_journal_entries,
-    generate_eliminations, ingest_opening_nci_balances, load_entity_trial_balance, match_ic_pairs,
-    translate_entity_tb, write_coverage_report, write_cta_rollforward, write_nci_rollforward,
+    compute_cta, compute_equity_method_investment, compute_nci_rollforward, cta_rollforward,
+    eliminations_to_journal_entries, generate_eliminations,
+    ingest_opening_equity_method_carrying_values, ingest_opening_nci_balances,
+    load_entity_trial_balance, match_ic_pairs, translate_entity_tb, write_coverage_report,
+    write_cta_rollforward, write_equity_method_investments, write_nci_rollforward,
     write_translation_worksheet, AggregatedAccount, AggregatedTb, CoverageReport, CtaRollforward,
-    DeferredEntity, DrCr, EliminationResult, IcMatchResult, IcMatchedPair, NciInputs,
-    NciRollforward, RateBasis, TranslatedLine, TranslatedTb, TranslationAccountType,
-    UnmatchedReason, UnmatchedSide, WorksheetEntity, WorksheetLine, CONSOLIDATED_SUBDIR,
-    COVERAGE_REPORT_FILENAME, COVERAGE_REPORT_SUBDIR, CTA_ROLLFORWARD_FILENAME,
-    NCI_ROLLFORWARD_FILENAME, TRANSLATION_WORKSHEET_FILENAME, UNMATCHED_SAMPLE_CAP,
+    DeferredEntity, DrCr, EliminationResult, EquityMethodInputs, EquityMethodInvestment,
+    IcMatchResult, IcMatchedPair, NciInputs, NciRollforward, RateBasis, TranslatedLine,
+    TranslatedTb, TranslationAccountType, UnmatchedReason, UnmatchedSide, WorksheetEntity,
+    WorksheetLine, CONSOLIDATED_SUBDIR, COVERAGE_REPORT_FILENAME, COVERAGE_REPORT_SUBDIR,
+    CTA_ROLLFORWARD_FILENAME, EQUITY_METHOD_INVESTMENTS_FILENAME, NCI_ROLLFORWARD_FILENAME,
+    TRANSLATION_WORKSHEET_FILENAME, UNMATCHED_SAMPLE_CAP,
 };
 pub use config::{
     AuditEngagementConfig, CbcReportConfig, ComponentScopeThresholds, ConsolidationMethod,

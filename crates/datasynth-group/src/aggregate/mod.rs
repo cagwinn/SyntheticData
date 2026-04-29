@@ -21,6 +21,7 @@
 
 pub mod coverage_report;
 pub mod elimination;
+pub mod equity_method;
 pub mod ic_matcher;
 pub mod nci;
 pub mod post_elim;
@@ -33,6 +34,11 @@ pub use coverage_report::{
     COVERAGE_REPORT_SUBDIR, UNMATCHED_SAMPLE_CAP,
 };
 pub use elimination::{eliminations_to_journal_entries, generate_eliminations, EliminationResult};
+pub use equity_method::{
+    compute_equity_method_investment, ingest_opening_equity_method_carrying_values,
+    write_equity_method_investments, EquityMethodInputs, EquityMethodInvestment,
+    EQUITY_METHOD_INVESTMENTS_FILENAME,
+};
 pub use ic_matcher::{
     match_ic_pairs, IcMatchResult, IcMatchedPair, UnmatchedReason, UnmatchedSide,
 };
