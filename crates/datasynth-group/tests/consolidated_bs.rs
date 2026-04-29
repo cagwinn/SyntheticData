@@ -14,7 +14,6 @@ use rust_decimal_macros::dec;
 
 use datasynth_group::{
     build_consolidated_balance_sheet, AggregatedAccount, AggregatedTb, ConsolidatedBalanceSheet,
-    GroupError,
 };
 
 fn period_end() -> NaiveDate {
@@ -196,16 +195,20 @@ fn imbalanced_tb_yields_aggregate_error() {
         total_credits: Decimal::ZERO,
     };
 
-    let err = build_consolidated_balance_sheet(&tb, "BAD", period_end())
-        .expect_err("imbalanced TB must surface as Aggregate error");
-
-    match err {
-        GroupError::Aggregate(msg) => {
-            assert!(msg.contains("does not balance"));
-            assert!(msg.contains("1000000"));
-        }
-        other => panic!("expected Aggregate, got {other:?}"),
-    }
+    // v5.0 contract: per-entity TBs from the synthetic engine
+    // deliberately carry fraud / anomaly imbalances. The consolidated
+    // BS preserves them and surfaces the diff via tracing instead of
+    // failing — downstream consumers inspect the imbalance as the
+    // ground-truth fraud signal.
+    let bs = build_consolidated_balance_sheet(&tb, "BAD", period_end())
+        .expect("imbalanced TB must succeed under v5.0 fraud-tolerance contract");
+    let imbalance = (bs.total_assets - bs.total_liabilities_plus_equity_plus_nci).abs();
+    assert!(
+        imbalance > Decimal::new(1, 2),
+        "imbalanced TB must produce imbalanced consolidated BS: assets={}, L+E+NCI={}",
+        bs.total_assets,
+        bs.total_liabilities_plus_equity_plus_nci
+    );
 }
 
 #[test]

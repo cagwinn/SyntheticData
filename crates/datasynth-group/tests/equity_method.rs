@@ -159,9 +159,16 @@ fn rejects_ownership_at_boundaries() {
 }
 
 #[test]
-fn negative_carrying_value_triggers_error() {
+fn negative_carrying_value_clamps_at_zero_per_ias_28_38() {
+    // v5.0 contract: per IAS 28.38 / ASC 323-10-35-20, when share-of-
+    // loss would push carrying value below zero, the investor clamps
+    // at zero and discontinues recognising further losses. v5.0 logs
+    // the suppressed amount; v5.1 will surface it in a separate
+    // `equity_method_suppressed_losses.json` artefact.
+    //
     // 50%-owned investee with a 1M loss and a 100k opening:
-    //   100_000 + (0.5 * -1_000_000) - 0 - 0 = -400_000 → error.
+    //   raw closing = 100_000 + (0.5 * -1_000_000) - 0 - 0 = -400_000
+    //   clamped     = 0
     let investee = make_entity("INV", ConsolidationMethod::EquityMethod, Some(dec!(0.50)));
     let inputs = EquityMethodInputs {
         investee: &investee,
@@ -173,18 +180,14 @@ fn negative_carrying_value_triggers_error() {
         period_end: period_end(),
         currency: "CHF".to_string(),
     };
-    let err = compute_equity_method_investment(&inputs).expect_err("negative carrying must reject");
-    match err {
-        GroupError::Aggregate(msg) => {
-            assert!(msg.contains("INV"), "msg names entity: {msg}");
-            assert!(
-                msg.contains("negative"),
-                "msg explains the violation: {msg}"
-            );
-            assert!(msg.contains("IAS 28.38"), "msg cites the standard: {msg}");
-        }
-        other => panic!("expected Aggregate, got {other:?}"),
-    }
+    let inv = compute_equity_method_investment(&inputs)
+        .expect("negative carrying must clamp, not error, under v5.0 IAS 28.38 contract");
+    assert_eq!(
+        inv.closing_carrying_value,
+        Decimal::ZERO,
+        "carrying value must be clamped to zero (raw was -400_000), got {}",
+        inv.closing_carrying_value
+    );
 }
 
 #[test]

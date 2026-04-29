@@ -107,6 +107,18 @@ pub fn build_entity_generator_config(
     //     with "missing shard archive". Force-enable it for every shard.
     cfg.financial_reporting.enabled = true;
 
+    // 3b. Disable banking / KYC / AML generation in shard mode.
+    //     `BankingConfig::enabled` defaults to `true` and the orchestrator
+    //     emits per-entity banking JSON archives that average ~29 GB each
+    //     (driven by `aml_transaction_labels.json` at ~6.5 GB / entity for
+    //     a quarterly period). At enterprise-2000 scale that's 58 TB — far
+    //     beyond any practical disk budget. The companion
+    //     `vynfi-aml-100k` HF dataset is the v5.0 banking showcase; the
+    //     group-audit pipeline doesn't consume banking data downstream,
+    //     so disabling it for shard generation has zero effect on the
+    //     consolidated archive.
+    cfg.banking.enabled = false;
+
     // 4. Replace companies with a single entry tailored to this shard.
     //    `fiscal_year_variant` defaults to "K4" in the schema — we hard-code
     //    it here since `default_fiscal_variant` is private to datasynth-config.

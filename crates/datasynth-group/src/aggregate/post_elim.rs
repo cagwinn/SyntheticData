@@ -550,18 +550,18 @@ mod tests {
     }
 
     #[test]
-    fn verify_balance_invariant_fails_on_unbalanced_tb() {
+    fn verify_balance_invariant_logs_unbalanced_tb_but_does_not_error() {
+        // Contract change in v5.0: verify_balance_invariant no longer
+        // returns Err on unbalanced inputs. Per-entity TBs from the
+        // orchestrator deliberately carry fraud / anomaly imbalances
+        // (the imbalance IS the ground-truth fraud signal), so
+        // post-elim tolerates the imbalance and surfaces it via tracing
+        // instead of failing the consolidation. See the function rustdoc
+        // and the same pattern in `tb_loader::verify_balance_invariant`.
         let mut tb = empty_aggregated_tb("CHF");
         tb.total_debits = dec!(500);
         tb.total_credits = dec!(400);
-        let err = verify_balance_invariant(&tb).expect_err("unbalanced must error");
-        match err {
-            GroupError::Aggregate(msg) => {
-                assert!(msg.contains("unbalanced"));
-                assert!(msg.contains("500"));
-                assert!(msg.contains("400"));
-            }
-            other => panic!("expected Aggregate, got {other:?}"),
-        }
+        verify_balance_invariant(&tb)
+            .expect("unbalanced must pass under v5.0 fraud-tolerance contract");
     }
 }

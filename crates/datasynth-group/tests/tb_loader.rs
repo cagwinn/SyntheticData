@@ -247,21 +247,19 @@ fn unbalanced_tb_is_aggregate_error() {
     );
     write_tb_array(&entity_subdir, &[tb]);
 
-    let err = load_entity_trial_balance(&entity_subdir).expect_err("unbalanced TB must error");
-
-    match err {
-        GroupError::Aggregate(msg) => {
-            assert!(
-                msg.contains("NESTLE_DE"),
-                "error message must name the entity, got {msg:?}"
-            );
-            assert!(
-                msg.contains("balanc") || msg.contains("imbalance"),
-                "error message must describe the balance violation, got {msg:?}"
-            );
-        }
-        other => panic!("expected GroupError::Aggregate, got {other:?}"),
-    }
+    // v5.0 contract change: per-entity TBs from the orchestrator are
+    // intentionally unbalanced (fraud / anomaly injection — the
+    // imbalance IS the ground-truth fraud signal). The loader logs the
+    // imbalance via tracing instead of failing, so downstream aggregate
+    // code keeps working on the synthetic input. Test the new contract:
+    // load succeeds, imbalance is preserved verbatim.
+    let tb = load_entity_trial_balance(&entity_subdir)
+        .expect("unbalanced TB must load successfully under v5.0 fraud-tolerance contract");
+    assert!(!tb.is_balanced, "loaded TB preserves the imbalance flag");
+    assert!(
+        (tb.total_debits - tb.total_credits).abs() > Decimal::new(1, 2),
+        "loaded TB preserves the imbalance amount"
+    );
 }
 
 /// Corruption signal: `is_balanced = true` is on disk but the totals
@@ -284,20 +282,14 @@ fn corrupt_balanced_flag_is_aggregate_error() {
 
     write_tb_array(&entity_subdir, &[tb]);
 
-    let err =
-        load_entity_trial_balance(&entity_subdir).expect_err("corrupt balanced flag must error");
-
-    match err {
-        GroupError::Aggregate(msg) => {
-            assert!(
-                msg.contains("NESTLE_SA"),
-                "error message must name the entity, got {msg:?}"
-            );
-            assert!(
-                msg.contains("corrupt") || msg.contains("imbalance"),
-                "error message must describe the corruption, got {msg:?}"
-            );
-        }
-        other => panic!("expected GroupError::Aggregate, got {other:?}"),
-    }
+    // v5.0 contract change: same as the unbalanced-TB case — the
+    // loader no longer fails on `is_balanced=true && total_debits !=
+    // total_credits`, it just logs the corruption. The aggregate phase
+    // tolerates synthetic-engine fraud injection that produces this
+    // exact pattern in normal operation.
+    let tb = load_entity_trial_balance(&entity_subdir)
+        .expect("corrupt-flag TB must load under v5.0 fraud-tolerance contract");
+    assert!(tb.is_balanced, "loaded TB preserves the lying balanced flag");
+    assert_eq!(tb.total_debits, dec!(10000));
+    assert_eq!(tb.total_credits, dec!(9000));
 }
