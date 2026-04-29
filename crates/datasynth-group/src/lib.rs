@@ -13,8 +13,8 @@ pub mod shard;
 pub mod validate;
 
 pub use aggregate::{
-    aggregate_pre_elimination, load_entity_trial_balance, AggregatedAccount, AggregatedTb,
-    DeferredEntity,
+    aggregate_pre_elimination, load_entity_trial_balance, match_ic_pairs, AggregatedAccount,
+    AggregatedTb, DeferredEntity, IcMatchResult, IcMatchedPair, UnmatchedReason, UnmatchedSide,
 };
 pub use config::{
     AuditEngagementConfig, CbcReportConfig, ComponentScopeThresholds, ConsolidationMethod,
