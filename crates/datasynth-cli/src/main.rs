@@ -899,6 +899,35 @@ fn main() -> Result<()> {
             max_iterations,
         } => {
             // ========================================
+            // GROUP CONFIG AUTO-DETECTION (v5.0+)
+            // ========================================
+            // If the user passed `--config X` and X is a GroupConfig
+            // (recognised by the top-level `presentation_currency` and
+            // `ownership` keys), transparently dispatch into the
+            // `group generate` standalone path. The single-entity
+            // pipeline below is left untouched. Auto-detection only
+            // fires when none of the modes that can't be a group config
+            // are active (--demo, --fingerprint, --scenario-pack,
+            // --append). These paths predate the group engine and use
+            // bespoke loading logic.
+            if let Some(ref cfg_path) = config {
+                if !demo
+                    && fingerprint.is_none()
+                    && scenario_pack.is_none()
+                    && !append
+                {
+                    if let Ok(yaml) = std::fs::read_to_string(cfg_path) {
+                        if yaml_is_group_config(&yaml) {
+                            tracing::info!(
+                                "auto-detected group config; dispatching to `group generate`"
+                            );
+                            return handle_group_generate(cfg_path, &output, true);
+                        }
+                    }
+                }
+            }
+
+            // ========================================
             // CPU SAFEGUARD: Limit thread pool size
             // ========================================
             let available_cpus = num_cpus::get();
@@ -3537,13 +3566,88 @@ fn handle_group_aggregate(
     Ok(())
 }
 
-/// v5.0+: `datasynth-data group generate` handler — wired in Task 10.5.
+/// v5.0+: `datasynth-data group generate` handler — Task 10.5.
+///
+/// Drives [`datasynth_group::generate_standalone`] which runs
+/// manifest + shards + aggregate in a single in-process call.  This is
+/// the same code path the existing `generate` command auto-detects
+/// when the YAML config is a [`datasynth_group::GroupConfig`] instead
+/// of a single-entity [`datasynth_config::GeneratorConfig`].
 fn handle_group_generate(
-    _config_path: &std::path::Path,
-    _out_path: &std::path::Path,
-    _parallel_shards: bool,
+    config_path: &std::path::Path,
+    out_path: &std::path::Path,
+    parallel_shards: bool,
 ) -> Result<()> {
-    anyhow::bail!("group generate: not yet implemented (Task 10.5)")
+    use anyhow::Context;
+    tracing::info!(
+        config = %config_path.display(),
+        out = %out_path.display(),
+        parallel_shards = parallel_shards,
+        "group generate: starting",
+    );
+
+    let yaml = std::fs::read_to_string(config_path)
+        .with_context(|| format!("group generate: read {}", config_path.display()))?;
+    let cfg: datasynth_group::GroupConfig = serde_yaml::from_str(&yaml).with_context(|| {
+        format!(
+            "group generate: parse {} as GroupConfig",
+            config_path.display()
+        )
+    })?;
+
+    if let Err(e) = datasynth_group::validate::validate(&cfg) {
+        group_error_exit(e, "generate");
+    }
+
+    std::fs::create_dir_all(out_path)
+        .with_context(|| format!("group generate: mkdir {}", out_path.display()))?;
+
+    let opts = datasynth_group::StandaloneOptions {
+        prior_period_aggregate: None,
+        tolerate_missing_shards: false,
+        parallel_shards,
+    };
+
+    let summary = match datasynth_group::generate_standalone(&cfg, out_path, &opts) {
+        Ok(s) => s,
+        Err(e) => group_error_exit(e, "generate"),
+    };
+
+    println!(
+        "group generate {}: manifest {}, {} shards, aggregate coverage {:.4}, {} artefacts in {}",
+        summary.aggregate.group_id,
+        summary.manifest_path.display(),
+        summary.shard_summaries.len(),
+        summary.aggregate.coverage,
+        summary.aggregate.artifacts_written.len(),
+        out_path.display()
+    );
+
+    Ok(())
+}
+
+/// v5.0+: lightweight YAML probe used by `Commands::Generate` to
+/// auto-detect a group config without committing to a full parse of
+/// either `GroupConfig` or `GeneratorConfig`.
+///
+/// Heuristic: a `GroupConfig` always carries the top-level
+/// `presentation_currency` and `ownership` keys (both are required by
+/// the `serde(default)`-less fields), neither of which appears at the
+/// top of a single-entity `GeneratorConfig`.  Reading the YAML once
+/// into `serde_yaml::Value` and checking for both keys is cheap,
+/// allocates only the parsed mapping, and cannot misclassify the two
+/// shapes given the current schemas.  If the schema gains overlapping
+/// keys later, switch to the alternate "try parse both, prefer
+/// GroupConfig" heuristic — the test suite covers either path.
+fn yaml_is_group_config(yaml: &str) -> bool {
+    let Ok(value) = serde_yaml::from_str::<serde_yaml::Value>(yaml) else {
+        return false;
+    };
+    let Some(map) = value.as_mapping() else {
+        return false;
+    };
+    map.contains_key(serde_yaml::Value::String("presentation_currency".to_string()))
+        && map.contains_key(serde_yaml::Value::String("ownership".to_string()))
 }
 ///
 /// Writes one file per category so users can open and edit a single
