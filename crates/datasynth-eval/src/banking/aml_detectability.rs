@@ -47,6 +47,16 @@ pub struct AmlDetectabilityThresholds {
     pub min_scenario_coherence: f64,
     /// Structuring threshold (transactions should cluster below this).
     pub structuring_threshold: f64,
+    /// Minimum transaction count below which the typology-coverage
+    /// metric is reported as advisory only (not a fail signal).
+    ///
+    /// v5.0.1 (Gap 2): with seven typology categories at heterogeneous
+    /// per-category prevalence, a 1 k-row sample can miss a single
+    /// low-rate category just by chance — that's a 14.3 pp drop in
+    /// reported coverage even though the generator is firing all
+    /// seven. Below this floor, we still compute coverage but skip
+    /// the threshold-failure issue and emit an advisory note instead.
+    pub min_sample_for_coverage: usize,
 }
 
 impl Default for AmlDetectabilityThresholds {
@@ -55,6 +65,7 @@ impl Default for AmlDetectabilityThresholds {
             min_typology_coverage: 0.80,
             min_scenario_coherence: 0.90,
             structuring_threshold: 10_000.0,
+            min_sample_for_coverage: 5_000,
         }
     }
 }
@@ -254,21 +265,39 @@ impl AmlDetectabilityAnalyzer {
             });
         }
 
-        // Check thresholds
-        if typology_coverage < self.thresholds.min_typology_coverage {
+        // Check thresholds. v5.0.1 (Gap 2): on samples below the
+        // coverage floor, emit an advisory but don't fail — the
+        // metric is statistically unstable at small N because a
+        // single low-prevalence category missing on chance produces
+        // a 14.3 pp wobble (1 / 7 categories). We track failures
+        // separately from advisories so the advisory text remains
+        // visible in `issues` without flipping `passes` to false.
+        let mut failed = false;
+        if transactions.len() < self.thresholds.min_sample_for_coverage {
+            issues.push(format!(
+                "Advisory: typology coverage {:.3} computed on {} txns \
+                 (< {} sample floor) — metric is statistically unstable; \
+                 increase sample size for a reliable reading.",
+                typology_coverage,
+                transactions.len(),
+                self.thresholds.min_sample_for_coverage
+            ));
+        } else if typology_coverage < self.thresholds.min_typology_coverage {
             issues.push(format!(
                 "Typology coverage {:.3} < {:.3}",
                 typology_coverage, self.thresholds.min_typology_coverage
             ));
+            failed = true;
         }
         if scenario_coherence < self.thresholds.min_scenario_coherence {
             issues.push(format!(
                 "Scenario coherence {:.3} < {:.3}",
                 scenario_coherence, self.thresholds.min_scenario_coherence
             ));
+            failed = true;
         }
 
-        let passes = issues.is_empty();
+        let passes = !failed;
 
         Ok(AmlDetectabilityAnalysis {
             typology_coverage,
@@ -329,7 +358,14 @@ mod tests {
 
     #[test]
     fn test_missing_typologies() {
-        let analyzer = AmlDetectabilityAnalyzer::new();
+        // Override the sample-size floor so the threshold-failure path
+        // engages on this small synthetic input. v5.0.1 (Gap 2): the
+        // default 5_000-row floor means coverage failures become
+        // advisories below that — exercising the strict-failure path
+        // requires either a large sample or a lowered floor.
+        let mut thresholds = AmlDetectabilityThresholds::default();
+        thresholds.min_sample_for_coverage = 0;
+        let analyzer = AmlDetectabilityAnalyzer::with_thresholds(thresholds);
         let typologies = vec![TypologyData {
             name: "structuring".to_string(),
             scenario_count: 5,
@@ -342,8 +378,40 @@ mod tests {
 
     #[test]
     fn test_empty() {
-        let analyzer = AmlDetectabilityAnalyzer::new();
+        let mut thresholds = AmlDetectabilityThresholds::default();
+        thresholds.min_sample_for_coverage = 0;
+        let analyzer = AmlDetectabilityAnalyzer::with_thresholds(thresholds);
         let result = analyzer.analyze(&[], &[]).unwrap();
         assert!(!result.passes); // Zero coverage
+    }
+
+    #[test]
+    fn test_small_sample_advisory_does_not_fail() {
+        // v5.0.1 (Gap 2): below the 5_000-row floor, missing a
+        // single typology produces an advisory (still surfaced in
+        // `issues` for visibility) but does not flip `passes` to
+        // false. This protects users against the 14.3 pp coverage
+        // wobble inherent to small samples.
+        let analyzer = AmlDetectabilityAnalyzer::new();
+        let typologies = vec![TypologyData {
+            name: "structuring".to_string(),
+            scenario_count: 5,
+            case_ids_consistent: true,
+        }];
+        let transactions = vec![AmlTransactionData {
+            transaction_id: "T001".to_string(),
+            typology: "structuring".to_string(),
+            case_id: "C001".to_string(),
+            amount: 9_500.0,
+            is_flagged: true,
+        }];
+
+        let result = analyzer.analyze(&transactions, &typologies).unwrap();
+        assert!(result.passes, "small sample should not fail on coverage");
+        assert!(
+            result.issues.iter().any(|i| i.starts_with("Advisory:")),
+            "small sample should surface an advisory issue, got: {:?}",
+            result.issues
+        );
     }
 }

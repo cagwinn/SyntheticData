@@ -236,6 +236,12 @@ pub struct EventObjectRef {
     pub object_id: Uuid,
     /// Object type ID
     pub object_type_id: String,
+    /// OCEL 2.0 standard alias for `object_type_id`. Always equal to
+    /// `object_type_id`; emitted as a separate field for OCEL 2.0
+    /// readers that expect the canonical `object_type` key. Added in
+    /// v5.0.1 to honour the v4.4.2 CHANGELOG promise.
+    #[serde(default)]
+    pub object_type: String,
     /// Object external ID (for convenience)
     pub external_id: Option<String>,
     /// Qualifier describing the relationship
@@ -248,6 +254,7 @@ impl EventObjectRef {
         Self {
             object_id,
             object_type_id: object_type_id.into(),
+            object_type: object_type_id.into(),
             external_id: None,
             qualifier,
         }

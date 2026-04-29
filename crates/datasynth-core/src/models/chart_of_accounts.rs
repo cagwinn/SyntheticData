@@ -351,6 +351,14 @@ pub struct GLAccount {
 
     /// Typical transaction amount range (min, max)
     pub typical_amount_range: (f64, f64),
+
+    /// Accounting framework this account belongs to (e.g., "us_gaap",
+    /// "french_pcg", "german_skr04"). Mirrors the parent
+    /// [`ChartOfAccounts::accounting_framework`] sidecar so per-row
+    /// consumers (CSV / parquet readers) can filter by framework
+    /// without joining back to `coa_meta`. Added in v5.0.1.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub accounting_framework: Option<String>,
 }
 
 impl GLAccount {
@@ -382,6 +390,7 @@ impl GLAccount {
             industry_weights: IndustryWeights::all_equal(1.0),
             typical_frequency: 100.0,
             typical_amount_range: (100.0, 100000.0),
+            accounting_framework: None,
         }
     }
 

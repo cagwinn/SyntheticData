@@ -78,6 +78,14 @@ re-joining the label files.
 | SKA1    | `ChartOfAccounts` → `GLAccount` | 1 per GL account (chart-wide)  |
 | SKB1    | `GLAccount` × companies         | 1 per (GL account, company)    |
 
+> **CEPC (profit-centre master) is not emitted in v5.0.** The
+> `SapTableType::Cepc` enum variant exists for future expansion and
+> appears in the CLI's accepted-tables list, but no `ProfitCenter`
+> master-data model / generator / writer is wired up yet. Requesting
+> `cepc` in `output.sap.tables` surfaces a `tracing::warn!` and emits
+> nothing — drop the entry to silence the warning. Full implementation
+> is tracked as Gap 6 in the v5.1 roadmap.
+
 ### Document flow (8 tables)
 
 | Table   | Source            | Rows                         |

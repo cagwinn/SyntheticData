@@ -76,11 +76,25 @@ impl ChartOfAccountsGenerator {
         );
 
         self.count += 1;
-        match self.coa_framework {
+        let mut coa = match self.coa_framework {
             CoAFramework::UsGaap => self.generate_default(),
             CoAFramework::FrenchPcg => self.generate_pcg(),
             CoAFramework::GermanSkr04 => self.generate_skr(),
+        };
+
+        // v5.0.1 fix (Gap 5): stamp `accounting_framework` on every emitted
+        // GLAccount so the per-row column matches the sidecar
+        // `coa_meta.accounting_framework`. Until this fix the field
+        // defaulted to `None` even though the generator knew the framework.
+        let framework_label = match self.coa_framework {
+            CoAFramework::UsGaap => "us_gaap",
+            CoAFramework::FrenchPcg => "french_pcg",
+            CoAFramework::GermanSkr04 => "german_skr04",
+        };
+        for account in coa.accounts.iter_mut() {
+            account.accounting_framework = Some(framework_label.to_string());
         }
+        coa
     }
 
     /// Generate default (US-style) chart of accounts.

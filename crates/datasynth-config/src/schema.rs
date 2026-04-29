@@ -2064,7 +2064,16 @@ fn default_fraud_rate() -> f64 {
     0.005
 }
 fn default_document_fraud_rate() -> Option<f64> {
-    Some(0.01)
+    // v5.0.1: bumped 0.01 → 0.05 to deliver meaningful scheme-level
+    // fraud propagation at typical line-level rates. The 1 % default
+    // (set in v4.4.2 to restore `is_fraud_propagated > 0`) was too
+    // conservative — at `fraud_rate = 0.08` it produced ~3.6 % observed
+    // propagation against a 26.7 % target. The new 5 % default + the
+    // additive formula `P(line is_fraud) ≈ fraud_rate + 0.3 × d` yields
+    // ~9.5 % combined at fraud_rate=0.08 (closer to the spec target).
+    // Set explicitly to `Some(0.0)` or `null` in YAML to disable, or to
+    // a higher value (e.g. 0.20) for scheme-heavy fraud workloads.
+    Some(0.05)
 }
 fn default_clustering_factor() -> f64 {
     3.0

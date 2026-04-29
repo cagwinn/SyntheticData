@@ -13,6 +13,11 @@ pub struct CustomerLabel {
     pub customer_id: Uuid,
     /// Risk tier
     pub risk_tier: RiskTier,
+    /// SDK-compat alias for `risk_tier`. Always equal to `risk_tier`;
+    /// emitted as a separate field for clients reading `risk_level`.
+    /// Added in v5.0.1 to honour the v4.4.2 CHANGELOG promise.
+    #[serde(default)]
+    pub risk_level: RiskTier,
     /// Expected monthly turnover band
     pub expected_turnover: TurnoverBand,
     /// Beneficial owner complexity score (1-10)
@@ -41,6 +46,7 @@ impl CustomerLabel {
         Self {
             customer_id: customer.customer_id,
             risk_tier: customer.risk_tier,
+            risk_level: customer.risk_tier,
             expected_turnover: customer.kyc_profile.expected_monthly_turnover,
             bo_complexity: customer.kyc_profile.beneficial_owner_complexity,
             is_mule: customer.is_mule,

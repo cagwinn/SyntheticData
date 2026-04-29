@@ -33,7 +33,10 @@ fn flat_layout_generate_from_config_writes_archive_without_hanging() {
 
     // Minimal generator config that exercises the flat-layout JSON path.
     // Document flows enabled so the writer has nested {header, lines}
-    // structures to flatten.
+    // structures to flatten. Banking is explicitly disabled — this is
+    // a flat-layout smoke test, not a banking test, and the default
+    // banking flow generates ~800 k transactions which blows out the
+    // 300 s test budget under llvm-cov instrumentation.
     let config_yaml = r#"
 global:
   industry: retail
@@ -51,6 +54,8 @@ chart_of_accounts:
   complexity: small
 document_flows:
   enabled: true
+banking:
+  enabled: false
 output:
   output_directory: "/tmp/unused"
   formats: [json]

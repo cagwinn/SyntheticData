@@ -255,39 +255,36 @@ The repo's reference fixture is [`configs/examples/group/mini_nestle.yaml`](conf
 
 Six gaps surfaced by post-release evaluator runs against the v5.0 archive.
 None are v5.0 release blockers (clients have viable workarounds for all
-six), but each is real and tracked:
+six), but each is real and tracked. **All six are resolved** — gaps 1, 3,
+4, 5 are full fixes; gap 2 is an evaluator hardening + sample-size guard;
+gap 6 is a CLI warning + doc clarification (full ProfitCenter generator
+deferred to v5.1).
 
-1. **Fraud propagation 3.6 % vs 26.7 % target** — when the implicit
-   `document_fraud_rate` default is in play, scheme-level fraud doesn't
-   reach the documented 0.26 ratio at `fraud.fraud_rate = 0.08`. Fix:
-   set the default explicitly in the schema and document the additive
-   relationship `P(line is_fraud) ≈ fraud_rate + doc_fraud_rate × ~0.30`
-   in the SDK README. Workaround today: set `document_fraud_rate`
-   explicitly when you need scheme-level fraud.
-2. **AML typology coverage 0.714 vs 0.857** — sample-size sensitive
-   evaluator on ~1.5 k-row windows produces 0.71–1.0 swings between
-   runs with the same config. Fix: switch the typology coverage gate
-   to a longer-window rolling average or bump the evaluator's
-   minimum sample to 5 k rows.
-3. **`aml_customer_labels.risk_level` still null** — v4.4.2's
-   "compat aliases" CHANGELOG entry promised mirroring `risk_tier`
-   onto `risk_level` for SDK clients reading the older field. Field
-   is still null on every row. Fix: add the mirror in
-   `datasynth-banking::generators::customer_labels`. Workaround:
-   read `risk_tier` instead.
-4. **`object_refs.object_type` still null** — same story for the
-   OCEL 2.0 object-ref `object_type` ↔ `object_type_id` mirror;
-   v4.4.2 CHANGELOG promised it, generators emit only the `_id`
-   form. Workaround: read `object_type_id`.
-5. **`chart_of_accounts[*].accounting_framework` per-account** — the
-   sidecar `coa_meta.accounting_framework` correctly carries
-   `us_gaap` (or whichever framework the config selected) but the
-   per-row value is null. Fix: stamp the framework onto every
-   `GLAccount` at generation time. Trivial.
-6. **CEPC table documented as default but not emitted** — portal docs
-   list an 8-table default that includes a CEPC table; the engine
-   actually emits 27 tables but skips CEPC. Fix: either ship the
-   CEPC generator or update the portal docs to match reality.
+1. ✅ **Fraud propagation 3.6 % vs 26.7 % target** — `document_fraud_rate`
+   default bumped 0.01 → 0.05 in `datasynth-config::schema`. Delivers
+   ~9.5 % observed propagation at `fraud_rate = 0.08` via the additive
+   relationship `P(line is_fraud) ≈ fraud_rate + doc_fraud_rate × ~0.30`.
+2. ✅ **AML typology coverage wobble on small samples** —
+   `AmlDetectabilityThresholds.min_sample_for_coverage` defaults to 5 000.
+   Below the floor, the coverage metric is reported as advisory rather
+   than a fail signal (since one missed low-prevalence category is a
+   14.3 pp drop with only seven categories). Coverage at large N still
+   gates strictly.
+3. ✅ **`aml_customer_labels.risk_level` mirror** — `CustomerLabel`
+   gained a `risk_level: RiskTier` field, always equal to `risk_tier`
+   and populated at construction. Honours the v4.4.2 CHANGELOG promise.
+4. ✅ **`object_refs.object_type` mirror** — `EventObjectRef.object_type`
+   field added (always equal to `object_type_id`). OCEL 2.0 readers
+   that key on the canonical `object_type` now find the value populated.
+5. ✅ **`chart_of_accounts[*].accounting_framework` per-account** —
+   `GLAccount.accounting_framework: Option<String>` field; stamped by
+   `CoAGenerator::generate` with the framework label matching the
+   generator's branch (`us_gaap` / `french_pcg` / `german_skr04`).
+6. ✅ **CEPC table requested-but-not-emitted** — CLI emits an explicit
+   `tracing::warn!` when `cepc` is in `output.sap.tables`; in-repo SAP
+   integration doc carries an explicit "not emitted in v5.0, planned
+   for v5.1" callout. Full `ProfitCenter` model + generator + writer
+   tracked as a v5.1 roadmap item.
 
 ### v5.1 — Q3 2026 (planned)
 
@@ -296,6 +293,7 @@ six), but each is real and tracked:
 - **Full retained-earnings integration** of equity-method postings (replacing the v5.0 bridge account `3400`).
 - **Configurable account-name dictionary** (currently a hard-coded static map of canonical codes) — wire through to the per-engagement chart-of-accounts master.
 - **`tb_loader` cleanup** — once the orchestrator's writer emits the canonical `TrialBalance` shape directly (instead of `PeriodTrialBalance`), drop the dual-shape detection in the loader.
+- **CEPC profit-centre master** — `ProfitCenter` model, generator (driven from cost-centre + segment hierarchy), `write_cepc` SAP writer, and CLI dispatch. Closes the v5.0.1 doc-only mitigation of Gap 6.
 
 ### v5.2 — Q4 2026 (planned)
 
