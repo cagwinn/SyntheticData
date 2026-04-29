@@ -45,7 +45,7 @@ use tempfile::TempDir;
 use datasynth_core::models::{IcPairId, JournalEntry};
 use datasynth_group::manifest::builder::GroupManifest;
 use datasynth_group::shard::{run_shard, ShardSummary};
-use datasynth_group::{build_manifest, GroupConfig};
+use datasynth_group::{build_manifest, GroupConfig, IcRelationshipConfig};
 
 // ── Fixture helpers ───────────────────────────────────────────────────────────
 
@@ -71,11 +71,25 @@ fn load_two_entity_manifest() -> GroupManifest {
 
     // The fixture has three IC entries: explicit SA→USA, explicit SA→DE,
     // and a pattern targeting any `significant`-profile buyer.  We need
-    // only the first one — truncating drops the SA→DE explicit entry
-    // (refs dropped NESTLE_DE) and the pattern entry (which would
-    // otherwise expand against the trimmed entity list and produce an
-    // unwanted SA→USA management_fee leg).
-    cfg.intercompany.relationships.truncate(1);
+    // only the explicit SA→USA one — drop the SA→DE entry (refs dropped
+    // NESTLE_DE) and the pattern entry (which would otherwise expand
+    // against the trimmed entity list and produce an unwanted SA→USA
+    // management_fee leg).
+    //
+    // Filter explicitly by seller/buyer rather than `truncate(1)` so a
+    // future reorder of `intercompany.relationships` in mini_nestle.yaml
+    // can't silently change which pair this test exercises.
+    cfg.intercompany.relationships.retain(|r| match r {
+        IcRelationshipConfig::Explicit(e) => e.seller == "NESTLE_SA" && e.buyer == "NESTLE_USA",
+        IcRelationshipConfig::Pattern(_) => false,
+    });
+    assert_eq!(
+        cfg.intercompany.relationships.len(),
+        1,
+        "trim must leave exactly one explicit NESTLE_SA→NESTLE_USA relationship; \
+         got {} — has the mini_nestle.yaml fixture been restructured?",
+        cfg.intercompany.relationships.len()
+    );
 
     // The fixture's `tax.pillar_two.jurisdictions: [CH, DE, US]` references
     // entities we just dropped.  The manifest's tax-plan builder rejects
