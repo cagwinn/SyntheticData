@@ -16,11 +16,12 @@ pub use aggregate::{
     aggregate_pre_elimination, apply_eliminations_to_tb, build_coverage_report, classify_account,
     compute_cta, cta_rollforward, eliminations_to_journal_entries, generate_eliminations,
     load_entity_trial_balance, match_ic_pairs, translate_entity_tb, write_coverage_report,
-    write_cta_rollforward, AggregatedAccount, AggregatedTb, CoverageReport, CtaRollforward,
-    DeferredEntity, DrCr, EliminationResult, IcMatchResult, IcMatchedPair, RateBasis,
-    TranslatedLine, TranslatedTb, TranslationAccountType, UnmatchedReason, UnmatchedSide,
-    CONSOLIDATED_SUBDIR, COVERAGE_REPORT_FILENAME, COVERAGE_REPORT_SUBDIR,
-    CTA_ROLLFORWARD_FILENAME, UNMATCHED_SAMPLE_CAP,
+    write_cta_rollforward, write_translation_worksheet, AggregatedAccount, AggregatedTb,
+    CoverageReport, CtaRollforward, DeferredEntity, DrCr, EliminationResult, IcMatchResult,
+    IcMatchedPair, RateBasis, TranslatedLine, TranslatedTb, TranslationAccountType,
+    UnmatchedReason, UnmatchedSide, WorksheetEntity, WorksheetLine, CONSOLIDATED_SUBDIR,
+    COVERAGE_REPORT_FILENAME, COVERAGE_REPORT_SUBDIR, CTA_ROLLFORWARD_FILENAME,
+    TRANSLATION_WORKSHEET_FILENAME, UNMATCHED_SAMPLE_CAP,
 };
 pub use config::{
     AuditEngagementConfig, CbcReportConfig, ComponentScopeThresholds, ConsolidationMethod,

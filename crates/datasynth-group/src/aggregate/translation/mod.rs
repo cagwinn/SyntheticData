@@ -35,6 +35,7 @@
 pub mod classify;
 pub mod cta;
 pub mod translate;
+pub mod worksheet;
 
 pub use classify::{classify_account, TranslationAccountType};
 pub use cta::{
@@ -42,3 +43,6 @@ pub use cta::{
     CTA_ROLLFORWARD_FILENAME,
 };
 pub use translate::{translate_entity_tb, DrCr, RateBasis, TranslatedLine, TranslatedTb};
+pub use worksheet::{
+    write_translation_worksheet, WorksheetEntity, WorksheetLine, TRANSLATION_WORKSHEET_FILENAME,
+};

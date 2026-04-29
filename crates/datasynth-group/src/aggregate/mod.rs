@@ -40,6 +40,7 @@ pub use pre_elim::{aggregate_pre_elimination, AggregatedAccount, AggregatedTb, D
 pub use tb_loader::load_entity_trial_balance;
 pub use translation::{
     classify_account, compute_cta, cta_rollforward, translate_entity_tb, write_cta_rollforward,
-    CtaRollforward, DrCr, RateBasis, TranslatedLine, TranslatedTb, TranslationAccountType,
-    CONSOLIDATED_SUBDIR, CTA_ROLLFORWARD_FILENAME,
+    write_translation_worksheet, CtaRollforward, DrCr, RateBasis, TranslatedLine, TranslatedTb,
+    TranslationAccountType, WorksheetEntity, WorksheetLine, CONSOLIDATED_SUBDIR,
+    CTA_ROLLFORWARD_FILENAME, TRANSLATION_WORKSHEET_FILENAME,
 };
