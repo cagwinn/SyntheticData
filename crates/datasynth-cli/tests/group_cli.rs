@@ -237,7 +237,8 @@ fn group_shard_unknown_shard_id_fails_fast() {
 
     let exit_code = output.status.code().expect("exit code");
     assert_eq!(
-        exit_code, 2,
+        exit_code,
+        2,
         "unknown shard_id must exit 2; stderr={}",
         String::from_utf8_lossy(&output.stderr)
     );

@@ -210,7 +210,44 @@ This is the **load** test for the 2 000-entity / ~1 TB envelope the spec promise
   - `aggregate_summary.json.ic_match_coverage >= 0.98` (spec threshold).
 - **Budget:** ~90 min typical.
 
-### 3.7 Fraud-bias smoke
+### 3.7 Final workspace verification (Task 12.6)
+
+After 3.1–3.6 are green:
+
+```bash
+# 1. Format check
+cargo fmt --all --check 2>&1 | tee /mnt/output/fmt-final.log
+
+# 2. Workspace clippy
+cargo clippy --workspace --all-targets --no-deps -- -D warnings \
+  2>&1 | tee /mnt/output/clippy-final.log
+
+# 3. Workspace test (release)
+cargo test --workspace --release -- --test-threads=4 \
+  2>&1 | tee /mnt/output/test-final.log
+
+# 4. Workspace test with --include-ignored (release)
+cargo test --workspace --release -- --test-threads=4 --include-ignored \
+  2>&1 | tee /mnt/output/test-ignored-final.log
+
+# 5. Generate Mini-Nestlé end-to-end
+cargo run --release -p datasynth-cli -- group generate \
+  --config configs/examples/group/mini_nestle.yaml \
+  --out /mnt/output/v5.0-mini-nestle/
+
+# 6. Inspect output layout
+ls -la /mnt/output/v5.0-mini-nestle/
+ls -la /mnt/output/v5.0-mini-nestle/consolidated/
+ls -la /mnt/output/v5.0-mini-nestle/entities/
+cat /mnt/output/v5.0-mini-nestle/ic_eliminations/ic_matching_coverage.json | jq .
+```
+
+- **Pass:** All 4 cargo commands exit 0; the Mini-Nestlé run completes and the
+  output tree contains every directory documented in §1.4 of the spec, including
+  `consolidated/consolidated_financial_statements.json`.
+- **Budget:** ~30 min on the XXL VM in addition to 3.1–3.6.
+
+### 3.8 Fraud-bias smoke
 
 ```bash
 cargo test --release -p datasynth-runtime --test fraud_bias_smoke \

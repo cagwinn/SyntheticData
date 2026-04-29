@@ -79,7 +79,11 @@ const TX_TYPES: [IcTransactionType; 8] = [
 /// triple is repeated, because [`expand_ic_relationships`] silently
 /// drops duplicate explicit triples but we want every relationship in
 /// the config to materialize.
-fn random_group_config(seed: u64, entity_count: usize, ic_relationship_count: usize) -> GroupConfig {
+fn random_group_config(
+    seed: u64,
+    entity_count: usize,
+    ic_relationship_count: usize,
+) -> GroupConfig {
     assert!(
         entity_count >= 2,
         "property test must have ≥ 2 entities; got {entity_count}",
@@ -104,11 +108,7 @@ fn random_group_config(seed: u64, entity_count: usize, ic_relationship_count: us
                 } else {
                     ConsolidationMethod::Full
                 },
-                ownership_percent: if i == 0 {
-                    None
-                } else {
-                    Some(Decimal::ONE)
-                },
+                ownership_percent: if i == 0 { None } else { Some(Decimal::ONE) },
                 parent_code: if i == 0 {
                     None
                 } else {
@@ -173,7 +173,10 @@ fn random_group_config(seed: u64, entity_count: usize, ic_relationship_count: us
         serde_yaml::Value::String("row_budget".to_string()),
         serde_yaml::Value::Number(serde_yaml::Number::from(1_000u64)),
     );
-    scoping_profiles.insert("significant".to_string(), serde_yaml::Value::Mapping(profile_map));
+    scoping_profiles.insert(
+        "significant".to_string(),
+        serde_yaml::Value::Mapping(profile_map),
+    );
 
     GroupConfig {
         id: format!("PROP_TEST_GROUP_{seed:04}"),
@@ -293,9 +296,8 @@ fn coverage_is_one_across_random_configs() {
             })
             .collect();
 
-        let result = match_ic_pairs(&manifest, &entity_jes).unwrap_or_else(|e| {
-            panic!("match_ic_pairs failed for seed={seed}: {e}")
-        });
+        let result = match_ic_pairs(&manifest, &entity_jes)
+            .unwrap_or_else(|e| panic!("match_ic_pairs failed for seed={seed}: {e}"));
 
         // Every planned pair must be matched, no orphans.
         assert!(

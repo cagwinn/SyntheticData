@@ -245,11 +245,7 @@ fn random_group_config(seed: u64, entity_count: usize, ic_count: usize) -> Group
             } else {
                 ConsolidationMethod::Full
             },
-            ownership_percent: if i == 0 {
-                None
-            } else {
-                Some(Decimal::ONE)
-            },
+            ownership_percent: if i == 0 { None } else { Some(Decimal::ONE) },
             parent_code: if i == 0 {
                 None
             } else {
@@ -366,9 +362,7 @@ fn random_group_config(seed: u64, entity_count: usize, ic_count: usize) -> Group
 /// distinct amounts but every TB stays balanced.  IC clearing accounts
 /// (1150/2050) match the per-entity IC notional totals so eliminations
 /// fully zero them out.
-fn build_random_entity_tbs(
-    manifest: &GroupManifest,
-) -> Vec<(String, TrialBalance)> {
+fn build_random_entity_tbs(manifest: &GroupManifest) -> Vec<(String, TrialBalance)> {
     let mut tbs: Vec<(String, TrialBalance)> = Vec::new();
     for (idx, entity) in manifest.ownership_graph.entities.iter().enumerate() {
         // Per-entity IC notional totals — each side debits/credits the
@@ -440,8 +434,8 @@ fn balances_for_random_configs() {
 
     for (seed, ents, rels) in cases {
         let cfg = random_group_config(seed, ents, rels);
-        let manifest = build_manifest(&cfg)
-            .unwrap_or_else(|e| panic!("build_manifest seed={seed}: {e}"));
+        let manifest =
+            build_manifest(&cfg).unwrap_or_else(|e| panic!("build_manifest seed={seed}: {e}"));
         let tbs = build_random_entity_tbs(&manifest);
 
         let bs = run_pipeline_to_bs(&manifest, &tbs);

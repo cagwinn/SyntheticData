@@ -134,7 +134,11 @@ fn ambiguous_inputs_dispatch_to_legacy() {
     assert!(!yaml_is_group_config(
         "presentation_currency: CHF\nfoo: bar\n"
     ));
-    assert!(!yaml_is_group_config("ownership:\n  parent_entity_code: X\n"));
+    assert!(!yaml_is_group_config(
+        "ownership:\n  parent_entity_code: X\n"
+    ));
     // Malformed YAML — parser fails outright.  Must default to legacy.
-    assert!(!yaml_is_group_config("this: is\n  not: valid: yaml: at all"));
+    assert!(!yaml_is_group_config(
+        "this: is\n  not: valid: yaml: at all"
+    ));
 }

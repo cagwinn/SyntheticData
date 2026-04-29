@@ -45,9 +45,7 @@ use std::process::Command;
 
 use tempfile::TempDir;
 
-use datasynth_group::{
-    generate_standalone, GroupConfig, GroupManifest, StandaloneOptions,
-};
+use datasynth_group::{generate_standalone, GroupConfig, GroupManifest, StandaloneOptions};
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -184,10 +182,10 @@ fn generate_standalone_twice_byte_identical() {
     let tmp1 = TempDir::new().expect("tempdir 1");
     let tmp2 = TempDir::new().expect("tempdir 2");
 
-    let _ = generate_standalone(&cfg, tmp1.path(), &deterministic_opts())
-        .expect("standalone run 1");
-    let _ = generate_standalone(&cfg, tmp2.path(), &deterministic_opts())
-        .expect("standalone run 2");
+    let _ =
+        generate_standalone(&cfg, tmp1.path(), &deterministic_opts()).expect("standalone run 1");
+    let _ =
+        generate_standalone(&cfg, tmp2.path(), &deterministic_opts()).expect("standalone run 2");
 
     let diffs = diff_archives(tmp1.path(), tmp2.path());
     assert!(
@@ -235,8 +233,7 @@ fn subprocess_pipeline_matches_standalone() {
 
     // 2. group shard for every shard in the manifest
     let manifest_bytes = fs::read(&manifest_path).expect("read manifest");
-    let manifest: GroupManifest =
-        serde_json::from_slice(&manifest_bytes).expect("parse manifest");
+    let manifest: GroupManifest = serde_json::from_slice(&manifest_bytes).expect("parse manifest");
     for shard in &manifest.shard_plan.shards {
         run_cli(&[
             "group",

@@ -911,11 +911,7 @@ fn main() -> Result<()> {
             // --append). These paths predate the group engine and use
             // bespoke loading logic.
             if let Some(ref cfg_path) = config {
-                if !demo
-                    && fingerprint.is_none()
-                    && scenario_pack.is_none()
-                    && !append
-                {
+                if !demo && fingerprint.is_none() && scenario_pack.is_none() && !append {
                     if let Ok(yaml) = std::fs::read_to_string(cfg_path) {
                         if yaml_is_group_config(&yaml) {
                             tracing::info!(
@@ -3455,12 +3451,13 @@ fn handle_group_shard(
 
     let bytes = std::fs::read_to_string(manifest_path)
         .with_context(|| format!("group shard: read {}", manifest_path.display()))?;
-    let manifest: datasynth_group::GroupManifest = serde_json::from_str(&bytes).with_context(|| {
-        format!(
-            "group shard: parse {} as GroupManifest",
-            manifest_path.display()
-        )
-    })?;
+    let manifest: datasynth_group::GroupManifest =
+        serde_json::from_str(&bytes).with_context(|| {
+            format!(
+                "group shard: parse {} as GroupManifest",
+                manifest_path.display()
+            )
+        })?;
 
     // Validate the shard_id against the manifest's shard plan up front
     // so a typo fails fast (exit 2) instead of inside run_shard.
@@ -3531,12 +3528,13 @@ fn handle_group_aggregate(
 
     let bytes = std::fs::read_to_string(manifest_path)
         .with_context(|| format!("group aggregate: read {}", manifest_path.display()))?;
-    let manifest: datasynth_group::GroupManifest = serde_json::from_str(&bytes).with_context(|| {
-        format!(
-            "group aggregate: parse {} as GroupManifest",
-            manifest_path.display()
-        )
-    })?;
+    let manifest: datasynth_group::GroupManifest =
+        serde_json::from_str(&bytes).with_context(|| {
+            format!(
+                "group aggregate: parse {} as GroupManifest",
+                manifest_path.display()
+            )
+        })?;
 
     std::fs::create_dir_all(out_path)
         .with_context(|| format!("group aggregate: mkdir {}", out_path.display()))?;
@@ -3646,8 +3644,9 @@ fn yaml_is_group_config(yaml: &str) -> bool {
     let Some(map) = value.as_mapping() else {
         return false;
     };
-    map.contains_key(serde_yaml::Value::String("presentation_currency".to_string()))
-        && map.contains_key(serde_yaml::Value::String("ownership".to_string()))
+    map.contains_key(serde_yaml::Value::String(
+        "presentation_currency".to_string(),
+    )) && map.contains_key(serde_yaml::Value::String("ownership".to_string()))
 }
 ///
 /// Writes one file per category so users can open and edit a single
