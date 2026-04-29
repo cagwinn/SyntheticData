@@ -274,6 +274,136 @@ enum Commands {
         #[command(subcommand)]
         command: OptimizerCommands,
     },
+
+    /// Group audit simulation — manifest / shard / aggregate / generate
+    /// (v5.0+).
+    ///
+    /// Surfaces the three-phase group engine implemented in
+    /// `datasynth-group`: build a deterministic manifest, drive a
+    /// single shard's per-entity orchestrator runs, run the aggregate
+    /// (consolidation + IC eliminations) phase against a shard
+    /// archive, or run all three phases in one in-process call. See
+    /// `docs/superpowers/specs/2026-04-23-group-audit-simulation-design.md`.
+    Group {
+        #[command(subcommand)]
+        command: GroupCommands,
+    },
+}
+
+/// v5.0+: group-engine CLI dispatcher.
+///
+/// Each subcommand wraps one of the four entry points exposed by the
+/// `datasynth-group` crate:
+///
+/// - `manifest`  → [`datasynth_group::build_manifest`]
+/// - `shard`     → [`datasynth_group::shard::run_shard`]
+/// - `aggregate` → [`datasynth_group::aggregate::run_aggregate`]
+/// - `generate`  → [`datasynth_group::generate_standalone`]
+///
+/// The four together describe the full v5.0 simulation lifecycle; the
+/// existing `generate` command auto-detects a `group:` config and
+/// transparently dispatches into [`GroupCommands::Generate`] so existing
+/// callers can switch to a group config without changing the
+/// invocation shape.
+#[derive(Subcommand)]
+#[allow(clippy::large_enum_variant)]
+enum GroupCommands {
+    /// Build a deterministic [`datasynth_group::GroupManifest`] from a
+    /// `group:` YAML config and persist it as pretty JSON.
+    ///
+    /// Cheap and pure — no orchestrator runs, no I/O beyond the
+    /// manifest file itself.
+    Manifest {
+        /// Path to the group YAML configuration file.
+        #[arg(short, long)]
+        config: PathBuf,
+
+        /// Output path for the manifest JSON.
+        #[arg(short, long)]
+        out: PathBuf,
+    },
+
+    /// Drive the orchestrator once per entity in the named shard,
+    /// writing per-entity archives under `out/entities/{code}/`.
+    ///
+    /// Heavy: each orchestrator run can peak at multiple GiB of RSS
+    /// for several minutes — see the rustdoc on
+    /// [`datasynth_group::standalone::generate_standalone`].
+    Shard {
+        /// Path to the manifest JSON produced by `group manifest`.
+        #[arg(short, long)]
+        manifest: PathBuf,
+
+        /// Shard identifier as recorded in
+        /// `manifest.shard_plan.shards[*].shard_id` (e.g.
+        /// `"S_SIG_0001"`).
+        #[arg(long)]
+        shard_id: String,
+
+        /// Output directory for the per-entity archive(s) the shard
+        /// runner emits.
+        #[arg(short, long)]
+        out: PathBuf,
+    },
+
+    /// Run the aggregate / consolidation phase against a directory
+    /// of pre-computed shard archives.
+    ///
+    /// Cheap relative to `shard` — folds the per-entity TBs through
+    /// pre-elimination, IC matching, eliminations, IAS 21 translation,
+    /// NCI / equity-method overlays, and assembles the consolidated
+    /// FS bundle.
+    Aggregate {
+        /// Path to the manifest JSON produced by `group manifest`.
+        #[arg(short, long)]
+        manifest: PathBuf,
+
+        /// Directory containing per-entity shard archives under
+        /// `entities/{code}/`.
+        #[arg(long)]
+        shards_dir: PathBuf,
+
+        /// Output directory for `consolidated/` and
+        /// `ic_eliminations/` artefacts.
+        #[arg(short, long)]
+        out: PathBuf,
+
+        /// Optional path to the prior period's aggregate `out_dir` —
+        /// used to read opening NCI, equity-method carrying values,
+        /// and CTA balances. When omitted every opening defaults to
+        /// zero.
+        #[arg(long)]
+        prior_period_aggregate: Option<PathBuf>,
+
+        /// When set, missing per-entity shard archives are downgraded
+        /// from a hard error to a warning and the entity codes are
+        /// pushed to `entities_missing` in the summary.
+        #[arg(long)]
+        tolerate_missing_shards: bool,
+    },
+
+    /// Run manifest + shards + aggregate in one in-process call (the
+    /// "standalone" path).  Equivalent to running `group manifest`,
+    /// then `group shard` once per shard, then `group aggregate`.
+    ///
+    /// Heavy by definition — drives one orchestrator run per entity
+    /// before consolidating.
+    Generate {
+        /// Path to the group YAML configuration file.
+        #[arg(short, long)]
+        config: PathBuf,
+
+        /// Output directory for the manifest, per-entity archives,
+        /// and consolidated artefacts.
+        #[arg(short, long)]
+        out: PathBuf,
+
+        /// Disable parallel shard execution.  Defaults to parallel
+        /// (rayon-scheduled).  Set this for determinism harnesses or
+        /// when running on a workstation with limited RAM.
+        #[arg(long)]
+        no_parallel_shards: bool,
+    },
 }
 
 /// v4.1.2+: audit-optimizer subcommands. Each wraps one module in
@@ -3038,6 +3168,8 @@ fn main() -> Result<()> {
         },
 
         Commands::Optimizer { command } => handle_optimizer(command),
+
+        Commands::Group { command } => handle_group(command),
     }
 }
 
@@ -3152,7 +3284,153 @@ fn handle_optimizer(command: OptimizerCommands) -> Result<()> {
     }
 }
 
-/// Export a starter template pack as YAML files under `output`.
+/// v5.0+: dispatcher for `datasynth-data group …` subcommands.
+///
+/// Maps each [`GroupCommands`] variant to the matching entry point in
+/// the `datasynth-group` crate, surfacing standardised exit codes:
+///
+/// - `0` — success
+/// - `1` — I/O error (file not found, write failure, etc.)
+/// - `2` — config / argument validation error (clear stderr message)
+/// - `3` — manifest / shard / aggregate runtime error (likely a
+///   programmer bug; the underlying [`datasynth_group::GroupError`]
+///   message is forwarded verbatim)
+fn handle_group(command: GroupCommands) -> Result<()> {
+    match command {
+        GroupCommands::Manifest { config, out } => handle_group_manifest(&config, &out),
+        GroupCommands::Shard {
+            manifest,
+            shard_id,
+            out,
+        } => handle_group_shard(&manifest, &shard_id, &out),
+        GroupCommands::Aggregate {
+            manifest,
+            shards_dir,
+            out,
+            prior_period_aggregate,
+            tolerate_missing_shards,
+        } => handle_group_aggregate(
+            &manifest,
+            &shards_dir,
+            &out,
+            prior_period_aggregate.as_deref(),
+            tolerate_missing_shards,
+        ),
+        GroupCommands::Generate {
+            config,
+            out,
+            no_parallel_shards,
+        } => handle_group_generate(&config, &out, !no_parallel_shards),
+    }
+}
+
+/// Translate a [`datasynth_group::GroupError`] into a process exit
+/// (with a clear stderr line), mirroring the Task 10.x exit-code
+/// contract.
+fn group_error_exit(err: datasynth_group::GroupError, action: &str) -> ! {
+    use datasynth_group::GroupError;
+    let (code, label) = match &err {
+        GroupError::Config(_) => (2, "config"),
+        GroupError::Manifest(_) => (3, "manifest"),
+        GroupError::Shard(_) => (3, "shard"),
+        GroupError::Aggregate(_) => (3, "aggregate"),
+        GroupError::Io(_) => (1, "io"),
+        GroupError::Serde(_) => (3, "serde"),
+    };
+    eprintln!("group {action}: {label} error: {err}");
+    std::process::exit(code);
+}
+
+/// v5.0+: `datasynth-data group manifest` handler.
+///
+/// 1. Read the YAML config from `config_path`.
+/// 2. Parse to [`datasynth_group::GroupConfig`] via `serde_yaml`.
+/// 3. Run [`datasynth_group::validate::validate`] — emit exit-2 on
+///    failure with the validator's full error message.
+/// 4. Build the manifest via [`datasynth_group::build_manifest`].
+/// 5. Write pretty JSON to `out_path` (creating parent dirs as
+///    needed).
+/// 6. Print a one-line summary to stdout for the operator log.
+fn handle_group_manifest(config_path: &std::path::Path, out_path: &std::path::Path) -> Result<()> {
+    use anyhow::Context;
+    tracing::info!(
+        config = %config_path.display(),
+        out = %out_path.display(),
+        "group manifest: starting",
+    );
+
+    let yaml = std::fs::read_to_string(config_path)
+        .with_context(|| format!("group manifest: read {}", config_path.display()))?;
+
+    let cfg: datasynth_group::GroupConfig = serde_yaml::from_str(&yaml).with_context(|| {
+        format!(
+            "group manifest: parse {} as GroupConfig",
+            config_path.display()
+        )
+    })?;
+
+    if let Err(e) = datasynth_group::validate::validate(&cfg) {
+        group_error_exit(e, "manifest");
+    }
+
+    let manifest = match datasynth_group::build_manifest(&cfg) {
+        Ok(m) => m,
+        Err(e) => group_error_exit(e, "manifest"),
+    };
+
+    if let Some(parent) = out_path.parent() {
+        if !parent.as_os_str().is_empty() {
+            std::fs::create_dir_all(parent)
+                .with_context(|| format!("group manifest: mkdir {}", parent.display()))?;
+        }
+    }
+
+    let mut json = serde_json::to_string_pretty(&manifest)
+        .with_context(|| "group manifest: serialise manifest as JSON".to_string())?;
+    json.push('\n');
+    std::fs::write(out_path, json)
+        .with_context(|| format!("group manifest: write {}", out_path.display()))?;
+
+    let entity_count = manifest.ownership_graph.entities.len();
+    let ic_relationship_count = manifest.ic_relationships.len();
+    let shard_count = manifest.shard_plan.shards.len();
+    println!(
+        "wrote manifest with {entity_count} entities, {ic_relationship_count} IC relationships, \
+         {shard_count} shards to {}",
+        out_path.display()
+    );
+
+    Ok(())
+}
+
+/// v5.0+: `datasynth-data group shard` handler — wired in Task 10.3.
+fn handle_group_shard(
+    _manifest_path: &std::path::Path,
+    _shard_id: &str,
+    _out_path: &std::path::Path,
+) -> Result<()> {
+    anyhow::bail!("group shard: not yet implemented (Task 10.3)")
+}
+
+/// v5.0+: `datasynth-data group aggregate` handler — wired in Task 10.4.
+fn handle_group_aggregate(
+    _manifest_path: &std::path::Path,
+    _shards_dir: &std::path::Path,
+    _out_path: &std::path::Path,
+    _prior_period_aggregate: Option<&std::path::Path>,
+    _tolerate_missing_shards: bool,
+) -> Result<()> {
+    anyhow::bail!("group aggregate: not yet implemented (Task 10.4)")
+}
+
+/// v5.0+: `datasynth-data group generate` handler — wired in Task 10.5.
+fn handle_group_generate(
+    _config_path: &std::path::Path,
+    _out_path: &std::path::Path,
+    _parallel_shards: bool,
+) -> Result<()> {
+    anyhow::bail!("group generate: not yet implemented (Task 10.5)")
+}
 ///
 /// Writes one file per category so users can open and edit a single
 /// category without touching unrelated pools. Empty pools are

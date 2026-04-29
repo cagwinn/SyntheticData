@@ -1405,6 +1405,7 @@ dependencies = [
  "datasynth-fingerprint",
  "datasynth-generators",
  "datasynth-graph",
+ "datasynth-group",
  "datasynth-output",
  "datasynth-runtime",
  "indicatif",
