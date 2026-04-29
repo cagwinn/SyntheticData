@@ -3477,15 +3477,64 @@ fn handle_group_shard(
     Ok(())
 }
 
-/// v5.0+: `datasynth-data group aggregate` handler — wired in Task 10.4.
+/// v5.0+: `datasynth-data group aggregate` handler — Task 10.4.
+///
+/// Drives [`datasynth_group::aggregate::run_aggregate`] against a
+/// directory of pre-computed per-entity shard archives.  Forwards
+/// `--prior-period-aggregate` and `--tolerate-missing-shards` straight
+/// into [`datasynth_group::aggregate::AggregateOptions`].
 fn handle_group_aggregate(
-    _manifest_path: &std::path::Path,
-    _shards_dir: &std::path::Path,
-    _out_path: &std::path::Path,
-    _prior_period_aggregate: Option<&std::path::Path>,
-    _tolerate_missing_shards: bool,
+    manifest_path: &std::path::Path,
+    shards_dir: &std::path::Path,
+    out_path: &std::path::Path,
+    prior_period_aggregate: Option<&std::path::Path>,
+    tolerate_missing_shards: bool,
 ) -> Result<()> {
-    anyhow::bail!("group aggregate: not yet implemented (Task 10.4)")
+    use anyhow::Context;
+    tracing::info!(
+        manifest = %manifest_path.display(),
+        shards_dir = %shards_dir.display(),
+        out = %out_path.display(),
+        prior_period_aggregate = ?prior_period_aggregate.map(|p| p.display().to_string()),
+        tolerate_missing_shards = tolerate_missing_shards,
+        "group aggregate: starting",
+    );
+
+    let bytes = std::fs::read_to_string(manifest_path)
+        .with_context(|| format!("group aggregate: read {}", manifest_path.display()))?;
+    let manifest: datasynth_group::GroupManifest = serde_json::from_str(&bytes).with_context(|| {
+        format!(
+            "group aggregate: parse {} as GroupManifest",
+            manifest_path.display()
+        )
+    })?;
+
+    std::fs::create_dir_all(out_path)
+        .with_context(|| format!("group aggregate: mkdir {}", out_path.display()))?;
+
+    let opts = datasynth_group::aggregate::AggregateOptions {
+        prior_period_aggregate: prior_period_aggregate.map(|p| p.to_path_buf()),
+        tolerate_missing_shards,
+    };
+
+    let summary =
+        match datasynth_group::aggregate::run_aggregate(&manifest, shards_dir, out_path, &opts) {
+            Ok(s) => s,
+            Err(e) => group_error_exit(e, "aggregate"),
+        };
+
+    println!(
+        "aggregate {}: coverage {:.4}, {} matched IC pairs, {} entities aggregated, \
+         {} artefacts written to {}",
+        summary.group_id,
+        summary.coverage,
+        summary.matched_pairs,
+        summary.entities_processed.len(),
+        summary.artifacts_written.len(),
+        out_path.display()
+    );
+
+    Ok(())
 }
 
 /// v5.0+: `datasynth-data group generate` handler — wired in Task 10.5.
