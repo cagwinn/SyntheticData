@@ -4,7 +4,7 @@
 /// that every expected audit JSON filename is present.
 #[test]
 fn all_audit_snapshot_fields_are_written() {
-    let source = include_str!("../src/output_writer.rs");
+    let source = include_str!("../../datasynth-runtime/src/output_writer.rs");
 
     let expected_files = [
         "audit_engagements.json",

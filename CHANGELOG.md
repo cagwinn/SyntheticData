@@ -5,6 +5,69 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v5.0.0 - 2026-04-29
+
+### Added — Group audit simulation engine
+
+- **New crate `datasynth-group`** — manifest / shard / aggregate three-phase model
+  for multi-entity group audit simulation, layered above the unchanged
+  `datasynth-runtime::EnhancedOrchestrator`.
+- **New top-level config schema** — `GroupConfig` with `id`, `presentation_currency`,
+  `period`, `seed`, `defaults`, `scoping_profiles`, `ownership`, `intercompany`,
+  `fx`, `audit`, `tax`, `output` keys. No `group:` envelope; the file IS a
+  `GroupConfig`. Existing single-entity configs continue to work unchanged via
+  auto-detect dispatch.
+- **New CLI subcommands** —
+  - `datasynth-data group manifest` — build a group manifest from a config.
+  - `datasynth-data group shard` — drive `EnhancedOrchestrator` for a single shard
+    of entities and write per-entity archives under `entities/{code}/`.
+  - `datasynth-data group aggregate` — run consolidation phase against the
+    written shard outputs (IC matching, eliminations, IAS 21 translation,
+    NCI rollforward, equity-method investments, consolidated FS).
+  - `datasynth-data group generate` — in-process equivalent of the 3-step pipeline,
+    with optional rayon-parallelised shard execution.
+- **New output artefacts** —
+  - `consolidated/consolidated_financial_statements.json` — BS + IS + CF +
+    Statement of Changes in Equity, IFRS-compliant with NCI separately presented.
+  - `consolidated/consolidation_schedule.json` — per-account pre/adjustment/post
+    plus per-entity contributions, audit-traceable.
+  - `consolidated/notes_to_consolidated_fs.json` — 8-note disclosure set
+    (significant accounting policies, basis of consolidation, IC eliminations
+    summary, NCI summary, CTA summary, segment placeholder, subsequent events
+    placeholder, related parties placeholder).
+  - `consolidated/nci_rollforward.json` — per-subsidiary NCI rollforward
+    (opening, share of profit, share of OCI, dividends, closing).
+  - `consolidated/cta_rollforward.json` — per-entity CTA rollforward.
+  - `consolidated/translation_worksheet.json` — line-by-line IAS 21 worksheet.
+  - `consolidated/equity_method_investments.json` — investee carrying values + share of profit.
+  - `ic_eliminations/ic_matching_coverage.json` — diagnostic histogram of
+    matched / unmatched IC pairs by reason, with a 100-side sample.
+  - `manifest.json` — canonical group manifest.
+  - `shard_summary.json` — per-shard generation summary.
+- **Determinism guarantees** — the manifest-driven IC matching strategy
+  produces 100% pair coverage by construction (proven by property test).
+  Standalone in-process generation with `parallel_shards: false` produces
+  byte-identical archives across runs.
+- **IFRS / IAS / ASC compliance** — IAS 21 (translation, CTA), IAS 28 / IFRS 11
+  (equity method), IFRS 10 (consolidation, NCI), IFRS 5 / ASC 810 (NCI presentation).
+
+### Backward compatibility
+
+- Existing single-entity configs (no `presentation_currency` / `ownership`
+  top-level keys) continue to dispatch to the v4.x single-entity flow
+  byte-for-byte unchanged. No migration needed.
+- All existing CLI subcommands (`generate`, `init`, `validate`, `info`,
+  `fingerprint`, `templates`) preserved.
+
+### Roadmap
+
+- v5.1 — Segment reporting (operating segments per IFRS 8), full retained-earnings
+  integration of equity-method postings, configurable account-name dictionary.
+- v5.2 — Acquisition-date NCI measurement (full-goodwill vs partial-goodwill),
+  step-acquisition / divestiture rollforwards.
+- v5.3 — Emergent-fuzzy IC matching strategy (amount-drift tolerance) for
+  group consolidation against external/legacy data.
+
 ## [4.4.3] - 2026-04-22
 
 ### Removed — open-source Python wrapper (`datasynth-py`)

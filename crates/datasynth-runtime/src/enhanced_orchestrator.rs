@@ -1610,6 +1610,9 @@ pub struct EnhancedOrchestrator {
     /// their legacy raw-RNG date-offset behaviour (byte-identical to v3.4.0
     /// for the same seed).
     temporal_context: Option<Arc<datasynth_core::distributions::TemporalContext>>,
+    /// Optional shard-mode context (set by group-engine shard runners).
+    /// `None` preserves byte-for-byte pre-v5.0 single-entity behavior.
+    shard_context: Option<crate::shard_context::ShardContext>,
 }
 
 impl EnhancedOrchestrator {
@@ -1656,7 +1659,17 @@ impl EnhancedOrchestrator {
             phase_sink: None,
             template_provider,
             temporal_context,
+            shard_context: None,
         })
+    }
+
+    /// Install shard-mode context.  Called by the group shard runner
+    /// before [`EnhancedOrchestrator::generate`] (or the equivalent
+    /// entry point).  Has no effect on single-entity runs.
+    ///
+    /// See [`crate::shard_context::ShardContext`] for rationale.
+    pub fn set_shard_context(&mut self, ctx: crate::shard_context::ShardContext) {
+        self.shard_context = Some(ctx);
     }
 
     /// Build the shared [`TemporalContext`] from `config.temporal_patterns`.
@@ -4195,6 +4208,19 @@ impl EnhancedOrchestrator {
             entries.extend(je_entries);
         } else {
             debug!("Phase 4: Skipped (journal entry generation disabled)");
+        }
+
+        // Phase 4c (shard mode): inject pre-built IC journal entries from
+        // `ShardContext`. When running standalone (no group engine), this
+        // is a no-op. See crate::shard_context::ShardContext for rationale.
+        if let Some(ctx) = &self.shard_context {
+            if !ctx.extra_journal_entries.is_empty() {
+                debug!(
+                    "Phase 4c: appending {} shard-mode IC journal entries",
+                    ctx.extra_journal_entries.len()
+                );
+                entries.extend(ctx.extra_journal_entries.iter().cloned());
+            }
         }
 
         if !entries.is_empty() {

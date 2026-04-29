@@ -124,8 +124,13 @@ jobs:
       - name: Install cargo-llvm-cov
         run: cargo install cargo-llvm-cov --locked
       - name: Generate coverage
+        # v5.0 added new tests in datasynth-group plus heavier integration suites;
+        # llvm-cov instrumentation slows them several-fold and the cumulative workspace
+        # run now lands around 35-40 min. Bumping to 60 min absorbs that + leaves space
+        # for v5.1 tests. If we hit this limit again, switch to per-crate coverage
+        # runs in parallel.
         run: cargo llvm-cov --workspace --exclude datasynth-server --lcov --output-path lcov.info
-        timeout-minutes: 30
+        timeout-minutes: 60
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v6
         with:

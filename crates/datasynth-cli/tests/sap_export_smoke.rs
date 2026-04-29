@@ -164,7 +164,7 @@ output:
 
 fn read_stripping_bom(path: &std::path::Path) -> String {
     let bytes = fs::read(path).expect("read file");
-    let body = if bytes.len() >= 3 && &bytes[..3] == [0xEF, 0xBB, 0xBF] {
+    let body = if bytes.len() >= 3 && bytes[..3] == [0xEF, 0xBB, 0xBF] {
         &bytes[3..]
     } else {
         &bytes[..]

@@ -17,13 +17,14 @@ members = [
     "crates/datasynth-banking",
     "crates/datasynth-fingerprint",
     "crates/datasynth-standards",
+    "crates/datasynth-group",
 ]
 exclude = ["fuzz", "attic/datasynth-graph-export"]
 
 # Root package for workspace-level benchmarks
 [package]
 name = "datasynth-workspace"
-version = "4.4.3"
+version = "5.0.0"
 edition = "2021"
 publish = false
 
@@ -43,7 +44,7 @@ tempfile = { workspace = true }
 serde_json = { workspace = true }
 
 [workspace.package]
-version = "4.4.3"
+version = "5.0.0"
 edition = "2021"
 license = "Apache-2.0"
 rust-version = "1.88"
@@ -59,21 +60,22 @@ categories = ["simulation", "command-line-utilities"]
 # Internal crates - version required for crates.io publishing
 # Version must match workspace.package.version to prevent cargo from resolving
 # old incompatible versions during publish verification
-datasynth-core = { version = "4.4.3", path = "crates/datasynth-core" }
-datasynth-config = { version = "4.4.3", path = "crates/datasynth-config" }
-datasynth-generators = { version = "4.4.3", path = "crates/datasynth-generators" }
-datasynth-output = { version = "4.4.3", path = "crates/datasynth-output" }
-datasynth-runtime = { version = "4.4.3", path = "crates/datasynth-runtime" }
-datasynth-graph = { version = "4.4.3", path = "crates/datasynth-graph" }
-datasynth-server = { version = "4.4.3", path = "crates/datasynth-server" }
-datasynth-test-utils = { version = "4.4.3", path = "crates/datasynth-test-utils" }
-datasynth-eval = { version = "4.4.3", path = "crates/datasynth-eval" }
-datasynth-ocpm = { version = "4.4.3", path = "crates/datasynth-ocpm" }
-datasynth-banking = { version = "4.4.3", path = "crates/datasynth-banking" }
-datasynth-fingerprint = { version = "4.4.3", path = "crates/datasynth-fingerprint" }
-datasynth-standards = { version = "4.4.3", path = "crates/datasynth-standards" }
-datasynth-audit-fsm = { version = "4.4.3", path = "crates/datasynth-audit-fsm" }
-datasynth-audit-optimizer = { version = "4.4.3", path = "crates/datasynth-audit-optimizer" }
+datasynth-core = { version = "5.0.0", path = "crates/datasynth-core" }
+datasynth-config = { version = "5.0.0", path = "crates/datasynth-config" }
+datasynth-generators = { version = "5.0.0", path = "crates/datasynth-generators" }
+datasynth-output = { version = "5.0.0", path = "crates/datasynth-output" }
+datasynth-runtime = { version = "5.0.0", path = "crates/datasynth-runtime" }
+datasynth-graph = { version = "5.0.0", path = "crates/datasynth-graph" }
+datasynth-server = { version = "5.0.0", path = "crates/datasynth-server" }
+datasynth-test-utils = { version = "5.0.0", path = "crates/datasynth-test-utils" }
+datasynth-eval = { version = "5.0.0", path = "crates/datasynth-eval" }
+datasynth-ocpm = { version = "5.0.0", path = "crates/datasynth-ocpm" }
+datasynth-banking = { version = "5.0.0", path = "crates/datasynth-banking" }
+datasynth-fingerprint = { version = "5.0.0", path = "crates/datasynth-fingerprint" }
+datasynth-standards = { version = "5.0.0", path = "crates/datasynth-standards" }
+datasynth-audit-fsm = { version = "5.0.0", path = "crates/datasynth-audit-fsm" }
+datasynth-audit-optimizer = { version = "5.0.0", path = "crates/datasynth-audit-optimizer" }
+datasynth-group = { version = "5.0.0", path = "crates/datasynth-group" }
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
@@ -83,6 +85,7 @@ serde_yaml = "0.9"
 # Hashing
 sha2 = "0.10"
 hex = "0.4"
+blake3 = "1"
 
 # Numeric - precise decimal arithmetic for financial calculations
 rust_decimal = { version = "1.36", features = ["serde", "serde-with-str", "maths"] }

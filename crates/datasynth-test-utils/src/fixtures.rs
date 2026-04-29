@@ -203,6 +203,8 @@ pub fn balanced_journal_entry(amount: Decimal) -> JournalEntry {
             sod_violation: false,
             sod_conflict_type: None,
             is_elimination: false,
+            ic_pair_id: None,
+            ic_partner_entity: None,
             approval_workflow: None,
             source_document: None,
             approved_by: None,
