@@ -88,6 +88,84 @@ See the [CLI Reference](docs/book/src/cli-reference.md) for all commands and fla
 
 ---
 
+## Group audit simulation (v5.0+)
+
+The v5.0 release adds a dedicated **multi-entity group audit engine** as a sibling
+to the single-entity `generate` flow. The engine is layered above (not into)
+the existing `EnhancedOrchestrator`: the per-entity flow stays byte-identical
+to v4.x, and consolidation logic lives entirely in the new `datasynth-group`
+crate.
+
+The pipeline is a **three-phase model** — `manifest` resolves a `GroupConfig`
+into a deterministic, content-addressable `GroupManifest` (entities, periods,
+ownership graph, IC pair plan, shard plan, FX/CoA masters); `shard` drives
+the orchestrator for one shard of entities and writes a full single-entity
+archive per entity under `entities/{code}/`; `aggregate` reads the shard
+outputs and runs IC matching, eliminations, IAS 21 translation, NCI
+rollforward, equity-method investments, and produces consolidated FS, schedule,
+and notes. Output is IFRS / IAS 21 / IAS 28 / IFRS 10 compliant by construction.
+
+```yaml
+# Excerpt — see configs/examples/group/mini_nestle.yaml for the full file
+id: "MINI_NESTLE_2024_Q1"
+presentation_currency: "CHF"
+period: { start_date: "2024-01-01", length: quarterly }
+defaults:
+  accounting_framework: ifrs
+  industry: manufacturing
+  process_models: [o2c, p2p, h2r, r2r, audit]
+ownership:
+  parent_entity_code: NESTLE_SA
+  entities:
+    - { code: NESTLE_SA, country: CH, functional_currency: CHF,
+        consolidation_method: parent }
+    - { code: NESTLE_USA, country: US, functional_currency: USD,
+        consolidation_method: full, ownership_percent: 1.0,
+        parent_code: NESTLE_SA }
+    - { code: NESTLE_DE, country: DE, functional_currency: EUR,
+        consolidation_method: full, ownership_percent: 0.80,
+        parent_code: NESTLE_SA }
+intercompany:
+  relationships:
+    - { seller: NESTLE_SA, buyer: NESTLE_USA, types: [goods_sale],
+        annual_volume: 5_000_000, transfer_pricing: cost_plus, markup_percent: 0.08 }
+```
+
+```bash
+datasynth-data group generate \
+  --config configs/examples/group/mini_nestle.yaml \
+  --out ./group_archive
+```
+
+Expected output layout:
+
+```
+./group_archive/
+├── manifest.json                       # canonical group manifest
+├── entities/
+│   ├── NESTLE_SA/                      # full single-entity archive per shard
+│   ├── NESTLE_USA/
+│   └── ...
+├── consolidated/
+│   ├── consolidated_financial_statements.json
+│   ├── consolidation_schedule.json
+│   ├── notes_to_consolidated_fs.json
+│   ├── nci_rollforward.json
+│   ├── cta_rollforward.json
+│   ├── translation_worksheet.json
+│   └── equity_method_investments.json
+├── ic_eliminations/
+│   └── ic_matching_coverage.json
+└── shard_summary.json                  # per shard
+```
+
+Existing single-entity configs are untouched: `datasynth-data generate`
+auto-detects whether the input is a `GroupConfig` (looking for the
+`presentation_currency` / `ownership` keys) and dispatches to the v4.x
+flow byte-for-byte unchanged when it isn't.
+
+---
+
 ## Key Capabilities
 
 ### Enterprise Process Simulation
