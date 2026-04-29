@@ -73,3 +73,6 @@ paper/arxiv-submission.tar
 paper/main.bbl
 paper/main.blg
 paper/tmp/
+
+# v5.0 XXL VM verification artifacts (large binary blobs, regenerable)
+docs/superpowers/verification-runs/
