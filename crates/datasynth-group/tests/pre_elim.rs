@@ -322,7 +322,9 @@ fn errors_on_currency_mismatch() {
     let result = aggregate_pre_elimination(&manifest, &tbs)
         .expect("currency mismatch must succeed under v5.0 translation-as-sidecar contract");
     assert_eq!(result.contributing_entities.len(), 2);
-    assert!(result.contributing_entities.contains(&"NESTLE_DE".to_string()));
+    assert!(result
+        .contributing_entities
+        .contains(&"NESTLE_DE".to_string()));
 }
 
 /// Deterministic output: two calls with identical input must produce

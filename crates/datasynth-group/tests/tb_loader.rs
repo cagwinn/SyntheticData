@@ -289,7 +289,10 @@ fn corrupt_balanced_flag_is_aggregate_error() {
     // exact pattern in normal operation.
     let tb = load_entity_trial_balance(&entity_subdir)
         .expect("corrupt-flag TB must load under v5.0 fraud-tolerance contract");
-    assert!(tb.is_balanced, "loaded TB preserves the lying balanced flag");
+    assert!(
+        tb.is_balanced,
+        "loaded TB preserves the lying balanced flag"
+    );
     assert_eq!(tb.total_debits, dec!(10000));
     assert_eq!(tb.total_credits, dec!(9000));
 }
