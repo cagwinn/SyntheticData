@@ -3403,13 +3403,78 @@ fn handle_group_manifest(config_path: &std::path::Path, out_path: &std::path::Pa
     Ok(())
 }
 
-/// v5.0+: `datasynth-data group shard` handler — wired in Task 10.3.
+/// v5.0+: `datasynth-data group shard` handler — Task 10.3.
+///
+/// Drives [`datasynth_group::shard::run_shard`] for the requested
+/// shard.  Validates the `--shard-id` against
+/// `manifest.shard_plan.shards[*].shard_id` up front and exits with
+/// code 2 (listing the valid ids) on a typo, so the operator gets a
+/// fast, clear error rather than waiting for the orchestrator
+/// scaffolding to fail inside `run_shard` itself.
 fn handle_group_shard(
-    _manifest_path: &std::path::Path,
-    _shard_id: &str,
-    _out_path: &std::path::Path,
+    manifest_path: &std::path::Path,
+    shard_id: &str,
+    out_path: &std::path::Path,
 ) -> Result<()> {
-    anyhow::bail!("group shard: not yet implemented (Task 10.3)")
+    use anyhow::Context;
+    tracing::info!(
+        manifest = %manifest_path.display(),
+        shard_id = shard_id,
+        out = %out_path.display(),
+        "group shard: starting",
+    );
+
+    let bytes = std::fs::read_to_string(manifest_path)
+        .with_context(|| format!("group shard: read {}", manifest_path.display()))?;
+    let manifest: datasynth_group::GroupManifest = serde_json::from_str(&bytes).with_context(|| {
+        format!(
+            "group shard: parse {} as GroupManifest",
+            manifest_path.display()
+        )
+    })?;
+
+    // Validate the shard_id against the manifest's shard plan up front
+    // so a typo fails fast (exit 2) instead of inside run_shard.
+    let valid: bool = manifest
+        .shard_plan
+        .shards
+        .iter()
+        .any(|s| s.shard_id == shard_id);
+    if !valid {
+        let valid_ids: Vec<String> = manifest
+            .shard_plan
+            .shards
+            .iter()
+            .map(|s| s.shard_id.clone())
+            .collect();
+        eprintln!(
+            "group shard: unknown shard_id `{shard_id}` — valid ids: [{}]",
+            valid_ids.join(", ")
+        );
+        std::process::exit(2);
+    }
+
+    std::fs::create_dir_all(out_path)
+        .with_context(|| format!("group shard: mkdir {}", out_path.display()))?;
+
+    let summary = match datasynth_group::shard::run_shard(&manifest, shard_id, out_path) {
+        Ok(s) => s,
+        Err(e) => group_error_exit(e, "shard"),
+    };
+
+    let entity_count = summary.entity_summaries.len();
+    let total_jes: u64 = summary
+        .entity_summaries
+        .iter()
+        .map(|s| s.journal_entry_count as u64)
+        .sum();
+    println!(
+        "shard {}: {entity_count} entities, {total_jes} JEs written to {}",
+        summary.shard_id,
+        out_path.display()
+    );
+
+    Ok(())
 }
 
 /// v5.0+: `datasynth-data group aggregate` handler — wired in Task 10.4.
