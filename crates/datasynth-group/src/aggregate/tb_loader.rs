@@ -208,10 +208,7 @@ fn period_to_canonical(p: PeriodTrialBalanceOnDisk, entity_label: &str) -> Trial
     let imbalance = (total_debits - total_credits).abs();
     let is_balanced = imbalance < Decimal::new(1, 2);
     TrialBalance {
-        trial_balance_id: format!(
-            "{entity_label}-{:04}{:02}",
-            p.fiscal_year, p.fiscal_period
-        ),
+        trial_balance_id: format!("{entity_label}-{:04}{:02}", p.fiscal_year, p.fiscal_period),
         company_code: entity_label.to_string(),
         company_name: None,
         as_of_date: p.period_end,
