@@ -1,4 +1,4 @@
-# DataSynth v4.4.3
+# DataSynth v5.0.0
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-green.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/rust-1.88%2B-orange.svg)](https://www.rust-lang.org)
@@ -9,7 +9,16 @@
 
 DataSynth generates statistically realistic, fully interconnected enterprise financial data across 20+ process families. Generated data respects accounting identities (debits = credits, Assets = Liabilities + Equity), follows empirical distributions (Benford's Law, log-normal mixtures, Pareto heavy tails, Gaussian copula correlations), and maintains referential integrity across 100+ output tables. Generation-time assertions enforce these invariants at scale.
 
-**[Full Documentation](docs/book/src/SUMMARY.md)** | **[Commercial SDKs](https://vynfi.com)** | **[CHANGELOG](CHANGELOG.md)**
+**v5.0 ships group audit simulation** — multi-entity consolidation with manifest / shard / aggregate three-phase model, IFRS / IAS 21 / IAS 28 / IFRS 10 compliant by construction. **A 2 000-entity reference archive runs in 5 min 32 s** on a 40 vCPU host (60 GiB peak RSS) and is published as [VynFi/vynfi-group-audit-enterprise-2000](https://huggingface.co/datasets/VynFi/vynfi-group-audit-enterprise-2000).
+
+**[Full Documentation](docs/book/src/SUMMARY.md)** | **[Commercial SDKs](https://vynfi.com)** | **[CHANGELOG](CHANGELOG.md)** | **[Roadmap](#roadmap)**
+
+**What's new in v5.0.0 (April 2026)**
+- **Group audit simulation engine** — new `datasynth-group` crate with three-phase model (manifest / shard / aggregate). Backwards-compatible: existing single-entity configs auto-dispatch to the v4.x flow byte-for-byte unchanged.
+- **4 new CLI subcommands** — `datasynth-data group {manifest, shard, aggregate, generate}` with rayon-parallel shard execution.
+- **9 new consolidated output artefacts** — consolidated FS (BS/IS/CF/Equity), consolidation schedule, notes (8-note disclosure set), NCI rollforward, CTA rollforward, IAS 21 translation worksheet, equity-method investments, IC matching coverage report, and group manifest.
+- **Determinism guarantees** — manifest-driven IC matching produces 100 % pair coverage by construction (proven by property test); standalone in-process generation with `parallel_shards: false` produces byte-identical archives.
+- **Released alongside [VynFi/vynfi-group-audit-enterprise-2000](https://huggingface.co/datasets/VynFi/vynfi-group-audit-enterprise-2000)** — 2 000-entity multinational consolidation showcase.
 
 **What's new in v4.1 → v4.4.3 (April 2026)**
 - **Python SDK retired** (v4.4.3) — the in-tree `datasynth-py` wrapper is gone; use the official commercial SDKs from [VynFi](https://vynfi.com), or drive the CLI via `subprocess` for ad-hoc Python work.
@@ -29,11 +38,15 @@ DataSynth generates statistically realistic, fully interconnected enterprise fin
 
 Pre-generated datasets at [huggingface.co/VynFi](https://huggingface.co/VynFi):
 
-| Dataset | Records | Description |
-|---------|---------|-------------|
+| Dataset | Scale | Description |
+|---------|-------|-------------|
+| [vynfi-group-audit-enterprise-2000](https://huggingface.co/datasets/VynFi/vynfi-group-audit-enterprise-2000) | **2 000 entities** | **NEW** v5.0 group-audit reference archive: multinational ACME holding with 4 functional currencies, 4 759 IC pairs (91.6 % matched), full IFRS-compliant consolidated FS + schedule + notes + CTA + NCI + equity-method rollforwards. |
+| [vynfi-journal-entries-1m](https://huggingface.co/datasets/VynFi/vynfi-journal-entries-1m) | 2.1M JE lines | Manufacturing-sector denormalised JE table with 6.92 % fraud rate, ISA 240 manual flag, GL chart of accounts |
 | [vynfi-aml-100k](https://huggingface.co/datasets/VynFi/vynfi-aml-100k) | 749K | Banking transactions with AML labels, 14 velocity features, 59 columns |
 | [vynfi-audit-p2p](https://huggingface.co/datasets/VynFi/vynfi-audit-p2p) | 234 | P2P document chain (PO/GR/VI/Payment) with fraud labels |
 | [vynfi-ocel-manufacturing](https://huggingface.co/datasets/VynFi/vynfi-ocel-manufacturing) | 344 | OCEL event log for process mining (pm4py, Celonis) |
+| [vynfi-supply-chain-ocel](https://huggingface.co/datasets/VynFi/vynfi-supply-chain-ocel) | — | Supply-chain OCEL event log for cross-process mining |
+| [vynfi-sar-narratives](https://huggingface.co/datasets/VynFi/vynfi-sar-narratives) | — | Suspicious activity report (SAR) narratives for AML training |
 
 ```python
 from datasets import load_dataset
@@ -163,6 +176,108 @@ Existing single-entity configs are untouched: `datasynth-data generate`
 auto-detects whether the input is a `GroupConfig` (looking for the
 `presentation_currency` / `ownership` keys) and dispatches to the v4.x
 flow byte-for-byte unchanged when it isn't.
+
+### Performance — measured on Standard_NC40ads_H100_v5 (40 vCPU / 320 GiB)
+
+The v5.0 release was verified end-to-end on an Azure GPU host (the H100
+sits idle for the audit pipeline — it's allocated for upcoming
+RustGraph / RustCompute GPU work). All numbers come from
+`/usr/bin/time -v` against `--release` builds.
+
+| Workload | Wall-clock | Peak RSS | Output |
+|---|---|---|---|
+| Cold workspace build (17 crates, release) | 8 min 11 s | — | binaries |
+| `cargo test --workspace --release` (229 result lines) | ~9 min | — | 0 failures |
+| Mini-Nestlé `group generate` (5 entities, quarterly) | ~5 min | — | 1.5 GB |
+| **ACME 2 000-entity `group generate`** | **5 min 32 s** | **60 GiB** | **66 GB** |
+| ACME archive packed (zstd -3) | 35 s | — | 3.1 GB |
+
+Per-entity output is **34 MB** (material profile) to **250 MB**
+(flagship profile) — heterogeneous by `scoping_profile`. Banking /
+KYC / AML data is intentionally disabled in shard mode (saves 29 GB
+per entity); use the [vynfi-aml-100k](https://huggingface.co/datasets/VynFi/vynfi-aml-100k)
+companion dataset for banking workloads.
+
+### v5.0 release learnings
+
+The Chunk-12 release verification on a real Azure VM caught a class of
+integration bugs the chunk-level unit tests missed because they used
+hand-rolled fixtures matching canonical-shape types. All seven were
+fixed in commit `76ce191`:
+
+1. **`build_entity_generator_config` didn't enable `financial_reporting`** —
+   silently skipped Phase 15 of the orchestrator, so
+   `period_close/trial_balances.json` was never written and the
+   aggregate phase failed at "missing shard archive".
+2. **Loader / orchestrator type mismatch** — `tb_loader` deserialised
+   as `Vec<TrialBalance>` (datasynth-core canonical type) but the
+   orchestrator emits `Vec<PeriodTrialBalance>` (datasynth-runtime
+   type with different fields). Loader now reads both shapes.
+3. **Strict "exactly 1 TB" check** rejected the orchestrator's
+   per-month TBs (3 for a quarterly period). Loader now picks the
+   latest fiscal period.
+4. **Strict balance check** rejected fraud-injected unbalanced totals
+   as corruption. Per CLAUDE.md the synthetic engine deliberately
+   injects fraud entries with mismatched debits/credits — the
+   imbalance IS the ground-truth fraud signal. Loader / pre_elim /
+   post_elim / consolidated BS now log the imbalance instead of
+   failing.
+5. **Pre-elim currency check** rejected non-presentation-currency TBs
+   as "needing translation first" — but in v5.0 the IAS 21 translation
+   step is a sidecar artefact (`consolidated/translation_worksheet.json`),
+   not run inline by the aggregate driver. Pre-elim's per-account sum
+   doesn't actually need single-currency input. Downgraded to log.
+6. **Equity-method clamp** — `compute_equity_method_investment`
+   returned an error when share-of-loss would push carrying value
+   below zero. Per IAS 28.38 / ASC 323-10-35-20 the investor
+   *clamps at zero* and discontinues recognising further losses. Now
+   clamps + warns (the suppressed loss should land in a separate
+   v5.1 artefact).
+7. **Banking bloat** — `BankingConfig.enabled` defaults to `true`,
+   producing ~29 GB of AML transaction labels per entity. Disabled in
+   shard mode for v5.0 (group-audit pipeline doesn't consume banking).
+
+### Mini-Nestlé example
+
+The repo's reference fixture is [`configs/examples/group/mini_nestle.yaml`](configs/examples/group/mini_nestle.yaml) — 5 entities (CHF/USD/EUR/BRL/CHF), 6 IC relationships including pattern-derived. Use it for local debugging:
+
+```bash
+./target/release/datasynth-data group generate \
+  --config configs/examples/group/mini_nestle.yaml \
+  --out ./mini_nestle/
+```
+
+---
+
+## Roadmap
+
+### v5.1 — Q3 2026 (planned)
+
+- **Suppressed loss tracking** for equity-method investments below zero (IAS 28.38 memorandum record), surfaced as a separate `consolidated/equity_method_suppressed_losses.json` artefact.
+- **Operating segments** per IFRS 8 — the v5.0 `notes_to_consolidated_fs.json` has a placeholder note; v5.1 wires it to the per-entity segment generator.
+- **Full retained-earnings integration** of equity-method postings (replacing the v5.0 bridge account `3400`).
+- **Configurable account-name dictionary** (currently a hard-coded static map of canonical codes) — wire through to the per-engagement chart-of-accounts master.
+- **`tb_loader` cleanup** — once the orchestrator's writer emits the canonical `TrialBalance` shape directly (instead of `PeriodTrialBalance`), drop the dual-shape detection in the loader.
+
+### v5.2 — Q4 2026 (planned)
+
+- **Acquisition-date NCI measurement** — full-goodwill vs partial-goodwill choice per IFRS 3.19; currently v5.0 only handles steady-state.
+- **Step-acquisition / divestiture rollforwards** — multi-period scenarios where ownership changes mid-year.
+- **Goodwill impairment testing** (IAS 36) under the v5.0 group structure.
+- **Hyperinflationary economies** (IAS 29) handling — special CTA treatment.
+
+### v5.3 — H1 2027 (planned)
+
+- **Emergent-fuzzy IC matching strategy** for group consolidation against external/legacy data (vs the v5.0 manifest-driven 100 %-by-construction strategy). Adds the `AmountDriftAboveTolerance` reason currently reserved as a placeholder in `UnmatchedReason`.
+- **Multi-period consolidation** — v5.0 emits a single period; v5.3 runs N consecutive periods with NCI / CTA / equity-method rollforwards stitching automatically (currently the `--prior-period-aggregate` flag plumbs in opening NCI but doesn't drive a multi-period pipeline).
+
+### Beyond — backlog (no committed timeline)
+
+- **Segment-level intercompany matching** (IFRS 8 plus v5.0 IC).
+- **Subsequent events** automation (currently a placeholder note).
+- **Related-party transactions** disclosures generated from the manifest's IC graph.
+- **Goodwill-impairment indicator** ML training data.
+- **Performance**: target sub-2-min wall-clock for the 2 000-entity archive on a 96-vCPU host.
 
 ---
 
