@@ -112,6 +112,25 @@ cargo test --workspace --release -- --test-threads=8 2>&1 | tee /mnt/output/test
   - `datasynth-cli`: saft_export_smoke passes (3 subprocess runs balanced + ~1.8 GB SAF-T each)
 - **If a test fails:** Capture the log, open an issue, fix on the feature branch, re-run just that crate with `-p`, then re-run this full sweep.
 
+#### 3.2.b — Orchestrator-heavy `#[ignore]`d tests
+
+Some tests drive the full `EnhancedOrchestrator` end-to-end and consume
+~17 GiB peak RSS per shard — they are marked `#[ignore]` so the
+workstation's `cargo test` doesn't OOM the host. The XXL VM is the
+canonical place to exercise them:
+
+```bash
+cargo test --workspace --release -- --test-threads=4 --include-ignored \
+  2>&1 | tee /mnt/output/test-ignored.log
+```
+
+- **Pass:** Every previously-ignored test now reports `ok`. In particular,
+  `datasynth-group::shard_runner::run_shard_writes_per_entity_output_and_summary`
+  must produce a `journal_entries.json` for the entity and a
+  `shard_summary.json` whose round-trip equals the in-memory summary.
+- **Budget:** ~10 min on top of 3.2's budget. The shard-runner test alone
+  is ~3 min single-entity at quarterly period.
+
 ### 3.3 Lint + format
 
 ```bash
