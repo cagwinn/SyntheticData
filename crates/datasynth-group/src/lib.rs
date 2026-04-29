@@ -13,9 +13,9 @@ pub mod shard;
 pub mod validate;
 
 pub use aggregate::{
-    aggregate_pre_elimination, generate_eliminations, load_entity_trial_balance, match_ic_pairs,
-    AggregatedAccount, AggregatedTb, DeferredEntity, EliminationResult, IcMatchResult,
-    IcMatchedPair, UnmatchedReason, UnmatchedSide,
+    aggregate_pre_elimination, eliminations_to_journal_entries, generate_eliminations,
+    load_entity_trial_balance, match_ic_pairs, AggregatedAccount, AggregatedTb, DeferredEntity,
+    EliminationResult, IcMatchResult, IcMatchedPair, UnmatchedReason, UnmatchedSide,
 };
 pub use config::{
     AuditEngagementConfig, CbcReportConfig, ComponentScopeThresholds, ConsolidationMethod,

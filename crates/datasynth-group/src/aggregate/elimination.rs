@@ -639,6 +639,33 @@ const DIVIDEND_INCOME: &str = "4900";
 /// dividend handling).
 const RETAINED_EARNINGS: &str = "3300";
 
+// ── Task 5.5 — Elimination → Journal Entry conversion ───────────────────────
+
+/// Convert an [`EliminationResult`]'s entries into balanced GL
+/// [`JournalEntry`] records ready to apply to the pre-elimination
+/// consolidated trial balance (Task 5.6).
+///
+/// Wraps
+/// [`datasynth_generators::elimination_to_journal_entries`] — the v1.3.0
+/// helper that already stamps each JE's header per the v5.0 spec:
+/// `is_elimination = true`, `document_type = "ELIMINATION"`,
+/// `created_by = "CONSOLIDATION"` (the spec's "source = CONSOLIDATION"
+/// — `JournalEntryHeader::source` is a typed
+/// [`datasynth_core::models::TransactionSource`] enum and the helper
+/// sets it to `Automated`, so the literal "CONSOLIDATION" string lands
+/// in `created_by` per the established v1.3.0 contract).
+///
+/// Unbalanced elimination entries (`total_debit != total_credit`) are
+/// silently skipped by the underlying helper; this is fine because
+/// [`generate_eliminations`] already verifies balance before pushing
+/// entries into the result, so under v5.0 the filter is a defensive
+/// postcondition rather than active behaviour.
+pub fn eliminations_to_journal_entries(
+    result: &EliminationResult,
+) -> Vec<datasynth_core::models::JournalEntry> {
+    datasynth_generators::elimination_to_journal_entries(&result.entries)
+}
+
 // ── Unit tests ────────────────────────────────────────────────────────────────
 
 #[cfg(test)]

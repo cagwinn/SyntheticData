@@ -24,7 +24,7 @@ pub mod ic_matcher;
 pub mod pre_elim;
 pub mod tb_loader;
 
-pub use elimination::{generate_eliminations, EliminationResult};
+pub use elimination::{eliminations_to_journal_entries, generate_eliminations, EliminationResult};
 pub use ic_matcher::{
     match_ic_pairs, IcMatchResult, IcMatchedPair, UnmatchedReason, UnmatchedSide,
 };
