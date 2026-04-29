@@ -35,6 +35,7 @@ datasynth-audit-optimizer = { workspace = true }
 datasynth-banking = { workspace = true }
 datasynth-fingerprint = { workspace = true }
 datasynth-graph = { workspace = true }
+datasynth-group = { workspace = true }
 clap = { workspace = true }
 indicatif = { workspace = true }
 anyhow = { workspace = true }
