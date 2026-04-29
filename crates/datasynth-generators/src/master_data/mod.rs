@@ -15,6 +15,7 @@ mod customer_generator;
 mod employee_generator;
 mod entity_registry_manager;
 mod material_generator;
+mod profit_center_generator;
 mod vendor_generator;
 
 pub use asset_generator::*;
@@ -23,4 +24,5 @@ pub use customer_generator::*;
 pub use employee_generator::*;
 pub use entity_registry_manager::*;
 pub use material_generator::*;
+pub use profit_center_generator::*;
 pub use vendor_generator::*;

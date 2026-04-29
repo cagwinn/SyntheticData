@@ -1,11 +1,12 @@
 # SAP Integration
 
-DataSynth emits a complete set of SAP tables — 27 in total — directly
+DataSynth emits a complete set of SAP tables — 28 in total — directly
 from the synthetic-data generation pipeline. The export covers the
-classic BKPF/BSEG/ACDOCA transactional triple, 10 master-data tables,
+classic BKPF/BSEG/ACDOCA transactional triple, 11 master-data tables,
 8 document-flow tables, and 6 subledger open/cleared-item tables.
 
-Shipped in the v4.3.0 release line (v4.3.0a → v4.3.0d).
+Shipped in the v4.3.0 release line (v4.3.0a → v4.3.0d); CEPC
+(profit-centre master) added in v5.1.
 
 ## Quick start
 
@@ -63,7 +64,7 @@ ACDOCA carries optional `ZSIM_*` extension columns when
 labels directly so ML consumers can train on the SAP table instead of
 re-joining the label files.
 
-### Master data (10 tables)
+### Master data (11 tables)
 
 | Table   | Source                          | Rows                           |
 |---------|---------------------------------|--------------------------------|
@@ -75,16 +76,9 @@ re-joining the label files.
 | MARD    | `Material` × plants             | 1 per (material, plant, lgort) |
 | ANLA    | `FixedAsset`                    | 1 per asset                    |
 | CSKS    | `CostCenter`                    | 1 per cost centre              |
+| CEPC    | `ProfitCenter` *(v5.1)*         | 1 per profit centre            |
 | SKA1    | `ChartOfAccounts` → `GLAccount` | 1 per GL account (chart-wide)  |
 | SKB1    | `GLAccount` × companies         | 1 per (GL account, company)    |
-
-> **CEPC (profit-centre master) is not emitted in v5.0.** The
-> `SapTableType::Cepc` enum variant exists for future expansion and
-> appears in the CLI's accepted-tables list, but no `ProfitCenter`
-> master-data model / generator / writer is wired up yet. Requesting
-> `cepc` in `output.sap.tables` surfaces a `tracing::warn!` and emits
-> nothing — drop the entry to silence the warning. Full implementation
-> is tracked as Gap 6 in the v5.1 roadmap.
 
 ### Document flow (8 tables)
 

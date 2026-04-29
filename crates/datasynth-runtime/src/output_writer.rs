@@ -395,6 +395,7 @@ pub fn write_all_output_with_layout(
         || !result.master_data.assets.is_empty()
         || !result.master_data.employees.is_empty()
         || !result.master_data.cost_centers.is_empty()
+        || !result.master_data.profit_centers.is_empty()
     {
         std::fs::create_dir_all(&md_dir)?;
         info!("Writing master data...");
@@ -428,6 +429,12 @@ pub fn write_all_output_with_layout(
             &result.master_data.cost_centers,
             &md_dir.join("cost_centers.json"),
             "Cost centers",
+        );
+        // v5.1: profit-centre hierarchy (segments + sub-units).
+        write_json_safe(
+            &result.master_data.profit_centers,
+            &md_dir.join("profit_centers.json"),
+            "Profit centres",
         );
         // v3.3.0: organizational profiles (one per company)
         write_json_safe(

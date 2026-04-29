@@ -280,11 +280,11 @@ deferred to v5.1).
    `GLAccount.accounting_framework: Option<String>` field; stamped by
    `CoAGenerator::generate` with the framework label matching the
    generator's branch (`us_gaap` / `french_pcg` / `german_skr04`).
-6. ✅ **CEPC table requested-but-not-emitted** — CLI emits an explicit
-   `tracing::warn!` when `cepc` is in `output.sap.tables`; in-repo SAP
-   integration doc carries an explicit "not emitted in v5.0, planned
-   for v5.1" callout. Full `ProfitCenter` model + generator + writer
-   tracked as a v5.1 roadmap item.
+6. ✅ **CEPC table requested-but-not-emitted** — initial mitigation
+   was a CLI warn + doc callout. Fully closed in v5.1: `ProfitCenter`
+   model, two-level generator (segments → sub-units), `write_cepc`
+   SAP writer, and CLI dispatch under `output.sap.tables: [cepc]`.
+   CEPC is now a first-class master-data table alongside CSKS.
 
 ### v5.1 — Q3 2026 (planned)
 
@@ -293,7 +293,7 @@ deferred to v5.1).
 - **Full retained-earnings integration** of equity-method postings (replacing the v5.0 bridge account `3400`).
 - **Configurable account-name dictionary** (currently a hard-coded static map of canonical codes) — wire through to the per-engagement chart-of-accounts master.
 - **`tb_loader` cleanup** — once the orchestrator's writer emits the canonical `TrialBalance` shape directly (instead of `PeriodTrialBalance`), drop the dual-shape detection in the loader.
-- **CEPC profit-centre master** — `ProfitCenter` model, generator (driven from cost-centre + segment hierarchy), `write_cepc` SAP writer, and CLI dispatch. Closes the v5.0.1 doc-only mitigation of Gap 6.
+- ✅ **CEPC profit-centre master** *(shipped)* — `ProfitCenter` model, two-level generator (segments → sub-units), `SapProfitCenter` + `write_cepc` writer, CLI dispatch. Closes the v5.0.1 doc-only mitigation of Gap 6.
 
 ### v5.2 — Q4 2026 (planned)
 

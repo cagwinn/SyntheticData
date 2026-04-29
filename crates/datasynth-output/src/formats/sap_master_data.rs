@@ -28,7 +28,7 @@ use std::path::Path;
 use chrono::Datelike;
 use datasynth_core::error::SynthResult;
 use datasynth_core::models::{
-    ChartOfAccounts, CostCenter, Customer, FixedAsset, GLAccount, Material, Vendor,
+    ChartOfAccounts, CostCenter, Customer, FixedAsset, GLAccount, Material, ProfitCenter, Vendor,
 };
 
 use super::sap::{
@@ -897,6 +897,121 @@ pub fn write_csks(
 }
 
 // ===========================================================================
+// CEPC — Profit centre master (v5.1)
+// ===========================================================================
+
+/// SAP CEPC — profit-centre master.  One row per (controlling area,
+/// profit centre, validity period).  DataSynth emits one row per
+/// profit centre using the company code as the controlling area
+/// (1:1 mapping in small demos; enterprises typically split).
+///
+/// CEPC is the canonical SAP table for profit-centre master data in
+/// the CO-PCA (Profit Centre Accounting) module.  The `PRCTR` key
+/// joins to `BSEG.PRCTR` / `ACDOCA.PRCTR` on every line item that
+/// carries a profit-centre attribution.
+#[derive(Debug, Clone)]
+pub struct SapProfitCenter {
+    pub mandt: String,
+    /// Controlling area (KOKRS) — defaults to the company code.
+    pub kokrs: String,
+    /// Profit centre ID (PRCTR).
+    pub prctr: String,
+    /// Valid-to (DATBI) — `9999-12-31` for "open ended".
+    pub datbi: chrono::NaiveDate,
+    /// Valid-from (DATAB).
+    pub datab: chrono::NaiveDate,
+    /// Description / name (KTEXT — flattened from CEPCT in real SAP).
+    pub ktext: String,
+    /// Responsible person (VERAK_USER).
+    pub verak_user: Option<String>,
+    /// Lock indicator (LOKKZ): `X` when the centre is inactive.
+    pub lokkz: bool,
+    /// Department / segment code (ABTEI) — propagated from the
+    /// `ProfitCenter.segment_code` so consumers can group by IFRS 8
+    /// reportable segment without joining a sidecar.
+    pub abtei: Option<String>,
+    /// Hierarchy node (HIE_KIND) — encodes whether this is a top-level
+    /// node ("S" for summary) or a leaf ("D" for detail).
+    pub hie_kind: String,
+}
+
+/// Extension trait for mapping `ProfitCenter` → SAP CEPC.
+pub trait SapProfitCenterExportable {
+    fn to_sap_profit_center(&self, client: &str) -> SapProfitCenter;
+}
+
+impl SapProfitCenterExportable for ProfitCenter {
+    fn to_sap_profit_center(&self, client: &str) -> SapProfitCenter {
+        SapProfitCenter {
+            mandt: client.to_string(),
+            kokrs: self.company_code.clone(),
+            prctr: self.id.clone(),
+            datbi: chrono::NaiveDate::from_ymd_opt(9999, 12, 31)
+                .expect("9999-12-31 is a valid date"),
+            datab: chrono::NaiveDate::from_ymd_opt(2000, 1, 1).expect("2000-01-01 is a valid date"),
+            ktext: self.name.clone(),
+            verak_user: self.responsible_person.clone(),
+            lokkz: !self.is_active,
+            abtei: self.segment_code.clone(),
+            hie_kind: if self.level == 1 { "S" } else { "D" }.to_string(),
+        }
+    }
+}
+
+/// Write CEPC (profit-centre master).
+///
+/// v5.1: closes the v5.0.1 documentation-only mitigation of Gap 6.
+/// CEPC is now a first-class master-data table alongside CSKS — the
+/// CLI's `output.sap.tables` config no longer warns when `cepc` is
+/// requested.
+pub fn write_cepc(
+    cfg: &SapExportConfig,
+    profit_centers: &[ProfitCenter],
+    path: &Path,
+) -> SynthResult<()> {
+    let mut writer = open_master_file(cfg, path)?;
+    let delim = cfg.delimiter();
+    write_header(
+        &mut writer,
+        delim,
+        &[
+            "MANDT",
+            "KOKRS",
+            "PRCTR",
+            "DATBI",
+            "DATAB",
+            "KTEXT",
+            "VERAK_USER",
+            "LOKKZ",
+            "ABTEI",
+            "HIE_KIND",
+        ],
+    )?;
+    for pc in profit_centers {
+        let s = pc.to_sap_profit_center(&cfg.client);
+        let fields: Vec<String> = vec![
+            s.mandt,
+            s.kokrs,
+            s.prctr,
+            cfg.format_date(s.datbi),
+            cfg.format_date(s.datab),
+            escape(&s.ktext),
+            s.verak_user.unwrap_or_default(),
+            if s.lokkz {
+                "X".to_string()
+            } else {
+                String::new()
+            },
+            s.abtei.unwrap_or_default(),
+            s.hie_kind,
+        ];
+        write_row(&mut writer, delim, &fields)?;
+    }
+    writer.flush()?;
+    Ok(())
+}
+
+// ===========================================================================
 // SKA1 / SKB1 — GL account masters
 // ===========================================================================
 
@@ -1221,6 +1336,48 @@ mod tests {
         assert_eq!(rows[0].werks, "PLNT01");
         assert_eq!(rows[0].labst, rust_decimal::Decimal::new(100, 0));
         assert_eq!(rows[1].werks, "PLNT02");
+    }
+
+    #[test]
+    fn cepc_emits_one_row_per_profit_center_with_segment_propagated() {
+        use datasynth_core::models::{ProfitCenter, ProfitCenterCategory};
+        let tmp = TempDir::new().unwrap();
+        let cfg = SapExportConfig::default();
+        let pcs = vec![
+            ProfitCenter::top_level("PC-EMEA", "EMEA", "C001", ProfitCenterCategory::Region)
+                .with_segment("SEG-EMEA"),
+            ProfitCenter::sub_unit(
+                "PC-EMEA-DACH",
+                "DACH",
+                "PC-EMEA",
+                "C001",
+                ProfitCenterCategory::Region,
+            )
+            .with_segment("SEG-EMEA"),
+        ];
+        let path = tmp.path().join("cepc.csv");
+        write_cepc(&cfg, &pcs, &path).unwrap();
+
+        let text = std::fs::read_to_string(&path).unwrap();
+        let lines: Vec<&str> = text.lines().collect();
+        assert_eq!(lines.len(), 3, "header + 2 profit-centre rows");
+        assert!(lines[0].starts_with("MANDT"));
+        assert!(lines[0].contains("PRCTR"));
+        assert!(lines[0].contains("ABTEI"));
+        assert!(lines[0].contains("HIE_KIND"));
+
+        // First data row is the level-1 segment node (HIE_KIND=S).
+        assert!(lines[1].contains("PC-EMEA"));
+        assert!(lines[1].contains("SEG-EMEA"));
+        assert!(
+            lines[1].ends_with(",S") || lines[1].contains(",S,") || lines[1].contains("\tS"),
+            "level-1 should map to HIE_KIND=S, got: {}",
+            lines[1]
+        );
+
+        // Second data row is the level-2 sub-unit (HIE_KIND=D), shares segment.
+        assert!(lines[2].contains("PC-EMEA-DACH"));
+        assert!(lines[2].contains("SEG-EMEA"));
     }
 
     #[test]

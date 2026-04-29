@@ -500,6 +500,10 @@ pub struct MasterDataSnapshot {
     pub employees: Vec<Employee>,
     /// Generated cost center hierarchy (two-level: departments + sub-departments).
     pub cost_centers: Vec<datasynth_core::models::CostCenter>,
+    /// v5.1: Generated profit centre hierarchy (two-level: top-level
+    /// segment / region / product-group nodes + sub-units).  Emits to
+    /// SAP CEPC alongside `cost_centers` → CSKS.
+    pub profit_centers: Vec<datasynth_core::models::ProfitCenter>,
     /// Employee lifecycle change history (hired, promoted, salary adjustments, transfers, terminated).
     pub employee_change_history: Vec<datasynth_core::models::EmployeeChangeEvent>,
     /// v3.3.0+: organizational profiles (one per company) with
@@ -10418,6 +10422,12 @@ impl EnhancedOrchestrator {
                 let mut cc_gen = datasynth_generators::CostCenterGenerator::new(company_seed + 500);
                 let cost_centers = cc_gen.generate_for_company(&company.code, &employee_ids);
 
+                // v5.1: profit centre hierarchy (two-level: top-level
+                // segment / region / product-group nodes + sub-units).
+                let mut pc_gen =
+                    datasynth_generators::ProfitCenterGenerator::new(company_seed + 600);
+                let profit_centers = pc_gen.generate_for_company(&company.code, &employee_ids);
+
                 (
                     vendor_pool.vendors,
                     customer_pool.customers,
@@ -10426,13 +10436,22 @@ impl EnhancedOrchestrator {
                     employee_pool.employees,
                     employee_change_history,
                     cost_centers,
+                    profit_centers,
                 )
             })
             .collect();
 
         // Aggregate results from all companies
-        for (vendors, customers, materials, assets, employees, change_history, cost_centers) in
-            per_company_results
+        for (
+            vendors,
+            customers,
+            materials,
+            assets,
+            employees,
+            change_history,
+            cost_centers,
+            profit_centers,
+        ) in per_company_results
         {
             self.master_data.vendors.extend(vendors);
             self.master_data.customers.extend(customers);
@@ -10440,6 +10459,7 @@ impl EnhancedOrchestrator {
             self.master_data.assets.extend(assets);
             self.master_data.employees.extend(employees);
             self.master_data.cost_centers.extend(cost_centers);
+            self.master_data.profit_centers.extend(profit_centers);
             self.master_data
                 .employee_change_history
                 .extend(change_history);

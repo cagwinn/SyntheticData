@@ -1554,21 +1554,23 @@ fn main() -> Result<()> {
                                 .map(|c| c.code.clone())
                                 .collect();
 
-                            // v5.0.1 — CEPC (profit-centre master) is in the
-                            // SapTableType enum and routes through the
-                            // tables-list mapping, but no `ProfitCenter` model
-                            // / generator / writer exists yet. If a user
-                            // explicitly requests `cepc`, surface that
-                            // out-of-scope status loudly instead of silently
-                            // emitting nothing. Full implementation tracked
-                            // in the v5.1 roadmap (Gap 6).
-                            if want_table("cepc") && !requested_table_names.is_empty() {
-                                tracing::warn!(
-                                    "SAP CEPC (profit-centre master) requested but not \
-                                     emitted: no ProfitCenter master-data model exists in \
-                                     v5.0. Planned for v5.1 — drop `cepc` from \
-                                     `output.sap.tables` to silence this warning."
-                                );
+                            // v5.1 — CEPC (profit-centre master) is now a
+                            // first-class master-data table.  Closes the
+                            // v5.0.1 doc-only mitigation of Gap 6.
+                            if want_table("cepc") && !result.master_data.profit_centers.is_empty() {
+                                let path = sap_dir.join("cepc.csv");
+                                match datasynth_output::write_cepc(
+                                    &sap_config,
+                                    &result.master_data.profit_centers,
+                                    &path,
+                                ) {
+                                    Ok(()) => tracing::info!(
+                                        "  SAP CEPC ({} profit centres) → {}",
+                                        result.master_data.profit_centers.len(),
+                                        path.display()
+                                    ),
+                                    Err(e) => tracing::warn!("CEPC export failed: {}", e),
+                                }
                             }
 
                             if want_table("lfa1") && !result.master_data.vendors.is_empty() {
