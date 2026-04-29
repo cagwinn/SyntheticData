@@ -131,8 +131,24 @@ cargo test --workspace --release -- --test-threads=4 --include-ignored \
   `datasynth-group::standalone_e2e::generate_standalone_produces_full_archive`
   must produce a complete archive — manifest persisted, both per-entity
   shards generated, and every consolidated artefact emitted.
+- **Chunk 11 (`#[ignore]`d) — property tests + golden fixture:** in addition,
+  - `datasynth-group::golden_archive::check_against_golden` (Task 11.1) — diffs
+    the live archive against the committed `tests/golden/mini_nestle/`. Run
+    `cargo test -p datasynth-group --test golden_archive --release -- --ignored
+    check_against_golden`. **First-run bootstrap:** until the very first
+    `regenerate_golden` lands, the golden directory contains only
+    `.gitkeep` and the test will fail with "golden archive is empty".
+    Run `regenerate_golden` then re-run the check.
+  - `datasynth-group::determinism_in_process::generate_standalone_twice_byte_identical`
+    (Task 11.4) — back-to-back `generate_standalone` calls produce
+    byte-identical archives.
+  - `datasynth-group::determinism_in_process::subprocess_pipeline_matches_standalone`
+    (Task 11.4) — `datasynth-data group manifest` + `shard …` + `aggregate`
+    matches `generate_standalone` byte-for-byte.
 - **Budget:** ~10 min on top of 3.2's budget. The shard-runner test alone
-  is ~3 min single-entity at quarterly period.
+  is ~3 min single-entity at quarterly period.  Add ~70 min for the
+  golden-archive + determinism harnesses (each runs the full Mini-Nestlé
+  pipeline ≥ once).
 
 ### 3.3 Lint + format
 

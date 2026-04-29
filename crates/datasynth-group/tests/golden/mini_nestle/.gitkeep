@@ -1,0 +1,9 @@
+Placeholder: the Mini-Nestlé golden archive is produced by running
+
+    cargo test -p datasynth-group --test golden_archive -- --ignored regenerate_golden
+
+on the XXL VM (~85 GiB peak RSS, 60+ minutes).  Until the first regen
+run lands, this directory contains only this file — `check_against_golden`
+will fail with a "golden archive is empty" message until the archive is
+populated.  See `tests/golden_archive.rs` module docs for the regen
+workflow.
