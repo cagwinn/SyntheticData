@@ -22,6 +22,7 @@
 pub mod coverage_report;
 pub mod elimination;
 pub mod equity_method;
+pub mod fs;
 pub mod ic_matcher;
 pub mod nci;
 pub mod post_elim;
@@ -45,6 +46,16 @@ pub use ic_matcher::{
 pub use nci::{
     compute_nci_rollforward, ingest_opening_nci_balances, write_nci_rollforward, NciInputs,
     NciRollforward, NCI_ROLLFORWARD_FILENAME,
+};
+pub use fs::{
+    build_consolidated_balance_sheet, build_consolidated_cash_flow,
+    build_consolidated_income_statement, build_consolidation_schedule,
+    build_notes_to_consolidated_fs, build_statement_of_changes_in_equity, write_consolidated_fs,
+    BsLine, CashFlowInputs, CfLine, CfSection, ConsolidatedBalanceSheet, ConsolidatedCashFlow,
+    ConsolidatedFinancialStatements, ConsolidatedIncomeStatement, ConsolidationSchedule,
+    EquityChangesInputs, EquityRollforward, IsLine, Note, NotesInputs, NotesToConsolidatedFs,
+    ScheduleLine, StatementOfChangesInEquity, CONSOLIDATED_FS_FILENAME,
+    CONSOLIDATION_SCHEDULE_FILENAME, NOTES_FILENAME,
 };
 pub use post_elim::{apply_eliminations_to_tb, apply_nci_and_equity_method};
 pub use pre_elim::{aggregate_pre_elimination, AggregatedAccount, AggregatedTb, DeferredEntity};
