@@ -251,6 +251,44 @@ The repo's reference fixture is [`configs/examples/group/mini_nestle.yaml`](conf
 
 ## Roadmap
 
+### v5.0.1 — Q2 2026 (patch — upstream feedback)
+
+Six gaps surfaced by post-release evaluator runs against the v5.0 archive.
+None are v5.0 release blockers (clients have viable workarounds for all
+six), but each is real and tracked:
+
+1. **Fraud propagation 3.6 % vs 26.7 % target** — when the implicit
+   `document_fraud_rate` default is in play, scheme-level fraud doesn't
+   reach the documented 0.26 ratio at `fraud.fraud_rate = 0.08`. Fix:
+   set the default explicitly in the schema and document the additive
+   relationship `P(line is_fraud) ≈ fraud_rate + doc_fraud_rate × ~0.30`
+   in the SDK README. Workaround today: set `document_fraud_rate`
+   explicitly when you need scheme-level fraud.
+2. **AML typology coverage 0.714 vs 0.857** — sample-size sensitive
+   evaluator on ~1.5 k-row windows produces 0.71–1.0 swings between
+   runs with the same config. Fix: switch the typology coverage gate
+   to a longer-window rolling average or bump the evaluator's
+   minimum sample to 5 k rows.
+3. **`aml_customer_labels.risk_level` still null** — v4.4.2's
+   "compat aliases" CHANGELOG entry promised mirroring `risk_tier`
+   onto `risk_level` for SDK clients reading the older field. Field
+   is still null on every row. Fix: add the mirror in
+   `datasynth-banking::generators::customer_labels`. Workaround:
+   read `risk_tier` instead.
+4. **`object_refs.object_type` still null** — same story for the
+   OCEL 2.0 object-ref `object_type` ↔ `object_type_id` mirror;
+   v4.4.2 CHANGELOG promised it, generators emit only the `_id`
+   form. Workaround: read `object_type_id`.
+5. **`chart_of_accounts[*].accounting_framework` per-account** — the
+   sidecar `coa_meta.accounting_framework` correctly carries
+   `us_gaap` (or whichever framework the config selected) but the
+   per-row value is null. Fix: stamp the framework onto every
+   `GLAccount` at generation time. Trivial.
+6. **CEPC table documented as default but not emitted** — portal docs
+   list an 8-table default that includes a CEPC table; the engine
+   actually emits 27 tables but skips CEPC. Fix: either ship the
+   CEPC generator or update the portal docs to match reality.
+
 ### v5.1 — Q3 2026 (planned)
 
 - **Suppressed loss tracking** for equity-method investments below zero (IAS 28.38 memorandum record), surfaced as a separate `consolidated/equity_method_suppressed_losses.json` artefact.
