@@ -33,7 +33,12 @@
 //! §"Aggregate phase — Chunk 6" for the full module layout.
 
 pub mod classify;
+pub mod cta;
 pub mod translate;
 
 pub use classify::{classify_account, TranslationAccountType};
+pub use cta::{
+    compute_cta, cta_rollforward, write_cta_rollforward, CtaRollforward, CONSOLIDATED_SUBDIR,
+    CTA_ROLLFORWARD_FILENAME,
+};
 pub use translate::{translate_entity_tb, DrCr, RateBasis, TranslatedLine, TranslatedTb};

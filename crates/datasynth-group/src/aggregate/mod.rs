@@ -39,6 +39,7 @@ pub use post_elim::apply_eliminations_to_tb;
 pub use pre_elim::{aggregate_pre_elimination, AggregatedAccount, AggregatedTb, DeferredEntity};
 pub use tb_loader::load_entity_trial_balance;
 pub use translation::{
-    classify_account, translate_entity_tb, DrCr, RateBasis, TranslatedLine, TranslatedTb,
-    TranslationAccountType,
+    classify_account, compute_cta, cta_rollforward, translate_entity_tb, write_cta_rollforward,
+    CtaRollforward, DrCr, RateBasis, TranslatedLine, TranslatedTb, TranslationAccountType,
+    CONSOLIDATED_SUBDIR, CTA_ROLLFORWARD_FILENAME,
 };

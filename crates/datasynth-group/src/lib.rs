@@ -14,11 +14,13 @@ pub mod validate;
 
 pub use aggregate::{
     aggregate_pre_elimination, apply_eliminations_to_tb, build_coverage_report, classify_account,
-    eliminations_to_journal_entries, generate_eliminations, load_entity_trial_balance,
-    match_ic_pairs, translate_entity_tb, write_coverage_report, AggregatedAccount, AggregatedTb,
-    CoverageReport, DeferredEntity, DrCr, EliminationResult, IcMatchResult, IcMatchedPair,
-    RateBasis, TranslatedLine, TranslatedTb, TranslationAccountType, UnmatchedReason,
-    UnmatchedSide, COVERAGE_REPORT_FILENAME, COVERAGE_REPORT_SUBDIR, UNMATCHED_SAMPLE_CAP,
+    compute_cta, cta_rollforward, eliminations_to_journal_entries, generate_eliminations,
+    load_entity_trial_balance, match_ic_pairs, translate_entity_tb, write_coverage_report,
+    write_cta_rollforward, AggregatedAccount, AggregatedTb, CoverageReport, CtaRollforward,
+    DeferredEntity, DrCr, EliminationResult, IcMatchResult, IcMatchedPair, RateBasis,
+    TranslatedLine, TranslatedTb, TranslationAccountType, UnmatchedReason, UnmatchedSide,
+    CONSOLIDATED_SUBDIR, COVERAGE_REPORT_FILENAME, COVERAGE_REPORT_SUBDIR,
+    CTA_ROLLFORWARD_FILENAME, UNMATCHED_SAMPLE_CAP,
 };
 pub use config::{
     AuditEngagementConfig, CbcReportConfig, ComponentScopeThresholds, ConsolidationMethod,
