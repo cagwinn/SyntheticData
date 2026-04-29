@@ -271,6 +271,52 @@ The repo's reference fixture is [`configs/examples/group/mini_nestle.yaml`](conf
 - **Emergent-fuzzy IC matching strategy** for group consolidation against external/legacy data (vs the v5.0 manifest-driven 100 %-by-construction strategy). Adds the `AmountDriftAboveTolerance` reason currently reserved as a placeholder in `UnmatchedReason`.
 - **Multi-period consolidation** — v5.0 emits a single period; v5.3 runs N consecutive periods with NCI / CTA / equity-method rollforwards stitching automatically (currently the `--prior-period-aggregate` flag plumbs in opening NCI but doesn't drive a multi-period pipeline).
 
+### v6.0 — Banking sector methodology integration (planned, H2 2027)
+
+A parallel onboarding to the `datasynth-audit-fsm` crate, ingesting the
+banking-sector FSMs / regulatory parsers / risk-factor taxonomies from
+the [AuditMethodology](https://github.com/mivertowski/AuditMethodology)
+companion repo. Three phases:
+
+#### v6.0 — Banking FSM Phase 1 (blueprints + risk factors)
+
+- New crate **`datasynth-banking-fsm`**, mirror of `datasynth-audit-fsm`.
+- Onboard 6 core KYC / AML workflow blueprints (~200 steps, 35 procedures total):
+  - private-banking onboarding (Wolfsberg PB, FINMA Circ. 2016/7, CDB20)
+  - correspondent banking (Wolfsberg CBDDQ v1.4, FCCQ v1.2 → 110 questions)
+  - crypto-CASP onboarding (MiCA + TFR, travel rule, on-chain monitoring)
+  - perpetual KYC (pKYC) — event-driven re-screening
+  - SAR escalation — suspicion → MLRO → MROS filing
+  - sanctions hit remediation — true-positive vs false-positive adjudication
+- Onboard the **9-dimension risk-factor taxonomy** (CUSTOMER_TYPE / PRODUCT / GEOGRAPHIC / CHANNEL / TRANSACTION_PATTERN / SANCTIONS_PROXIMITY / UBO_OPACITY / SOURCE_OF_WEALTH / DELIVERY_METHOD) with Beta-distributed posteriors.
+- Wire to the existing `datasynth-banking` AML/KYC generator so labels carry obligation references.
+- Ingest path is already partially built on the methodology side (`blueprint_datasynth.py` exporter emits scenario YAML); just need the Rust receiver.
+
+#### v6.1 — Banking FSM Phase 2 (regulatory obligation engine)
+
+- Onboard **15+ regulatory regimes** as machine-readable obligation graphs:
+  - EU: AMLR 2024/1624, AMLA RTS, MiCA 2023/1114, TFR, EBA MLTF Guidelines, Reg. 2024/1640 (BO transparency)
+  - Switzerland: AMLA (current + revised 2025), AMLO, FINMA Circ. 2016/7, CDB20
+  - International: FATF-40, Wolfsberg (PB / CB / RBA 2025 / SMS / CBDDQ / FCCQ)
+- Compile to `datasynth-core`'s deontic ontology (Obligation, Control, Evidence, Typology) — analogous to how the existing `datasynth-standards` crate models IFRS / ASC / ISA / SOX.
+- ~100+ controls in obligation→control→evidence chains, queryable from synthetic banking JEs.
+
+#### v6.2 — Banking FSM Phase 3 (stream / continuous monitoring)
+
+- pKYC trigger model: address change, PEP status flip, adverse media, beneficial-owner change, transaction-pattern shift.
+- Continuous-monitoring event stream — analogous to v5.0's IC pair-id stream but for KYC events.
+- Integration with `datasynth-ocpm` (OCEL 2.0) so banking process mining gets full event history.
+- Tipping-off prohibition enforcement (regulatory-time invariants on SAR workflows).
+
+### v6.3 — Combined Audit + Banking Group Simulation (planned, 2028)
+
+The integrated showcase: a v5.0-style consolidated multinational with
+both group audit AND banking-sector regulatory machinery. Output adds:
+
+- **`banking_compliance/` directory** — KYC blueprints, SAR cases, sanctions hits, pKYC events, risk scores per customer.
+- **Cross-cutting reports** — bank's audit engagement (ISA 600 group audit) **+** the bank's own KYC obligations on its corporate customers, with the IC matching graph providing related-party context.
+- This fixes the artificial v5.0 split where banking is a sibling pipeline to group-audit — v6.3 makes them a single coherent simulation.
+
 ### Beyond — backlog (no committed timeline)
 
 - **Segment-level intercompany matching** (IFRS 8 plus v5.0 IC).
@@ -278,6 +324,8 @@ The repo's reference fixture is [`configs/examples/group/mini_nestle.yaml`](conf
 - **Related-party transactions** disclosures generated from the manifest's IC graph.
 - **Goodwill-impairment indicator** ML training data.
 - **Performance**: target sub-2-min wall-clock for the 2 000-entity archive on a 96-vCPU host.
+- **Insurance-sector methodology** — Solvency II, IFRS 17 (similar onboarding pattern to v6.0 banking once the AuditMethodology repo grows that surface).
+- **Sub-jurisdictional regulatory dialects** — US state banking rules (NYDFS Part 504), MAS Notices (Singapore), HKMA, JFSA.
 
 ---
 
