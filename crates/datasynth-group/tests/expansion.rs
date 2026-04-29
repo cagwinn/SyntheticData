@@ -54,9 +54,9 @@ fn test_expands_explicit_first_then_generated() {
     assert_eq!(out.len(), 4, "1 explicit + 3 generated");
     assert_eq!(out[0].code, "P");
     assert_eq!(out[0].source, EntitySource::Explicit);
-    for i in 1..=3 {
-        assert_eq!(out[i].source, EntitySource::Generated);
-        assert_eq!(out[i].generated_block_index, Some(0));
+    for entity in out.iter().take(4).skip(1) {
+        assert_eq!(entity.source, EntitySource::Generated);
+        assert_eq!(entity.generated_block_index, Some(0));
     }
 }
 
