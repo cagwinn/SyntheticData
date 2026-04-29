@@ -34,3 +34,9 @@ datasynth-test-utils = { workspace = true }
 rust_decimal_macros = { workspace = true }
 pretty_assertions = "1"
 tempfile = { workspace = true }
+# Subprocess-based determinism harness in `tests/determinism_in_process.rs`
+# (Task 11.4) drives the `datasynth-data` CLI binary as a subprocess.
+# `assert_cmd` is used for ergonomics; the binary itself is discovered
+# via `CARGO_TARGET_DIR / target/debug/datasynth-data` (the test is
+# `#[ignore]`d and run on the XXL VM, where the binary is built first).
+assert_cmd = "2.0"
