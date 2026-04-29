@@ -20,6 +20,7 @@
 //! §"Aggregate phase" for the full Chunk-5 module layout.
 
 pub mod coverage_report;
+pub mod driver;
 pub mod elimination;
 pub mod equity_method;
 pub mod fs;
@@ -34,18 +35,12 @@ pub use coverage_report::{
     build_coverage_report, write_coverage_report, CoverageReport, COVERAGE_REPORT_FILENAME,
     COVERAGE_REPORT_SUBDIR, UNMATCHED_SAMPLE_CAP,
 };
+pub use driver::{run_aggregate, AggregateOptions, AggregateSummary};
 pub use elimination::{eliminations_to_journal_entries, generate_eliminations, EliminationResult};
 pub use equity_method::{
     compute_equity_method_investment, ingest_opening_equity_method_carrying_values,
     write_equity_method_investments, EquityMethodInputs, EquityMethodInvestment,
     EQUITY_METHOD_INVESTMENTS_FILENAME,
-};
-pub use ic_matcher::{
-    match_ic_pairs, IcMatchResult, IcMatchedPair, UnmatchedReason, UnmatchedSide,
-};
-pub use nci::{
-    compute_nci_rollforward, ingest_opening_nci_balances, write_nci_rollforward, NciInputs,
-    NciRollforward, NCI_ROLLFORWARD_FILENAME,
 };
 pub use fs::{
     build_consolidated_balance_sheet, build_consolidated_cash_flow,
@@ -56,6 +51,13 @@ pub use fs::{
     EquityChangesInputs, EquityRollforward, IsLine, Note, NotesInputs, NotesToConsolidatedFs,
     ScheduleLine, StatementOfChangesInEquity, CONSOLIDATED_FS_FILENAME,
     CONSOLIDATION_SCHEDULE_FILENAME, NOTES_FILENAME,
+};
+pub use ic_matcher::{
+    match_ic_pairs, IcMatchResult, IcMatchedPair, UnmatchedReason, UnmatchedSide,
+};
+pub use nci::{
+    compute_nci_rollforward, ingest_opening_nci_balances, write_nci_rollforward, NciInputs,
+    NciRollforward, NCI_ROLLFORWARD_FILENAME,
 };
 pub use post_elim::{apply_eliminations_to_tb, apply_nci_and_equity_method};
 pub use pre_elim::{aggregate_pre_elimination, AggregatedAccount, AggregatedTb, DeferredEntity};
