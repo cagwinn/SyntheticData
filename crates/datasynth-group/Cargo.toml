@@ -39,4 +39,4 @@ tempfile = { workspace = true }
 # `assert_cmd` is used for ergonomics; the binary itself is discovered
 # via `CARGO_TARGET_DIR / target/debug/datasynth-data` (the test is
 # `#[ignore]`d and run on the XXL VM, where the binary is built first).
-assert_cmd = "2.0"
+assert_cmd = "2.2"
