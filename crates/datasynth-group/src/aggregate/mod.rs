@@ -19,12 +19,17 @@
 //! See `docs/superpowers/specs/2026-04-23-group-audit-simulation-design.md`
 //! §"Aggregate phase" for the full Chunk-5 module layout.
 
+pub mod coverage_report;
 pub mod elimination;
 pub mod ic_matcher;
 pub mod post_elim;
 pub mod pre_elim;
 pub mod tb_loader;
 
+pub use coverage_report::{
+    build_coverage_report, write_coverage_report, CoverageReport, COVERAGE_REPORT_FILENAME,
+    COVERAGE_REPORT_SUBDIR, UNMATCHED_SAMPLE_CAP,
+};
 pub use elimination::{eliminations_to_journal_entries, generate_eliminations, EliminationResult};
 pub use ic_matcher::{
     match_ic_pairs, IcMatchResult, IcMatchedPair, UnmatchedReason, UnmatchedSide,

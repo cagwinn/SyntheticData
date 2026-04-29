@@ -127,7 +127,7 @@ pub struct UnmatchedSide {
 }
 
 /// Why a side could not be matched.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 #[serde(rename_all = "snake_case")]
 pub enum UnmatchedReason {
     /// We observed a seller side; the buyer side is missing from
