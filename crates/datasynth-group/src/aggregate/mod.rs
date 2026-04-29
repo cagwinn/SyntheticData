@@ -22,6 +22,7 @@
 pub mod coverage_report;
 pub mod elimination;
 pub mod ic_matcher;
+pub mod nci;
 pub mod post_elim;
 pub mod pre_elim;
 pub mod tb_loader;
@@ -34,6 +35,10 @@ pub use coverage_report::{
 pub use elimination::{eliminations_to_journal_entries, generate_eliminations, EliminationResult};
 pub use ic_matcher::{
     match_ic_pairs, IcMatchResult, IcMatchedPair, UnmatchedReason, UnmatchedSide,
+};
+pub use nci::{
+    compute_nci_rollforward, ingest_opening_nci_balances, write_nci_rollforward, NciInputs,
+    NciRollforward, NCI_ROLLFORWARD_FILENAME,
 };
 pub use post_elim::apply_eliminations_to_tb;
 pub use pre_elim::{aggregate_pre_elimination, AggregatedAccount, AggregatedTb, DeferredEntity};
