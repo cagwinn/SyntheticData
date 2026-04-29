@@ -12,7 +12,10 @@ pub mod resolve;
 pub mod shard;
 pub mod validate;
 
-pub use aggregate::load_entity_trial_balance;
+pub use aggregate::{
+    aggregate_pre_elimination, load_entity_trial_balance, AggregatedAccount, AggregatedTb,
+    DeferredEntity,
+};
 pub use config::{
     AuditEngagementConfig, CbcReportConfig, ComponentScopeThresholds, ConsolidationMethod,
     EntityConfig, FleetConfig, FxConfig, FxPolicyConfig, FxRateBasis, FxRateSource,

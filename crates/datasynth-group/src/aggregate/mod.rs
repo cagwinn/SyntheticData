@@ -19,6 +19,8 @@
 //! See `docs/superpowers/specs/2026-04-23-group-audit-simulation-design.md`
 //! §"Aggregate phase" for the full Chunk-5 module layout.
 
+pub mod pre_elim;
 pub mod tb_loader;
 
+pub use pre_elim::{aggregate_pre_elimination, AggregatedAccount, AggregatedTb, DeferredEntity};
 pub use tb_loader::load_entity_trial_balance;
