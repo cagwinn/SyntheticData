@@ -205,8 +205,7 @@ pub fn build_consolidated_balance_sheet(
         v.sort_by(|a, b| a.account_code.cmp(&b.account_code));
     }
 
-    let total_assets =
-        sum(&current_assets) + sum(&non_current_assets);
+    let total_assets = sum(&current_assets) + sum(&non_current_assets);
     let total_liabilities = sum(&current_liabilities) + sum(&non_current_liabilities);
     let total_equity = sum(&equity);
     let total_nci = sum(&nci);
@@ -373,18 +372,6 @@ fn account_name_dict() -> &'static BTreeMap<&'static str, &'static str> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::aggregate::pre_elim::AggregatedAccount;
-    use rust_decimal_macros::dec;
-
-    fn aggregate_account(code: &str, debit: Decimal, credit: Decimal) -> AggregatedAccount {
-        AggregatedAccount {
-            account_code: code.to_string(),
-            debit_total: debit,
-            credit_total: credit,
-            net_balance: debit - credit,
-            contributing_entities: 1,
-        }
-    }
 
     #[test]
     fn classifier_assigns_canonical_ranges() {
@@ -392,10 +379,7 @@ mod tests {
         assert_eq!(classify_bs_section("1399"), BsSection::CurrentAsset);
         assert_eq!(classify_bs_section("1850"), BsSection::NonCurrentAsset);
         assert_eq!(classify_bs_section("2000"), BsSection::CurrentLiability);
-        assert_eq!(
-            classify_bs_section("2300"),
-            BsSection::NonCurrentLiability
-        );
+        assert_eq!(classify_bs_section("2300"), BsSection::NonCurrentLiability);
         assert_eq!(classify_bs_section("3000"), BsSection::Equity);
         assert_eq!(classify_bs_section("3500"), BsSection::Nci);
         assert_eq!(classify_bs_section("4000"), BsSection::Excluded);
