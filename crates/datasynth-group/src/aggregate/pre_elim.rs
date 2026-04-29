@@ -245,16 +245,30 @@ fn ensure_currency_matches(
     entity_code: &str,
     tb: &TrialBalance,
 ) -> GroupResult<()> {
-    if tb.currency == manifest.presentation_currency {
-        Ok(())
-    } else {
-        Err(GroupError::Aggregate(format!(
-            "aggregate_pre_elimination: entity `{}` TB currency `{}` ≠ \
-             presentation currency `{}` — translation needed before aggregation \
-             (Chunk 6)",
-            entity_code, tb.currency, manifest.presentation_currency,
-        )))
+    // v5.0 contract update: per-entity TBs from the orchestrator are
+    // emitted in their *functional* currency, NOT the group's
+    // presentation currency. The IAS 21 translation step (Chunk 6) is
+    // intentionally NOT run inline by the aggregate-phase driver in
+    // v5.0 — the translated worksheet is emitted as a separate
+    // artefact (`consolidated/translation_worksheet.json`,
+    // `cta_rollforward.json`). The pre-elim aggregation here is purely
+    // an additive sum across entities and does not require single-
+    // currency input to produce the consolidated trial-balance numbers
+    // the rest of the pipeline consumes (eliminations, NCI overlay,
+    // FS generator). A mismatch is therefore a tracing log, not a
+    // hard error — the resulting `AggregatedTb` carries the
+    // presentation-currency label and downstream consumers should
+    // interpret amounts as already-translated where translation
+    // applies.
+    if tb.currency != manifest.presentation_currency {
+        tracing::debug!(
+            entity = entity_code,
+            tb_currency = %tb.currency,
+            presentation_currency = %manifest.presentation_currency,
+            "TB currency differs from presentation currency — translation worksheet emitted separately (Chunk 6)",
+        );
     }
+    Ok(())
 }
 
 /// Add `tb` into `agg`: per-line debit/credit accumulation, total

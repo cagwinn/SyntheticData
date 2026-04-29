@@ -195,20 +195,31 @@ pub fn compute_equity_method_investment(
     let share_of_profit = ownership_percent * inputs.investee_net_income;
     let dividends_received = ownership_percent * inputs.investee_dividends_paid;
 
-    let closing_carrying_value =
+    let raw_closing =
         (inputs.opening_carrying_value + share_of_profit - dividends_received - inputs.impairment)
             .round_dp(2);
 
-    // 4. IAS 28.38 — carrying amount must remain non-negative.
-    if closing_carrying_value < Decimal::ZERO {
-        return Err(GroupError::Aggregate(format!(
-            "equity method carrying value for {} would go negative ({}) — \
-             IAS 28.38 / ASC 323-10-35-20 require the investor to \
-             discontinue recognising further losses once the carrying \
-             amount hits zero",
-            investee.code, closing_carrying_value,
-        )));
-    }
+    // IAS 28.38 / ASC 323-10-35-20: when the share of losses would push
+    // the carrying amount below zero, the investor discontinues
+    // recognising further losses. The investment is reported at zero
+    // and the unrecognised loss is tracked separately (memorandum
+    // record). For v5.0 we clamp at zero and log the suppressed
+    // amount; future v5.1 work will surface the suppressed loss in a
+    // separate `equity_method_suppressed_losses` artefact.
+    let closing_carrying_value = if raw_closing < Decimal::ZERO {
+        tracing::warn!(
+            investee = %investee.code,
+            raw_closing = %raw_closing,
+            opening = %inputs.opening_carrying_value,
+            share_of_profit = %share_of_profit,
+            dividends_received = %dividends_received,
+            impairment = %inputs.impairment,
+            "equity-method carrying value would go negative — clamped at zero per IAS 28.38; suppressed loss not tracked separately in v5.0",
+        );
+        Decimal::ZERO
+    } else {
+        raw_closing
+    };
 
     Ok(EquityMethodInvestment {
         investee_code: investee.code.clone(),

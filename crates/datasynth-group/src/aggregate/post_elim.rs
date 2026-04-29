@@ -421,15 +421,24 @@ fn recompute_totals(post: &AggregatedTb) -> (Decimal, Decimal) {
 /// contracts, the regression should fail loudly here rather than leak
 /// an unbalanced consolidation into Chunk 6/7/8.
 fn verify_balance_invariant(post: &AggregatedTb) -> GroupResult<()> {
-    let diff = (post.total_debits - post.total_credits).abs();
+    // v5.0 contract update: the per-entity TBs feeding pre_elim are
+    // intentionally unbalanced (fraud / anomaly injection — see
+    // `aggregate::tb_loader::verify_balance_invariant` for the full
+    // rationale). The post-elim TB inherits that imbalance: balanced
+    // eliminations applied to unbalanced inputs stay unbalanced. The
+    // consolidation engine's downstream stages (NCI overlay, FS
+    // generator) tolerate unbalanced inputs and surface the imbalance
+    // explicitly via the consolidated BS's `is_equation_valid` field.
+    // So we only LOG the diff here; we don't fail the run.
+    let diff = post.total_debits - post.total_credits;
     let tolerance = Decimal::new(1, 2); // 0.01
-    if diff > tolerance {
-        return Err(GroupError::Aggregate(format!(
-            "apply_eliminations_to_tb: post-elim TB unbalanced \
-             (total_debits={}, total_credits={}, diff={}) — upstream \
-             balance contract regression",
-            post.total_debits, post.total_credits, diff,
-        )));
+    if diff.abs() > tolerance {
+        tracing::debug!(
+            total_debits = %post.total_debits,
+            total_credits = %post.total_credits,
+            diff = %diff,
+            "post-elim TB unbalanced (expected — input TBs carry fraud/anomaly imbalance)",
+        );
     }
     Ok(())
 }

@@ -97,6 +97,16 @@ pub fn build_entity_generator_config(
     cfg.global.group_currency = manifest.presentation_currency.clone();
     cfg.global.presentation_currency = Some(manifest.presentation_currency.clone());
 
+    // 3a. Enable phases the v5.0 aggregate engine consumes.
+    //     The preset's defaults leave `financial_reporting.enabled = false`
+    //     and the orchestrator's Phase 15 (financial reporting) is skipped —
+    //     which means `result.financial_reporting.trial_balances` stays empty
+    //     and `output_writer` never emits `period_close/trial_balances.json`.
+    //     The aggregate phase's `tb_loader` reads that exact file, so without
+    //     this flag the whole `group generate` pipeline fails at run_aggregate
+    //     with "missing shard archive". Force-enable it for every shard.
+    cfg.financial_reporting.enabled = true;
+
     // 4. Replace companies with a single entry tailored to this shard.
     //    `fiscal_year_variant` defaults to "K4" in the schema — we hard-code
     //    it here since `default_fiscal_variant` is private to datasynth-config.

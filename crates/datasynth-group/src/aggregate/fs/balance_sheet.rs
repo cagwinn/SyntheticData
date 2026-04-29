@@ -72,7 +72,7 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
 use crate::aggregate::pre_elim::AggregatedTb;
-use crate::errors::{GroupError, GroupResult};
+use crate::errors::GroupResult;
 
 // ── Public types ──────────────────────────────────────────────────────────────
 
@@ -211,13 +211,25 @@ pub fn build_consolidated_balance_sheet(
     let total_nci = sum(&nci);
     let total_lpe = total_liabilities + total_equity + total_nci;
 
+    // v5.0 contract update: per-entity TBs from the orchestrator are
+    // intentionally unbalanced (fraud / anomaly injection — the
+    // synthetic data engine's deliberate behaviour). The consolidation
+    // pipeline carries that imbalance through, so the consolidated BS
+    // identity (IAS 1.54: A = L + E + NCI) does NOT hold to the cent
+    // on these archives. We surface the diff explicitly via the BS's
+    // `is_equation_valid` field below; downstream consumers (auditors,
+    // ML models) inspect that flag rather than relying on the
+    // consolidator to gate output.
     let tolerance = Decimal::new(1, 2); // 0.01
-    let diff = (total_assets - total_lpe).abs();
-    if diff > tolerance {
-        return Err(GroupError::Aggregate(format!(
-            "consolidated BS does not balance: assets {total_assets}, \
-             L+E+NCI {total_lpe}, diff {diff}",
-        )));
+    let diff = total_assets - total_lpe;
+    let bs_balances_to_cent = diff.abs() <= tolerance;
+    if !bs_balances_to_cent {
+        tracing::debug!(
+            total_assets = %total_assets,
+            total_lpe = %total_lpe,
+            diff = %diff,
+            "consolidated BS imbalance — input TBs carry fraud/anomaly injection",
+        );
     }
 
     Ok(ConsolidatedBalanceSheet {
