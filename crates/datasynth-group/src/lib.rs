@@ -4,6 +4,7 @@
 //! [`datasynth_runtime::EnhancedOrchestrator`]. See
 //! `docs/superpowers/specs/2026-04-23-group-audit-simulation-design.md`.
 
+pub mod aggregate;
 pub mod config;
 pub mod errors;
 pub mod manifest;
@@ -11,6 +12,7 @@ pub mod resolve;
 pub mod shard;
 pub mod validate;
 
+pub use aggregate::load_entity_trial_balance;
 pub use config::{
     AuditEngagementConfig, CbcReportConfig, ComponentScopeThresholds, ConsolidationMethod,
     EntityConfig, FleetConfig, FxConfig, FxPolicyConfig, FxRateBasis, FxRateSource,
