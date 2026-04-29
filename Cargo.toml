@@ -177,7 +177,7 @@ regex = "1.11"
 # ML framework (optional — neural diffusion backend)
 candle-core = "0.10"
 candle-nn = "0.10"
-safetensors = "0.5"
+safetensors = "0.7"
 
 # ONNX Runtime (optional — adversarial testing)
 ort = "2.0.0-rc.12"
