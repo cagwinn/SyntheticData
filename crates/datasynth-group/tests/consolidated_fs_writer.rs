@@ -10,10 +10,10 @@ use rust_decimal_macros::dec;
 use datasynth_group::{
     build_consolidated_balance_sheet, build_consolidated_cash_flow,
     build_consolidated_income_statement, build_consolidation_schedule,
-    build_statement_of_changes_in_equity, write_consolidated_fs, AggregatedAccount,
-    AggregatedTb, CashFlowInputs, ConsolidatedFinancialStatements, ConsolidationSchedule,
-    EquityChangesInputs, Note, NotesToConsolidatedFs, CONSOLIDATED_FS_FILENAME,
-    CONSOLIDATION_SCHEDULE_FILENAME, NOTES_FILENAME,
+    build_statement_of_changes_in_equity, write_consolidated_fs, AggregatedAccount, AggregatedTb,
+    CashFlowInputs, ConsolidatedFinancialStatements, ConsolidationSchedule, EquityChangesInputs,
+    Note, NotesToConsolidatedFs, CONSOLIDATED_FS_FILENAME, CONSOLIDATION_SCHEDULE_FILENAME,
+    NOTES_FILENAME,
 };
 
 fn period_start() -> NaiveDate {
@@ -160,7 +160,10 @@ fn writer_creates_consolidated_subdir_if_missing() {
     let (bundle, schedule, notes) = build_test_bundle();
     let paths = write_consolidated_fs(&bundle, &schedule, &notes, tmp.path()).unwrap();
     let consolidated = tmp.path().join("consolidated");
-    assert!(consolidated.exists(), "consolidated/ subdir must be created");
+    assert!(
+        consolidated.exists(),
+        "consolidated/ subdir must be created"
+    );
     for p in &paths {
         assert!(
             p.starts_with(&consolidated),

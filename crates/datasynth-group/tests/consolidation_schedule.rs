@@ -166,8 +166,7 @@ fn account_only_in_elimination_appears_with_zero_pre() {
         ],
     );
 
-    let s =
-        build_consolidation_schedule(&pre, &post, &[], "TEST_GROUP", period_end()).unwrap();
+    let s = build_consolidation_schedule(&pre, &post, &[], "TEST_GROUP", period_end()).unwrap();
 
     let l = line_for(&s, "3400");
     assert_eq!(l.pre_elimination_total, Decimal::ZERO);
@@ -182,13 +181,9 @@ fn account_only_in_elimination_appears_with_zero_pre() {
 fn account_fully_eliminated_pre_nonzero_post_zero() {
     // 1150 IC AR — pre 100k, post 0 after elimination.
     let pre = make_aggregated_tb("CHF", &[("1150", dec!(100_000), Decimal::ZERO)]);
-    let post = make_aggregated_tb(
-        "CHF",
-        &[("1150", dec!(100_000), dec!(100_000))],
-    );
+    let post = make_aggregated_tb("CHF", &[("1150", dec!(100_000), dec!(100_000))]);
 
-    let s =
-        build_consolidation_schedule(&pre, &post, &[], "TEST_GROUP", period_end()).unwrap();
+    let s = build_consolidation_schedule(&pre, &post, &[], "TEST_GROUP", period_end()).unwrap();
 
     let l = line_for(&s, "1150");
     assert_eq!(l.pre_elimination_total, dec!(100_000));
@@ -216,13 +211,8 @@ fn determinism_two_calls_match() {
         period_end(),
     )
     .unwrap();
-    let s2 = build_consolidation_schedule(
-        &pre,
-        &post,
-        &[("E1".to_string(), e1)],
-        "T",
-        period_end(),
-    )
-    .unwrap();
+    let s2 =
+        build_consolidation_schedule(&pre, &post, &[("E1".to_string(), e1)], "T", period_end())
+            .unwrap();
     assert_eq!(s1, s2);
 }

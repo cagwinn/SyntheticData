@@ -153,7 +153,10 @@ fn nci_split_sums_to_total_net_income() {
     // Owners = 320k - 60k = 260k.
     assert_eq!(is.net_income_to_owners, dec!(260_000));
     // Owners + NCI == total net_income.
-    assert_eq!(is.net_income_to_owners + is.net_income_to_nci, is.net_income);
+    assert_eq!(
+        is.net_income_to_owners + is.net_income_to_nci,
+        is.net_income
+    );
 }
 
 #[test]

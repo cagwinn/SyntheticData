@@ -22,8 +22,7 @@ fn period_end() -> NaiveDate {
 /// Build a trimmed two-entity manifest from `mini_nestle.yaml`.
 fn load_two_entity_manifest() -> GroupManifest {
     let yaml = include_str!("fixtures/mini_nestle.yaml");
-    let mut cfg: GroupConfig =
-        serde_yaml::from_str(yaml).expect("mini_nestle.yaml must parse");
+    let mut cfg: GroupConfig = serde_yaml::from_str(yaml).expect("mini_nestle.yaml must parse");
 
     cfg.ownership
         .entities

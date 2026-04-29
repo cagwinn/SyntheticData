@@ -303,11 +303,8 @@ pub fn run_aggregate(
     let post_overlay = apply_nci_and_equity_method(&post_elim, &nci_rolls, &eq_method_invs)?;
 
     // ── 15. Build consolidated FS (Tasks 8.1–8.4) ──────────────────────
-    let bs = build_consolidated_balance_sheet(
-        &post_overlay,
-        &manifest.group_id,
-        manifest.period.end,
-    )?;
+    let bs =
+        build_consolidated_balance_sheet(&post_overlay, &manifest.group_id, manifest.period.end)?;
     let is = build_consolidated_income_statement(
         &post_overlay,
         &nci_rolls,
@@ -626,7 +623,9 @@ fn ingest_opening_cta_balances(
     let Some(prior) = prior_period_aggregate else {
         return Ok(BTreeMap::new());
     };
-    let path = prior.join(CONSOLIDATED_SUBDIR).join(CTA_ROLLFORWARD_FILENAME);
+    let path = prior
+        .join(CONSOLIDATED_SUBDIR)
+        .join(CTA_ROLLFORWARD_FILENAME);
     if !path.exists() {
         tracing::warn!(
             path = %path.display(),
@@ -726,8 +725,10 @@ fn build_equity_method_investments(
         None => BTreeMap::new(),
     };
 
-    let deferred_lookup: BTreeMap<&str, &TrialBalance> =
-        deferred_tbs.iter().map(|(c, tb)| (c.as_str(), tb)).collect();
+    let deferred_lookup: BTreeMap<&str, &TrialBalance> = deferred_tbs
+        .iter()
+        .map(|(c, tb)| (c.as_str(), tb))
+        .collect();
 
     let mut invs: Vec<EquityMethodInvestment> = Vec::new();
     for entity in &manifest.ownership_graph.entities {
@@ -746,15 +747,11 @@ fn build_equity_method_investments(
         // missing and `tolerate_missing_shards` was enabled.  Treat
         // that as "no income / dividends this period" (zero) so the
         // rollforward still produces a stable opening → opening record.
-        let (investee_net_income, investee_dividends_paid) = match deferred_lookup
-            .get(entity.code.as_str())
-        {
-            Some(tb) => (
-                net_income_from_tb(tb, framework),
-                dividends_from_tb(tb),
-            ),
-            None => (Decimal::ZERO, Decimal::ZERO),
-        };
+        let (investee_net_income, investee_dividends_paid) =
+            match deferred_lookup.get(entity.code.as_str()) {
+                Some(tb) => (net_income_from_tb(tb, framework), dividends_from_tb(tb)),
+                None => (Decimal::ZERO, Decimal::ZERO),
+            };
 
         let inputs = EquityMethodInputs {
             investee: entity,

@@ -64,9 +64,9 @@ fn nestle_fx_master() -> FxRateMaster {
     let chf_eur = [dec!(0.9520), dec!(0.9488), dec!(0.9611)];
     let chf_brl = [dec!(5.5210), dec!(5.4880), dec!(5.6700)];
 
-    let mk_pair = |label: &str, raw: &[Decimal; 3]|
-        -> (String, BTreeMap<NaiveDate, Decimal>, Decimal, Decimal)
-    {
+    let mk_pair = |label: &str,
+                   raw: &[Decimal; 3]|
+     -> (String, BTreeMap<NaiveDate, Decimal>, Decimal, Decimal) {
         let mut table: BTreeMap<NaiveDate, Decimal> = BTreeMap::new();
         let mut sum = Decimal::ZERO;
         let mut closing = Decimal::ZERO;
@@ -220,7 +220,11 @@ fn mini_nestle_translation_e2e() {
         })
         .collect();
 
-    assert_eq!(translated.len(), 4, "all 4 entities must produce a TranslatedTb");
+    assert_eq!(
+        translated.len(),
+        4,
+        "all 4 entities must produce a TranslatedTb"
+    );
 
     // All 4 functional currencies appear in the output.
     let mut functional_ccys: Vec<&str> = translated
@@ -293,14 +297,16 @@ fn mini_nestle_translation_e2e() {
     }
 
     // Every non-parent entity (sorted) is represented.
-    let mut codes: Vec<&str> = rollforwards.iter().map(|r| r.entity_code.as_str()).collect();
+    let mut codes: Vec<&str> = rollforwards
+        .iter()
+        .map(|r| r.entity_code.as_str())
+        .collect();
     codes.sort();
     assert_eq!(codes, vec!["NESTLE_BR", "NESTLE_DE", "NESTLE_USA"]);
 
     // ── 5. Round-trip the rollforward and worksheet through disk. ───
     let tmp = tempfile::tempdir().expect("tmp dir");
-    let cta_path =
-        write_cta_rollforward(&rollforwards, tmp.path()).expect("write rollforward");
+    let cta_path = write_cta_rollforward(&rollforwards, tmp.path()).expect("write rollforward");
     assert!(cta_path.exists());
     let worksheet_path =
         write_translation_worksheet(&translated, tmp.path()).expect("write worksheet");

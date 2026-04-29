@@ -218,9 +218,8 @@ pub fn compute_nci_rollforward(inputs: &NciInputs) -> GroupResult<NciRollforward
     let nci_share_of_oci = nci_percent * inputs.period_oci;
     let nci_dividends = nci_percent * inputs.total_dividends_paid;
 
-    let closing_nci = (inputs.opening_nci + nci_share_of_profit + nci_share_of_oci
-        - nci_dividends)
-        .round_dp(2);
+    let closing_nci =
+        (inputs.opening_nci + nci_share_of_profit + nci_share_of_oci - nci_dividends).round_dp(2);
 
     Ok(NciRollforward {
         entity_code: entity.code.clone(),

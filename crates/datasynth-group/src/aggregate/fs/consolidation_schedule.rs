@@ -131,10 +131,7 @@ pub fn build_consolidation_schedule(
             .unwrap_or(Decimal::ZERO);
         let adj = post - pre;
 
-        let entity_amounts = entity_contributions
-            .get(code)
-            .cloned()
-            .unwrap_or_default();
+        let entity_amounts = entity_contributions.get(code).cloned().unwrap_or_default();
 
         lines.push(ScheduleLine {
             account_category: account_category_label(code),

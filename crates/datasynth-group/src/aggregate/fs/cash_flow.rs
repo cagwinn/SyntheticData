@@ -334,11 +334,7 @@ fn working_capital_changes(
     let cur_inv = sum_natural_balance(current, "1200");
     let prior_inv = sum_natural_balance(prior, "1200");
 
-    (
-        cur_ar - prior_ar,
-        cur_ap - prior_ap,
-        cur_inv - prior_inv,
-    )
+    (cur_ar - prior_ar, cur_ap - prior_ap, cur_inv - prior_inv)
 }
 
 fn sum_natural_balance(tb: &AggregatedTb, code: &str) -> Decimal {

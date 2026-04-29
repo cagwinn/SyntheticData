@@ -128,6 +128,9 @@ cargo test --workspace --release -- --test-threads=4 --include-ignored \
   `datasynth-group::shard_runner::run_shard_writes_per_entity_output_and_summary`
   must produce a `journal_entries.json` for the entity and a
   `shard_summary.json` whose round-trip equals the in-memory summary.
+  `datasynth-group::standalone_e2e::generate_standalone_produces_full_archive`
+  must produce a complete archive — manifest persisted, both per-entity
+  shards generated, and every consolidated artefact emitted.
 - **Budget:** ~10 min on top of 3.2's budget. The shard-runner test alone
   is ~3 min single-entity at quarterly period.
 

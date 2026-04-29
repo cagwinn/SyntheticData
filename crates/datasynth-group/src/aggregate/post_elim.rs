@@ -313,7 +313,12 @@ pub fn apply_nci_and_equity_method(
         // 3500 (NCI equity) credit Σ closing_nci
         apply_line_to_account(&mut overlay, NCI_EQUITY, Decimal::ZERO, total_closing_nci);
         // 3300 (retained earnings) debit Σ closing_nci
-        apply_line_to_account(&mut overlay, RETAINED_EARNINGS, total_closing_nci, Decimal::ZERO);
+        apply_line_to_account(
+            &mut overlay,
+            RETAINED_EARNINGS,
+            total_closing_nci,
+            Decimal::ZERO,
+        );
     }
 
     // ── 3. Equity-method overlay ─────────────────────────────────────

@@ -185,8 +185,7 @@ pub fn build_notes_to_consolidated_fs(
 
     // ── Note 4: Non-controlling interest summary ───────────────────────────
     let nci_body = if inputs.nci_rollforwards.is_empty() {
-        "The group has no non-controlling interest as of the reporting date."
-            .to_string()
+        "The group has no non-controlling interest as of the reporting date.".to_string()
     } else {
         let mut lines: Vec<String> = Vec::with_capacity(inputs.nci_rollforwards.len() + 1);
         lines.push(
@@ -222,8 +221,7 @@ pub fn build_notes_to_consolidated_fs(
     } else {
         let mut lines: Vec<String> = Vec::with_capacity(inputs.cta_rollforwards.len() + 1);
         lines.push(
-            "Cumulative translation adjustment by entity (opening, period, closing):"
-                .to_string(),
+            "Cumulative translation adjustment by entity (opening, period, closing):".to_string(),
         );
         for rf in inputs.cta_rollforwards {
             lines.push(format!(

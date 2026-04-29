@@ -16,11 +16,7 @@ fn period_end() -> NaiveDate {
     NaiveDate::from_ymd_opt(2024, 3, 31).unwrap()
 }
 
-fn make_translated(
-    entity_code: &str,
-    debits: Decimal,
-    credits: Decimal,
-) -> TranslatedTb {
+fn make_translated(entity_code: &str, debits: Decimal, credits: Decimal) -> TranslatedTb {
     TranslatedTb {
         entity_code: entity_code.to_string(),
         functional_currency: "USD".to_string(),

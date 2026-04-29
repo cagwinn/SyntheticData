@@ -29,8 +29,13 @@ fn happy_path_math() {
         other_nci: dec!(0),
     };
 
-    let s =
-        build_statement_of_changes_in_equity(&inputs, "TEST_GROUP", period_start(), period_end(), "CHF");
+    let s = build_statement_of_changes_in_equity(
+        &inputs,
+        "TEST_GROUP",
+        period_start(),
+        period_end(),
+        "CHF",
+    );
 
     // Owners: 1_000_000 + 150_000 + 20_000 - 50_000 + 0 = 1_120_000.
     assert_eq!(s.owners_equity.opening, dec!(1_000_000));
@@ -63,8 +68,7 @@ fn total_is_per_line_sum_of_owners_and_nci() {
         other_owners: dec!(7_000),
         other_nci: dec!(3_000),
     };
-    let s =
-        build_statement_of_changes_in_equity(&inputs, "G", period_start(), period_end(), "CHF");
+    let s = build_statement_of_changes_in_equity(&inputs, "G", period_start(), period_end(), "CHF");
 
     // Per-line sum check.
     assert_eq!(
@@ -101,13 +105,8 @@ fn empty_inputs_all_zeros() {
         other_owners: Decimal::ZERO,
         other_nci: Decimal::ZERO,
     };
-    let s = build_statement_of_changes_in_equity(
-        &inputs,
-        "EMPTY",
-        period_start(),
-        period_end(),
-        "EUR",
-    );
+    let s =
+        build_statement_of_changes_in_equity(&inputs, "EMPTY", period_start(), period_end(), "EUR");
 
     for col in [&s.owners_equity, &s.nci, &s.total_equity] {
         assert_eq!(col.opening, Decimal::ZERO);

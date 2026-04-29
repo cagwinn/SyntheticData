@@ -156,9 +156,7 @@ mod tests {
     use chrono::NaiveDate;
     use rust_decimal_macros::dec;
 
-    use crate::aggregate::translation::translate::{
-        DrCr, RateBasis, TranslatedLine, TranslatedTb,
-    };
+    use crate::aggregate::translation::translate::{DrCr, RateBasis, TranslatedLine, TranslatedTb};
     use crate::aggregate::translation::TranslationAccountType;
 
     fn period_end() -> NaiveDate {
@@ -242,6 +240,9 @@ mod tests {
         // round-trip preserves precision when there's content too.
         let real = sample_translated_tb();
         let we = build_entity(&real);
-        assert_eq!(we.lines[0].translated_amount, real.lines[0].translated_amount);
+        assert_eq!(
+            we.lines[0].translated_amount,
+            real.lines[0].translated_amount
+        );
     }
 }

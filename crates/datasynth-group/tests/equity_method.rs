@@ -13,10 +13,9 @@ use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 
 use datasynth_group::{
-    build_manifest, compute_equity_method_investment,
-    ingest_opening_equity_method_carrying_values, write_equity_method_investments,
-    ConsolidationMethod, EquityMethodInputs, EquityMethodInvestment, GroupConfig, GroupError,
-    EQUITY_METHOD_INVESTMENTS_FILENAME,
+    build_manifest, compute_equity_method_investment, ingest_opening_equity_method_carrying_values,
+    write_equity_method_investments, ConsolidationMethod, EquityMethodInputs,
+    EquityMethodInvestment, GroupConfig, GroupError, EQUITY_METHOD_INVESTMENTS_FILENAME,
 };
 
 // ── Fixture helpers ───────────────────────────────────────────────────────────
@@ -174,8 +173,7 @@ fn negative_carrying_value_triggers_error() {
         period_end: period_end(),
         currency: "CHF".to_string(),
     };
-    let err =
-        compute_equity_method_investment(&inputs).expect_err("negative carrying must reject");
+    let err = compute_equity_method_investment(&inputs).expect_err("negative carrying must reject");
     match err {
         GroupError::Aggregate(msg) => {
             assert!(msg.contains("INV"), "msg names entity: {msg}");

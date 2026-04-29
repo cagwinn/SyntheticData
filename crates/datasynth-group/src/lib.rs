@@ -10,6 +10,7 @@ pub mod errors;
 pub mod manifest;
 pub mod resolve;
 pub mod shard;
+pub mod standalone;
 pub mod validate;
 
 pub use aggregate::{
@@ -56,3 +57,4 @@ pub use manifest::{
     MANIFEST_SCHEMA_VERSION,
 };
 pub use resolve::{resolve_entity, ResolvedEntity};
+pub use standalone::{generate_standalone, StandaloneOptions, StandaloneSummary};

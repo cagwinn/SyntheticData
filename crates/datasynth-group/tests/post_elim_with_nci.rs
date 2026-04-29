@@ -177,7 +177,10 @@ fn equity_method_only_creates_investment_and_pl_lines() {
     assert_eq!(inv.credit_total, Decimal::ZERO);
 
     // 4900 (share of profit) credited 400_000.
-    let pl = out.account_totals.get("4900").expect("share of profit line");
+    let pl = out
+        .account_totals
+        .get("4900")
+        .expect("share of profit line");
     assert_eq!(pl.debit_total, Decimal::ZERO);
     assert_eq!(pl.credit_total, dec!(400_000));
 
@@ -226,7 +229,7 @@ fn both_overlays_applied_together() {
 #[test]
 fn currency_mismatch_returns_aggregate_error() {
     let tb = balanced_post_elim_tb(); // CHF
-    // NCI rollforward in EUR — caller forgot to translate.
+                                      // NCI rollforward in EUR — caller forgot to translate.
     let bad_nci = NciRollforward {
         entity_code: "NESTLE_DE".to_string(),
         parent_entity_code: "PARENT".to_string(),
@@ -264,8 +267,8 @@ fn currency_mismatch_returns_aggregate_error() {
         period_end: period_end(),
         currency: "USD".to_string(),
     };
-    let err = apply_nci_and_equity_method(&tb, &[], &[bad_em])
-        .expect_err("currency mismatch must fail");
+    let err =
+        apply_nci_and_equity_method(&tb, &[], &[bad_em]).expect_err("currency mismatch must fail");
     match err {
         GroupError::Aggregate(msg) => {
             assert!(msg.contains("USD"));

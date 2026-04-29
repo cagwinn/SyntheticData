@@ -23,9 +23,7 @@ use datasynth_core::models::balance::{
 };
 use datasynth_group::config::{FxPolicyConfig, FxRateBasis};
 use datasynth_group::manifest::FxRateMaster;
-use datasynth_group::{
-    translate_entity_tb, DrCr, GroupError, RateBasis, TranslationAccountType,
-};
+use datasynth_group::{translate_entity_tb, DrCr, GroupError, RateBasis, TranslationAccountType};
 use datasynth_standards::framework::AccountingFramework;
 
 // ── Fixture builders ─────────────────────────────────────────────────
@@ -230,8 +228,7 @@ fn identity_translation_yields_rate_one_and_zero_cta() {
     // Source TB is balanced ⇒ CTA = 0.
     assert_eq!(out.cta, Decimal::ZERO);
     assert_eq!(
-        out.total_translated_debits,
-        out.total_translated_credits,
+        out.total_translated_debits, out.total_translated_credits,
         "identity translation must preserve DR == CR"
     );
 }

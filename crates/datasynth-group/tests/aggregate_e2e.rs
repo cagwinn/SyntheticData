@@ -32,10 +32,10 @@ use datasynth_core::models::JournalEntry;
 use datasynth_group::manifest::builder::GroupManifest;
 use datasynth_group::shard::{derive_ic_pair_plans, inject_ic_journal_entries, InjectionCtx};
 use datasynth_group::{
-    build_manifest, run_aggregate, AggregateOptions, GroupConfig, GroupError,
-    IcRelationshipConfig, CONSOLIDATED_FS_FILENAME, CONSOLIDATION_SCHEDULE_FILENAME,
-    COVERAGE_REPORT_FILENAME, CTA_ROLLFORWARD_FILENAME, EQUITY_METHOD_INVESTMENTS_FILENAME,
-    NCI_ROLLFORWARD_FILENAME, NOTES_FILENAME, TRANSLATION_WORKSHEET_FILENAME,
+    build_manifest, run_aggregate, AggregateOptions, GroupConfig, GroupError, IcRelationshipConfig,
+    CONSOLIDATED_FS_FILENAME, CONSOLIDATION_SCHEDULE_FILENAME, COVERAGE_REPORT_FILENAME,
+    CTA_ROLLFORWARD_FILENAME, EQUITY_METHOD_INVESTMENTS_FILENAME, NCI_ROLLFORWARD_FILENAME,
+    NOTES_FILENAME, TRANSLATION_WORKSHEET_FILENAME,
 };
 
 // ── Fixture helpers ───────────────────────────────────────────────────────────
@@ -45,8 +45,7 @@ use datasynth_group::{
 /// through both files.
 fn load_two_entity_manifest() -> GroupManifest {
     let yaml = include_str!("fixtures/mini_nestle.yaml");
-    let mut cfg: GroupConfig =
-        serde_yaml::from_str(yaml).expect("mini_nestle.yaml must parse");
+    let mut cfg: GroupConfig = serde_yaml::from_str(yaml).expect("mini_nestle.yaml must parse");
 
     cfg.ownership
         .entities
@@ -246,12 +245,7 @@ fn make_balanced_tb(entity_code: &str) -> TrialBalance {
 ///
 /// Mirrors what `crate::shard::run_shard` writes — see
 /// `crates/datasynth-runtime/src/output_writer.rs`.
-fn write_entity_archive(
-    root: &Path,
-    entity_code: &str,
-    tb: &TrialBalance,
-    jes: &[JournalEntry],
-) {
+fn write_entity_archive(root: &Path, entity_code: &str, tb: &TrialBalance, jes: &[JournalEntry]) {
     let entity_dir = root.join("entities").join(entity_code);
     fs::create_dir_all(entity_dir.join("period_close")).expect("mkdir period_close");
 
@@ -437,7 +431,8 @@ fn run_aggregate_tolerate_missing_shards_continues_on_partial_archive() {
         prior_period_aggregate: None,
         tolerate_missing_shards: true,
     };
-    let summary = run_aggregate(&manifest, root, root, &opts).expect("tolerate-missing must succeed");
+    let summary =
+        run_aggregate(&manifest, root, root, &opts).expect("tolerate-missing must succeed");
 
     assert_eq!(summary.entities_processed, vec!["NESTLE_SA".to_string()]);
     assert_eq!(summary.entities_missing, vec!["NESTLE_USA".to_string()]);

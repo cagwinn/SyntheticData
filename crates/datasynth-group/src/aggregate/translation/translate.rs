@@ -276,9 +276,7 @@ fn lookup_rate(
         RateBasis::Closing => master.closing_by_pair.get(pair_key).copied(),
         // v5.0 proxy: historical rate ≈ period average. See module
         // rustdoc for the rationale and refinement plan.
-        RateBasis::Historical | RateBasis::Average => {
-            master.average_by_pair.get(pair_key).copied()
-        }
+        RateBasis::Historical | RateBasis::Average => master.average_by_pair.get(pair_key).copied(),
     };
 
     rate.ok_or_else(|| {

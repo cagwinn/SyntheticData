@@ -83,12 +83,7 @@ fn line(label: &str, lines: &[CfLine]) -> Decimal {
 fn happy_path_with_opening_and_closing_tbs() {
     let prior = make_tb(dec!(500_000), dec!(100_000), dec!(80_000), dec!(50_000));
     // Cash up by 100k, AR up by 30k, AP up by 20k, inventory down by 10k.
-    let current = make_tb(
-        dec!(600_000),
-        dec!(130_000),
-        dec!(100_000),
-        dec!(40_000),
-    );
+    let current = make_tb(dec!(600_000), dec!(130_000), dec!(100_000), dec!(40_000));
 
     let inputs = CashFlowInputs {
         post_elim_tb_current: &current,
@@ -104,8 +99,8 @@ fn happy_path_with_opening_and_closing_tbs() {
         equity_issuance: Decimal::ZERO,
     };
 
-    let cf = build_consolidated_cash_flow(&inputs, "TEST_GROUP", period_start(), period_end())
-        .unwrap();
+    let cf =
+        build_consolidated_cash_flow(&inputs, "TEST_GROUP", period_start(), period_end()).unwrap();
 
     // Operating: net income (150) + D&A (20) + ΔAR (-30) + ΔInv (+10) + ΔAP (+20).
     // = 150 + 20 - 30 + 10 + 20 = 170k.

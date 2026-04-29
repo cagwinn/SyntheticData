@@ -60,7 +60,5 @@
 pub mod opening;
 pub mod rollforward;
 
-pub use opening::{
-    ingest_opening_nci_balances, write_nci_rollforward, NCI_ROLLFORWARD_FILENAME,
-};
+pub use opening::{ingest_opening_nci_balances, write_nci_rollforward, NCI_ROLLFORWARD_FILENAME};
 pub use rollforward::{compute_nci_rollforward, NciInputs, NciRollforward};

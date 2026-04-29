@@ -13,8 +13,8 @@ use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 
 use datasynth_group::{
-    build_consolidated_balance_sheet, AggregatedAccount, AggregatedTb,
-    ConsolidatedBalanceSheet, GroupError,
+    build_consolidated_balance_sheet, AggregatedAccount, AggregatedTb, ConsolidatedBalanceSheet,
+    GroupError,
 };
 
 fn period_end() -> NaiveDate {
