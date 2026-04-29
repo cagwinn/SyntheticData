@@ -33,5 +33,7 @@
 //! §"Aggregate phase — Chunk 6" for the full module layout.
 
 pub mod classify;
+pub mod translate;
 
 pub use classify::{classify_account, TranslationAccountType};
+pub use translate::{translate_entity_tb, DrCr, RateBasis, TranslatedLine, TranslatedTb};

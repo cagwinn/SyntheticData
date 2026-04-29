@@ -38,4 +38,7 @@ pub use ic_matcher::{
 pub use post_elim::apply_eliminations_to_tb;
 pub use pre_elim::{aggregate_pre_elimination, AggregatedAccount, AggregatedTb, DeferredEntity};
 pub use tb_loader::load_entity_trial_balance;
-pub use translation::{classify_account, TranslationAccountType};
+pub use translation::{
+    classify_account, translate_entity_tb, DrCr, RateBasis, TranslatedLine, TranslatedTb,
+    TranslationAccountType,
+};
