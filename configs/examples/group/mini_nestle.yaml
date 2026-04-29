@@ -1,0 +1,78 @@
+id: "MINI_NESTLE_2024_Q1"
+name: "Mini Nestlé Reference Group"
+presentation_currency: "CHF"
+period: { start_date: "2024-01-01", length: quarterly }
+seed: 0x1234567890ABCDEF
+
+defaults:
+  accounting_framework: ifrs
+  industry: manufacturing
+  process_models: [o2c, p2p, h2r, r2r, audit]
+  accounting_standards: { enabled: true, leases_enabled: true }
+
+scoping_profiles:
+  significant:
+    row_budget: 100_000
+    process_models: [o2c, p2p, h2r, r2r, audit, manufacturing]
+    audit: { generate_workpapers: true, min_team_size: 4, max_team_size: 8 }
+  material:
+    row_budget: 25_000
+    audit: { generate_workpapers: true, min_team_size: 2, max_team_size: 4 }
+
+ownership:
+  parent_entity_code: NESTLE_SA
+  entities:
+    - { code: NESTLE_SA, country: CH, functional_currency: CHF,
+        scoping_profile: significant, consolidation_method: parent }
+    - { code: NESTLE_USA, country: US, functional_currency: USD,
+        scoping_profile: significant, consolidation_method: full,
+        ownership_percent: 1.0, parent_code: NESTLE_SA,
+        accounting_framework: us_gaap }
+    - { code: NESTLE_DE, country: DE, functional_currency: EUR,
+        scoping_profile: significant, consolidation_method: full,
+        ownership_percent: 0.80, parent_code: NESTLE_SA,
+        accounting_framework: hgb }      # bridges HGB → IFRS at aggregate
+    - { code: NESTLE_BR, country: BR, functional_currency: BRL,
+        scoping_profile: material, consolidation_method: full,
+        ownership_percent: 1.0, parent_code: NESTLE_SA }
+    - { code: NESTLE_JV, country: CH, functional_currency: CHF,
+        scoping_profile: material, consolidation_method: equity_method,
+        ownership_percent: 0.50, parent_code: NESTLE_SA }
+
+intercompany:
+  relationships:
+    - { seller: NESTLE_SA, buyer: NESTLE_USA, types: [goods_sale, royalty],
+        annual_volume: 5_000_000, transfer_pricing: cost_plus, markup_percent: 0.08 }
+    - { seller: NESTLE_SA, buyer: NESTLE_DE, types: [goods_sale, management_fee],
+        annual_volume: 3_000_000, transfer_pricing: cost_plus, markup_percent: 0.06 }
+    - { pattern: { seller: NESTLE_SA, buyer_scoping_profile: any },
+        types: [management_fee], per_pair_volume: 200_000 }
+  matching: { strategy: manifest_driven, coverage_target: 0.98 }
+
+fx:
+  base_currency: CHF
+  rate_source: inline
+  rates:
+    "CHF/USD": { "2024-01-31": 0.8870, "2024-02-29": 0.8812, "2024-03-31": 0.9012 }
+    "CHF/EUR": { "2024-01-31": 0.9520, "2024-02-29": 0.9488, "2024-03-31": 0.9611 }
+    "CHF/BRL": { "2024-01-31": 5.5210, "2024-02-29": 5.4880, "2024-03-31": 5.6700 }
+  policy: { balance_sheet: closing, income_statement: average, equity: historical }
+
+audit:
+  engagement_id: "EY_MINI_NESTLE_2024_Q1"
+  lead_auditor: EY_ZURICH
+  framework: isa
+  fsm_blueprint: "builtin:group_fsa"
+  group_materiality: { basis: revenue, percent: 0.01 }
+  component_scope_thresholds: { full_scope: 0.15, specific_scope: 0.05 }
+  generate_kams: true
+  generate_group_opinion: true
+
+tax:
+  pillar_two:       { enabled: true, jurisdictions: [CH, DE, US] }
+  cbc_report:       { enabled: true, reporting_jurisdiction: CH }
+  transfer_pricing: { master_file: true, local_files_for: [CH, US, DE] }
+
+output:
+  layout: per_entity_subtree
+  shared_masters_at_root: true
