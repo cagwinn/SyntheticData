@@ -26,6 +26,15 @@ datasynth-data generate --config config.yaml --output ./output
 kill -USR1 $(pgrep datasynth-data)  # Pause/resume (Unix)
 ```
 
+### Group audit (v5.0+)
+
+```bash
+datasynth-data group manifest --config group.yaml --out manifest.json
+datasynth-data group shard --manifest manifest.json --shard-id S_SIG_0001 --out ./shards/S_SIG_0001/
+datasynth-data group aggregate --manifest manifest.json --shards-dir ./shards --out ./group_archive
+datasynth-data group generate --config group.yaml --out ./group_archive   # in-process pipeline
+```
+
 ## Server
 
 ```bash
@@ -34,7 +43,7 @@ cargo run -p datasynth-server -- --port 3000 --worker-threads 4
 
 ## Architecture
 
-Rust workspace with 16 active crates (plus `datasynth-graph-export`
+Rust workspace with 17 active crates (plus `datasynth-graph-export`
 excluded from the default build — see
 `docs/analysis/unused-features-inventory.md` §6):
 
@@ -55,6 +64,7 @@ datasynth-output          → Output sinks (CSV, JSON, Parquet)
 datasynth-test-utils      → Test utilities
 datasynth-audit-fsm       → YAML-driven audit state machines (engagements, blueprints)
 datasynth-audit-optimizer → Risk-scoping / portfolio / Monte-Carlo / conformance analytics
+datasynth-group           → Group audit simulation engine (manifest / shard / aggregate phases)
 ```
 
 ### Key Models (datasynth-core/src/models/)
@@ -92,6 +102,9 @@ datasynth-audit-optimizer → Risk-scoping / portfolio / Monte-Carlo / conforman
 | HR/Pensions | DefinedBenefitPlan, PensionObligation, PlanAssets, PensionDisclosure, StockGrant, StockCompExpense |
 | Relationships | EntityGraph, GraphEntityType, GraphEntityId, RelationshipEdge, RelationshipType, RelationshipStrengthCalculator, CrossProcessLink |
 | Graph Properties | ToNodeProperties, GraphPropertyValue, EdgeConstraint, Cardinality |
+| Intercompany v5.0 | IcPairId, IcPairPlan, IcRole, ShardContext |
+| Group Manifest | GroupManifest, ManifestEntity, ManifestPeriod, OwnershipGraphSection, ShardPlan, ShardAssignment, ChartOfAccountsMaster, FxRateMaster, AuditEngagementPlan, TaxGroupPlan |
+| Group Aggregate | AggregatedTb, AggregatedAccount, DeferredEntity, IcMatchResult, IcMatchedPair, UnmatchedSide, UnmatchedReason, EliminationResult, ConsolidatedBalanceSheet, ConsolidatedIncomeStatement, ConsolidatedCashFlow, StatementOfChangesInEquity, ConsolidationSchedule, NotesToConsolidatedFs, NciRollforward, EquityMethodInvestment, CtaRollforward, TranslatedTb, CoverageReport |
 
 ### Core Infrastructure (datasynth-core/src/)
 
@@ -401,6 +414,8 @@ temporal_patterns:
 
 YAML sections: `global`, `companies`, `chart_of_accounts`, `transactions`, `output`, `fraud`, `internal_controls`, `enterprise`, `master_data`, `document_flows`, `intercompany`, `balance`, `subledger`, `fx`, `period_close`, `graph_export`, `anomaly_injection`, `data_quality`, `business_processes`, `templates`, `approval`, `departments`, `distributions`, `temporal_patterns`, `accounting_standards`, `audit_standards`, `vendor_network`, `customer_segmentation`, `relationship_strength`, `cross_process_links`, `source_to_pay`, `financial_reporting`, `hr`, `manufacturing`, `sales_quotes`
 
+v5.0+ Group simulation: `id`, `presentation_currency`, `period`, `seed`, `defaults`, `scoping_profiles`, `ownership`, `intercompany`, `fx`, `audit`, `tax`, `output` (all under top-level keys; no `group:` envelope — the file IS a `GroupConfig`)
+
 Presets: manufacturing, retail, financial_services, healthcare, technology
 Complexity: small (~100 accounts), medium (~400), large (~2500)
 
@@ -601,6 +616,11 @@ Output files are organized by domain directory. All files are JSON unless otherw
 | Graphs | graphs/ | PyTorch Geometric (.pt), Neo4j CSV+Cypher, DGL, RustGraph JSON, hypergraph |
 | Events | events/ | process_evolution_events, organizational_events, disruption_events |
 | Compliance | standards/ | standards, cross_references, jurisdiction_profiles, audit_procedures, compliance_findings, regulatory_filings |
+| Group Audit — Per-entity | entities/{code}/ | full single-entity archive per shard |
+| Group Audit — Consolidated | consolidated/ | consolidated_financial_statements.json, consolidation_schedule.json, notes_to_consolidated_fs.json, nci_rollforward.json, cta_rollforward.json, translation_worksheet.json, equity_method_investments.json |
+| Group Audit — IC Eliminations | ic_eliminations/ | ic_matching_coverage.json |
+| Group Audit — Manifest | (root) | manifest.json (when group generate is used) |
+| Group Audit — Shard Summary | (root) | shard_summary.json (per shard) |
 
 ## Performance
 
