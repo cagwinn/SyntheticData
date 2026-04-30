@@ -94,10 +94,11 @@ use crate::aggregate::equity_method::{
     EquityMethodInputs, EquityMethodInvestment,
 };
 use crate::aggregate::fs::{
-    build_consolidated_balance_sheet, build_consolidated_cash_flow,
-    build_consolidated_income_statement, build_consolidation_schedule,
+    build_consolidated_balance_sheet_with_names, build_consolidated_cash_flow,
+    build_consolidated_income_statement_with_names, build_consolidation_schedule,
     build_notes_to_consolidated_fs, build_statement_of_changes_in_equity, write_consolidated_fs,
-    CashFlowInputs, ConsolidatedFinancialStatements, EquityChangesInputs, NotesInputs,
+    AccountNameDictionary, CashFlowInputs, ConsolidatedFinancialStatements, EquityChangesInputs,
+    NotesInputs,
 };
 use crate::aggregate::ic_matcher::match_ic_pairs;
 use crate::aggregate::nci::{
@@ -307,13 +308,27 @@ pub fn run_aggregate(
     let post_overlay = apply_nci_and_equity_method(&post_elim, &nci_rolls, &eq_method_invs)?;
 
     // ── 15. Build consolidated FS (Tasks 8.1–8.4) ──────────────────────
-    let bs =
-        build_consolidated_balance_sheet(&post_overlay, &manifest.group_id, manifest.period.end)?;
-    let is = build_consolidated_income_statement(
+    // v5.1: thread the engagement's CoA-master labels through the FS
+    // builders so localised account names (SKR04 / PCG / custom client
+    // chart) flow into the consolidated BS / IS line labels.  Falls
+    // back to the canonical built-in English labels for any code the
+    // master doesn't carry, then to the bare code itself.
+    let account_names = AccountNameDictionary::from_coa_master(
+        &manifest.chart_of_accounts_master,
+        &manifest.chart_of_accounts_master.primary_framework,
+    );
+    let bs = build_consolidated_balance_sheet_with_names(
+        &post_overlay,
+        &manifest.group_id,
+        manifest.period.end,
+        &account_names,
+    )?;
+    let is = build_consolidated_income_statement_with_names(
         &post_overlay,
         &nci_rolls,
         &manifest.group_id,
         manifest.period.end,
+        &account_names,
     )?;
     // For v5.0 the cash flow statement gets a minimal input set: net
     // income from the IS, no non-cash adjustments / capex / financing

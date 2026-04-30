@@ -58,13 +58,11 @@
 //! pure sum — two runs with the same input produce byte-identical
 //! JSON.
 
-use std::collections::BTreeMap;
-use std::sync::OnceLock;
-
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
+use crate::aggregate::fs::account_names::AccountNameDictionary;
 use crate::aggregate::nci::NciRollforward;
 use crate::aggregate::pre_elim::AggregatedTb;
 use crate::errors::GroupResult;
@@ -143,6 +141,29 @@ pub fn build_consolidated_income_statement(
     group_id: &str,
     period_end: NaiveDate,
 ) -> GroupResult<ConsolidatedIncomeStatement> {
+    build_consolidated_income_statement_with_names(
+        post_elim_tb,
+        nci_rollforwards,
+        group_id,
+        period_end,
+        &AccountNameDictionary::default(),
+    )
+}
+
+/// Build the income statement with an explicit account-name dictionary.
+///
+/// Use this from `run_aggregate` to thread the engagement's
+/// [`crate::manifest::ChartOfAccountsMaster`] labels through
+/// (e.g. SKR04 / PCG localisation).  Tests can keep using the
+/// no-arg [`build_consolidated_income_statement`] which defaults to
+/// the canonical built-in English labels.
+pub fn build_consolidated_income_statement_with_names(
+    post_elim_tb: &AggregatedTb,
+    nci_rollforwards: &[NciRollforward],
+    group_id: &str,
+    period_end: NaiveDate,
+    account_names: &AccountNameDictionary,
+) -> GroupResult<ConsolidatedIncomeStatement> {
     let mut revenue: Vec<IsLine> = Vec::new();
     let mut cogs: Vec<IsLine> = Vec::new();
     let mut opex: Vec<IsLine> = Vec::new();
@@ -166,7 +187,7 @@ pub fn build_consolidated_income_statement(
         };
         let line = IsLine {
             account_code: code.clone(),
-            account_name: account_name_for(code),
+            account_name: account_names.get(code),
             amount,
         };
         match section {
@@ -247,51 +268,11 @@ fn sum(lines: &[IsLine]) -> Decimal {
         .fold(Decimal::ZERO, |acc, v| acc + v)
 }
 
-fn account_name_for(code: &str) -> String {
-    account_name_dict()
-        .get(code)
-        .copied()
-        .map(|s| s.to_string())
-        .unwrap_or_else(|| code.to_string())
-}
-
-fn account_name_dict() -> &'static BTreeMap<&'static str, &'static str> {
-    static DICT: OnceLock<BTreeMap<&'static str, &'static str>> = OnceLock::new();
-    DICT.get_or_init(|| {
-        let mut m = BTreeMap::new();
-        m.insert("4000", "Product revenue");
-        m.insert("4010", "Sales discounts");
-        m.insert("4020", "Sales returns and allowances");
-        m.insert("4100", "Service revenue");
-        m.insert("4500", "IC revenue");
-        m.insert("4800", "Purchase discount income");
-        m.insert("4850", "Bargain purchase gain");
-        m.insert("4900", "Share of profit of associates");
-        m.insert("5000", "Cost of goods sold");
-        m.insert("5100", "Raw materials");
-        m.insert("5200", "Direct labor");
-        m.insert("5300", "Manufacturing overhead");
-        m.insert("6000", "Depreciation expense");
-        m.insert("6010", "Amortization expense");
-        m.insert("6100", "Salaries and wages");
-        m.insert("6200", "Benefits");
-        m.insert("6300", "Rent");
-        m.insert("6400", "Utilities");
-        m.insert("6500", "Office supplies");
-        m.insert("6600", "Travel and entertainment");
-        m.insert("6700", "Professional fees");
-        m.insert("6800", "Insurance");
-        m.insert("6850", "Provision expense");
-        m.insert("6900", "Bad debt expense");
-        m.insert("7100", "Interest expense");
-        m.insert("7400", "Purchase discounts");
-        m.insert("7500", "FX gain/loss");
-        m.insert("7510", "Hedge ineffectiveness");
-        m.insert("8000", "Tax expense");
-        m.insert("8100", "Deferred tax expense");
-        m
-    })
-}
+// `account_name_for` / `account_name_dict` were removed in v5.1 —
+// label resolution now flows through
+// [`crate::aggregate::fs::account_names::AccountNameDictionary`],
+// passed in as a parameter to
+// [`build_consolidated_income_statement_with_names`].
 
 // ── Unit tests ────────────────────────────────────────────────────────────────
 

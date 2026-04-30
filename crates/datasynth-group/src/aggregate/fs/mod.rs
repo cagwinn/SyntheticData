@@ -35,7 +35,20 @@
 //!   FS bundle, schedule, and notes under
 //!   `{out_dir}/consolidated/`.
 //!
-//! # v5.1 deferrals
+//! # v5.1 status
+//!
+//! - **Account-name dictionary** (this PR) — labels are now sourced
+//!   from the manifest's [`crate::manifest::ChartOfAccountsMaster`] via
+//!   [`account_names::AccountNameDictionary`].  Engagement-supplied
+//!   labels (e.g. SKR04 / PCG localisation) win over the built-in
+//!   canonical English labels; built-ins fill any gap; bare codes are
+//!   the final fallback.
+//! - **Suppressed-loss tracking** ✅ shipped (v5.1 PR #135) — equity
+//!   method investments now carry an opening / closing suppressed-loss
+//!   memorandum per IAS 28.38, with full recovery semantics and a
+//!   side-artefact `equity_method_suppressed_losses.json`.
+//!
+//! # Still deferred
 //!
 //! - Operating segment reporting (note 6 emits a placeholder).
 //! - Full retained-earnings integration (the equity-method bridge
@@ -45,6 +58,7 @@
 //!   v5.0).
 //! - Subsequent events / related-parties auto-derivation.
 
+pub mod account_names;
 pub mod balance_sheet;
 pub mod cash_flow;
 pub mod consolidation_schedule;
@@ -53,7 +67,11 @@ pub mod income_statement;
 pub mod notes;
 pub mod writer;
 
-pub use balance_sheet::{build_consolidated_balance_sheet, BsLine, ConsolidatedBalanceSheet};
+pub use account_names::AccountNameDictionary;
+pub use balance_sheet::{
+    build_consolidated_balance_sheet, build_consolidated_balance_sheet_with_names, BsLine,
+    ConsolidatedBalanceSheet,
+};
 pub use cash_flow::{
     build_consolidated_cash_flow, CashFlowInputs, CfLine, CfSection, ConsolidatedCashFlow,
 };
@@ -65,7 +83,8 @@ pub use equity_changes::{
     StatementOfChangesInEquity,
 };
 pub use income_statement::{
-    build_consolidated_income_statement, ConsolidatedIncomeStatement, IsLine,
+    build_consolidated_income_statement, build_consolidated_income_statement_with_names,
+    ConsolidatedIncomeStatement, IsLine,
 };
 pub use notes::{build_notes_to_consolidated_fs, Note, NotesInputs, NotesToConsolidatedFs};
 pub use writer::{

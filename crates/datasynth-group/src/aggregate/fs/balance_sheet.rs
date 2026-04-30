@@ -64,13 +64,11 @@
 //! - **Multi-currency presentation** is out of scope — the consolidated
 //!   TB already lives in `currency` and the balance sheet inherits it.
 
-use std::collections::BTreeMap;
-use std::sync::OnceLock;
-
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
+use crate::aggregate::fs::account_names::AccountNameDictionary;
 use crate::aggregate::pre_elim::AggregatedTb;
 use crate::errors::GroupResult;
 
@@ -155,6 +153,27 @@ pub fn build_consolidated_balance_sheet(
     group_id: &str,
     as_of_date: NaiveDate,
 ) -> GroupResult<ConsolidatedBalanceSheet> {
+    build_consolidated_balance_sheet_with_names(
+        post_elim_tb,
+        group_id,
+        as_of_date,
+        &AccountNameDictionary::default(),
+    )
+}
+
+/// Build the balance sheet with an explicit account-name dictionary.
+///
+/// Use this from `run_aggregate` to thread the engagement's
+/// [`crate::manifest::ChartOfAccountsMaster`] labels through
+/// (e.g. SKR04 / PCG localisation).  Tests can keep using the
+/// no-arg [`build_consolidated_balance_sheet`] which defaults to the
+/// canonical built-in English labels.
+pub fn build_consolidated_balance_sheet_with_names(
+    post_elim_tb: &AggregatedTb,
+    group_id: &str,
+    as_of_date: NaiveDate,
+    account_names: &AccountNameDictionary,
+) -> GroupResult<ConsolidatedBalanceSheet> {
     let mut current_assets: Vec<BsLine> = Vec::new();
     let mut non_current_assets: Vec<BsLine> = Vec::new();
     let mut current_liabilities: Vec<BsLine> = Vec::new();
@@ -167,7 +186,7 @@ pub fn build_consolidated_balance_sheet(
         let line = match section {
             BsSection::CurrentAsset | BsSection::NonCurrentAsset => BsLine {
                 account_code: code.clone(),
-                account_name: account_name_for(code),
+                account_name: account_names.get(code),
                 amount: account.debit_total - account.credit_total,
             },
             BsSection::CurrentLiability
@@ -175,7 +194,7 @@ pub fn build_consolidated_balance_sheet(
             | BsSection::Equity
             | BsSection::Nci => BsLine {
                 account_code: code.clone(),
-                account_name: account_name_for(code),
+                account_name: account_names.get(code),
                 amount: account.credit_total - account.debit_total,
             },
             BsSection::Excluded => continue,
@@ -292,92 +311,11 @@ fn sum(lines: &[BsLine]) -> Decimal {
         .fold(Decimal::ZERO, |acc, v| acc + v)
 }
 
-/// Look up a human-readable label for a GL account code.  Falls back
-/// to the code itself if no entry exists.
-fn account_name_for(code: &str) -> String {
-    account_name_dict()
-        .get(code)
-        .copied()
-        .map(|s| s.to_string())
-        .unwrap_or_else(|| code.to_string())
-}
-
-/// Static dictionary covering the canonical codes consumed by the v5.0
-/// consolidated BS / IS / CF.  Wired through to the engagement CoA
-/// master in v5.1.
-fn account_name_dict() -> &'static BTreeMap<&'static str, &'static str> {
-    static DICT: OnceLock<BTreeMap<&'static str, &'static str>> = OnceLock::new();
-    DICT.get_or_init(|| {
-        let mut m = BTreeMap::new();
-        // Cash / current assets
-        m.insert("1000", "Cash and cash equivalents");
-        m.insert("1010", "Bank account");
-        m.insert("1020", "Petty cash");
-        m.insert("1100", "Trade receivables");
-        m.insert("1150", "IC receivables");
-        m.insert("1160", "Input VAT");
-        m.insert("1200", "Inventory");
-        m.insert("1300", "Prepaid expenses");
-        // Other current / non-current assets
-        m.insert("1410", "Finished goods");
-        m.insert("1420", "Work in process");
-        m.insert("1450", "Derivative asset");
-        m.insert("1460", "Tax receivable");
-        m.insert("1500", "Property, plant & equipment");
-        m.insert("1510", "Accumulated depreciation");
-        m.insert("1600", "Deferred tax asset");
-        m.insert("1850", "Investment in associates / JVs");
-        m.insert("1900", "Goodwill");
-        m.insert("1910", "Customer relationships");
-        m.insert("1920", "Trade name");
-        m.insert("1930", "Technology");
-        m.insert("1950", "Accumulated amortization");
-        // Liabilities
-        m.insert("2000", "Trade payables");
-        m.insert("2050", "IC payables");
-        m.insert("2100", "Sales tax payable");
-        m.insert("2110", "VAT payable");
-        m.insert("2130", "Income tax payable");
-        m.insert("2160", "Interest payable");
-        m.insert("2200", "Accrued expenses");
-        m.insert("2210", "Accrued salaries");
-        m.insert("2300", "Unearned revenue");
-        m.insert("2400", "Short-term debt");
-        m.insert("2450", "Provision liability");
-        m.insert("2460", "Derivative liability");
-        m.insert("2500", "Deferred tax liability");
-        m.insert("2600", "Long-term debt");
-        m.insert("2700", "IC payable (long-term)");
-        // Equity
-        m.insert("3000", "Common stock");
-        m.insert("3100", "Additional paid-in capital");
-        m.insert("3200", "Retained earnings (legacy)");
-        m.insert("3300", "Retained earnings");
-        m.insert("3400", "Equity-method bridge");
-        // NCI
-        m.insert("3500", "Non-controlling interest");
-        m.insert("3510", "OCI — cash flow hedge reserve");
-        // P&L (informational — these never reach the BS but the same
-        // dictionary feeds the IS in Task 8.2)
-        m.insert("4000", "Product revenue");
-        m.insert("4100", "Service revenue");
-        m.insert("4500", "IC revenue");
-        m.insert("4900", "Share of profit of associates");
-        m.insert("5000", "Cost of goods sold");
-        m.insert("5100", "Raw materials");
-        m.insert("5200", "Direct labor");
-        m.insert("6000", "Depreciation expense");
-        m.insert("6100", "Salaries and wages");
-        m.insert("6200", "Benefits");
-        m.insert("6300", "Rent");
-        m.insert("6400", "Utilities");
-        m.insert("7100", "Interest expense");
-        m.insert("7500", "FX gain/loss");
-        m.insert("8000", "Tax expense");
-        m.insert("8100", "Deferred tax expense");
-        m
-    })
-}
+// `account_name_for` / `account_name_dict` were removed in v5.1 —
+// label resolution now flows through
+// [`crate::aggregate::fs::account_names::AccountNameDictionary`],
+// passed in as a parameter to
+// [`build_consolidated_balance_sheet_with_names`].
 
 // ── Unit tests ────────────────────────────────────────────────────────────────
 

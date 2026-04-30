@@ -44,13 +44,14 @@ pub use equity_method::{
     EQUITY_METHOD_SUPPRESSED_LOSSES_FILENAME,
 };
 pub use fs::{
-    build_consolidated_balance_sheet, build_consolidated_cash_flow,
-    build_consolidated_income_statement, build_consolidation_schedule,
+    build_consolidated_balance_sheet, build_consolidated_balance_sheet_with_names,
+    build_consolidated_cash_flow, build_consolidated_income_statement,
+    build_consolidated_income_statement_with_names, build_consolidation_schedule,
     build_notes_to_consolidated_fs, build_statement_of_changes_in_equity, write_consolidated_fs,
-    BsLine, CashFlowInputs, CfLine, CfSection, ConsolidatedBalanceSheet, ConsolidatedCashFlow,
-    ConsolidatedFinancialStatements, ConsolidatedIncomeStatement, ConsolidationSchedule,
-    EquityChangesInputs, EquityRollforward, IsLine, Note, NotesInputs, NotesToConsolidatedFs,
-    ScheduleLine, StatementOfChangesInEquity, CONSOLIDATED_FS_FILENAME,
+    AccountNameDictionary, BsLine, CashFlowInputs, CfLine, CfSection, ConsolidatedBalanceSheet,
+    ConsolidatedCashFlow, ConsolidatedFinancialStatements, ConsolidatedIncomeStatement,
+    ConsolidationSchedule, EquityChangesInputs, EquityRollforward, IsLine, Note, NotesInputs,
+    NotesToConsolidatedFs, ScheduleLine, StatementOfChangesInEquity, CONSOLIDATED_FS_FILENAME,
     CONSOLIDATION_SCHEDULE_FILENAME, NOTES_FILENAME,
 };
 pub use ic_matcher::{
