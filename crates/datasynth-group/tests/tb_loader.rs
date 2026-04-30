@@ -187,34 +187,34 @@ fn empty_array_is_aggregate_error() {
     }
 }
 
-/// Multiple TBs in one file: rejects with an Aggregate error that names
-/// the entity and the actual count so a grep over aggregate logs
-/// pinpoints exactly which entity directory is malformed.
+/// Multi-period archive: orchestrator emits one TB per fiscal period
+/// (e.g. monthly run with three months → 3 TBs in the array).  v5.1+
+/// the loader accepts multiple TBs and picks the latest by
+/// `(fiscal_year, fiscal_period)` — that's the closing balance the
+/// consolidation engine consolidates against.
 #[test]
-fn multiple_tbs_is_aggregate_error() {
+fn multi_period_archive_picks_latest_period() {
     let tmp = TempDir::new().expect("tempdir");
     let entity_subdir = tmp.path().join("NESTLE_USA");
     fs::create_dir_all(&entity_subdir).expect("create entity subdir");
 
-    let tb1 = balanced_tb("TB-NESTLE_USA-2025-11", "NESTLE_USA");
-    let tb2 = balanced_tb("TB-NESTLE_USA-2025-12", "NESTLE_USA");
+    let mut tb1 = balanced_tb("TB-NESTLE_USA-2025-11", "NESTLE_USA");
+    tb1.fiscal_year = 2025;
+    tb1.fiscal_period = 11;
+    let mut tb2 = balanced_tb("TB-NESTLE_USA-2025-12", "NESTLE_USA");
+    tb2.fiscal_year = 2025;
+    tb2.fiscal_period = 12;
     write_tb_array(&entity_subdir, &[tb1, tb2]);
 
-    let err = load_entity_trial_balance(&entity_subdir).expect_err("multi-TB file must error");
+    let loaded =
+        load_entity_trial_balance(&entity_subdir).expect("multi-period archive must succeed");
 
-    match err {
-        GroupError::Aggregate(msg) => {
-            assert!(
-                msg.contains("NESTLE_USA"),
-                "error message must name the entity, got {msg:?}"
-            );
-            assert!(
-                msg.contains('2'),
-                "error message must include the count, got {msg:?}"
-            );
-        }
-        other => panic!("expected GroupError::Aggregate, got {other:?}"),
-    }
+    assert_eq!(
+        loaded.trial_balance_id, "TB-NESTLE_USA-2025-12",
+        "loader must pick the latest fiscal_period (December over November)"
+    );
+    assert_eq!(loaded.fiscal_year, 2025);
+    assert_eq!(loaded.fiscal_period, 12);
 }
 
 /// Unbalanced TB (`is_balanced = false`): explicit rejection so the

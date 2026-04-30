@@ -1228,6 +1228,13 @@ pub fn write_all_output_with_layout(
     // ========================================================================
     // Period-Close Trial Balances
     // ========================================================================
+    //
+    // v5.1: convert each in-memory `PeriodTrialBalance` to the
+    // canonical `datasynth_core::models::balance::TrialBalance` before
+    // writing.  The on-disk shape is now identical to what the group
+    // aggregate phase loads via `tb_loader::load_entity_trial_balance`,
+    // so the loader's v5.0 dual-shape detection (`PeriodTrialBalanceOnDisk`
+    // → `TrialBalance` synthesis) is no longer required.
     if !result.financial_reporting.trial_balances.is_empty() {
         let pc_dir = output_dir.join("period_close");
         std::fs::create_dir_all(&pc_dir)?;
@@ -1235,10 +1242,28 @@ pub fn write_all_output_with_layout(
             "Writing {} period-close trial balances...",
             result.financial_reporting.trial_balances.len()
         );
+        // Pick the first JE's company_code + currency as the
+        // canonical identifiers; the orchestrator only emits one TB
+        // per period (gated by `if company_idx == 0` at the push
+        // site), so all trial-balance entries belong to that company.
+        // Fallback to safe defaults when the JE list is empty
+        // (effectively only test fixtures).
+        let (company_code, currency) = result
+            .journal_entries
+            .first()
+            .map(|je| (je.header.company_code.as_str(), je.header.currency.as_str()))
+            .unwrap_or(("UNKNOWN", "USD"));
+        let canonical: Vec<datasynth_core::models::balance::TrialBalance> = result
+            .financial_reporting
+            .trial_balances
+            .iter()
+            .cloned()
+            .map(|tb| tb.into_canonical(company_code, currency))
+            .collect();
         write_json_safe(
-            &result.financial_reporting.trial_balances,
+            &canonical,
             &pc_dir.join("trial_balances.json"),
-            "Period-close trial balances",
+            "Period-close trial balances (canonical)",
         );
     }
 

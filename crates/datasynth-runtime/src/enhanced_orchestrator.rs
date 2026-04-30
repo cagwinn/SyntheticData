@@ -160,7 +160,10 @@ use datasynth_config::schema::{O2CFlowConfig, P2PFlowConfig};
 use datasynth_core::causal::{CausalGraph, CausalValidator, StructuralCausalModel};
 use datasynth_core::diffusion::{DiffusionBackend, DiffusionConfig, StatisticalDiffusionBackend};
 use datasynth_core::llm::{HttpLlmProvider, MockLlmProvider};
-use datasynth_core::models::balance::{GeneratedOpeningBalance, IndustryType, OpeningBalanceSpec};
+use datasynth_core::models::balance::{
+    AccountCategory, AccountType, GeneratedOpeningBalance, IndustryType, OpeningBalanceSpec,
+    TrialBalance, TrialBalanceLine, TrialBalanceStatus, TrialBalanceType,
+};
 use datasynth_core::models::documents::PaymentMethod;
 use datasynth_core::models::IndustrySector;
 use datasynth_generators::audit::analytical_procedure_generator::AnalyticalProcedureGenerator;
@@ -175,6 +178,7 @@ use datasynth_generators::audit::service_org_generator::ServiceOrgGenerator;
 use datasynth_generators::audit::subsequent_event_generator::SubsequentEventGenerator;
 use datasynth_generators::coa_generator::CoAFramework;
 use rayon::prelude::*;
+use rust_decimal::Decimal;
 
 // ============================================================================
 // Configuration Conversion Functions
@@ -792,6 +796,15 @@ pub struct SourcingSnapshot {
 }
 
 /// A single period's trial balance with metadata.
+///
+/// Used as the orchestrator's in-memory representation while it
+/// builds per-period FS / CF artefacts.  At write time the runtime
+/// converts each `PeriodTrialBalance` to the canonical
+/// [`datasynth_core::models::balance::TrialBalance`] shape via
+/// [`PeriodTrialBalance::into_canonical`] so the on-disk
+/// `period_close/trial_balances.json` matches what the group
+/// aggregate phase loads — see
+/// [`crate::output_writer::write_outputs`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PeriodTrialBalance {
     /// Fiscal year.
@@ -804,6 +817,75 @@ pub struct PeriodTrialBalance {
     pub period_end: NaiveDate,
     /// Trial balance entries for this period.
     pub entries: Vec<datasynth_generators::TrialBalanceEntry>,
+}
+
+impl PeriodTrialBalance {
+    /// Convert this in-memory period TB into the canonical
+    /// [`datasynth_core::models::balance::TrialBalance`] shape used
+    /// for the on-disk artefact.
+    ///
+    /// v5.1: the on-disk shape is now canonical end-to-end.  Group
+    /// aggregate's `tb_loader` consumes the canonical type directly,
+    /// dropping the v5.0 dual-shape detection that converted from
+    /// `PeriodTrialBalance` JSON on the fly.
+    pub fn into_canonical(self, company_code: &str, currency: &str) -> TrialBalance {
+        let mut total_debits = Decimal::ZERO;
+        let mut total_credits = Decimal::ZERO;
+        let lines: Vec<TrialBalanceLine> = self
+            .entries
+            .into_iter()
+            .map(|e| {
+                total_debits += e.debit_balance;
+                total_credits += e.credit_balance;
+                let category = AccountCategory::from_account_code(&e.account_code);
+                TrialBalanceLine {
+                    account_code: e.account_code,
+                    account_description: e.account_name,
+                    category,
+                    account_type: AccountType::Asset,
+                    opening_balance: Decimal::ZERO,
+                    period_debits: e.debit_balance,
+                    period_credits: e.credit_balance,
+                    closing_balance: e.debit_balance - e.credit_balance,
+                    debit_balance: e.debit_balance,
+                    credit_balance: e.credit_balance,
+                    cost_center: None,
+                    profit_center: None,
+                }
+            })
+            .collect();
+        let imbalance = total_debits - total_credits;
+        let is_balanced = imbalance.abs() < Decimal::new(1, 2);
+        TrialBalance {
+            trial_balance_id: format!(
+                "{company_code}-{:04}{:02}",
+                self.fiscal_year, self.fiscal_period
+            ),
+            company_code: company_code.to_string(),
+            company_name: None,
+            as_of_date: self.period_end,
+            fiscal_year: self.fiscal_year as i32,
+            fiscal_period: self.fiscal_period as u32,
+            currency: currency.to_string(),
+            balance_type: TrialBalanceType::Adjusted,
+            lines,
+            total_debits,
+            total_credits,
+            is_balanced,
+            out_of_balance: imbalance,
+            is_equation_valid: is_balanced,
+            equation_difference: imbalance,
+            category_summary: std::collections::HashMap::new(),
+            created_at: self
+                .period_start
+                .and_hms_opt(0, 0, 0)
+                .expect("midnight is a valid time"),
+            created_by: "ORCHESTRATOR".to_string(),
+            approved_by: None,
+            approved_at: None,
+            status: TrialBalanceStatus::Final,
+        }
+    }
 }
 
 /// Financial reporting snapshot (financial statements + bank reconciliations).

@@ -28,48 +28,25 @@
 //! Higher-level Chunk-5 modules (group TB combiner, IC elimination, NCI
 //! roll-up) call this loader once per entity and then operate on the
 //! returned [`TrialBalance`] without further I/O.
+//!
+//! # v5.1: canonical-shape end-to-end
+//!
+//! In v5.0 the orchestrator emitted a `Vec<PeriodTrialBalance>` JSON
+//! shape that differed from the canonical [`TrialBalance`]; this
+//! loader carried a fallback path that detected the difference and
+//! synthesised the missing canonical fields on the fly.  v5.1 moved
+//! the shape conversion to write time
+//! (`PeriodTrialBalance::into_canonical`) so the on-disk JSON matches
+//! the canonical shape directly.  The dual-shape detection has been
+//! removed.
 
 use std::fs;
 use std::path::Path;
 
-use chrono::NaiveDate;
-use datasynth_core::models::balance::{
-    AccountCategory, AccountType, TrialBalance, TrialBalanceLine, TrialBalanceStatus,
-    TrialBalanceType,
-};
+use datasynth_core::models::balance::TrialBalance;
 use rust_decimal::Decimal;
-use serde::Deserialize;
 
 use crate::errors::{GroupError, GroupResult};
-
-/// On-disk shape the orchestrator emits at `period_close/trial_balances.json`
-/// (a `Vec<datasynth_runtime::PeriodTrialBalance>` serde'd as JSON).
-///
-/// This differs from the canonical [`TrialBalance`] shape — it carries
-/// fiscal year/period + an `entries` field instead of `lines`. The loader
-/// converts every entry into a `TrialBalanceLine` and synthesises the
-/// missing canonical fields so downstream aggregate code can keep
-/// operating on the canonical type.
-#[derive(Debug, Clone, Deserialize)]
-struct PeriodTrialBalanceOnDisk {
-    fiscal_year: u16,
-    fiscal_period: u8,
-    #[serde(default)]
-    period_start: Option<NaiveDate>,
-    period_end: NaiveDate,
-    entries: Vec<TrialBalanceEntryOnDisk>,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-struct TrialBalanceEntryOnDisk {
-    account_code: String,
-    account_name: String,
-    #[serde(default)]
-    #[allow(dead_code)]
-    category: String,
-    debit_balance: Decimal,
-    credit_balance: Decimal,
-}
 
 /// Subdirectory under each entity directory where the orchestrator's
 /// period-close artefacts live (mirrors `output_writer.rs`).
@@ -111,18 +88,12 @@ pub fn load_entity_trial_balance(entity_dir: &Path) -> GroupResult<TrialBalance>
         .and_then(|n| n.to_str())
         .unwrap_or("<non-utf8 entity dir>");
 
-    // The orchestrator emits `Vec<PeriodTrialBalance>` (datasynth-runtime
-    // type) — try that shape first, then fall back to the canonical
-    // `Vec<TrialBalance>` shape so hand-rolled fixtures and unit tests
-    // keep working unchanged.
-    let value: serde_json::Value = serde_json::from_slice(&bytes)?;
-    let arr = value.as_array().ok_or_else(|| {
-        GroupError::Aggregate(format!(
-            "load_entity_trial_balance: `{}` at `{}` is not a JSON array",
-            entity_label,
-            path.display()
-        ))
-    })?;
+    // v5.1: the on-disk shape is canonical `Vec<TrialBalance>`.
+    // Multi-period archives still allowed (orchestrator emits one TB
+    // per fiscal period).  Pick the LAST period's TB (latest
+    // fiscal_year / fiscal_period) — that's the closing balance the
+    // consolidation engine consolidates against.
+    let arr: Vec<TrialBalance> = serde_json::from_slice(&bytes)?;
 
     if arr.is_empty() {
         return Err(GroupError::Aggregate(format!(
@@ -133,108 +104,18 @@ pub fn load_entity_trial_balance(entity_dir: &Path) -> GroupResult<TrialBalance>
         )));
     }
 
-    // Multi-period archives: orchestrator emits one TB per fiscal period
-    // (e.g. 3 TBs for a quarterly run with monthly periodicity). Pick the
-    // LAST period's TB (latest period_end / fiscal_period) — that's the
-    // closing balance the consolidation engine consolidates against.
-    let elem = if arr[0].get("entries").is_some() {
-        // Orchestrator's PeriodTrialBalance shape — pick by latest fiscal_period.
-        arr.iter()
-            .max_by_key(|v| {
-                let yr = v.get("fiscal_year").and_then(|x| x.as_u64()).unwrap_or(0);
-                let pd = v.get("fiscal_period").and_then(|x| x.as_u64()).unwrap_or(0);
-                (yr, pd)
-            })
-            .expect("non-empty array")
-    } else {
-        // Canonical TrialBalance shape (unit-test fixtures): if there's
-        // more than one we still demand exactly 1 (test fixtures don't
-        // multi-period).
-        if arr.len() > 1 {
-            return Err(GroupError::Aggregate(format!(
-                "load_entity_trial_balance: `{}` contains {} canonical-shape \
-                 trial balances at `{}`, expected exactly 1",
-                entity_label,
-                arr.len(),
-                path.display()
-            )));
-        }
-        &arr[0]
-    };
-
-    let tb = if elem.get("entries").is_some() {
-        let p: PeriodTrialBalanceOnDisk = serde_json::from_value(elem.clone())?;
-        period_to_canonical(p, entity_label)
-    } else {
-        serde_json::from_value::<TrialBalance>(elem.clone())?
-    };
+    let tb = arr
+        .into_iter()
+        .max_by_key(|tb| (tb.fiscal_year, tb.fiscal_period))
+        .expect("non-empty array");
     verify_balance_invariant(&tb, entity_label, &path)?;
     Ok(tb)
 }
 
-/// Convert the orchestrator's `PeriodTrialBalance` JSON shape into the
-/// canonical [`TrialBalance`] the aggregate phase consumes.
-///
-/// Synthesises every required canonical field that the on-disk shape
-/// doesn't carry (id, currency, account types, etc.) using sensible
-/// defaults — pre_elim only consumes `lines`/`currency`/`total_*` so the
-/// other fields are bookkeeping.
-fn period_to_canonical(p: PeriodTrialBalanceOnDisk, entity_label: &str) -> TrialBalance {
-    let mut total_debits = Decimal::ZERO;
-    let mut total_credits = Decimal::ZERO;
-    let lines: Vec<TrialBalanceLine> = p
-        .entries
-        .into_iter()
-        .map(|e| {
-            total_debits += e.debit_balance;
-            total_credits += e.credit_balance;
-            let category = AccountCategory::from_account_code(&e.account_code);
-            TrialBalanceLine {
-                account_code: e.account_code.clone(),
-                account_description: e.account_name,
-                category,
-                account_type: AccountType::Asset,
-                opening_balance: Decimal::ZERO,
-                period_debits: e.debit_balance,
-                period_credits: e.credit_balance,
-                closing_balance: e.debit_balance - e.credit_balance,
-                debit_balance: e.debit_balance,
-                credit_balance: e.credit_balance,
-                cost_center: None,
-                profit_center: None,
-            }
-        })
-        .collect();
-    let imbalance = (total_debits - total_credits).abs();
-    let is_balanced = imbalance < Decimal::new(1, 2);
-    TrialBalance {
-        trial_balance_id: format!("{entity_label}-{:04}{:02}", p.fiscal_year, p.fiscal_period),
-        company_code: entity_label.to_string(),
-        company_name: None,
-        as_of_date: p.period_end,
-        fiscal_year: p.fiscal_year as i32,
-        fiscal_period: p.fiscal_period as u32,
-        currency: "USD".to_string(),
-        balance_type: TrialBalanceType::Adjusted,
-        lines,
-        total_debits,
-        total_credits,
-        is_balanced,
-        out_of_balance: total_debits - total_credits,
-        is_equation_valid: is_balanced,
-        equation_difference: total_debits - total_credits,
-        category_summary: std::collections::HashMap::new(),
-        created_at: p
-            .period_start
-            .unwrap_or(p.period_end)
-            .and_hms_opt(0, 0, 0)
-            .expect("midnight is a valid time"),
-        created_by: "GROUP_AGGREGATE".to_string(),
-        approved_by: None,
-        approved_at: None,
-        status: TrialBalanceStatus::Final,
-    }
-}
+// `period_to_canonical` (v5.0) was retired in v5.1 — the orchestrator
+// now writes the canonical `TrialBalance` shape directly via
+// `PeriodTrialBalance::into_canonical`, so the loader no longer needs
+// to synthesise missing fields.
 
 /// Re-verify that `tb.is_balanced` matches `tb.total_debits ==
 /// tb.total_credits`, and that both flags say "balanced".
