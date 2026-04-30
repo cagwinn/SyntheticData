@@ -23,6 +23,7 @@ pub mod ic_pair;
 pub use ic_pair::IcPairId;
 
 // Cost center hierarchy model (D.2)
+mod cgu;
 mod chart_of_accounts;
 mod company;
 mod control_mapping;
@@ -158,6 +159,7 @@ mod prior_year;
 pub use acdoca::*;
 pub use anomaly::*;
 pub use approval::*;
+pub use cgu::*;
 pub use chart_of_accounts::*;
 pub use company::*;
 pub use control_mapping::*;
