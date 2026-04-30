@@ -39,8 +39,9 @@ pub use driver::{run_aggregate, AggregateOptions, AggregateSummary};
 pub use elimination::{eliminations_to_journal_entries, generate_eliminations, EliminationResult};
 pub use equity_method::{
     compute_equity_method_investment, ingest_opening_equity_method_carrying_values,
-    write_equity_method_investments, EquityMethodInputs, EquityMethodInvestment,
-    EQUITY_METHOD_INVESTMENTS_FILENAME,
+    ingest_opening_suppressed_losses, write_equity_method_investments, write_suppressed_losses,
+    EquityMethodInputs, EquityMethodInvestment, EQUITY_METHOD_INVESTMENTS_FILENAME,
+    EQUITY_METHOD_SUPPRESSED_LOSSES_FILENAME,
 };
 pub use fs::{
     build_consolidated_balance_sheet, build_consolidated_cash_flow,

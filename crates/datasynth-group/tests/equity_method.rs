@@ -79,6 +79,7 @@ fn happy_path_fifty_percent_jv() {
         investee_net_income: dec!(800_000),
         investee_dividends_paid: dec!(200_000),
         opening_carrying_value: dec!(1_500_000),
+        opening_suppressed_loss: Decimal::ZERO,
         impairment: Decimal::ZERO,
         period_end: period_end(),
         currency: "CHF".to_string(),
@@ -113,6 +114,7 @@ fn rejects_non_equity_method_consolidation_methods() {
             investee_net_income: dec!(100),
             investee_dividends_paid: Decimal::ZERO,
             opening_carrying_value: Decimal::ZERO,
+            opening_suppressed_loss: Decimal::ZERO,
             impairment: Decimal::ZERO,
             period_end: period_end(),
             currency: "CHF".to_string(),
@@ -140,6 +142,7 @@ fn rejects_ownership_at_boundaries() {
             investee_net_income: dec!(100),
             investee_dividends_paid: Decimal::ZERO,
             opening_carrying_value: Decimal::ZERO,
+            opening_suppressed_loss: Decimal::ZERO,
             impairment: Decimal::ZERO,
             period_end: period_end(),
             currency: "CHF".to_string(),
@@ -160,15 +163,15 @@ fn rejects_ownership_at_boundaries() {
 
 #[test]
 fn negative_carrying_value_clamps_at_zero_per_ias_28_38() {
-    // v5.0 contract: per IAS 28.38 / ASC 323-10-35-20, when share-of-
+    // v5.1+ contract: per IAS 28.38 / ASC 323-10-35-20, when share-of-
     // loss would push carrying value below zero, the investor clamps
-    // at zero and discontinues recognising further losses. v5.0 logs
-    // the suppressed amount; v5.1 will surface it in a separate
-    // `equity_method_suppressed_losses.json` artefact.
+    // at zero and discontinues recognising further losses; the
+    // unrecognised amount is tracked as `suppressed_loss_this_period`
+    // and accumulated in `closing_suppressed_loss`.
     //
     // 50%-owned investee with a 1M loss and a 100k opening:
     //   raw closing = 100_000 + (0.5 * -1_000_000) - 0 - 0 = -400_000
-    //   clamped     = 0
+    //   clamped     = 0; suppressed_loss_this_period = 400_000
     let investee = make_entity("INV", ConsolidationMethod::EquityMethod, Some(dec!(0.50)));
     let inputs = EquityMethodInputs {
         investee: &investee,
@@ -176,6 +179,7 @@ fn negative_carrying_value_clamps_at_zero_per_ias_28_38() {
         investee_net_income: dec!(-1_000_000), // huge loss
         investee_dividends_paid: Decimal::ZERO,
         opening_carrying_value: dec!(100_000),
+        opening_suppressed_loss: Decimal::ZERO,
         impairment: Decimal::ZERO,
         period_end: period_end(),
         currency: "CHF".to_string(),
@@ -187,6 +191,122 @@ fn negative_carrying_value_clamps_at_zero_per_ias_28_38() {
         Decimal::ZERO,
         "carrying value must be clamped to zero (raw was -400_000), got {}",
         inv.closing_carrying_value
+    );
+    assert_eq!(
+        inv.suppressed_loss_this_period,
+        dec!(400_000.00),
+        "suppressed_loss_this_period must equal |raw_closing|"
+    );
+    assert_eq!(
+        inv.closing_suppressed_loss,
+        dec!(400_000.00),
+        "closing_suppressed_loss = opening (0) + this period (400_000)"
+    );
+}
+
+#[test]
+fn ias_28_38_recovery_against_future_profits() {
+    // IAS 28.38 second paragraph: when the investee subsequently
+    // reports profits, the entity resumes recognising its share only
+    // after its share of profits equals the share of losses not
+    // recognised.
+    //
+    // Period N+1: opening_suppressed_loss = 400_000 (from prior period).
+    // Investee earns 1_000_000; investor's 50% share = 500_000.
+    // Recovery: 400_000 of the 500_000 share is applied against the
+    // suppressed memorandum (not P&L); 100_000 is recognised in P&L
+    // and added to the carrying value (which started at zero).
+    let investee = make_entity("INV", ConsolidationMethod::EquityMethod, Some(dec!(0.50)));
+    let inputs = EquityMethodInputs {
+        investee: &investee,
+        investor_entity_code: "PARENT".to_string(),
+        investee_net_income: dec!(1_000_000),
+        investee_dividends_paid: Decimal::ZERO,
+        opening_carrying_value: Decimal::ZERO,
+        opening_suppressed_loss: dec!(400_000),
+        impairment: Decimal::ZERO,
+        period_end: period_end(),
+        currency: "CHF".to_string(),
+    };
+    let inv = compute_equity_method_investment(&inputs).expect("recovery must succeed");
+    assert_eq!(inv.share_of_profit, dec!(500_000.00), "natural share = 50%");
+    assert_eq!(
+        inv.share_of_profit_recognised,
+        dec!(100_000.00),
+        "only 100k recognised in P&L (500k natural − 400k recovered against suppressed)"
+    );
+    assert_eq!(
+        inv.closing_carrying_value,
+        dec!(100_000.00),
+        "carrying value = 0 (opening) + 100k (recognised) = 100k"
+    );
+    assert_eq!(
+        inv.closing_suppressed_loss,
+        Decimal::ZERO,
+        "suppressed memorandum fully consumed by recovery"
+    );
+}
+
+#[test]
+fn ias_28_38_partial_recovery_leaves_suppressed_balance() {
+    // Period N+1: opening_suppressed_loss = 400_000.
+    // Investee earns 200_000; investor's 50% share = 100_000.
+    // Recovery: all 100_000 applied against suppressed (none recognised).
+    // Closing suppressed = 400_000 - 100_000 = 300_000.
+    let investee = make_entity("INV", ConsolidationMethod::EquityMethod, Some(dec!(0.50)));
+    let inputs = EquityMethodInputs {
+        investee: &investee,
+        investor_entity_code: "PARENT".to_string(),
+        investee_net_income: dec!(200_000),
+        investee_dividends_paid: Decimal::ZERO,
+        opening_carrying_value: Decimal::ZERO,
+        opening_suppressed_loss: dec!(400_000),
+        impairment: Decimal::ZERO,
+        period_end: period_end(),
+        currency: "CHF".to_string(),
+    };
+    let inv = compute_equity_method_investment(&inputs).expect("partial recovery must succeed");
+    assert_eq!(inv.share_of_profit, dec!(100_000.00));
+    assert_eq!(
+        inv.share_of_profit_recognised,
+        Decimal::ZERO,
+        "no profit recognised in P&L (all 100k absorbed against suppressed)"
+    );
+    assert_eq!(
+        inv.closing_carrying_value,
+        Decimal::ZERO,
+        "carrying value stays at zero (no P&L recognition)"
+    );
+    assert_eq!(
+        inv.closing_suppressed_loss,
+        dec!(300_000.00),
+        "300k of suppressed losses still remain"
+    );
+}
+
+#[test]
+fn ias_28_38_compounding_losses_accumulate_suppressed() {
+    // Period N: 100k carrying, share of loss 600k → suppressed 500k.
+    // Period N+1: opening 0 carrying + 500k suppressed; another 200k loss
+    // (share) → suppressed becomes 500k + 200k = 700k.
+    let investee = make_entity("INV", ConsolidationMethod::EquityMethod, Some(dec!(0.50)));
+    let period2 = EquityMethodInputs {
+        investee: &investee,
+        investor_entity_code: "PARENT".to_string(),
+        investee_net_income: dec!(-400_000), // share = -200k
+        investee_dividends_paid: Decimal::ZERO,
+        opening_carrying_value: Decimal::ZERO,
+        opening_suppressed_loss: dec!(500_000),
+        impairment: Decimal::ZERO,
+        period_end: period_end(),
+        currency: "CHF".to_string(),
+    };
+    let inv = compute_equity_method_investment(&period2).expect("compounding must succeed");
+    assert_eq!(inv.suppressed_loss_this_period, dec!(200_000.00));
+    assert_eq!(
+        inv.closing_suppressed_loss,
+        dec!(700_000.00),
+        "compounding: 500k opening + 200k this period = 700k"
     );
 }
 
@@ -201,6 +321,7 @@ fn round_trip_via_writer_and_ingest() {
         investee_net_income: dec!(500_000),
         investee_dividends_paid: dec!(100_000),
         opening_carrying_value: dec!(2_000_000),
+        opening_suppressed_loss: Decimal::ZERO,
         impairment: Decimal::ZERO,
         period_end: period_end(),
         currency: "CHF".to_string(),
@@ -241,6 +362,7 @@ fn determinism_two_calls_produce_identical_records() {
         investee_net_income: dec!(1_234.56),
         investee_dividends_paid: dec!(78.91),
         opening_carrying_value: dec!(10_000),
+        opening_suppressed_loss: Decimal::ZERO,
         impairment: dec!(50),
         period_end: period_end(),
         currency: "CHF".to_string(),

@@ -288,7 +288,7 @@ deferred to v5.1).
 
 ### v5.1 — Q3 2026 (planned)
 
-- **Suppressed loss tracking** for equity-method investments below zero (IAS 28.38 memorandum record), surfaced as a separate `consolidated/equity_method_suppressed_losses.json` artefact.
+- ✅ **Suppressed loss tracking** *(shipped)* — equity-method investments below zero now track the unrecognised share-of-loss as `suppressed_loss_this_period` + `closing_suppressed_loss` per IAS 28.38, with full recovery-against-future-profits per IAS 28.38 second paragraph. Surfaced as a separate `consolidated/equity_method_suppressed_losses.json` artefact (filtered to records with `closing_suppressed_loss > 0`).
 - **Operating segments** per IFRS 8 — the v5.0 `notes_to_consolidated_fs.json` has a placeholder note; v5.1 wires it to the per-entity segment generator.
 - **Full retained-earnings integration** of equity-method postings (replacing the v5.0 bridge account `3400`).
 - **Configurable account-name dictionary** (currently a hard-coded static map of canonical codes) — wire through to the per-engagement chart-of-accounts master.

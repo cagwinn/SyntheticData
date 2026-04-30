@@ -90,7 +90,8 @@ use crate::aggregate::coverage_report::{build_coverage_report, write_coverage_re
 use crate::aggregate::elimination::{eliminations_to_journal_entries, generate_eliminations};
 use crate::aggregate::equity_method::{
     compute_equity_method_investment, ingest_opening_equity_method_carrying_values,
-    write_equity_method_investments, EquityMethodInputs, EquityMethodInvestment,
+    ingest_opening_suppressed_losses, write_equity_method_investments, write_suppressed_losses,
+    EquityMethodInputs, EquityMethodInvestment,
 };
 use crate::aggregate::fs::{
     build_consolidated_balance_sheet, build_consolidated_cash_flow,
@@ -298,6 +299,9 @@ pub fn run_aggregate(
         opts.prior_period_aggregate.as_deref(),
     )?;
     let eq_method_path = write_equity_method_investments(&eq_method_invs, out_dir)?;
+    // v5.1: side-by-side IAS 28.38 suppressed-loss memorandum
+    // (filtered to records with closing_suppressed_loss > 0).
+    let _ = write_suppressed_losses(&eq_method_invs, out_dir)?;
 
     // ── 14. Apply NCI + equity-method overlay (Task 7.4) ───────────────
     let post_overlay = apply_nci_and_equity_method(&post_elim, &nci_rolls, &eq_method_invs)?;
@@ -720,9 +724,12 @@ fn build_equity_method_investments(
     framework: AccountingFramework,
     prior_period_aggregate: Option<&Path>,
 ) -> GroupResult<Vec<EquityMethodInvestment>> {
-    let opening_map = match prior_period_aggregate {
-        Some(p) => ingest_opening_equity_method_carrying_values(p)?,
-        None => BTreeMap::new(),
+    let (opening_map, opening_suppressed_map) = match prior_period_aggregate {
+        Some(p) => (
+            ingest_opening_equity_method_carrying_values(p)?,
+            ingest_opening_suppressed_losses(p)?,
+        ),
+        None => (BTreeMap::new(), BTreeMap::new()),
     };
 
     let deferred_lookup: BTreeMap<&str, &TrialBalance> = deferred_tbs
@@ -759,6 +766,10 @@ fn build_equity_method_investments(
             investee_net_income,
             investee_dividends_paid,
             opening_carrying_value: opening_map
+                .get(&entity.code)
+                .copied()
+                .unwrap_or(Decimal::ZERO),
+            opening_suppressed_loss: opening_suppressed_map
                 .get(&entity.code)
                 .copied()
                 .unwrap_or(Decimal::ZERO),
