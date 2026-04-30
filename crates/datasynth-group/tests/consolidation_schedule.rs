@@ -155,20 +155,24 @@ fn happy_path_pre_adjustment_post() {
 
 #[test]
 fn account_only_in_elimination_appears_with_zero_pre() {
-    // Pre-elim: 1100 only.
+    // Pre-elim: 1100 only.  No 3300 (the contributing entities here
+    // happen to have all-zero retained earnings, e.g. a fresh-period
+    // engagement of equity-method-only investees).
     let pre = make_aggregated_tb("CHF", &[("1100", dec!(100_000), Decimal::ZERO)]);
-    // Post-elim: 1100 unchanged + 3400 (equity-method bridge) = 50k credit.
+    // Post-elim: 1100 unchanged + 3300 (retained earnings — v5.1 the
+    // equity-method overlay's BS counterparty side posts here, where
+    // v5.0 used the now-retired 3400 bridge) = 50k credit.
     let post = make_aggregated_tb(
         "CHF",
         &[
             ("1100", dec!(100_000), Decimal::ZERO),
-            ("3400", Decimal::ZERO, dec!(50_000)),
+            ("3300", Decimal::ZERO, dec!(50_000)),
         ],
     );
 
     let s = build_consolidation_schedule(&pre, &post, &[], "TEST_GROUP", period_end()).unwrap();
 
-    let l = line_for(&s, "3400");
+    let l = line_for(&s, "3300");
     assert_eq!(l.pre_elimination_total, Decimal::ZERO);
     assert_eq!(l.post_elimination_total, dec!(-50_000));
     assert_eq!(l.elimination_adjustments, dec!(-50_000));

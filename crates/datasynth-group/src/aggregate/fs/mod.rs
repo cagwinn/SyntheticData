@@ -46,10 +46,13 @@
 //!   investments now carry an opening / closing suppressed-loss
 //!   memorandum per IAS 28.38, with full recovery semantics and a
 //!   side-artefact `equity_method_suppressed_losses.json`.
-//! - **Operating segments — Note 6** ✅ shipped (this PR) — Note 6
+//! - **Operating segments — Note 6** ✅ shipped (PR #137) — Note 6
 //!   now emits IFRS 8.13 / ASC 280-10-50-41 entity-wide geographic
-//!   disclosure derived from the manifest's ownership graph
-//!   (per-country entity counts + entity codes).
+//!   disclosure derived from the manifest's ownership graph.
+//! - **Retained-earnings integration** ✅ shipped (this PR) — the
+//!   equity-method overlay's counterparty side now posts directly to
+//!   retained earnings (`3300`), retiring the v5.0 `3400` bridge
+//!   account.  See [`crate::aggregate::post_elim`] module rustdoc.
 //!
 //! # Still deferred
 //!
@@ -57,9 +60,6 @@
 //!   entities (consolidated `OperatingSegment` table from per-entity
 //!   `segment_reports.json`).  IFRS 8.5 product-line / business-unit
 //!   basis, on the v5.2 roadmap.
-//! - Full retained-earnings integration (the equity-method bridge
-//!   account `3400` is a v5.0 simplification — see
-//!   [`crate::aggregate::post_elim`] module rustdoc).
 //! - Auto-impairment of equity-method investments (caller-supplied in
 //!   v5.0).
 //! - Subsequent events / related-parties auto-derivation.

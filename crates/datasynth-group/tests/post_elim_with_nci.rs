@@ -188,12 +188,23 @@ fn equity_method_only_creates_investment_and_pl_lines() {
     assert_eq!(pl.debit_total, Decimal::ZERO);
     assert_eq!(pl.credit_total, dec!(400_000));
 
-    // 3400 (bridge) — credit 1_800_000 from BS posting, debit 400_000
-    // from IS posting.  Net credit position 1_400_000.
-    let bridge = out.account_totals.get("3400").expect("bridge created");
-    assert_eq!(bridge.debit_total, dec!(400_000));
-    assert_eq!(bridge.credit_total, dec!(1_800_000));
-    assert_eq!(bridge.net_balance, dec!(-1_400_000));
+    // v5.1: 3400 bridge retired — overlay now posts to retained
+    // earnings (3300).  Cumulative effect on 3300 from this overlay
+    // (no NCI in this test):
+    //   credit 1_800_000 (BS investment counterparty)
+    //   debit  400_000   (IS share-of-profit counterparty)
+    // Plus the pre-overlay 3300 carried 600_000 cr.  Net 3300:
+    //   credit_total = 600_000 + 1_800_000 = 2_400_000
+    //   debit_total  = 400_000
+    let re = out.account_totals.get("3300").expect("retained earnings");
+    assert_eq!(re.credit_total, dec!(2_400_000));
+    assert_eq!(re.debit_total, dec!(400_000));
+
+    // 3400 bridge must NOT exist any more.
+    assert!(
+        !out.account_totals.contains_key("3400"),
+        "v5.1 retired the 3400 bridge — overlay must post to 3300 instead"
+    );
 
     // Each posting is balanced individually so the consolidated
     // invariant still holds.
@@ -215,17 +226,27 @@ fn both_overlays_applied_together() {
     let nci_equity = out.account_totals.get("3500").unwrap();
     assert_eq!(nci_equity.credit_total, dec!(250_000));
 
-    // Retained earnings (3300) debited Σ closing_nci.
+    // Retained earnings (3300) is hit by both overlays in v5.1:
+    //   - NCI overlay debits 250_000  (Σ closing_nci)
+    //   - Equity-method overlay credits 1_800_000 (BS counterparty)
+    //                          and debits  400_000 (IS counterparty)
+    // Plus the pre-overlay 3300 had 600_000 cr.
+    //   credit_total = 600_000 + 1_800_000 = 2_400_000
+    //   debit_total  = 250_000 +   400_000 =   650_000
     let re = out.account_totals.get("3300").unwrap();
-    assert_eq!(re.debit_total, dec!(250_000));
-    assert_eq!(re.credit_total, dec!(600_000));
-    assert_eq!(re.net_balance, dec!(-350_000));
+    assert_eq!(re.debit_total, dec!(650_000));
+    assert_eq!(re.credit_total, dec!(2_400_000));
 
-    // Investment (1850), bridge (3400), share of profit (4900) all
-    // present.
+    // Investment (1850) and share of profit (4900) present from the
+    // equity-method overlay.
     assert!(out.account_totals.contains_key("1850"));
-    assert!(out.account_totals.contains_key("3400"));
     assert!(out.account_totals.contains_key("4900"));
+
+    // 3400 bridge retired in v5.1.
+    assert!(
+        !out.account_totals.contains_key("3400"),
+        "v5.1 retired the 3400 bridge"
+    );
 
     balance_invariant_holds(&out);
 }

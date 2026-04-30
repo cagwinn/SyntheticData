@@ -81,9 +81,12 @@ use crate::errors::{GroupError, GroupResult};
 // |------|--------------------------------------------|
 // | 1850 | Investment in associates / JVs (BS asset)  |
 // | 3300 | Retained earnings (BS equity)              |
-// | 3400 | Equity-method bridge (BS equity sidecar)   |
 // | 3500 | Non-controlling interest equity (BS equity)|
 // | 4900 | Share of profit of associates (IS pickup)  |
+//
+// v5.1: the v5.0 bridge account `3400` was retired in favour of
+// posting the equity-method overlay's counterparty side directly to
+// retained earnings (`3300`) — see [`apply_nci_and_equity_method`].
 
 /// GL account for non-controlling-interest equity (IFRS 10.22 / ASC
 /// 810-10-45-15 separate equity component).
@@ -93,18 +96,14 @@ const NCI_EQUITY: &str = "3500";
 /// single-line BS asset).
 const EQUITY_METHOD_INVESTMENT: &str = "1850";
 
-/// Bridge equity account used by the v5.0 equity-method overlay so the
-/// investment line and the P&L pickup each post against a balanced
-/// counterparty.  Full integration with retained earnings / dividends
-/// is deferred to v5.1.
-const EQUITY_METHOD_BRIDGE: &str = "3400";
-
 /// GL account for the investor's share of associate profit (IS line
 /// per IAS 28.10).
 const SHARE_OF_PROFIT_OF_ASSOCIATES: &str = "4900";
 
 /// GL account for retained earnings — the controlling-interest equity
-/// component the closing NCI is moved out of.
+/// component the closing NCI is moved out of, and (since v5.1) also the
+/// counterparty side of the equity-method overlay (replaces the v5.0
+/// `3400` bridge account).
 const RETAINED_EARNINGS: &str = "3300";
 
 // ── Public API ────────────────────────────────────────────────────────────────
@@ -233,25 +232,32 @@ pub fn apply_eliminations_to_tb(
 ///    Net effect on aggregate `total_debits` / `total_credits` is
 ///    zero — the overlay is internal-equity reclassification only.
 ///
-/// 3. **Equity-method overlay** (v5.0 simplified).  For every
-///    [`EquityMethodInvestment`] the function posts a balanced pair of
-///    bridge entries:
+/// 3. **Equity-method overlay** (v5.1 — direct retained-earnings
+///    integration).  For every [`EquityMethodInvestment`] the function
+///    posts a balanced pair of overlay entries against retained
+///    earnings (`3300`), replacing the v5.0 `3400` bridge:
 ///
 ///    - **Investment line** (BS):
 ///      ```text
 ///      1850 (investment in associates) debit  closing_carrying_value
-///      3400 (equity-method bridge)     credit closing_carrying_value
+///      3300 (retained earnings)        credit closing_carrying_value
 ///      ```
 ///    - **P&L pickup** (IS):
 ///      ```text
 ///      4900 (share of profit)          credit share_of_profit
-///      3400 (equity-method bridge)     debit  share_of_profit
+///      3300 (retained earnings)        debit  share_of_profit
 ///      ```
 ///
-///    The bridge account `3400` is a v5.0 simplification — full
-///    integration with retained earnings / dividends comes in v5.1.
-///    Each post is balanced individually so the aggregate stays
-///    balanced.
+///    Net effect on retained earnings: credit
+///    `(closing_carrying_value − share_of_profit)` =
+///    `(opening_carrying_value − dividends_received − impairment)`
+///    plus prior-period accumulated equity-method effects.  The
+///    `share_of_profit` posted on the P&L side flows through the
+///    income-statement rollup separately from the overlay's direct
+///    retained-earnings credit, so the consolidated TB carries the
+///    correct closing equity attributable to owners without a
+///    synthetic bridge account.  Each post is balanced individually
+///    so the aggregate stays balanced.
 ///
 /// 4. **Defensive balance postcondition.**  After applying both
 ///    overlays the function recomputes `total_debits` /
@@ -323,8 +329,9 @@ pub fn apply_nci_and_equity_method(
 
     // ── 3. Equity-method overlay ─────────────────────────────────────
     //
-    // Per investment: balanced BS pair + balanced IS pair, each
-    // posting against the v5.0 bridge account `3400`.
+    // v5.1: Per investment, balanced BS pair + balanced IS pair,
+    // each posting against retained earnings (`3300`).  Replaces the
+    // v5.0 `3400` bridge account.
     for inv in equity_method_investments {
         // Investment line on BS.
         if inv.closing_carrying_value != Decimal::ZERO {
@@ -336,7 +343,7 @@ pub fn apply_nci_and_equity_method(
             );
             apply_line_to_account(
                 &mut overlay,
-                EQUITY_METHOD_BRIDGE,
+                RETAINED_EARNINGS,
                 Decimal::ZERO,
                 inv.closing_carrying_value,
             );
@@ -352,7 +359,7 @@ pub fn apply_nci_and_equity_method(
             );
             apply_line_to_account(
                 &mut overlay,
-                EQUITY_METHOD_BRIDGE,
+                RETAINED_EARNINGS,
                 inv.share_of_profit,
                 Decimal::ZERO,
             );

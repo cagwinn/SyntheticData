@@ -164,7 +164,11 @@ fn builtin_canonical_map() -> BTreeMap<String, String> {
     m.insert("3100".to_string(), "Additional paid-in capital".to_string());
     m.insert("3200".to_string(), "Retained earnings (legacy)".to_string());
     m.insert("3300".to_string(), "Retained earnings".to_string());
-    m.insert("3400".to_string(), "Equity-method bridge".to_string());
+    // 3400 (equity-method bridge) was retired in v5.1 — the
+    // post_elim overlay now posts the equity-method counterparty
+    // side directly to retained earnings (3300).  No entry is needed
+    // here; if a v5.0 archive happens to carry a 3400 line the code
+    // falls back to the bare account number.
     // ── NCI / OCI ─────────────────────────────────────────────────────
     m.insert("3500".to_string(), "Non-controlling interest".to_string());
     m.insert(

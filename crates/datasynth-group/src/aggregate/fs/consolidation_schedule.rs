@@ -22,9 +22,10 @@
 //!
 //! # Edge cases
 //!
-//! - **Account only in eliminations** (e.g., the equity-method bridge
-//!   `3400` from Task 7.4) — appears with `pre_elimination_total = 0`
-//!   and `elimination_adjustments = post - 0 = post`.
+//! - **Account only in eliminations** (e.g., the equity-method overlay
+//!   posting to `3300` retained earnings — was `3400` in v5.0) —
+//!   appears with `pre_elimination_total = 0` and
+//!   `elimination_adjustments = post - 0 = post`.
 //! - **Account fully eliminated** (e.g., IC AR `1150` after
 //!   elimination) — appears with `pre_elimination_total = nonzero`,
 //!   `post_elimination_total = 0`, `elimination_adjustments = -pre`.
