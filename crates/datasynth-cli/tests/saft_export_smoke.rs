@@ -25,6 +25,12 @@ fn run_saft_with_jurisdiction(jurisdiction: &str, expected_filename: &str, expec
     let config_path = tmp.path().join("config.yaml");
     let output_path = tmp.path().join("out");
 
+    // Banking is explicitly disabled — this is a SAF-T export smoke
+    // test, not a banking test, and the default banking flow generates
+    // ~800 k banking_transactions which blows out the 300 s test
+    // budget on Windows runners (saft_pl deterministically times out
+    // at ~510 s without this — same pattern fixed for
+    // flat_export_smoke + camelcase_sdk_config in earlier PRs).
     let config_yaml = format!(
         r#"
 global:
@@ -41,6 +47,8 @@ companies:
     volume_weight: 1.0
 chart_of_accounts:
   complexity: small
+banking:
+  enabled: false
 output:
   output_directory: "/tmp/unused"
   formats: [json]

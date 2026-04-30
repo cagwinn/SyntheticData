@@ -80,6 +80,7 @@ fn happy_path_eighty_percent_owned_subsidiary() {
         period_oci: dec!(50_000),
         total_dividends_paid: dec!(200_000),
         opening_nci: dec!(800_000),
+        acquisition_date_nci_fair_value: None,
         period_end: period_end(),
         currency: "CHF".to_string(),
     };
@@ -121,6 +122,7 @@ fn from_manifest_entity_directly() {
         period_oci: dec!(0),
         total_dividends_paid: dec!(0),
         opening_nci: dec!(0),
+        acquisition_date_nci_fair_value: None,
         period_end: period_end(),
         currency: "CHF".to_string(),
     };
@@ -143,6 +145,7 @@ fn rejects_parent_consolidation_method() {
         period_oci: Decimal::ZERO,
         total_dividends_paid: Decimal::ZERO,
         opening_nci: Decimal::ZERO,
+        acquisition_date_nci_fair_value: None,
         period_end: period_end(),
         currency: "CHF".to_string(),
     };
@@ -172,6 +175,7 @@ fn rejects_equity_method() {
         period_oci: Decimal::ZERO,
         total_dividends_paid: Decimal::ZERO,
         opening_nci: Decimal::ZERO,
+        acquisition_date_nci_fair_value: None,
         period_end: period_end(),
         currency: "CHF".to_string(),
     };
@@ -203,6 +207,7 @@ fn rejects_full_with_one_hundred_percent_ownership() {
         period_oci: Decimal::ZERO,
         total_dividends_paid: Decimal::ZERO,
         opening_nci: Decimal::ZERO,
+        acquisition_date_nci_fair_value: None,
         period_end: period_end(),
         currency: "CHF".to_string(),
     };
@@ -234,6 +239,7 @@ fn determinism_two_calls_produce_identical_records() {
         period_oci: dec!(78.91),
         total_dividends_paid: dec!(123.45),
         opening_nci: dec!(2_000),
+        acquisition_date_nci_fair_value: None,
         period_end: period_end(),
         currency: "CHF".to_string(),
     };

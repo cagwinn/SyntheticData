@@ -297,7 +297,7 @@ deferred to v5.1).
 
 ### v5.2 — Q4 2026 (planned)
 
-- ✅ **Acquisition-date NCI measurement** *(model layer shipped)* — `NciMeasurementMethod` enum (`Proportionate` / `FullGoodwill`) and `NciMeasurement::compute_with_method` constructor surface the IFRS 3.19 choice. `total_nci` resolves to the acquisition-date fair value under FullGoodwill, the proportionate share under Proportionate; an optional `acquisition_date_fair_value` is preserved for disclosure under either method. Existing `NciMeasurement::compute` callers see no behavioural change. Wiring through to the per-acquisition consolidation flow (auto-derive method from `BusinessCombination.measurement_method`, fold into the rollforward as period-1 opening) is a follow-up.
+- ✅ **Acquisition-date NCI measurement** *(shipped)* — `NciMeasurementMethod` enum + `NciMeasurement::compute_with_method` (model layer, PR #140) plus `NciInputs.acquisition_date_nci_fair_value` (rollforward layer, this PR).  IFRS 3 § 19(a) full-goodwill basis: when supplied AND opening NCI is zero (first-period engagement), the fair value seeds the opening; subsequent periods use the carried-forward closing balance.  `None` preserves v5.0–v5.1 proportionate behaviour byte-for-byte.  Auto-derive from `BusinessCombination.measurement_method` is a follow-up once acquisitions are modelled in the manifest.
 - **Step-acquisition / divestiture rollforwards** — multi-period scenarios where ownership changes mid-year.
 - **Goodwill impairment testing** (IAS 36) under the v5.0 group structure.
 - **Hyperinflationary economies** (IAS 29) handling — special CTA treatment.

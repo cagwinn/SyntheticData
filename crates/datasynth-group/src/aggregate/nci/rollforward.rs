@@ -121,6 +121,17 @@ pub struct NciInputs<'a> {
     /// Opening NCI carrying value brought forward from the prior period
     /// (zero on the first period of an engagement).
     pub opening_nci: Decimal,
+    /// v5.2: IFRS 3 § 19(a) / ASC 805-30-30-1 acquisition-date NCI
+    /// fair value.  Used **only** on the first period of an engagement
+    /// (when `opening_nci == 0`).  When supplied, the rollforward uses
+    /// this fair value as the opening NCI instead of zero, implementing
+    /// the full-goodwill measurement basis where NCI is recognised at
+    /// its acquisition-date fair value rather than its proportionate
+    /// share of net assets.  `None` defaults to the v5.0–v5.1
+    /// behaviour (proportionate basis: opening NCI starts at zero on
+    /// the first period and grows via share-of-profit / OCI in
+    /// subsequent periods).
+    pub acquisition_date_nci_fair_value: Option<Decimal>,
     /// Period end date.
     pub period_end: NaiveDate,
     /// Group presentation currency.
@@ -213,20 +224,44 @@ pub fn compute_nci_rollforward(inputs: &NciInputs) -> GroupResult<NciRollforward
 
     let nci_percent = Decimal::ONE - ownership_percent;
 
+    // v5.2: when this is the first period of an engagement (i.e.
+    // `opening_nci == 0`) AND the caller supplied an
+    // `acquisition_date_nci_fair_value`, seed the opening NCI from
+    // the fair value rather than starting at zero.  This implements
+    // IFRS 3 § 19(a) / ASC 805-30-30-1 full-goodwill measurement
+    // (NCI recognised at acquisition-date fair value) — the fair
+    // value rolls forward through the standard share-of-equity
+    // allocation in subsequent periods.
+    //
+    // For non-first-period rollforwards (`opening_nci != 0`) the
+    // fair value is ignored — the prior period's closing balance has
+    // already absorbed it via the period-1 calculation.  For
+    // proportionate measurement (no fair value supplied) the rollforward
+    // works as in v5.0–v5.1: opening starts at zero, share of profit
+    // grows it.
+    let effective_opening_nci = match (
+        inputs.opening_nci.is_zero(),
+        inputs.acquisition_date_nci_fair_value,
+    ) {
+        (true, Some(fv)) => fv,
+        _ => inputs.opening_nci,
+    };
+
     // 3. Apply the IFRS 10.B94 / ASC 810 share-of-equity allocation.
     let nci_share_of_profit = nci_percent * inputs.period_net_income;
     let nci_share_of_oci = nci_percent * inputs.period_oci;
     let nci_dividends = nci_percent * inputs.total_dividends_paid;
 
-    let closing_nci =
-        (inputs.opening_nci + nci_share_of_profit + nci_share_of_oci - nci_dividends).round_dp(2);
+    let closing_nci = (effective_opening_nci + nci_share_of_profit + nci_share_of_oci
+        - nci_dividends)
+        .round_dp(2);
 
     Ok(NciRollforward {
         entity_code: entity.code.clone(),
         parent_entity_code,
         ownership_percent,
         nci_percent,
-        opening_nci: inputs.opening_nci.round_dp(2),
+        opening_nci: effective_opening_nci.round_dp(2),
         nci_share_of_profit: nci_share_of_profit.round_dp(2),
         nci_share_of_oci: nci_share_of_oci.round_dp(2),
         nci_dividends: nci_dividends.round_dp(2),
@@ -277,6 +312,7 @@ mod tests {
             period_oci: dec!(200),
             total_dividends_paid: dec!(500),
             opening_nci: dec!(800),
+            acquisition_date_nci_fair_value: None,
             period_end: period_end(),
             currency: "CHF".to_string(),
         };
@@ -295,6 +331,92 @@ mod tests {
     }
 
     #[test]
+    fn full_goodwill_acquisition_date_fair_value_seeds_period_one_opening() {
+        // v5.2: IFRS 3.19(a) full-goodwill measurement.  Period 1
+        // (opening_nci == 0) with a fair value of 850 → effective
+        // opening = 850, then standard period activity rolls forward.
+        //
+        // Subsidiary:
+        //   - 75% owned (NCI = 25%)
+        //   - period net income = 1000 → NCI share = 250
+        //   - period OCI = 200 → NCI share = 50
+        //   - dividends paid = 400 → NCI share = 100
+        // Closing = 850 + 250 + 50 - 100 = 1050
+        let entity = make_entity("SUB", ConsolidationMethod::Full, Some(dec!(0.75)));
+        let inputs = NciInputs {
+            entity: &entity,
+            period_net_income: dec!(1000),
+            period_oci: dec!(200),
+            total_dividends_paid: dec!(400),
+            opening_nci: Decimal::ZERO,
+            acquisition_date_nci_fair_value: Some(dec!(850)),
+            period_end: period_end(),
+            currency: "CHF".to_string(),
+        };
+        let rf = compute_nci_rollforward(&inputs).expect("must succeed");
+
+        assert_eq!(
+            rf.opening_nci,
+            dec!(850.00),
+            "opening must be seeded from fair value, not zero"
+        );
+        assert_eq!(rf.nci_share_of_profit, dec!(250.00));
+        assert_eq!(rf.nci_share_of_oci, dec!(50.00));
+        assert_eq!(rf.nci_dividends, dec!(100.00));
+        assert_eq!(rf.closing_nci, dec!(1050.00));
+    }
+
+    #[test]
+    fn full_goodwill_fair_value_ignored_when_opening_nci_nonzero() {
+        // v5.2: in subsequent periods (opening_nci != 0) the fair
+        // value is ignored — the prior period already absorbed it
+        // via its own period-1 calculation.  Effective opening must
+        // come from `opening_nci`, not the fair value.
+        let entity = make_entity("SUB", ConsolidationMethod::Full, Some(dec!(0.80)));
+        let inputs = NciInputs {
+            entity: &entity,
+            period_net_income: dec!(500),
+            period_oci: Decimal::ZERO,
+            total_dividends_paid: Decimal::ZERO,
+            opening_nci: dec!(940), // brought forward from a prior period
+            acquisition_date_nci_fair_value: Some(dec!(1000)), // stale FV
+            period_end: period_end(),
+            currency: "CHF".to_string(),
+        };
+        let rf = compute_nci_rollforward(&inputs).expect("must succeed");
+
+        assert_eq!(
+            rf.opening_nci,
+            dec!(940.00),
+            "fair value must not override a non-zero opening_nci"
+        );
+        // Closing = 940 + 100 (20% of 500) = 1040
+        assert_eq!(rf.closing_nci, dec!(1040.00));
+    }
+
+    #[test]
+    fn proportionate_basis_unchanged_when_no_fair_value() {
+        // v5.2 sanity: when no fair value is supplied (None), the
+        // rollforward must produce byte-identical output to v5.0–v5.1.
+        let entity = make_entity("SUB", ConsolidationMethod::Full, Some(dec!(0.80)));
+        let inputs = NciInputs {
+            entity: &entity,
+            period_net_income: dec!(1000),
+            period_oci: dec!(200),
+            total_dividends_paid: dec!(500),
+            opening_nci: dec!(800),
+            acquisition_date_nci_fair_value: None, // proportionate basis
+            period_end: period_end(),
+            currency: "CHF".to_string(),
+        };
+        let rf = compute_nci_rollforward(&inputs).expect("must succeed");
+
+        // Same numbers as `happy_path_eighty_percent_owned`.
+        assert_eq!(rf.opening_nci, dec!(800.00));
+        assert_eq!(rf.closing_nci, dec!(940.00));
+    }
+
+    #[test]
     fn rejects_parent_method() {
         let entity = make_entity("PARENT_CO", ConsolidationMethod::Parent, None);
         let inputs = NciInputs {
@@ -303,6 +425,7 @@ mod tests {
             period_oci: Decimal::ZERO,
             total_dividends_paid: Decimal::ZERO,
             opening_nci: Decimal::ZERO,
+            acquisition_date_nci_fair_value: None,
             period_end: period_end(),
             currency: "CHF".to_string(),
         };

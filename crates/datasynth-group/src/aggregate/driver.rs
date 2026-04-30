@@ -721,6 +721,12 @@ fn build_nci_rollforwards(
                 .get(&entity.code)
                 .copied()
                 .unwrap_or(Decimal::ZERO),
+            // v5.2: acquisition-date NCI fair value (IFRS 3.19(a))
+            // currently isn't carried on the manifest; the wiring to
+            // pull it from a per-acquisition `BusinessCombination`
+            // record is on the v5.2 follow-up roadmap.  Leaving as
+            // None preserves v5.0–v5.1 proportionate-basis behaviour.
+            acquisition_date_nci_fair_value: None,
             period_end: manifest.period.end,
             currency: manifest.presentation_currency.clone(),
         };
