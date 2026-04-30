@@ -197,12 +197,25 @@ pub enum TransferPricingMethod {
     ProfitSplit,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct IcMatchingConfig {
     #[serde(default = "default_strategy")]
     pub strategy: IcMatchingStrategy,
     #[serde(default = "default_coverage_target")]
     pub coverage_target: f64,
+    /// **v5.3** — fuzzy-matching amount-drift tolerance, expressed as
+    /// a percentage of the larger of the seller / buyer side amounts.
+    /// Used **only** when `strategy == EmergentFuzzy`.  When the
+    /// observed drift exceeds this tolerance, the matcher rejects the
+    /// pair with [`crate::aggregate::ic_matcher::UnmatchedReason::AmountDriftAboveTolerance`]
+    /// instead of silently treating it as matched.
+    ///
+    /// Default `0.0` means "exact match required" — the v5.0–v5.2
+    /// `ManifestDriven` contract.  A typical fuzzy-mode value is
+    /// `0.005` (50 bps) which absorbs FX-rounding drift but flags
+    /// genuine reconciliation breaks.
+    #[serde(default = "default_tolerance_percent")]
+    pub tolerance_percent: rust_decimal::Decimal,
 }
 
 fn default_strategy() -> IcMatchingStrategy {
@@ -211,12 +224,16 @@ fn default_strategy() -> IcMatchingStrategy {
 fn default_coverage_target() -> f64 {
     0.98
 }
+fn default_tolerance_percent() -> rust_decimal::Decimal {
+    rust_decimal::Decimal::ZERO
+}
 
 impl Default for IcMatchingConfig {
     fn default() -> Self {
         Self {
             strategy: default_strategy(),
             coverage_target: default_coverage_target(),
+            tolerance_percent: default_tolerance_percent(),
         }
     }
 }

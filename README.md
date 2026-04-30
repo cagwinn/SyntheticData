@@ -308,7 +308,7 @@ deferred to v5.1).
 
 ### v5.3 — H1 2027 (planned)
 
-- **Emergent-fuzzy IC matching strategy** for group consolidation against external/legacy data (vs the v5.0 manifest-driven 100 %-by-construction strategy). Adds the `AmountDriftAboveTolerance` reason currently reserved as a placeholder in `UnmatchedReason`.
+- ✅ **Emergent-fuzzy IC matching strategy** *(shipped)* — `IcMatchingConfig.tolerance_percent` (default `0`, exact-match) plus matcher-side amount-drift comparison.  When `strategy = EmergentFuzzy` AND the seller / buyer JE total-amount drift exceeds `tolerance_percent` (as a fraction of the larger side), both sides land in `unmatched` with `AmountDriftAboveTolerance` instead of silently being treated as matched.  Manifest-driven mode (the v5.0–v5.2 default) ignores amounts entirely — backwards-compatible byte-for-byte.
 - **Multi-period consolidation** — v5.0 emits a single period; v5.3 runs N consecutive periods with NCI / CTA / equity-method rollforwards stitching automatically (currently the `--prior-period-aggregate` flag plumbs in opening NCI but doesn't drive a multi-period pipeline).
 
 ### v6.0 — Banking sector methodology integration (planned, H2 2027)

@@ -74,6 +74,13 @@ pub struct GroupManifest {
     pub shard_plan: ShardPlan,
     /// Output layout config forwarded verbatim from [`GroupConfig::output`].
     pub output: OutputLayoutConfig,
+    /// **v5.3** — IC matching strategy + tolerance.  Forwarded
+    /// verbatim from [`GroupConfig::intercompany::matching`].  v5.2
+    /// archives that don't carry this field deserialise to the
+    /// `Default` (`ManifestDriven`, `tolerance = 0`) — exact-match
+    /// behaviour preserved byte-for-byte.
+    #[serde(default)]
+    pub matching: crate::config::IcMatchingConfig,
 }
 
 /// Resolved engagement period.
@@ -220,6 +227,10 @@ pub fn build_manifest(cfg: &GroupConfig) -> GroupResult<GroupManifest> {
         tax_group_plan,
         shard_plan,
         output: cfg.output.clone(),
+        // v5.3: IC matching strategy + fuzzy tolerance.  Defaults
+        // produced by `IcMatchingConfig::default()` match the v5.0
+        // exact-match behaviour byte-for-byte.
+        matching: cfg.intercompany.matching.clone(),
     })
 }
 

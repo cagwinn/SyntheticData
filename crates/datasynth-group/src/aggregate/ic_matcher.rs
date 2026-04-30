@@ -60,6 +60,7 @@
 use std::collections::BTreeMap;
 
 use datasynth_core::models::{IcPairId, JournalEntry};
+use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
 use crate::errors::{GroupError, GroupResult};
@@ -260,6 +261,55 @@ pub fn match_ic_pairs(
                         )));
                     }
                 };
+                // v5.3 — fuzzy-mode amount-drift gate.  When the
+                // engagement opted into `EmergentFuzzy` matching, we
+                // also compare the seller's and buyer's total
+                // recorded amounts.  `tolerance_percent` is the
+                // maximum allowed |delta| / max(|seller|, |buyer|)
+                // ratio.  When exceeded, the pair is rejected as
+                // unmatched on both sides with
+                // `AmountDriftAboveTolerance`.
+                //
+                // `ManifestDriven` (the v5.0–v5.2 default) skips this
+                // check entirely — the manifest contract guarantees
+                // byte-identical amounts, so any drift would be a
+                // contract bug rather than an engagement-level
+                // reconciliation break.
+                if matches!(
+                    manifest.matching.strategy,
+                    crate::config::IcMatchingStrategy::EmergentFuzzy
+                ) {
+                    let seller_je = &sides[seller_idx].je;
+                    let buyer_je = &sides[buyer_idx].je;
+                    let seller_amount = seller_je.total_debit().abs();
+                    let buyer_amount = buyer_je.total_debit().abs();
+                    let max_amount = seller_amount.max(buyer_amount);
+                    if max_amount > Decimal::ZERO {
+                        let drift = (seller_amount - buyer_amount).abs();
+                        let drift_ratio = drift / max_amount;
+                        if drift_ratio > manifest.matching.tolerance_percent {
+                            // Both sides land in `unmatched` so the
+                            // coverage report attributes the drift to
+                            // both entities.
+                            for idx in [seller_idx, buyer_idx] {
+                                let plan = lookup_plan(
+                                    &mut plan_cache,
+                                    manifest,
+                                    &sides[idx].entity_code,
+                                    pair_id,
+                                )?;
+                                unmatched.push(UnmatchedSide {
+                                    pair_id: *pair_id,
+                                    present_role: plan.role,
+                                    present_entity: sides[idx].entity_code.clone(),
+                                    present_je: sides[idx].je.clone(),
+                                    reason: UnmatchedReason::AmountDriftAboveTolerance,
+                                });
+                            }
+                            continue;
+                        }
+                    }
+                }
                 matched.push(IcMatchedPair {
                     pair_id: *pair_id,
                     seller_entity: sides[seller_idx].entity_code.clone(),

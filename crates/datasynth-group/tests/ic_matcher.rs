@@ -491,3 +491,142 @@ fn two_sides_same_role_is_aggregate_error() {
         "expected GroupError::Aggregate, got {err:?}"
     );
 }
+
+// ── v5.3 fuzzy matching ────────────────────────────────────────────────────
+
+/// Scale every line's debit / credit on `je` by `factor`, in place.
+/// Used by the fuzzy-mode tests below to inject amount drift.
+fn scale_je_amounts(je: &mut JournalEntry, factor: Decimal) {
+    for line in je.lines.iter_mut() {
+        line.debit_amount *= factor;
+        line.credit_amount *= factor;
+    }
+}
+
+#[test]
+fn manifest_driven_strategy_ignores_amount_drift() {
+    // v5.0–v5.2 default: even when buyer amounts drift, manifest-driven
+    // matching does NOT compare amounts and treats both sides as
+    // matched.  This pins backwards compatibility — if the drift
+    // check ever sneaks into the default path it'd break every v5.0
+    // archive that happens to round its amounts slightly differently.
+    let manifest = load_two_entity_manifest();
+    let total = expected_pair_count(&manifest);
+    assert!(total >= 1, "fixture sanity");
+
+    let sa = sa_jes(&manifest);
+    let mut usa = usa_jes(&manifest);
+    // Multiply EVERY USA line by 1.5 — way above any sane tolerance.
+    for je in usa.iter_mut() {
+        scale_je_amounts(je, Decimal::new(15, 1)); // 1.5
+    }
+
+    // Default manifest = ManifestDriven, tolerance = 0.
+    let result = match_ic_pairs(
+        &manifest,
+        &[
+            ("NESTLE_SA".to_string(), sa),
+            ("NESTLE_USA".to_string(), usa),
+        ],
+    )
+    .expect("match");
+
+    assert_eq!(
+        result.matched.len(),
+        total,
+        "ManifestDriven must match regardless of amount drift"
+    );
+    assert!(
+        result.unmatched.is_empty(),
+        "ManifestDriven must NOT emit AmountDriftAboveTolerance"
+    );
+}
+
+#[test]
+fn emergent_fuzzy_strategy_flags_drift_above_tolerance() {
+    // v5.3 fuzzy mode: when drift exceeds `tolerance_percent`, both
+    // sides land in `unmatched` with `AmountDriftAboveTolerance`.
+    use datasynth_group::config::IcMatchingStrategy;
+
+    let mut manifest = load_two_entity_manifest();
+    manifest.matching.strategy = IcMatchingStrategy::EmergentFuzzy;
+    manifest.matching.tolerance_percent = Decimal::new(5, 3); // 0.005 = 50 bps
+
+    let total = expected_pair_count(&manifest);
+    assert!(total >= 1, "fixture sanity");
+
+    let sa = sa_jes(&manifest);
+    let mut usa = usa_jes(&manifest);
+    // 10% drift on USA — well above the 50 bps tolerance.
+    for je in usa.iter_mut() {
+        scale_je_amounts(je, Decimal::new(110, 2)); // 1.10
+    }
+
+    let result = match_ic_pairs(
+        &manifest,
+        &[
+            ("NESTLE_SA".to_string(), sa),
+            ("NESTLE_USA".to_string(), usa),
+        ],
+    )
+    .expect("match");
+
+    assert_eq!(
+        result.matched.len(),
+        0,
+        "every pair must be unmatched under fuzzy mode with 10% drift"
+    );
+    assert_eq!(
+        result.unmatched.len(),
+        total * 2,
+        "each fuzzy-rejected pair contributes both sides to unmatched"
+    );
+    for u in &result.unmatched {
+        assert_eq!(
+            u.reason,
+            UnmatchedReason::AmountDriftAboveTolerance,
+            "fuzzy-rejected sides must report AmountDriftAboveTolerance"
+        );
+    }
+}
+
+#[test]
+fn emergent_fuzzy_strategy_accepts_drift_within_tolerance() {
+    // v5.3 fuzzy mode: small drift inside the tolerance still matches.
+    // Pin this to make sure we're testing the comparison itself, not
+    // an off-by-one on the predicate sign.
+    use datasynth_group::config::IcMatchingStrategy;
+
+    let mut manifest = load_two_entity_manifest();
+    manifest.matching.strategy = IcMatchingStrategy::EmergentFuzzy;
+    manifest.matching.tolerance_percent = Decimal::new(5, 2); // 5%
+
+    let total = expected_pair_count(&manifest);
+    assert!(total >= 1, "fixture sanity");
+
+    let sa = sa_jes(&manifest);
+    let mut usa = usa_jes(&manifest);
+    // 1% drift — below the 5% tolerance.  Must match cleanly.
+    for je in usa.iter_mut() {
+        scale_je_amounts(je, Decimal::new(101, 2)); // 1.01
+    }
+
+    let result = match_ic_pairs(
+        &manifest,
+        &[
+            ("NESTLE_SA".to_string(), sa),
+            ("NESTLE_USA".to_string(), usa),
+        ],
+    )
+    .expect("match");
+
+    assert_eq!(
+        result.matched.len(),
+        total,
+        "drift within tolerance must still match"
+    );
+    assert!(
+        result.unmatched.is_empty(),
+        "no AmountDriftAboveTolerance expected when drift ≤ tolerance"
+    );
+}

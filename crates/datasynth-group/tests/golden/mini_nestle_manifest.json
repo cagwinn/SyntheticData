@@ -43976,5 +43976,10 @@
     "layout": "per_entity_subtree",
     "shared_masters_at_root": true,
     "compression": null
+  },
+  "matching": {
+    "strategy": "manifest_driven",
+    "coverage_target": 0.98,
+    "tolerance_percent": "0"
   }
 }
