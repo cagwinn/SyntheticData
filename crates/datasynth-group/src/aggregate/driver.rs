@@ -76,6 +76,7 @@
 //! `consolidated/*.json` and `ic_eliminations/*.json` files.
 
 use std::collections::BTreeMap;
+use std::fs;
 use std::path::{Path, PathBuf};
 
 use chrono::NaiveDate;
@@ -83,6 +84,7 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
 use datasynth_core::models::balance::TrialBalance;
+use datasynth_core::models::business_combination::BusinessCombination;
 use datasynth_core::models::JournalEntry;
 use datasynth_standards::framework::AccountingFramework;
 
@@ -285,10 +287,15 @@ pub fn run_aggregate(
     let worksheet_path = write_translation_worksheet(&translated_tbs, out_dir)?;
 
     // ── 12. NCI rollforward (Tasks 7.1 + 7.2) ──────────────────────────
+    // v5.2: walk the contributing shards' BusinessCombination files
+    // up-front so the NCI rollforward can seed period-1 opening from
+    // the IFRS 3.19(a) acquisition-date fair value when present.
+    let acquisition_fv_map = ingest_acquisition_date_nci_fair_values(manifest, shards_dir);
     let nci_rolls = build_nci_rollforwards(
         manifest,
         &translated_tbs,
         opts.prior_period_aggregate.as_deref(),
+        &acquisition_fv_map,
     )?;
     let nci_path = write_nci_rollforward(&nci_rolls, out_dir)?;
 
@@ -668,6 +675,68 @@ fn ingest_opening_cta_balances(
     Ok(map)
 }
 
+/// Walk every contributing shard's
+/// `accounting_standards/business_combinations.json` and build a
+/// map of `acquiree_entity_code → acquisition_date_nci_fair_value`
+/// for use as period-1 opening NCI in the rollforward (v5.2 IFRS
+/// 3.19(a) full-goodwill basis).
+///
+/// - Missing per-shard files are tolerated (most engagements don't
+///   have an acquisition every period).
+/// - BC records without `acquiree_entity_code` or without a fair
+///   value contribute nothing — those acquisitions either have no
+///   consolidated counterpart or use the proportionate basis.
+/// - When two shards both list a BC for the same acquiree, the
+///   first one wins (deterministic — entities iterate in manifest
+///   order).
+fn ingest_acquisition_date_nci_fair_values(
+    manifest: &GroupManifest,
+    shards_dir: &Path,
+) -> BTreeMap<String, Decimal> {
+    let mut map: BTreeMap<String, Decimal> = BTreeMap::new();
+    for entity in &manifest.ownership_graph.entities {
+        let path = shards_dir
+            .join("entities")
+            .join(&entity.code)
+            .join("accounting_standards")
+            .join("business_combinations.json");
+        if !path.exists() {
+            continue;
+        }
+        let bytes = match fs::read(&path) {
+            Ok(b) => b,
+            Err(e) => {
+                tracing::debug!(
+                    path = %path.display(),
+                    error = %e,
+                    "failed to read business_combinations.json — skipping",
+                );
+                continue;
+            }
+        };
+        let combinations: Vec<BusinessCombination> = match serde_json::from_slice(&bytes) {
+            Ok(v) => v,
+            Err(e) => {
+                tracing::debug!(
+                    path = %path.display(),
+                    error = %e,
+                    "failed to parse business_combinations.json — skipping",
+                );
+                continue;
+            }
+        };
+        for bc in combinations {
+            if let (Some(acquiree), Some(fv)) = (
+                bc.acquiree_entity_code.as_deref(),
+                bc.acquisition_date_nci_fair_value,
+            ) {
+                map.entry(acquiree.to_string()).or_insert(fv);
+            }
+        }
+    }
+    map
+}
+
 /// Build an [`NciRollforward`] for every Full-method, non-wholly-owned
 /// entity.  v5.0 sources the period P&L / OCI numbers from the entity's
 /// translated TB; dividends paid is left at zero (the manifest does not
@@ -676,6 +745,7 @@ fn build_nci_rollforwards(
     manifest: &GroupManifest,
     translated_tbs: &[TranslatedTb],
     prior_period_aggregate: Option<&Path>,
+    acquisition_fv_map: &BTreeMap<String, Decimal>,
 ) -> GroupResult<Vec<NciRollforward>> {
     let opening_map = match prior_period_aggregate {
         Some(p) => ingest_opening_nci_balances(p)?,
@@ -722,11 +792,12 @@ fn build_nci_rollforwards(
                 .copied()
                 .unwrap_or(Decimal::ZERO),
             // v5.2: acquisition-date NCI fair value (IFRS 3.19(a))
-            // currently isn't carried on the manifest; the wiring to
-            // pull it from a per-acquisition `BusinessCombination`
-            // record is on the v5.2 follow-up roadmap.  Leaving as
-            // None preserves v5.0–v5.1 proportionate-basis behaviour.
-            acquisition_date_nci_fair_value: None,
+            // looked up from the per-shard
+            // `accounting_standards/business_combinations.json` files
+            // by `acquiree_entity_code`.  Engagements without an
+            // acquisition record produce `None`, preserving v5.0–v5.1
+            // proportionate-basis behaviour byte-for-byte.
+            acquisition_date_nci_fair_value: acquisition_fv_map.get(&entity.code).copied(),
             period_end: manifest.period.end,
             currency: manifest.presentation_currency.clone(),
         };
