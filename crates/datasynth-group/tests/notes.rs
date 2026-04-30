@@ -183,6 +183,57 @@ fn cta_summary_lists_each_rollforward() {
 }
 
 #[test]
+fn note_6_emits_geographic_segmentation_not_placeholder() {
+    // v5.1: Note 6 (operating segments) is no longer a "deferred"
+    // placeholder.  It now lists per-country entity counts derived
+    // from the manifest's ownership graph (IFRS 8.13 entity-wide
+    // geographic disclosure).
+    let manifest = load_two_entity_manifest();
+    let coverage = empty_coverage();
+    let inputs = NotesInputs {
+        manifest: &manifest,
+        framework: AccountingFramework::Ifrs,
+        ic_coverage: &coverage,
+        nci_rollforwards: &[],
+        cta_rollforwards: &[],
+        equity_method_investments: &[],
+    };
+    let notes = build_notes_to_consolidated_fs(&inputs, period_end());
+    let note_6 = notes
+        .notes
+        .iter()
+        .find(|n| n.note_number == 6)
+        .expect("note 6 must exist");
+
+    // Body must reference IFRS 8 geographic basis and contain the
+    // entity / country totals.
+    assert!(
+        note_6.body.contains("IFRS 8.13"),
+        "note 6 must cite IFRS 8.13 (entity-wide geographic disclosure), got:\n{}",
+        note_6.body
+    );
+    assert!(
+        note_6.body.contains("consolidates"),
+        "note 6 must summarise the entity count, got:\n{}",
+        note_6.body
+    );
+    // Mini-Nestlé fixture has 2 entities — make sure both appear.
+    let entity_count = manifest.ownership_graph.entities.len();
+    assert!(
+        note_6.body.contains(&format!("{}", entity_count)),
+        "note 6 must include the total entity count ({}), got:\n{}",
+        entity_count,
+        note_6.body
+    );
+
+    // Critically: must NOT contain the v5.0 placeholder string.
+    assert!(
+        !note_6.body.contains("deferred to v5.1"),
+        "note 6 must no longer carry the placeholder string"
+    );
+}
+
+#[test]
 fn determinism_two_calls_match() {
     let manifest = load_two_entity_manifest();
     let coverage = empty_coverage();

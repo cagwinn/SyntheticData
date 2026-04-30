@@ -37,20 +37,26 @@
 //!
 //! # v5.1 status
 //!
-//! - **Account-name dictionary** (this PR) — labels are now sourced
-//!   from the manifest's [`crate::manifest::ChartOfAccountsMaster`] via
-//!   [`account_names::AccountNameDictionary`].  Engagement-supplied
+//! - **Account-name dictionary** ✅ shipped (PR #136) — labels sourced
+//!   from the manifest's [`crate::manifest::ChartOfAccountsMaster`]
+//!   via [`account_names::AccountNameDictionary`].  Engagement-supplied
 //!   labels (e.g. SKR04 / PCG localisation) win over the built-in
-//!   canonical English labels; built-ins fill any gap; bare codes are
-//!   the final fallback.
-//! - **Suppressed-loss tracking** ✅ shipped (v5.1 PR #135) — equity
-//!   method investments now carry an opening / closing suppressed-loss
+//!   canonical English labels.
+//! - **Suppressed-loss tracking** ✅ shipped (PR #135) — equity-method
+//!   investments now carry an opening / closing suppressed-loss
 //!   memorandum per IAS 28.38, with full recovery semantics and a
 //!   side-artefact `equity_method_suppressed_losses.json`.
+//! - **Operating segments — Note 6** ✅ shipped (this PR) — Note 6
+//!   now emits IFRS 8.13 / ASC 280-10-50-41 entity-wide geographic
+//!   disclosure derived from the manifest's ownership graph
+//!   (per-country entity counts + entity codes).
 //!
 //! # Still deferred
 //!
-//! - Operating segment reporting (note 6 emits a placeholder).
+//! - Full per-segment revenue / profit / asset aggregation across
+//!   entities (consolidated `OperatingSegment` table from per-entity
+//!   `segment_reports.json`).  IFRS 8.5 product-line / business-unit
+//!   basis, on the v5.2 roadmap.
 //! - Full retained-earnings integration (the equity-method bridge
 //!   account `3400` is a v5.0 simplification — see
 //!   [`crate::aggregate::post_elim`] module rustdoc).

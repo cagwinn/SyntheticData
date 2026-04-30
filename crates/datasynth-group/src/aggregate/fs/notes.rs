@@ -243,11 +243,11 @@ pub fn build_notes_to_consolidated_fs(
         body: cta_body,
     });
 
-    // ── Note 6: Operating segments (placeholder) ───────────────────────────
+    // ── Note 6: Operating segments (IFRS 8 / ASC 280 — v5.1) ───────────────
     notes.push(Note {
         note_number: 6,
         title: "Operating segments".to_string(),
-        body: "Segment reporting deferred to v5.1.".to_string(),
+        body: build_operating_segments_note(inputs),
     });
 
     // ── Note 7: Subsequent events (placeholder) ────────────────────────────
@@ -278,3 +278,61 @@ pub fn build_notes_to_consolidated_fs(
 // the function body.
 #[allow(dead_code)]
 fn _silence_unused(_: Decimal, _: &EquityMethodInvestment) {}
+
+/// Build the body of Note 6 (Operating segments) from the manifest.
+///
+/// v5.1 implements IFRS 8 / ASC 280 segment disclosure on a
+/// **geographic basis** — entities are grouped by country code, with
+/// per-country headcount and consolidation-method breakdown.  This
+/// honours IFRS 8.13 (entity-wide disclosure of geographic
+/// information) when the operating-segments-by-product-line basis
+/// (IFRS 8.5) isn't yet wired through from per-entity segment data.
+///
+/// Future v5.2+: read the per-entity
+/// `financial_reporting/segment_reporting/segment_reports.json`
+/// archives during aggregate, sum revenue / operating profit / assets
+/// by reportable segment, and emit a full `OperatingSegment` table
+/// alongside this note body.
+fn build_operating_segments_note(inputs: &NotesInputs) -> String {
+    use std::collections::BTreeMap;
+
+    let mut by_country: BTreeMap<&str, Vec<&str>> = BTreeMap::new();
+    for entity in &inputs.manifest.ownership_graph.entities {
+        by_country
+            .entry(entity.country.as_str())
+            .or_default()
+            .push(entity.code.as_str());
+    }
+
+    let total_entities = inputs.manifest.ownership_graph.entities.len();
+    let total_countries = by_country.len();
+
+    let mut body = String::new();
+    body.push_str(&format!(
+        "Geographic segmentation (IFRS 8.13 / ASC 280-10-50-41 \
+         entity-wide disclosure).  The group consolidates {} entities \
+         across {} countries.\n\n",
+        total_entities, total_countries
+    ));
+    body.push_str("Per-country entity breakdown:\n");
+    for (country, entities) in &by_country {
+        body.push_str(&format!(
+            "  - {}: {} entit{} ({})\n",
+            country,
+            entities.len(),
+            if entities.len() == 1 { "y" } else { "ies" },
+            entities.join(", "),
+        ));
+    }
+    body.push('\n');
+    body.push_str(
+        "Operating segments by product line / business unit (IFRS 8.5) \
+         are sourced from per-entity profit-centre hierarchies and \
+         segment_reports artefacts; the consolidated segment \
+         aggregation across entities is on the v5.2 roadmap.  Refer \
+         to each contributing entity's \
+         `financial_reporting/segment_reporting/segment_reports.json` \
+         for the per-entity segment detail.",
+    );
+    body
+}
