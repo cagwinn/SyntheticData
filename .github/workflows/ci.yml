@@ -69,7 +69,20 @@ jobs:
       - name: Exclude graph-export (requires private sibling repo)
         run: grep -v '"crates/datasynth-graph-export"' Cargo.toml > Cargo.toml.tmp && mv Cargo.toml.tmp Cargo.toml
         shell: bash
-      - run: cargo test --all-targets
+      # `--workspace` is required: the root Cargo.toml is BOTH a
+      # `[workspace]` and a `[package]`. Without it, `cargo test` only
+      # exercises the root package's targets and silently skips every
+      # workspace-member integration test (e.g. `manifest_golden`,
+      # `flat_export_smoke`) — regressions there would only surface in
+      # the slower Code Coverage job. Discovered during v5.0.1 (Gap 5).
+      #
+      # `datasynth-server` is excluded for the same reason the Code
+      # Coverage job excludes it: its gRPC integration tests
+      # (`test_bulk_generate_*`) take 5-10 min each under debug builds
+      # and push the cumulative job past the runner's time budget.
+      # Server-specific coverage is exercised by `--lib` runs in the
+      # feature-matrix workflow.
+      - run: cargo test --workspace --exclude datasynth-server --all-targets
 
   msrv:
     name: MSRV (1.88)

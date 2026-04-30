@@ -400,11 +400,19 @@ fn test_missing_config_handling() {
         .failure();
 }
 
-/// Test handling of invalid output directory
+/// Test handling of invalid output directory.
+///
+/// `/proc` is a read-only kernel filesystem on Linux, so trying to
+/// create a sub-directory under it always fails — that's the
+/// hostile path this test exercises.  macOS has no `/proc` (so the
+/// binary would fail with "no such directory" anyway, but for a
+/// less interesting reason); Windows resolves `/proc/...` to an
+/// ordinary creatable path under the drive root, so the binary
+/// succeeds and the assertion flips.  Gate on Linux for stable
+/// semantics.
 #[test]
+#[cfg(target_os = "linux")]
 fn test_invalid_output_directory() {
-    // Try to generate to a path where we can't create directories
-    // On Linux, /proc is read-only
     synth_data_generate()
         .arg("--demo")
         .arg("-o")

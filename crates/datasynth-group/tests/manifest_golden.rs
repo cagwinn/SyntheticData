@@ -23,7 +23,15 @@ fn test_mini_nestle_manifest_matches_golden() {
         )
     });
 
-    if actual.trim_end() != expected.trim_end() {
+    // Normalise line endings before comparison.  On Windows, git's
+    // default `core.autocrlf=true` checks the golden file out with
+    // `\r\n` line endings whereas `serde_json::to_string_pretty`
+    // always produces `\n` regardless of platform — without this
+    // normalisation the test fails on Windows even when the
+    // semantic content matches exactly.
+    let actual_norm = actual.replace("\r\n", "\n");
+    let expected_norm = expected.replace("\r\n", "\n");
+    if actual_norm.trim_end() != expected_norm.trim_end() {
         // Produce a useful diff for CI logs: write the actual output to a
         // sibling file so developers can `diff` locally.
         let actual_out = format!("{GOLDEN_PATH}.actual");

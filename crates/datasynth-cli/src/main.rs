@@ -858,6 +858,32 @@ enum AuditCommands {
 }
 
 fn main() -> Result<()> {
+    // Windows defaults the main thread stack to 1 MB, which is too
+    // small for our deeply-nested config + standards processing
+    // (`camelcase_feature_matrix_config_produces_full_archive` and
+    // similar heavy configs overflow the default).  Linux/macOS
+    // default to 8 MB which already fits, but explicit is safer
+    // for cross-platform parity.  Run the real work on a 16 MB
+    // worker thread regardless of platform.
+    std::thread::Builder::new()
+        .name("datasynth-main".to_string())
+        .stack_size(16 * 1024 * 1024)
+        .spawn(run_main)
+        .expect("spawn datasynth-main worker thread")
+        .join()
+        .map_err(|panic_payload| {
+            let msg = if let Some(s) = panic_payload.downcast_ref::<&'static str>() {
+                (*s).to_string()
+            } else if let Some(s) = panic_payload.downcast_ref::<String>() {
+                s.clone()
+            } else {
+                "unknown panic payload".to_string()
+            };
+            anyhow::anyhow!("datasynth-main worker thread panicked: {msg}")
+        })?
+}
+
+fn run_main() -> Result<()> {
     let cli = Cli::parse();
 
     // Setup logging
