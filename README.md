@@ -301,7 +301,7 @@ deferred to v5.1).
   1. `NciMeasurementMethod` enum + `NciMeasurement::compute_with_method` (PR #140, model layer).
   2. `NciInputs.acquisition_date_nci_fair_value` (PR #141, rollforward layer): when supplied AND opening NCI is zero, seeds period-1 opening from the fair value (IFRS 3 § 19(a) full-goodwill basis); `None` preserves v5.0–v5.1 proportionate behaviour byte-for-byte.
   3. `BusinessCombination.{nci_measurement_method,acquisition_date_nci_fair_value,acquiree_entity_code}` + `nci_opening_fair_value()` helper (this PR): per-acquisition records carry the IFRS 3.19 election so a downstream `run_aggregate` can join on `acquiree_entity_code` and pass the fair value into the rollforward.  Manifest-side wiring of acquisitions to entities is the remaining follow-up.
-- **Step-acquisition / divestiture rollforwards** — multi-period scenarios where ownership changes mid-year.
+- ✅ **Step-acquisition / divestiture rollforwards** *(model layer shipped)* — `OwnershipChangeType` enum (`ControlGained` / `ControlIncreased` / `ControlDecreased` / `ControlLost`) and `OwnershipChangeEvent` struct cover IFRS 3.42 (control gained → re-measure prior interest at FV with P&L gain/loss), IFRS 10.23 (changes within control → equity transaction, no P&L), and IFRS 10.B97 (control lost → deconsolidate, FV retained interest, gain/loss).  Helpers `p_and_l_gain_or_loss`, `triggers_pl_remeasurement`, `triggers_method_transition` derive the standards-correct treatment from event type + carrying / FV inputs.  Wiring through the rollforward / driver is a follow-up.
 - **Goodwill impairment testing** (IAS 36) under the v5.0 group structure.
 - **Hyperinflationary economies** (IAS 29) handling — special CTA treatment.
 
