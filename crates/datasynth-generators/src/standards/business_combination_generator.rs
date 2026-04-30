@@ -179,10 +179,23 @@ impl BusinessCombinationGenerator {
             id,
             acquirer_entity: company_code.to_string(),
             acquiree_name,
+            // v5.2: not yet wired through to a manifest entity code in
+            // the synthetic generator — leave None.  Production
+            // generators that map acquisitions to consolidation graph
+            // entities can populate this directly.
+            acquiree_entity_code: None,
             acquisition_date,
             consideration,
             purchase_price_allocation: ppa,
             goodwill,
+            // v5.2: default to the v5.0–v5.1 proportionate basis so
+            // existing fixtures remain unchanged.  Engagements that
+            // need full-goodwill measurement set both
+            // `nci_measurement_method` and `acquisition_date_nci_fair_value`
+            // post-hoc on the generated record.
+            nci_measurement_method:
+                datasynth_core::models::intercompany::NciMeasurementMethod::Proportionate,
+            acquisition_date_nci_fair_value: None,
             framework: framework.to_string(),
         }
     }
