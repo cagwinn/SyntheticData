@@ -23,7 +23,10 @@ use datasynth_core::models::balance::{
 };
 use datasynth_group::config::{FxPolicyConfig, FxRateBasis};
 use datasynth_group::manifest::FxRateMaster;
-use datasynth_group::{translate_entity_tb, DrCr, GroupError, RateBasis, TranslationAccountType};
+use datasynth_group::{
+    translate_entity_tb, translate_entity_tb_with_hyperinflation, DrCr, GroupError, RateBasis,
+    TranslationAccountType,
+};
 use datasynth_standards::framework::AccountingFramework;
 
 // ── Fixture builders ─────────────────────────────────────────────────
@@ -446,4 +449,96 @@ fn mini_nestle_usd_translation_amounts_within_expected_range() {
     for (i, line) in out.lines.iter().enumerate() {
         assert_eq!(line.account_code, tb.lines[i].account_code);
     }
+}
+
+// ── v5.2 IAS 29 hyperinflationary subsidiary ───────────────────────────
+
+#[test]
+fn hyperinflationary_status_uses_closing_rate_for_all_items() {
+    // IAS 21 § 42(b): when the functional currency of a subsidiary is
+    // hyperinflationary, the **closing rate** is applied to ALL items
+    // — assets, liabilities, equity, P&L, OCI — not the spot/average
+    // split that standard IAS 21 prescribes.  This test pins that
+    // override.
+    use datasynth_core::models::HyperinflationStatus;
+
+    let tb = build_usd_tb("HYPERINF_SUB");
+    let master = nestle_fx_master_usd_chf();
+
+    let out = translate_entity_tb_with_hyperinflation(
+        &tb,
+        "USD",
+        &master,
+        period_end(),
+        "CHF",
+        AccountingFramework::default(),
+        HyperinflationStatus::Hyperinflationary,
+    )
+    .expect("hyperinflationary translation must succeed");
+
+    // Every line's rate basis must be `Closing`.
+    for line in &out.lines {
+        assert_eq!(
+            line.rate_basis,
+            RateBasis::Closing,
+            "hyperinflationary entity: account {} used basis {:?}; expected Closing",
+            line.account_code,
+            line.rate_basis,
+        );
+    }
+
+    // And every line's fx_rate is the closing rate (~1.10963 from the
+    // fixture).  Spot-check by sampling — one revenue line that would
+    // normally use Average and one BS-monetary line that would
+    // normally use Closing.  Both must end up at the closing rate.
+    let closing = master.closing_by_pair.get("USD/CHF").copied().unwrap();
+    for line in &out.lines {
+        assert_eq!(
+            line.fx_rate, closing,
+            "hyperinflationary entity: account {} used rate {} expected closing {}",
+            line.account_code, line.fx_rate, closing,
+        );
+    }
+}
+
+#[test]
+fn hyperinflationary_translation_byte_identical_to_default_when_not_set() {
+    // Pin: the no-arg `translate_entity_tb` and the
+    // `translate_entity_tb_with_hyperinflation(.., NotHyperinflationary)`
+    // path must produce byte-identical output — engagements that
+    // don't opt in see no behaviour change.
+    use datasynth_core::models::HyperinflationStatus;
+
+    let tb = build_usd_tb("NESTLE_USA");
+    let master = nestle_fx_master_usd_chf();
+
+    let a = translate_entity_tb(
+        &tb,
+        "USD",
+        &master,
+        period_end(),
+        "CHF",
+        AccountingFramework::default(),
+    )
+    .expect("default translation must succeed");
+
+    let b = translate_entity_tb_with_hyperinflation(
+        &tb,
+        "USD",
+        &master,
+        period_end(),
+        "CHF",
+        AccountingFramework::default(),
+        HyperinflationStatus::NotHyperinflationary,
+    )
+    .expect("non-hyperinflationary translation must succeed");
+
+    assert_eq!(a.lines.len(), b.lines.len());
+    for (la, lb) in a.lines.iter().zip(b.lines.iter()) {
+        assert_eq!(la.account_code, lb.account_code);
+        assert_eq!(la.fx_rate, lb.fx_rate);
+        assert_eq!(la.rate_basis, lb.rate_basis);
+        assert_eq!(la.translated_amount, lb.translated_amount);
+    }
+    assert_eq!(a.cta, b.cta);
 }

@@ -42,7 +42,10 @@ pub use cta::{
     compute_cta, cta_rollforward, write_cta_rollforward, CtaRollforward, CONSOLIDATED_SUBDIR,
     CTA_ROLLFORWARD_FILENAME,
 };
-pub use translate::{translate_entity_tb, DrCr, RateBasis, TranslatedLine, TranslatedTb};
+pub use translate::{
+    translate_entity_tb, translate_entity_tb_with_hyperinflation, DrCr, RateBasis, TranslatedLine,
+    TranslatedTb,
+};
 pub use worksheet::{
     write_translation_worksheet, WorksheetEntity, WorksheetLine, TRANSLATION_WORKSHEET_FILENAME,
 };

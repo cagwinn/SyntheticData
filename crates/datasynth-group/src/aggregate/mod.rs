@@ -65,8 +65,9 @@ pub use post_elim::{apply_eliminations_to_tb, apply_nci_and_equity_method};
 pub use pre_elim::{aggregate_pre_elimination, AggregatedAccount, AggregatedTb, DeferredEntity};
 pub use tb_loader::load_entity_trial_balance;
 pub use translation::{
-    classify_account, compute_cta, cta_rollforward, translate_entity_tb, write_cta_rollforward,
-    write_translation_worksheet, CtaRollforward, DrCr, RateBasis, TranslatedLine, TranslatedTb,
-    TranslationAccountType, WorksheetEntity, WorksheetLine, CONSOLIDATED_SUBDIR,
-    CTA_ROLLFORWARD_FILENAME, TRANSLATION_WORKSHEET_FILENAME,
+    classify_account, compute_cta, cta_rollforward, translate_entity_tb,
+    translate_entity_tb_with_hyperinflation, write_cta_rollforward, write_translation_worksheet,
+    CtaRollforward, DrCr, RateBasis, TranslatedLine, TranslatedTb, TranslationAccountType,
+    WorksheetEntity, WorksheetLine, CONSOLIDATED_SUBDIR, CTA_ROLLFORWARD_FILENAME,
+    TRANSLATION_WORKSHEET_FILENAME,
 };

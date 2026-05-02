@@ -114,7 +114,9 @@ use crate::aggregate::translation::cta::{
     cta_rollforward, write_cta_rollforward, CtaRollforward, CONSOLIDATED_SUBDIR,
     CTA_ROLLFORWARD_FILENAME,
 };
-use crate::aggregate::translation::translate::{translate_entity_tb, DrCr, TranslatedTb};
+use crate::aggregate::translation::translate::{
+    translate_entity_tb_with_hyperinflation, DrCr, TranslatedTb,
+};
 use crate::aggregate::translation::worksheet::write_translation_worksheet;
 use crate::config::ConsolidationMethod;
 use crate::errors::{GroupError, GroupResult};
@@ -586,21 +588,24 @@ fn translate_all_contributing(
 ) -> GroupResult<Vec<TranslatedTb>> {
     let mut out: Vec<TranslatedTb> = Vec::with_capacity(contributing_tbs.len());
     for (code, tb) in contributing_tbs {
-        let functional_ccy = entity_lookup
-            .get(code)
-            .map(|e| e.functional_currency.as_str())
-            .ok_or_else(|| {
-                GroupError::Aggregate(format!(
-                    "run_aggregate: entity `{code}` not in manifest's ownership graph",
-                ))
-            })?;
-        let translated = translate_entity_tb(
+        let entity = entity_lookup.get(code).ok_or_else(|| {
+            GroupError::Aggregate(format!(
+                "run_aggregate: entity `{code}` not in manifest's ownership graph",
+            ))
+        })?;
+        // v5.2: pull the entity's hyperinflation status from the
+        // manifest so the translator can switch to the IAS 21 §
+        // 42(b) closing-rate-for-all-items path.  Non-hyperinflationary
+        // entities (the default) keep the v5.0–v5.1 spot/average
+        // split byte-identically.
+        let translated = translate_entity_tb_with_hyperinflation(
             tb,
-            functional_ccy,
+            entity.functional_currency.as_str(),
             &manifest.fx_rate_master,
             manifest.period.end,
             &manifest.presentation_currency,
             framework,
+            entity.hyperinflation_status,
         )?;
         out.push(translated);
     }

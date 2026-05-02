@@ -170,8 +170,47 @@ pub fn translate_entity_tb(
     presentation_currency: &str,
     framework: AccountingFramework,
 ) -> GroupResult<TranslatedTb> {
+    translate_entity_tb_with_hyperinflation(
+        entity_tb,
+        entity_functional_ccy,
+        fx_rate_master,
+        period_end,
+        presentation_currency,
+        framework,
+        datasynth_core::models::HyperinflationStatus::NotHyperinflationary,
+    )
+}
+
+/// Translate an entity's trial balance with explicit hyperinflation
+/// status.  v5.2: when the entity's functional currency is in a
+/// hyperinflationary economy (per IAS 29), IAS 21 § 42(b) requires
+/// the **closing rate** for all items — not the spot/average split
+/// the standard IAS 21 path applies.  This variant takes the
+/// `HyperinflationStatus` flag (typically from
+/// `ManifestEntity.hyperinflation_status`) and forces the closing
+/// rate when `requires_restatement()` is true.
+///
+/// The simpler [`translate_entity_tb`] delegates here with
+/// `NotHyperinflationary`, preserving the v5.0–v5.1 byte-identical
+/// behaviour.
+pub fn translate_entity_tb_with_hyperinflation(
+    entity_tb: &TrialBalance,
+    entity_functional_ccy: &str,
+    fx_rate_master: &FxRateMaster,
+    period_end: NaiveDate,
+    presentation_currency: &str,
+    framework: AccountingFramework,
+    hyperinflation: datasynth_core::models::HyperinflationStatus,
+) -> GroupResult<TranslatedTb> {
     let identity = entity_functional_ccy == presentation_currency;
     let pair_key = format!("{entity_functional_ccy}/{presentation_currency}");
+
+    // IAS 21 § 42(b) override: hyperinflationary subsidiaries use
+    // the closing rate for ALL items, including P&L / OCI / equity
+    // that would normally use historical or average rates.  This
+    // produces a single rate for the whole TB, simpler than the
+    // standard IAS 21 multi-rate split.
+    let force_closing = hyperinflation.requires_restatement();
 
     let mut lines = Vec::with_capacity(entity_tb.lines.len());
     let mut total_dr = Decimal::ZERO;
@@ -179,7 +218,11 @@ pub fn translate_entity_tb(
 
     for tbl in &entity_tb.lines {
         let account_type = classify_account(&tbl.account_code, framework);
-        let rate_basis = rate_basis_for(account_type);
+        let rate_basis = if force_closing {
+            RateBasis::Closing
+        } else {
+            rate_basis_for(account_type)
+        };
 
         let (local_amount, local_dr_cr) = direction_and_amount(tbl);
 
