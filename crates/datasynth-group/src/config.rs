@@ -90,6 +90,14 @@ pub struct EntityConfig {
     pub industry: Option<String>,
     #[serde(default)]
     pub rows: Option<u64>,
+    /// **v5.2** — IAS 29 hyperinflationary status of this entity's
+    /// functional currency.  Defaults to `NotHyperinflationary`,
+    /// preserving v5.0–v5.1 behaviour byte-for-byte.  When set to
+    /// `Hyperinflationary`, the aggregate phase will (in a follow-up
+    /// PR) apply IAS 29 § 12 restatement to non-monetary items
+    /// before IAS 21 closing-rate translation per IAS 21 § 42(b).
+    #[serde(default)]
+    pub hyperinflation_status: datasynth_core::models::HyperinflationStatus,
     #[serde(default, flatten)]
     pub overrides: BTreeMap<String, serde_yaml::Value>, // generic per-entity overrides
 }

@@ -119,6 +119,13 @@ pub struct ManifestEntity {
     pub parent_code: Option<String>,
     pub accounting_framework: Option<String>,
     pub industry: Option<String>,
+    /// **v5.2** — IAS 29 hyperinflationary status of this entity's
+    /// functional currency.  `#[serde(default)]` so v5.0 / v5.1
+    /// archives without the field deserialise to
+    /// `NotHyperinflationary` (the default), preserving backwards
+    /// compatibility byte-for-byte.
+    #[serde(default)]
+    pub hyperinflation_status: datasynth_core::models::HyperinflationStatus,
     /// Hex-encoded blake3 digest of the per-entity seed (spec §2.4).
     pub entity_seed: String,
     /// Shard identifier assigned by the shard plan (e.g. `"S_SIG_0001"`).
@@ -199,6 +206,7 @@ pub fn build_manifest(cfg: &GroupConfig) -> GroupResult<GroupManifest> {
             parent_code: e.parent_code.clone(),
             accounting_framework: e.accounting_framework.clone(),
             industry: e.industry.clone(),
+            hyperinflation_status: e.hyperinflation_status,
             entity_seed: hex::encode(derive_entity_seed(cfg.seed, &e.code)),
             shard_id: shard_by_code
                 .get(e.code.as_str())

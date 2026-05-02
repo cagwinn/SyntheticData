@@ -118,6 +118,8 @@ fn random_group_config(
                 accounting_framework: None,
                 industry: None,
                 rows: None,
+                hyperinflation_status:
+                    datasynth_core::models::HyperinflationStatus::NotHyperinflationary,
                 overrides: BTreeMap::new(),
             }
         })

@@ -26,6 +26,7 @@ fn ent(code: &str, profile: &str, cm: ConsolidationMethod) -> ExpandedEntity {
         source: EntitySource::Explicit,
         generated_block_index: None,
         rows: None,
+        hyperinflation_status: datasynth_core::models::HyperinflationStatus::NotHyperinflationary,
     }
 }
 

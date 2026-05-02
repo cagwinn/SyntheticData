@@ -24,6 +24,7 @@
         "parent_code": null,
         "accounting_framework": null,
         "industry": null,
+        "hyperinflation_status": "not_hyperinflationary",
         "entity_seed": "d84b0bd963ad9b7418ae934c54669ba038d55a3a26903c01a740b5a5b0178223",
         "shard_id": "S_SIG_0001"
       },
@@ -38,6 +39,7 @@
         "parent_code": "NESTLE_SA",
         "accounting_framework": "us_gaap",
         "industry": null,
+        "hyperinflation_status": "not_hyperinflationary",
         "entity_seed": "1b191d92b29e88d5d6aadf29e57286cffedb1fdb0ca0207a9488d50399dd0acf",
         "shard_id": "S_SIG_0001"
       },
@@ -52,6 +54,7 @@
         "parent_code": "NESTLE_SA",
         "accounting_framework": "hgb",
         "industry": null,
+        "hyperinflation_status": "not_hyperinflationary",
         "entity_seed": "20e7814691c6a16ad649a191c6d5cebace1e57ffbdf88b0d680d4a66c6f5a70c",
         "shard_id": "S_SIG_0001"
       },
@@ -66,6 +69,7 @@
         "parent_code": "NESTLE_SA",
         "accounting_framework": null,
         "industry": null,
+        "hyperinflation_status": "not_hyperinflationary",
         "entity_seed": "ee247c7390332f77141d292b6c1cc18e1127d3142162de798ac7851ca6edc99d",
         "shard_id": "S_MAT_0001"
       },
@@ -80,6 +84,7 @@
         "parent_code": "NESTLE_SA",
         "accounting_framework": null,
         "industry": null,
+        "hyperinflation_status": "not_hyperinflationary",
         "entity_seed": "0829f6fe8032b4863c404efcd5306e227fc9f2d02858aeb426272c46550cc576",
         "shard_id": "S_MAT_0001"
       }

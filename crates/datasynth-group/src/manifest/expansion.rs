@@ -24,6 +24,13 @@ pub struct ExpandedEntity {
     pub parent_code: Option<String>,
     pub accounting_framework: Option<String>,
     pub industry: Option<String>,
+    /// **v5.2** — IAS 29 hyperinflationary status of this entity's
+    /// functional currency.  Carried through from `EntityConfig` for
+    /// explicit entities; defaults to `NotHyperinflationary` for
+    /// generated entities (generated blocks don't currently carry
+    /// the field — engagements that need it should declare the
+    /// affected entities explicitly).
+    pub hyperinflation_status: datasynth_core::models::HyperinflationStatus,
     /// Source: was this from ownership.entities (Explicit) or ownership.generated (Generated)?
     pub source: EntitySource,
     /// Which generated-block index produced this entity (if Generated).
@@ -68,6 +75,7 @@ pub fn expand_ownership(
             parent_code: e.parent_code.clone(),
             accounting_framework: e.accounting_framework.clone(),
             industry: e.industry.clone(),
+            hyperinflation_status: e.hyperinflation_status,
             source: EntitySource::Explicit,
             generated_block_index: None,
             rows: e.rows,
@@ -159,6 +167,11 @@ fn expand_block(
             parent_code: block.parent_code.clone(),
             accounting_framework: block.accounting_framework.clone(),
             industry: block.industry.clone(),
+            // Generated blocks default to non-hyperinflationary;
+            // engagements that need IAS 29 should declare those
+            // entities explicitly in `ownership.entities`.
+            hyperinflation_status:
+                datasynth_core::models::HyperinflationStatus::NotHyperinflationary,
             source: EntitySource::Generated,
             generated_block_index: Some(block_idx),
             rows: None, // generated blocks don't specify per-entity row budgets

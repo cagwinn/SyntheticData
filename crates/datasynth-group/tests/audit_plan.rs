@@ -29,6 +29,7 @@ fn make_entity(code: &str, country: &str, rows: Option<u64>) -> ExpandedEntity {
         parent_code: None,
         accounting_framework: None,
         industry: None,
+        hyperinflation_status: datasynth_core::models::HyperinflationStatus::NotHyperinflationary,
         source: EntitySource::Explicit,
         generated_block_index: None,
         rows,

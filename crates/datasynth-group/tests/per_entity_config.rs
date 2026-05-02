@@ -143,6 +143,7 @@ fn test_industry_mapping_defaults_to_manufacturing_when_unset() {
     // only field we flip is `industry`.
     let synthetic = ManifestEntity {
         industry: None,
+        hyperinflation_status: datasynth_core::models::HyperinflationStatus::NotHyperinflationary,
         ..entity_by_code(&manifest, "NESTLE_SA").clone()
     };
     let cfg = build_entity_generator_config(&manifest, &synthetic)

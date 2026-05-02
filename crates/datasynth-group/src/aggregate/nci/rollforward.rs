@@ -294,6 +294,8 @@ mod tests {
             parent_code: Some("PARENT".to_string()),
             accounting_framework: None,
             industry: None,
+            hyperinflation_status:
+                datasynth_core::models::HyperinflationStatus::NotHyperinflationary,
             entity_seed: "00".to_string(),
             shard_id: "S_DEFAULT_0001".to_string(),
         }

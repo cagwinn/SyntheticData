@@ -255,6 +255,8 @@ fn random_group_config(seed: u64, entity_count: usize, ic_count: usize) -> Group
             accounting_framework: None,
             industry: None,
             rows: None,
+            hyperinflation_status:
+                datasynth_core::models::HyperinflationStatus::NotHyperinflationary,
             overrides: BTreeMap::new(),
         })
         .collect();
