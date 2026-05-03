@@ -35,7 +35,9 @@ pub use coverage_report::{
     build_coverage_report, write_coverage_report, CoverageReport, COVERAGE_REPORT_FILENAME,
     COVERAGE_REPORT_SUBDIR, UNMATCHED_SAMPLE_CAP,
 };
-pub use driver::{run_aggregate, AggregateOptions, AggregateSummary};
+pub use driver::{
+    run_aggregate, run_aggregate_chain, AggregateOptions, AggregateSummary, PeriodSpec,
+};
 pub use elimination::{eliminations_to_journal_entries, generate_eliminations, EliminationResult};
 pub use equity_method::{
     compute_equity_method_investment, ingest_opening_equity_method_carrying_values,

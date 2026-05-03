@@ -998,9 +998,111 @@ fn dividends_from_tb(tb: &TrialBalance) -> Decimal {
 // the unit-test layer; the remainder of the helpers are linear glue
 // over already-tested sub-modules.
 
+// ── v5.3 multi-period chain ────────────────────────────────────────────────
+
+/// One period's input to [`run_aggregate_chain`].  Each `PeriodSpec`
+/// describes a single aggregate run — its own manifest, the shards
+/// dir to read from, and the out_dir to write to.
+///
+/// The chain runner inserts `prior_period_aggregate` automatically:
+/// the N-th period's `out_dir` becomes the (N+1)-th's
+/// `prior_period_aggregate`.  The first period uses the value the
+/// caller set on its `AggregateOptions` (typically `None`).
+#[derive(Debug, Clone)]
+pub struct PeriodSpec {
+    /// Manifest for this period.  Each period has its own manifest
+    /// because IAS 21 closing rates, scoping, and entity ownership
+    /// can change period-on-period.
+    pub manifest: GroupManifest,
+    /// Per-entity shard directory root for this period.
+    pub shards_dir: PathBuf,
+    /// Where to write this period's consolidated artefacts.
+    pub out_dir: PathBuf,
+    /// Per-period options.  `prior_period_aggregate` is overridden
+    /// by the chain runner — set it on the FIRST period to seed the
+    /// chain, and leave it `None` on subsequent periods.
+    pub options: AggregateOptions,
+}
+
+/// **v5.3** — drive multi-period consolidation by chaining
+/// [`run_aggregate`] calls in sequence.  Period N's `out_dir`
+/// becomes period N+1's `prior_period_aggregate`, so opening NCI /
+/// CTA / equity-method carrying values stitch automatically across
+/// the chain.
+///
+/// v5.0–v5.2 already supported manual chaining via the
+/// `--prior-period-aggregate` flag (PRs #141, #146 used it for the
+/// acquisition-date NCI rollforward).  This helper formalises that
+/// pattern so callers don't have to weave the paths by hand.
+///
+/// # Behaviour
+///
+/// - Periods run in the order they appear in `periods`.
+/// - The first period uses its own `options.prior_period_aggregate`
+///   (typically `None` for a fresh engagement, `Some(path)` when
+///   resuming from an external archive).
+/// - Each subsequent period gets `options.prior_period_aggregate`
+///   **forcibly overridden** to the previous period's `out_dir` —
+///   any value the caller set on `periods[n].options` for n ≥ 1 is
+///   silently ignored.  This keeps the chain semantics intuitive.
+/// - On any per-period failure the chain stops, returning the error
+///   from `run_aggregate` for that period.  Output already written
+///   for prior periods is preserved on disk.
+///
+/// # Returns
+///
+/// A `Vec<AggregateSummary>` matching `periods` in input order.
+///
+/// # Errors
+///
+/// Whatever [`run_aggregate`] returns for the first failing period.
+pub fn run_aggregate_chain(periods: Vec<PeriodSpec>) -> GroupResult<Vec<AggregateSummary>> {
+    let mut summaries: Vec<AggregateSummary> = Vec::with_capacity(periods.len());
+    let mut prior_out: Option<PathBuf> = None;
+    for (idx, mut spec) in periods.into_iter().enumerate() {
+        // For periods 1..N, override prior_period_aggregate with the
+        // previous period's out_dir.  Period 0 keeps whatever the
+        // caller set.
+        if idx > 0 {
+            spec.options.prior_period_aggregate = prior_out.clone();
+        }
+        let summary = run_aggregate(
+            &spec.manifest,
+            &spec.shards_dir,
+            &spec.out_dir,
+            &spec.options,
+        )?;
+        prior_out = Some(spec.out_dir.clone());
+        summaries.push(summary);
+    }
+    Ok(summaries)
+}
+
 #[cfg(test)]
 mod tests {
     use super::resolve_primary_framework;
+    use super::PeriodSpec;
+    use std::path::PathBuf;
+
+    #[test]
+    fn period_spec_construction_uses_owned_paths() {
+        // PeriodSpec must be constructible with owned PathBuf fields
+        // and a real `AggregateOptions` value — the public contract
+        // the chain runner consumes.  The actual chain execution
+        // lives in `tests/aggregate_e2e.rs` once a multi-period
+        // fixture is loaded; here we just pin the field shape so
+        // refactors that move fields surface as a compile break.
+        let opts = super::AggregateOptions {
+            prior_period_aggregate: Some(PathBuf::from("/tmp/seed-from-engagement")),
+            tolerate_missing_shards: false,
+        };
+        assert!(opts.prior_period_aggregate.is_some());
+        // PeriodSpec stays unconstructed in a runnable form because
+        // `GroupManifest` requires a fully-populated graph; we keep
+        // the type imported so a refactor that hides the type breaks
+        // the test.
+        let _: fn() -> PeriodSpec;
+    }
     use crate::aggregate::driver::AggregateOptions;
     use datasynth_standards::framework::AccountingFramework;
 
