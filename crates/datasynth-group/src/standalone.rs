@@ -95,6 +95,12 @@ pub struct StandaloneOptions {
     /// shard execution removes the scheduler's interleaving from the
     /// output trace).
     pub parallel_shards: bool,
+    /// Forwarded verbatim to
+    /// [`crate::aggregate::driver::AggregateOptions::cgu_test_inputs`]
+    /// — the per-period CGU goodwill impairment test inputs.  Empty
+    /// by default; an engagement that wants annual IAS 36 § 10
+    /// impairment testing supplies one entry per CGU under test.
+    pub cgu_test_inputs: Vec<crate::aggregate::cgu_impairment::CguTestInputs>,
 }
 
 impl Default for StandaloneOptions {
@@ -103,6 +109,7 @@ impl Default for StandaloneOptions {
             prior_period_aggregate: None,
             tolerate_missing_shards: false,
             parallel_shards: true,
+            cgu_test_inputs: Vec::new(),
         }
     }
 }
@@ -200,6 +207,7 @@ pub fn generate_standalone(
     let agg_opts = AggregateOptions {
         prior_period_aggregate: opts.prior_period_aggregate.clone(),
         tolerate_missing_shards: opts.tolerate_missing_shards,
+        cgu_test_inputs: opts.cgu_test_inputs.clone(),
     };
     let aggregate = run_aggregate(&manifest, out_dir, out_dir, &agg_opts)?;
 

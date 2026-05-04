@@ -19,6 +19,7 @@
 //! See `docs/superpowers/specs/2026-04-23-group-audit-simulation-design.md`
 //! §"Aggregate phase" for the full Chunk-5 module layout.
 
+pub mod cgu_impairment;
 pub mod coverage_report;
 pub mod driver;
 pub mod elimination;
@@ -32,6 +33,10 @@ pub mod pre_elim;
 pub mod tb_loader;
 pub mod translation;
 
+pub use cgu_impairment::{
+    run_cgu_impairment_tests, write_cgu_impairment_tests, CguTestInputs,
+    CGU_IMPAIRMENT_TESTS_FILENAME,
+};
 pub use coverage_report::{
     build_coverage_report, write_coverage_report, CoverageReport, COVERAGE_REPORT_FILENAME,
     COVERAGE_REPORT_SUBDIR, UNMATCHED_SAMPLE_CAP,

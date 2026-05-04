@@ -141,6 +141,18 @@ pub struct AggregateOptions {
     /// rather than an error — useful for partial-archive recovery
     /// scenarios.  Defaults to `false`: missing shards fail fast.
     pub tolerate_missing_shards: bool,
+    /// **v5.2 IAS 36 § 10** — per-period CGU goodwill impairment test
+    /// inputs.  Each entry references a CGU defined in
+    /// [`crate::manifest::GroupManifest::cgu_plan`] and supplies the
+    /// CGU's other-asset carrying amount, fair-value-less-costs, and
+    /// value-in-use estimates for this period.  When non-empty,
+    /// [`run_aggregate`] joins these against the manifest plan, runs
+    /// [`datasynth_core::models::CguImpairmentTest::run`] per CGU, and
+    /// emits `consolidated/cgu_impairment_tests.json`.  When empty
+    /// (default), no impairment tests run and no artefact is emitted —
+    /// preserves backwards compatibility byte-for-byte for engagements
+    /// without CGU configuration.
+    pub cgu_test_inputs: Vec<crate::aggregate::cgu_impairment::CguTestInputs>,
 }
 
 /// Top-level result returned by [`run_aggregate`].
@@ -426,14 +438,29 @@ pub fn run_aggregate(
     // ── 18. Write FS artefacts (Task 8.7) ──────────────────────────────
     let fs_paths = write_consolidated_fs(&fs_bundle, &schedule, &notes, out_dir)?;
 
+    // ── 18b. CGU goodwill impairment tests (IAS 36 § 10) ───────────────
+    // No-op when caller supplies no test inputs OR manifest has no
+    // CGU plan — preserves backwards compatibility byte-for-byte.
+    let cgu_results = crate::aggregate::cgu_impairment::run_cgu_impairment_tests(
+        &manifest.cgu_plan,
+        &opts.cgu_test_inputs,
+        manifest.period.end,
+        &manifest.presentation_currency,
+    )?;
+    let cgu_path =
+        crate::aggregate::cgu_impairment::write_cgu_impairment_tests(out_dir, &cgu_results)?;
+
     // ── 19. Build summary ───────────────────────────────────────────────
-    let mut artifacts_written: Vec<PathBuf> = Vec::with_capacity(8);
+    let mut artifacts_written: Vec<PathBuf> = Vec::with_capacity(9);
     artifacts_written.push(coverage_path);
     artifacts_written.push(cta_path);
     artifacts_written.push(worksheet_path);
     artifacts_written.push(nci_path);
     artifacts_written.push(eq_method_path);
     artifacts_written.extend(fs_paths);
+    if let Some(p) = cgu_path {
+        artifacts_written.push(p);
+    }
 
     let mut deferred_codes: Vec<String> = deferred_tbs.iter().map(|(c, _)| c.clone()).collect();
     deferred_codes.sort();
@@ -1095,6 +1122,7 @@ mod tests {
         let opts = super::AggregateOptions {
             prior_period_aggregate: Some(PathBuf::from("/tmp/seed-from-engagement")),
             tolerate_missing_shards: false,
+            cgu_test_inputs: Vec::new(),
         };
         assert!(opts.prior_period_aggregate.is_some());
         // PeriodSpec stays unconstructed in a runnable form because

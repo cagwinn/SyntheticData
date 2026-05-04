@@ -3587,6 +3587,7 @@ fn handle_group_aggregate(
     let opts = datasynth_group::aggregate::AggregateOptions {
         prior_period_aggregate: prior_period_aggregate.map(|p| p.to_path_buf()),
         tolerate_missing_shards,
+        cgu_test_inputs: Vec::new(),
     };
 
     let summary =
@@ -3648,6 +3649,7 @@ fn handle_group_generate(
     let opts = datasynth_group::StandaloneOptions {
         prior_period_aggregate: None,
         tolerate_missing_shards: false,
+        cgu_test_inputs: Vec::new(),
         parallel_shards,
     };
 
