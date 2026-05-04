@@ -85,8 +85,18 @@ pub struct NciRollforward {
     /// `(1 - ownership_percent) * total_dividends_paid`.  Reduces the
     /// NCI carrying balance.
     pub nci_dividends: Decimal,
+    /// **v5.2** — IFRS 10.23 equity-transaction adjustment to NCI for
+    /// mid-period ownership changes that don't affect control.  Signed:
+    /// positive = NCI grew (parent sold to NCI per `ControlDecreased`);
+    /// negative = NCI shrank (parent acquired from NCI per
+    /// `ControlIncreased`).  Zero when the entity has no
+    /// `ControlIncreased` / `ControlDecreased` events for the period.
+    /// `#[serde(default)]` so v5.0–v5.1 archives without the field
+    /// load to zero.
+    #[serde(default)]
+    pub equity_transaction_adjustments: Decimal,
     /// Closing NCI =
-    /// `opening_nci + nci_share_of_profit + nci_share_of_oci - nci_dividends`,
+    /// `opening_nci + nci_share_of_profit + nci_share_of_oci - nci_dividends + equity_transaction_adjustments`,
     /// rounded to 2dp (banker's rounding).
     pub closing_nci: Decimal,
     /// Period end date the rollforward is as of.
@@ -132,6 +142,14 @@ pub struct NciInputs<'a> {
     /// the first period and grows via share-of-profit / OCI in
     /// subsequent periods).
     pub acquisition_date_nci_fair_value: Option<Decimal>,
+    /// **v5.2** — IFRS 10.23 / IFRS 10.B96 mid-period ownership-change
+    /// events affecting this subsidiary.  The rollforward consumes
+    /// these to compute the equity-transaction adjustment to NCI.
+    /// Empty by default — engagements without ownership-change events
+    /// see no behaviour change.  Driver-side wiring reads each entity's
+    /// `intercompany/ownership_change_events.json` file (PR #155) and
+    /// threads the parsed events here.
+    pub ownership_changes: &'a [datasynth_core::models::intercompany::OwnershipChangeEvent],
     /// Period end date.
     pub period_end: NaiveDate,
     /// Group presentation currency.
@@ -252,8 +270,63 @@ pub fn compute_nci_rollforward(inputs: &NciInputs) -> GroupResult<NciRollforward
     let nci_share_of_oci = nci_percent * inputs.period_oci;
     let nci_dividends = nci_percent * inputs.total_dividends_paid;
 
+    // 4. **v5.2** — IFRS 10.23 / IFRS 10.B96 equity-transaction
+    //    adjustments for mid-period ownership changes that don't
+    //    affect control.  For each event:
+    //
+    //    - `ControlIncreased` (parent buys NCI shares): NCI carrying
+    //      shrinks by approximately the consideration paid.  Sign:
+    //      `consideration_paid_or_received` is positive (outflow from
+    //      parent), so the adjustment is `-consideration` = negative.
+    //    - `ControlDecreased` (parent sells to NCI): NCI carrying
+    //      grows by approximately the consideration received.  Sign:
+    //      `consideration_paid_or_received` is negative (inflow to
+    //      parent), so the adjustment is `-consideration` = positive.
+    //
+    //    Both cases reduce to a single rule: `adjustment = -consideration`.
+    //    This is the no-premium / no-discount approximation — real
+    //    engagements may pay above or below NCI carrying value, with
+    //    the difference recognised in equity attributable to the
+    //    parent (IFRS 10.23 second sentence).  Modelling that residual
+    //    requires the subsidiary's net equity at the change date,
+    //    which the orchestrator doesn't currently emit per-entity at
+    //    sub-period granularity — a v5.4 follow-up.
+    //
+    //    `ControlGained` mid-period (i.e. *not* the period-1 case
+    //    handled by `acquisition_date_nci_fair_value`) and
+    //    `ControlLost` are out of scope: they require pro-rated
+    //    profit attribution and adding/removing the entity from
+    //    consolidation, which is a multi-PR feature.
+    use datasynth_core::models::intercompany::OwnershipChangeType;
+    let mut equity_transaction_adjustments = Decimal::ZERO;
+    for ev in inputs.ownership_changes {
+        match ev.event_type {
+            OwnershipChangeType::ControlIncreased | OwnershipChangeType::ControlDecreased => {
+                equity_transaction_adjustments -= ev.consideration_paid_or_received;
+            }
+            OwnershipChangeType::ControlGained => {
+                return Err(GroupError::Aggregate(format!(
+                    "compute_nci_rollforward: entity `{}`: ControlGained \
+                     mid-period events are not yet supported by the rollforward — \
+                     this is a v5.4 follow-up.  Period-1 acquisitions should use \
+                     `acquisition_date_nci_fair_value` instead.",
+                    entity.code,
+                )));
+            }
+            OwnershipChangeType::ControlLost => {
+                return Err(GroupError::Aggregate(format!(
+                    "compute_nci_rollforward: entity `{}`: ControlLost \
+                     mid-period deconsolidation events are not yet supported \
+                     by the rollforward — this is a v5.4 follow-up.",
+                    entity.code,
+                )));
+            }
+        }
+    }
+
     let closing_nci = (effective_opening_nci + nci_share_of_profit + nci_share_of_oci
-        - nci_dividends)
+        - nci_dividends
+        + equity_transaction_adjustments)
         .round_dp(2);
 
     Ok(NciRollforward {
@@ -265,6 +338,7 @@ pub fn compute_nci_rollforward(inputs: &NciInputs) -> GroupResult<NciRollforward
         nci_share_of_profit: nci_share_of_profit.round_dp(2),
         nci_share_of_oci: nci_share_of_oci.round_dp(2),
         nci_dividends: nci_dividends.round_dp(2),
+        equity_transaction_adjustments: equity_transaction_adjustments.round_dp(2),
         closing_nci,
         period_end: inputs.period_end,
         currency: inputs.currency.clone(),
@@ -316,6 +390,7 @@ mod tests {
             total_dividends_paid: dec!(500),
             opening_nci: dec!(800),
             acquisition_date_nci_fair_value: None,
+            ownership_changes: &[],
             period_end: period_end(),
             currency: "CHF".to_string(),
         };
@@ -353,6 +428,7 @@ mod tests {
             total_dividends_paid: dec!(400),
             opening_nci: Decimal::ZERO,
             acquisition_date_nci_fair_value: Some(dec!(850)),
+            ownership_changes: &[],
             period_end: period_end(),
             currency: "CHF".to_string(),
         };
@@ -383,6 +459,7 @@ mod tests {
             total_dividends_paid: Decimal::ZERO,
             opening_nci: dec!(940), // brought forward from a prior period
             acquisition_date_nci_fair_value: Some(dec!(1000)), // stale FV
+            ownership_changes: &[],
             period_end: period_end(),
             currency: "CHF".to_string(),
         };
@@ -409,6 +486,7 @@ mod tests {
             total_dividends_paid: dec!(500),
             opening_nci: dec!(800),
             acquisition_date_nci_fair_value: None, // proportionate basis
+            ownership_changes: &[],
             period_end: period_end(),
             currency: "CHF".to_string(),
         };
@@ -429,6 +507,7 @@ mod tests {
             total_dividends_paid: Decimal::ZERO,
             opening_nci: Decimal::ZERO,
             acquisition_date_nci_fair_value: None,
+            ownership_changes: &[],
             period_end: period_end(),
             currency: "CHF".to_string(),
         };
@@ -441,5 +520,202 @@ mod tests {
             }
             other => panic!("expected Aggregate, got {other:?}"),
         }
+    }
+
+    // ── v5.2 IFRS 10.23 equity-transaction tests ─────────────────────────
+
+    fn equity_event(
+        ty: datasynth_core::models::intercompany::OwnershipChangeType,
+        before: Decimal,
+        after: Decimal,
+        consideration: Decimal,
+    ) -> datasynth_core::models::intercompany::OwnershipChangeEvent {
+        datasynth_core::models::intercompany::OwnershipChangeEvent {
+            entity_code: "SUB".to_string(),
+            parent_entity_code: "PARENT".to_string(),
+            event_type: ty,
+            effective_date: NaiveDate::from_ymd_opt(2024, 2, 15).unwrap(),
+            ownership_percent_before: before,
+            ownership_percent_after: after,
+            previously_held_interest_carrying: None,
+            previously_held_interest_fair_value: None,
+            consideration_paid_or_received: consideration,
+            acquisition_date_nci_fair_value: None,
+            nci_measurement_method: Default::default(),
+            currency: "CHF".to_string(),
+        }
+    }
+
+    #[test]
+    fn control_increased_shrinks_nci_by_consideration() {
+        // Parent buys 10% from NCI for 100 — NCI shrinks by ~100.
+        // Opening NCI 800, share of profit 200 (1000 × 20% pre-event
+        // simplification), share of OCI 0, dividends 0,
+        // equity-transaction adjustment = -100.
+        // Closing = 800 + 200 + 0 - 0 - 100 = 900.
+        use datasynth_core::models::intercompany::OwnershipChangeType;
+        let entity = make_entity("SUB", ConsolidationMethod::Full, Some(dec!(0.80)));
+        let event = equity_event(
+            OwnershipChangeType::ControlIncreased,
+            dec!(0.80),
+            dec!(0.90),
+            dec!(100),
+        );
+        let inputs = NciInputs {
+            entity: &entity,
+            period_net_income: dec!(1000),
+            period_oci: Decimal::ZERO,
+            total_dividends_paid: Decimal::ZERO,
+            opening_nci: dec!(800),
+            acquisition_date_nci_fair_value: None,
+            ownership_changes: std::slice::from_ref(&event),
+            period_end: period_end(),
+            currency: "CHF".to_string(),
+        };
+        let rf = compute_nci_rollforward(&inputs).unwrap();
+        assert_eq!(rf.equity_transaction_adjustments, dec!(-100.00));
+        assert_eq!(rf.closing_nci, dec!(900.00));
+    }
+
+    #[test]
+    fn control_decreased_grows_nci_by_consideration_received() {
+        // Parent sells 10% to NCI for 100 (negative sign — inflow).
+        // NCI grows by ~100.  Opening 800, profit 200, dividends 0,
+        // adjustment = -(-100) = +100.  Closing = 800+200+0-0+100 = 1100.
+        use datasynth_core::models::intercompany::OwnershipChangeType;
+        let entity = make_entity("SUB", ConsolidationMethod::Full, Some(dec!(0.80)));
+        let event = equity_event(
+            OwnershipChangeType::ControlDecreased,
+            dec!(0.90),
+            dec!(0.80),
+            dec!(-100),
+        );
+        let inputs = NciInputs {
+            entity: &entity,
+            period_net_income: dec!(1000),
+            period_oci: Decimal::ZERO,
+            total_dividends_paid: Decimal::ZERO,
+            opening_nci: dec!(800),
+            acquisition_date_nci_fair_value: None,
+            ownership_changes: std::slice::from_ref(&event),
+            period_end: period_end(),
+            currency: "CHF".to_string(),
+        };
+        let rf = compute_nci_rollforward(&inputs).unwrap();
+        assert_eq!(rf.equity_transaction_adjustments, dec!(100.00));
+        assert_eq!(rf.closing_nci, dec!(1100.00));
+    }
+
+    #[test]
+    fn multiple_equity_transactions_sum() {
+        // Two equity transactions: +50 (decrease) then -30 (increase).
+        // Total adjustment: -(-50) + -(30) = +50 - 30 = +20.
+        use datasynth_core::models::intercompany::OwnershipChangeType;
+        let entity = make_entity("SUB", ConsolidationMethod::Full, Some(dec!(0.75)));
+        let events = vec![
+            equity_event(
+                OwnershipChangeType::ControlDecreased,
+                dec!(0.80),
+                dec!(0.75),
+                dec!(-50),
+            ),
+            equity_event(
+                OwnershipChangeType::ControlIncreased,
+                dec!(0.75),
+                dec!(0.78),
+                dec!(30),
+            ),
+        ];
+        let inputs = NciInputs {
+            entity: &entity,
+            period_net_income: Decimal::ZERO,
+            period_oci: Decimal::ZERO,
+            total_dividends_paid: Decimal::ZERO,
+            opening_nci: dec!(500),
+            acquisition_date_nci_fair_value: None,
+            ownership_changes: &events,
+            period_end: period_end(),
+            currency: "CHF".to_string(),
+        };
+        let rf = compute_nci_rollforward(&inputs).unwrap();
+        assert_eq!(rf.equity_transaction_adjustments, dec!(20.00));
+        assert_eq!(rf.closing_nci, dec!(520.00));
+    }
+
+    #[test]
+    fn control_gained_mid_period_rejected_with_v54_pointer() {
+        use datasynth_core::models::intercompany::OwnershipChangeType;
+        let entity = make_entity("SUB", ConsolidationMethod::Full, Some(dec!(0.80)));
+        let event = equity_event(
+            OwnershipChangeType::ControlGained,
+            Decimal::ZERO,
+            dec!(0.80),
+            dec!(1000),
+        );
+        let inputs = NciInputs {
+            entity: &entity,
+            period_net_income: Decimal::ZERO,
+            period_oci: Decimal::ZERO,
+            total_dividends_paid: Decimal::ZERO,
+            opening_nci: Decimal::ZERO,
+            acquisition_date_nci_fair_value: None,
+            ownership_changes: std::slice::from_ref(&event),
+            period_end: period_end(),
+            currency: "CHF".to_string(),
+        };
+        let err = compute_nci_rollforward(&inputs).unwrap_err();
+        let msg = format!("{err}");
+        assert!(msg.contains("ControlGained"));
+        assert!(msg.contains("v5.4"));
+    }
+
+    #[test]
+    fn control_lost_mid_period_rejected_with_v54_pointer() {
+        use datasynth_core::models::intercompany::OwnershipChangeType;
+        let entity = make_entity("SUB", ConsolidationMethod::Full, Some(dec!(0.80)));
+        let event = equity_event(
+            OwnershipChangeType::ControlLost,
+            dec!(0.80),
+            Decimal::ZERO,
+            dec!(-500),
+        );
+        let inputs = NciInputs {
+            entity: &entity,
+            period_net_income: Decimal::ZERO,
+            period_oci: Decimal::ZERO,
+            total_dividends_paid: Decimal::ZERO,
+            opening_nci: dec!(800),
+            acquisition_date_nci_fair_value: None,
+            ownership_changes: std::slice::from_ref(&event),
+            period_end: period_end(),
+            currency: "CHF".to_string(),
+        };
+        let err = compute_nci_rollforward(&inputs).unwrap_err();
+        let msg = format!("{err}");
+        assert!(msg.contains("ControlLost"));
+        assert!(msg.contains("v5.4"));
+    }
+
+    #[test]
+    fn empty_ownership_changes_byte_identical_to_baseline() {
+        // With no events, the rollforward must produce the same numbers
+        // as the v5.0–v5.1 baseline — equity_transaction_adjustments is
+        // exactly zero and closing_nci has no contribution from events.
+        let entity = make_entity("SUB", ConsolidationMethod::Full, Some(dec!(0.80)));
+        let inputs = NciInputs {
+            entity: &entity,
+            period_net_income: dec!(1000),
+            period_oci: dec!(200),
+            total_dividends_paid: dec!(500),
+            opening_nci: dec!(800),
+            acquisition_date_nci_fair_value: None,
+            ownership_changes: &[],
+            period_end: period_end(),
+            currency: "CHF".to_string(),
+        };
+        let rf = compute_nci_rollforward(&inputs).unwrap();
+        assert_eq!(rf.equity_transaction_adjustments, Decimal::ZERO);
+        // 800 + 200 + 40 - 100 = 940 (same as happy_path_eighty_percent_owned)
+        assert_eq!(rf.closing_nci, dec!(940.00));
     }
 }

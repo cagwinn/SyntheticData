@@ -63,6 +63,7 @@ fn nci_rf(entity: &str, opening: Decimal, share: Decimal, closing: Decimal) -> N
         nci_share_of_profit: share,
         nci_share_of_oci: Decimal::ZERO,
         nci_dividends: Decimal::ZERO,
+        equity_transaction_adjustments: Decimal::ZERO,
         closing_nci: closing,
         period_end: period_end(),
         currency: "CHF".to_string(),

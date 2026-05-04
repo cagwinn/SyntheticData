@@ -305,11 +305,18 @@ pub fn run_aggregate(
     // up-front so the NCI rollforward can seed period-1 opening from
     // the IFRS 3.19(a) acquisition-date fair value when present.
     let acquisition_fv_map = ingest_acquisition_date_nci_fair_values(manifest, shards_dir);
+    // v5.2: read each entity's `intercompany/ownership_change_events.json`
+    // (PR #155) so the NCI rollforward can apply IFRS 10.23 equity-
+    // transaction adjustments for `ControlIncreased` / `ControlDecreased`
+    // events.  Empty map when no entity declares ownership changes —
+    // preserves v5.0–v5.1 byte-identical NCI behaviour.
+    let ownership_changes_map = ingest_ownership_change_events(manifest, shards_dir);
     let nci_rolls = build_nci_rollforwards(
         manifest,
         &translated_tbs,
         opts.prior_period_aggregate.as_deref(),
         &acquisition_fv_map,
+        &ownership_changes_map,
     )?;
     let nci_path = write_nci_rollforward(&nci_rolls, out_dir)?;
 
@@ -769,6 +776,62 @@ fn ingest_acquisition_date_nci_fair_values(
     map
 }
 
+/// **v5.2** — Walk every entity's per-shard archive, read its
+/// `intercompany/ownership_change_events.json` (PR #155 emission),
+/// and build an `entity_code → events` map for the NCI rollforward
+/// to consume.
+///
+/// Best-effort: malformed or missing files are skipped with a
+/// `tracing::debug!` rather than failing the aggregate — engagements
+/// without ownership-change events have no file at all, and that's
+/// the v5.0–v5.1 byte-identical baseline.  A malformed events file
+/// downgrades to "no events for this entity" rather than a hard
+/// error, mirroring the BC ingestor pattern.
+fn ingest_ownership_change_events(
+    manifest: &GroupManifest,
+    shards_dir: &Path,
+) -> BTreeMap<String, Vec<datasynth_core::models::intercompany::OwnershipChangeEvent>> {
+    let mut map: BTreeMap<String, Vec<datasynth_core::models::intercompany::OwnershipChangeEvent>> =
+        BTreeMap::new();
+    for entity in &manifest.ownership_graph.entities {
+        let path = shards_dir
+            .join("entities")
+            .join(&entity.code)
+            .join("intercompany")
+            .join("ownership_change_events.json");
+        if !path.exists() {
+            continue;
+        }
+        let bytes = match fs::read(&path) {
+            Ok(b) => b,
+            Err(e) => {
+                tracing::debug!(
+                    path = %path.display(),
+                    error = %e,
+                    "failed to read ownership_change_events.json — skipping",
+                );
+                continue;
+            }
+        };
+        let events: Vec<datasynth_core::models::intercompany::OwnershipChangeEvent> =
+            match serde_json::from_slice(&bytes) {
+                Ok(v) => v,
+                Err(e) => {
+                    tracing::debug!(
+                        path = %path.display(),
+                        error = %e,
+                        "failed to parse ownership_change_events.json — skipping",
+                    );
+                    continue;
+                }
+            };
+        if !events.is_empty() {
+            map.insert(entity.code.clone(), events);
+        }
+    }
+    map
+}
+
 /// Build an [`NciRollforward`] for every Full-method, non-wholly-owned
 /// entity.  v5.0 sources the period P&L / OCI numbers from the entity's
 /// translated TB; dividends paid is left at zero (the manifest does not
@@ -778,6 +841,10 @@ fn build_nci_rollforwards(
     translated_tbs: &[TranslatedTb],
     prior_period_aggregate: Option<&Path>,
     acquisition_fv_map: &BTreeMap<String, Decimal>,
+    ownership_changes_map: &BTreeMap<
+        String,
+        Vec<datasynth_core::models::intercompany::OwnershipChangeEvent>,
+    >,
 ) -> GroupResult<Vec<NciRollforward>> {
     let opening_map = match prior_period_aggregate {
         Some(p) => ingest_opening_nci_balances(p)?,
@@ -830,6 +897,10 @@ fn build_nci_rollforwards(
             // acquisition record produce `None`, preserving v5.0–v5.1
             // proportionate-basis behaviour byte-for-byte.
             acquisition_date_nci_fair_value: acquisition_fv_map.get(&entity.code).copied(),
+            ownership_changes: ownership_changes_map
+                .get(&entity.code)
+                .map(|v| v.as_slice())
+                .unwrap_or(&[]),
             period_end: manifest.period.end,
             currency: manifest.presentation_currency.clone(),
         };

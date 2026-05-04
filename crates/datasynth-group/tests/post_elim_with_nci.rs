@@ -89,6 +89,7 @@ fn nci_rf(entity: &str, closing: Decimal) -> NciRollforward {
         nci_share_of_profit: closing,
         nci_share_of_oci: Decimal::ZERO,
         nci_dividends: Decimal::ZERO,
+        equity_transaction_adjustments: Decimal::ZERO,
         closing_nci: closing,
         period_end: period_end(),
         currency: "CHF".to_string(),
@@ -264,6 +265,7 @@ fn currency_mismatch_returns_aggregate_error() {
         nci_share_of_profit: dec!(100),
         nci_share_of_oci: Decimal::ZERO,
         nci_dividends: Decimal::ZERO,
+        equity_transaction_adjustments: Decimal::ZERO,
         closing_nci: dec!(100),
         period_end: period_end(),
         currency: "EUR".to_string(), // ← mismatch
