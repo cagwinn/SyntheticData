@@ -355,6 +355,7 @@ fn random_group_config(seed: u64, entity_count: usize, ic_count: usize) -> Group
             generate_group_opinion: false,
         },
         tax: Default::default(),
+        cgu: Default::default(),
         output: OutputLayoutConfig::default(),
         fleet: None,
     }

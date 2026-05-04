@@ -43952,6 +43952,10 @@
       ]
     }
   },
+  "cgu_plan": {
+    "cgus": [],
+    "goodwill_allocations": []
+  },
   "shard_plan": {
     "shards": [
       {

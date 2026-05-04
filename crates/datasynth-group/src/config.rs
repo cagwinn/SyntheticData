@@ -34,6 +34,15 @@ pub struct GroupConfig {
     #[serde(default)]
     pub tax: TaxGroupConfig,
 
+    /// **v5.2** — IAS 36 § 10 cash-generating-unit (CGU) plan: defines
+    /// the CGUs the engagement tests for goodwill impairment + the
+    /// goodwill amounts allocated to each CGU at acquisition date.
+    /// Empty by default; engagements without CGU allocations skip the
+    /// annual impairment test entirely (no `consolidated/cgu_impairment_tests.json`
+    /// is emitted).
+    #[serde(default)]
+    pub cgu: CguConfig,
+
     #[serde(default)]
     pub output: OutputLayoutConfig,
 
@@ -402,4 +411,79 @@ pub struct FleetConfig {
     pub max_concurrent_shards: Option<u32>,
     #[serde(default)]
     pub per_shard_timeout_seconds: Option<u64>,
+}
+
+/// **v5.2** — IAS 36 § 10 cash-generating-unit (CGU) plan.
+///
+/// Engagement-static CGU configuration: defines the CGUs the engagement
+/// will test for annual goodwill impairment + the goodwill amounts
+/// allocated to each CGU at the original acquisition date (IAS 36 § 80).
+/// Per-period test inputs (fair value less costs of disposal, value in
+/// use) live elsewhere — outside the manifest layer this PR ships.
+///
+/// Empty by default: an engagement without configured CGUs simply
+/// skips the impairment test phase and emits no
+/// `consolidated/cgu_impairment_tests.json` artefact.  This preserves
+/// backwards compatibility byte-for-byte for v5.0–v5.1 archives.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CguConfig {
+    /// CGU definitions.  IDs must be unique within the engagement;
+    /// each CGU's `member_entity_codes` must reference entities that
+    /// exist in `ownership.entities`.  Validation happens in
+    /// [`crate::manifest::cgu_plan::build_cgu_plan`].
+    #[serde(default)]
+    pub cgus: Vec<CguDefinitionEntry>,
+
+    /// Goodwill allocations (one per (CGU, business combination) pair).
+    /// Amounts are non-negative; bargain purchases produce no
+    /// goodwill and therefore no allocation row.  Each entry's
+    /// `cgu_id` must reference an entry in `cgus`; the
+    /// `business_combination_id` is loosely validated (BC files live
+    /// per-shard so cross-validation is deferred to the aggregate
+    /// phase).
+    #[serde(default)]
+    pub goodwill_allocations: Vec<CguGoodwillAllocationEntry>,
+}
+
+/// One CGU definition entry.  Mirrors
+/// [`datasynth_core::models::cgu::CashGeneratingUnit`] so the manifest
+/// builder can lift it directly into the manifest plan.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CguDefinitionEntry {
+    /// Stable CGU identifier — used by goodwill allocations and per-
+    /// period impairment-test inputs to refer to this CGU across
+    /// periods.
+    pub cgu_id: String,
+    /// Human-readable name (e.g. `"EMEA Consumer Products"`).
+    pub name: String,
+    /// Entity codes whose cash flows aggregate to form this CGU.  May
+    /// span multiple legal entities (cross-entity CGU) or be a sub-
+    /// division of a single entity (in which case it has one member).
+    /// Must be non-empty: the manifest builder rejects empty member
+    /// lists.
+    #[serde(default)]
+    pub member_entity_codes: Vec<String>,
+    /// Optional reportable-segment attribution for IFRS 8 / ASC 280
+    /// disclosure linkage.  Multiple CGUs can map to the same segment.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub segment_code: Option<String>,
+}
+
+/// One goodwill-allocation entry — links a business combination's
+/// goodwill amount to one CGU at the acquisition date.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CguGoodwillAllocationEntry {
+    /// CGU receiving the allocation (must reference a `cgu_id` in
+    /// [`CguConfig::cgus`]).
+    pub cgu_id: String,
+    /// Source business-combination identifier.  Loosely validated at
+    /// the manifest layer (BC files live per-shard); cross-validation
+    /// of the BC's existence happens during aggregate-phase
+    /// impairment-test wiring.
+    pub business_combination_id: String,
+    /// Allocated goodwill amount in the group presentation currency.
+    /// Always non-negative; manifest builder rejects negatives.
+    pub goodwill_amount: Decimal,
+    /// Acquisition date the allocation took effect.
+    pub allocation_date: NaiveDate,
 }

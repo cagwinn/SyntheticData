@@ -3,6 +3,7 @@
 
 pub mod audit_plan;
 pub mod builder;
+pub mod cgu_plan;
 pub mod coa_master;
 pub mod expansion;
 pub mod fx_master;
@@ -19,6 +20,7 @@ pub use builder::{
     build_manifest, GroupManifest, ManifestEntity, ManifestPeriod, OwnershipGraphSection,
     MANIFEST_SCHEMA_VERSION,
 };
+pub use cgu_plan::{build_cgu_plan, CguPlan};
 pub use coa_master::{build_coa_master, ChartOfAccountsMaster};
 pub use expansion::{expand_ownership, EntitySource, ExpandedEntity};
 pub use fx_master::{build_fx_master, FxRateMaster};

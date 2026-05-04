@@ -40,24 +40,25 @@ pub use aggregate::{
     NCI_ROLLFORWARD_FILENAME, NOTES_FILENAME, TRANSLATION_WORKSHEET_FILENAME, UNMATCHED_SAMPLE_CAP,
 };
 pub use config::{
-    AuditEngagementConfig, CbcReportConfig, ComponentScopeThresholds, ConsolidationMethod,
-    EntityConfig, FleetConfig, FxConfig, FxPolicyConfig, FxRateBasis, FxRateSource,
-    GeneratedEntityBlock, GroupConfig, GroupMaterialityConfig, IcMatchingConfig,
-    IcMatchingStrategy, IcPattern, IcRelationshipConfig, IcRelationshipExplicit,
-    IcRelationshipPattern, IcTransactionType, IntercompanyConfig, MaterialityBasis,
-    OutputCompression, OutputLayout, OutputLayoutConfig, OwnershipConfig, PeriodConfig,
-    PeriodLength, PillarTwoConfig, TaxGroupConfig, TpConfig, TransferPricingMethod,
+    AuditEngagementConfig, CbcReportConfig, CguConfig, CguDefinitionEntry,
+    CguGoodwillAllocationEntry, ComponentScopeThresholds, ConsolidationMethod, EntityConfig,
+    FleetConfig, FxConfig, FxPolicyConfig, FxRateBasis, FxRateSource, GeneratedEntityBlock,
+    GroupConfig, GroupMaterialityConfig, IcMatchingConfig, IcMatchingStrategy, IcPattern,
+    IcRelationshipConfig, IcRelationshipExplicit, IcRelationshipPattern, IcTransactionType,
+    IntercompanyConfig, MaterialityBasis, OutputCompression, OutputLayout, OutputLayoutConfig,
+    OwnershipConfig, PeriodConfig, PeriodLength, PillarTwoConfig, TaxGroupConfig, TpConfig,
+    TransferPricingMethod,
 };
 pub use errors::{GroupError, GroupResult};
 pub use manifest::{
-    build_audit_engagement_plan, build_coa_master, build_manifest, build_shard_plan,
-    build_tax_group_plan, chacha_rng_from_seed, derive_aggregate_seed, derive_entity_seed,
-    derive_ic_pair_id, derive_manifest_seed, expand_ic_relationships, expand_ownership,
-    AuditEngagementPlan, CbcReportPlan, ChartOfAccountsMaster, ComponentAuditor,
-    ComponentMaterialityAllocation, ComponentScope, EntitySource, ExpandedEntity, FxRateMaster,
-    GroupManifest, IcSource, ManifestEntity, ManifestPeriod, OwnershipGraphSection, PillarTwoPlan,
-    ResolvedIcRelationship, ShardAssignment, ShardPlan, TaxGroupPlan, TransferPricingPlan,
-    MANIFEST_SCHEMA_VERSION,
+    build_audit_engagement_plan, build_cgu_plan, build_coa_master, build_manifest,
+    build_shard_plan, build_tax_group_plan, chacha_rng_from_seed, derive_aggregate_seed,
+    derive_entity_seed, derive_ic_pair_id, derive_manifest_seed, expand_ic_relationships,
+    expand_ownership, AuditEngagementPlan, CbcReportPlan, CguPlan, ChartOfAccountsMaster,
+    ComponentAuditor, ComponentMaterialityAllocation, ComponentScope, EntitySource, ExpandedEntity,
+    FxRateMaster, GroupManifest, IcSource, ManifestEntity, ManifestPeriod, OwnershipGraphSection,
+    PillarTwoPlan, ResolvedIcRelationship, ShardAssignment, ShardPlan, TaxGroupPlan,
+    TransferPricingPlan, MANIFEST_SCHEMA_VERSION,
 };
 pub use resolve::{resolve_entity, ResolvedEntity};
 pub use standalone::{generate_standalone, StandaloneOptions, StandaloneSummary};

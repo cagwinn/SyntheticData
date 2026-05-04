@@ -12,6 +12,7 @@ use serde::{Deserialize, Serialize};
 use crate::config::{GroupConfig, OutputLayoutConfig, PeriodLength};
 use crate::errors::{GroupError, GroupResult};
 use crate::manifest::audit_plan::{build_audit_engagement_plan, AuditEngagementPlan};
+use crate::manifest::cgu_plan::{build_cgu_plan, CguPlan};
 use crate::manifest::coa_master::{build_coa_master, ChartOfAccountsMaster};
 use crate::manifest::expansion::{expand_ownership, ExpandedEntity};
 use crate::manifest::fx_master::{build_fx_master, FxRateMaster};
@@ -70,6 +71,14 @@ pub struct GroupManifest {
     pub audit_engagement_plan: AuditEngagementPlan,
     /// Pillar Two / CbC / transfer-pricing group tax plan.
     pub tax_group_plan: TaxGroupPlan,
+    /// **v5.2** — IAS 36 § 10 cash-generating-unit plan: CGU
+    /// definitions + acquisition-date goodwill allocations the
+    /// aggregate phase tests for impairment.  Empty plan when the
+    /// engagement supplies no CGU configuration; v5.0–v5.2 archives
+    /// without this field deserialise to the `Default` (empty) plan
+    /// — backwards-compatible byte-for-byte.
+    #[serde(default)]
+    pub cgu_plan: CguPlan,
     /// Shard assignment plan — entities batched into ~1 TB shards.
     pub shard_plan: ShardPlan,
     /// Output layout config forwarded verbatim from [`GroupConfig::output`].
@@ -192,6 +201,9 @@ pub fn build_manifest(cfg: &GroupConfig) -> GroupResult<GroupManifest> {
     // ── 9. Tax group plan ────────────────────────────────────────────────────
     let tax_group_plan = build_tax_group_plan(&cfg.tax, &expanded)?;
 
+    // ── 9b. CGU plan (IAS 36 § 10) — empty when not configured ───────────────
+    let cgu_plan = build_cgu_plan(&cfg.cgu, &expanded)?;
+
     // ── 10. ManifestEntity: enrich each ExpandedEntity ────────────────────────
     let entities: Vec<ManifestEntity> = expanded
         .iter()
@@ -233,6 +245,7 @@ pub fn build_manifest(cfg: &GroupConfig) -> GroupResult<GroupManifest> {
         ic_relationships,
         audit_engagement_plan,
         tax_group_plan,
+        cgu_plan,
         shard_plan,
         output: cfg.output.clone(),
         // v5.3: IC matching strategy + fuzzy tolerance.  Defaults

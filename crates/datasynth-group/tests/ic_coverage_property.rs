@@ -226,6 +226,7 @@ fn random_group_config(
             generate_group_opinion: false,
         },
         tax: Default::default(),
+        cgu: Default::default(),
         output: OutputLayoutConfig::default(),
         fleet: None,
     }
