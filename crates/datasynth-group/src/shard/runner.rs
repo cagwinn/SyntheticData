@@ -214,6 +214,42 @@ fn run_one_entity(
         },
     )?;
 
+    // 6. **v5.2** — emit ownership-change events when the manifest
+    //    declares them for this entity.  The orchestrator pipeline
+    //    doesn't synthesise these events (they're engagement facts
+    //    declared in config, not generated data), so the shard runner
+    //    writes them directly from the manifest into the per-entity
+    //    archive at `intercompany/ownership_change_events.json`.
+    //    No-op when the entity has no events — preserves backwards
+    //    compatibility byte-for-byte for v5.0–v5.1 archives.
+    if !entity.ownership_changes.is_empty() {
+        let oc_dir = out_dir
+            .join("entities")
+            .join(&entity.code)
+            .join("intercompany");
+        fs::create_dir_all(&oc_dir).map_err(|e| {
+            GroupError::Shard(format!(
+                "{}: cannot create intercompany dir `{}`: {e}",
+                entity.code,
+                oc_dir.display()
+            ))
+        })?;
+        let path = oc_dir.join("ownership_change_events.json");
+        let json = serde_json::to_string_pretty(&entity.ownership_changes).map_err(|e| {
+            GroupError::Shard(format!(
+                "{}: failed to serialise ownership_change_events to JSON: {e}",
+                entity.code
+            ))
+        })?;
+        fs::write(&path, json).map_err(|e| {
+            GroupError::Shard(format!(
+                "{}: cannot write `{}`: {e}",
+                entity.code,
+                path.display()
+            ))
+        })?;
+    }
+
     Ok(EntitySummary {
         entity_code: entity.code.clone(),
         journal_entry_count,

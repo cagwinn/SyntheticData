@@ -83,7 +83,7 @@ pub enum OwnershipChangeType {
 /// computation needs; the helper methods derive the gain/loss and
 /// the post-event NCI carrying amount.  v5.2 ships the model + the
 /// helpers; the rollforward wiring is a follow-up.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct OwnershipChangeEvent {
     /// Entity code of the subsidiary / associate whose ownership
     /// changed.  Joins to `ManifestEntity::code` so the rollforward

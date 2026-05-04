@@ -27,6 +27,7 @@ fn ent(code: &str, profile: &str, cm: ConsolidationMethod) -> ExpandedEntity {
         generated_block_index: None,
         rows: None,
         hyperinflation_status: datasynth_core::models::HyperinflationStatus::NotHyperinflationary,
+        ownership_changes: Vec::new(),
     }
 }
 

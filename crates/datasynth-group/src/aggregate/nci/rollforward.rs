@@ -296,6 +296,7 @@ mod tests {
             industry: None,
             hyperinflation_status:
                 datasynth_core::models::HyperinflationStatus::NotHyperinflationary,
+            ownership_changes: Vec::new(),
             entity_seed: "00".to_string(),
             shard_id: "S_DEFAULT_0001".to_string(),
         }

@@ -12,7 +12,7 @@ use rust_decimal::Decimal;
 /// A fully-expanded entity: either from ownership.entities (explicit) or from
 /// ownership.generated (bulk-expanded). Consumers downstream treat both
 /// uniformly.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ExpandedEntity {
     pub code: String,
     pub name: Option<String>,
@@ -31,6 +31,14 @@ pub struct ExpandedEntity {
     /// the field — engagements that need it should declare the
     /// affected entities explicitly).
     pub hyperinflation_status: datasynth_core::models::HyperinflationStatus,
+    /// **v5.2** — IFRS 3 § 41-42 / IFRS 10 § 23 / IFRS 10.B97 mid-period
+    /// ownership-change events affecting this entity.  Lifted from
+    /// [`crate::config::EntityConfig::ownership_changes`] for explicit
+    /// entities; empty for generated entities.  The manifest builder
+    /// validates each event's `effective_date` against the period
+    /// bounds and rejects entries whose host entity has no
+    /// `parent_code` set.
+    pub ownership_changes: Vec<datasynth_core::models::intercompany::OwnershipChangeEvent>,
     /// Source: was this from ownership.entities (Explicit) or ownership.generated (Generated)?
     pub source: EntitySource,
     /// Which generated-block index produced this entity (if Generated).
@@ -64,6 +72,43 @@ pub fn expand_ownership(
                 e.code
             )));
         }
+
+        // Lift ownership-change entries into full
+        // datasynth_core::models::OwnershipChangeEvent records.  Each
+        // event needs the host entity's code and parent_code; if the
+        // entity has events but no parent_code, that's a config error.
+        let ownership_changes = if e.ownership_changes.is_empty() {
+            Vec::new()
+        } else {
+            let parent_code = e.parent_code.clone().ok_or_else(|| {
+                GroupError::Config(format!(
+                    "entity {} declares ownership_changes but has no parent_code — \
+                     every ownership-change event implies a controlling parent",
+                    e.code
+                ))
+            })?;
+            e.ownership_changes
+                .iter()
+                .map(
+                    |entry| datasynth_core::models::intercompany::OwnershipChangeEvent {
+                        entity_code: e.code.clone(),
+                        parent_entity_code: parent_code.clone(),
+                        event_type: entry.event_type,
+                        effective_date: entry.effective_date,
+                        ownership_percent_before: entry.ownership_percent_before,
+                        ownership_percent_after: entry.ownership_percent_after,
+                        previously_held_interest_carrying: entry.previously_held_interest_carrying,
+                        previously_held_interest_fair_value: entry
+                            .previously_held_interest_fair_value,
+                        consideration_paid_or_received: entry.consideration_paid_or_received,
+                        acquisition_date_nci_fair_value: entry.acquisition_date_nci_fair_value,
+                        nci_measurement_method: entry.nci_measurement_method,
+                        currency: entry.currency.clone(),
+                    },
+                )
+                .collect()
+        };
+
         out.push(ExpandedEntity {
             code: e.code.clone(),
             name: e.name.clone(),
@@ -76,6 +121,7 @@ pub fn expand_ownership(
             accounting_framework: e.accounting_framework.clone(),
             industry: e.industry.clone(),
             hyperinflation_status: e.hyperinflation_status,
+            ownership_changes,
             source: EntitySource::Explicit,
             generated_block_index: None,
             rows: e.rows,
@@ -172,6 +218,10 @@ fn expand_block(
             // entities explicitly in `ownership.entities`.
             hyperinflation_status:
                 datasynth_core::models::HyperinflationStatus::NotHyperinflationary,
+            // Generated entities have no ownership-change events;
+            // engagements that need them must declare the affected
+            // entities explicitly in `ownership.entities`.
+            ownership_changes: Vec::new(),
             source: EntitySource::Generated,
             generated_block_index: Some(block_idx),
             rows: None, // generated blocks don't specify per-entity row budgets

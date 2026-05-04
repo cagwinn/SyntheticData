@@ -189,6 +189,7 @@ mod tests {
             accounting_framework: None,
             industry: None,
             hyperinflation_status: HyperinflationStatus::NotHyperinflationary,
+            ownership_changes: Vec::new(),
             source: EntitySource::Explicit,
             generated_block_index: None,
             rows: None,

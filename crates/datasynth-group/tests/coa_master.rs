@@ -24,6 +24,7 @@ fn make_entity(code: &str, country: &str, framework: Option<&str>) -> ExpandedEn
         generated_block_index: None,
         rows: None,
         hyperinflation_status: datasynth_core::models::HyperinflationStatus::NotHyperinflationary,
+        ownership_changes: Vec::new(),
     }
 }
 

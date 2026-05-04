@@ -104,7 +104,7 @@ pub struct ManifestPeriod {
 }
 
 /// Ownership graph section of the manifest.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct OwnershipGraphSection {
     /// Top-level parent entity code.
     pub parent_entity_code: String,
@@ -116,7 +116,7 @@ pub struct OwnershipGraphSection {
 ///
 /// Combines the expanded entity data with the per-entity seed (hex-encoded)
 /// and shard assignment for direct shard consumption.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ManifestEntity {
     pub code: String,
     pub name: Option<String>,
@@ -135,6 +135,14 @@ pub struct ManifestEntity {
     /// compatibility byte-for-byte.
     #[serde(default)]
     pub hyperinflation_status: datasynth_core::models::HyperinflationStatus,
+    /// **v5.2** — IFRS 3 § 41-42 / IFRS 10 § 23 / IFRS 10.B97 mid-period
+    /// ownership-change events affecting this entity.  Validated by
+    /// the manifest builder: each event's `effective_date` must lie
+    /// within `[period.start, period.end]` (inclusive).  Empty for
+    /// engagements without ownership changes.  `#[serde(default)]`
+    /// keeps v5.0–v5.1 archives loading byte-identically.
+    #[serde(default)]
+    pub ownership_changes: Vec<datasynth_core::models::intercompany::OwnershipChangeEvent>,
     /// Hex-encoded blake3 digest of the per-entity seed (spec §2.4).
     pub entity_seed: String,
     /// Shard identifier assigned by the shard plan (e.g. `"S_SIG_0001"`).
@@ -205,27 +213,58 @@ pub fn build_manifest(cfg: &GroupConfig) -> GroupResult<GroupManifest> {
     let cgu_plan = build_cgu_plan(&cfg.cgu, &expanded)?;
 
     // ── 10. ManifestEntity: enrich each ExpandedEntity ────────────────────────
+    // Also validates that every ownership-change event's effective_date
+    // falls within [period.start, period.end] (inclusive) — events
+    // outside the engagement period are rejected as a config error.
     let entities: Vec<ManifestEntity> = expanded
         .iter()
-        .map(|e| ManifestEntity {
-            code: e.code.clone(),
-            name: e.name.clone(),
-            country: e.country.clone(),
-            functional_currency: e.functional_currency.clone(),
-            scoping_profile: e.scoping_profile.clone(),
-            consolidation_method: e.consolidation_method,
-            ownership_percent: e.ownership_percent,
-            parent_code: e.parent_code.clone(),
-            accounting_framework: e.accounting_framework.clone(),
-            industry: e.industry.clone(),
-            hyperinflation_status: e.hyperinflation_status,
-            entity_seed: hex::encode(derive_entity_seed(cfg.seed, &e.code)),
-            shard_id: shard_by_code
-                .get(e.code.as_str())
-                .cloned()
-                .unwrap_or_default(),
+        .map(|e| {
+            for ev in &e.ownership_changes {
+                if ev.effective_date < period.start || ev.effective_date > period.end {
+                    return Err(GroupError::Config(format!(
+                        "entity {}: ownership_change effective_date {} is outside the \
+                         engagement period [{}, {}]",
+                        e.code, ev.effective_date, period.start, period.end,
+                    )));
+                }
+                if ev.ownership_percent_before < rust_decimal::Decimal::ZERO
+                    || ev.ownership_percent_before > rust_decimal::Decimal::ONE
+                {
+                    return Err(GroupError::Config(format!(
+                        "entity {}: ownership_percent_before {} is not in [0, 1]",
+                        e.code, ev.ownership_percent_before,
+                    )));
+                }
+                if ev.ownership_percent_after < rust_decimal::Decimal::ZERO
+                    || ev.ownership_percent_after > rust_decimal::Decimal::ONE
+                {
+                    return Err(GroupError::Config(format!(
+                        "entity {}: ownership_percent_after {} is not in [0, 1]",
+                        e.code, ev.ownership_percent_after,
+                    )));
+                }
+            }
+            Ok(ManifestEntity {
+                code: e.code.clone(),
+                name: e.name.clone(),
+                country: e.country.clone(),
+                functional_currency: e.functional_currency.clone(),
+                scoping_profile: e.scoping_profile.clone(),
+                consolidation_method: e.consolidation_method,
+                ownership_percent: e.ownership_percent,
+                parent_code: e.parent_code.clone(),
+                accounting_framework: e.accounting_framework.clone(),
+                industry: e.industry.clone(),
+                hyperinflation_status: e.hyperinflation_status,
+                ownership_changes: e.ownership_changes.clone(),
+                entity_seed: hex::encode(derive_entity_seed(cfg.seed, &e.code)),
+                shard_id: shard_by_code
+                    .get(e.code.as_str())
+                    .cloned()
+                    .unwrap_or_default(),
+            })
         })
-        .collect();
+        .collect::<GroupResult<Vec<_>>>()?;
 
     Ok(GroupManifest {
         schema_version: MANIFEST_SCHEMA_VERSION.to_string(),

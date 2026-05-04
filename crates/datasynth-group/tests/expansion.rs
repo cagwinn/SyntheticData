@@ -23,6 +23,7 @@ fn base_cfg_with_generated(generated: Vec<GeneratedEntityBlock>) -> OwnershipCon
             rows: None,
             hyperinflation_status:
                 datasynth_core::models::HyperinflationStatus::NotHyperinflationary,
+            ownership_changes: Vec::new(),
             overrides: Default::default(),
         }],
         generated,
@@ -156,6 +157,7 @@ fn test_collision_between_explicit_and_generated_fails() {
             rows: None,
             hyperinflation_status:
                 datasynth_core::models::HyperinflationStatus::NotHyperinflationary,
+            ownership_changes: Vec::new(),
             overrides: Default::default(),
         });
     let err = expand_ownership(&ownership, 42, d(2024, 1, 1)).unwrap_err();
@@ -183,6 +185,7 @@ fn test_explicit_duplicates_fail() {
             rows: None,
             hyperinflation_status:
                 datasynth_core::models::HyperinflationStatus::NotHyperinflationary,
+            ownership_changes: Vec::new(),
             overrides: Default::default(),
         });
     let err = expand_ownership(&ownership, 42, d(2024, 1, 1)).unwrap_err();

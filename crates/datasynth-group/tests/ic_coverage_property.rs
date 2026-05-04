@@ -120,6 +120,7 @@ fn random_group_config(
                 rows: None,
                 hyperinflation_status:
                     datasynth_core::models::HyperinflationStatus::NotHyperinflationary,
+                ownership_changes: Vec::new(),
                 overrides: BTreeMap::new(),
             }
         })

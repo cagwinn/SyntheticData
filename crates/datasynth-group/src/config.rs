@@ -99,6 +99,20 @@ pub struct EntityConfig {
     pub industry: Option<String>,
     #[serde(default)]
     pub rows: Option<u64>,
+    /// **v5.2** — IFRS 3 § 41-42 / IFRS 10 § 23 / IFRS 10.B97
+    /// ownership-change events that affected this entity during the
+    /// reporting period.  Each entry describes one mid-period
+    /// transition: control gained (new acquisition or increase from
+    /// associate), control increased / decreased within consolidation
+    /// (equity-transaction treatment per IFRS 10.23), or control lost
+    /// (deconsolidation per IFRS 10.B97).  Empty by default; the
+    /// shard runner emits `intercompany/ownership_change_events.json`
+    /// per entity only when this list is non-empty so v5.0–v5.1
+    /// archives stay byte-identical.  The aggregate-phase rollforward
+    /// wiring (consuming these events to drive proper IFRS 3 / IFRS
+    /// 10 NCI treatment) is a follow-up PR.
+    #[serde(default)]
+    pub ownership_changes: Vec<OwnershipChangeEntry>,
     /// **v5.2** — IAS 29 hyperinflationary status of this entity's
     /// functional currency.  Defaults to `NotHyperinflationary`,
     /// preserving v5.0–v5.1 behaviour byte-for-byte.  When set to
@@ -486,4 +500,54 @@ pub struct CguGoodwillAllocationEntry {
     pub goodwill_amount: Decimal,
     /// Acquisition date the allocation took effect.
     pub allocation_date: NaiveDate,
+}
+
+/// **v5.2** — IFRS 3 § 41-42 / IFRS 10 § 23 / IFRS 10.B97 mid-period
+/// ownership-change event declared on an [`EntityConfig`].
+///
+/// `entity_code` and `parent_entity_code` are NOT carried here — the
+/// manifest builder fills them from the host [`EntityConfig::code`]
+/// and [`EntityConfig::parent_code`] respectively when lifting this
+/// entry into a [`datasynth_core::models::OwnershipChangeEvent`].
+/// The host entity must therefore have `parent_code` set.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct OwnershipChangeEntry {
+    /// What kind of ownership change occurred — drives IFRS 3 / IFRS 10
+    /// accounting treatment.
+    pub event_type: datasynth_core::models::intercompany::OwnershipChangeType,
+    /// Date the change took effect (must lie within the manifest
+    /// period — validated at manifest build).
+    pub effective_date: NaiveDate,
+    /// Parent's ownership percent immediately before the event,
+    /// in `[0, 1]`.
+    pub ownership_percent_before: Decimal,
+    /// Parent's ownership percent immediately after the event,
+    /// in `[0, 1]`.
+    pub ownership_percent_after: Decimal,
+    /// Carrying amount of the previously-held interest in the
+    /// investor's books (IFRS 3.42 input for `ControlGained`).
+    /// Only meaningful for `ControlGained` / `ControlLost`; ignored
+    /// for the equity-transaction variants.
+    #[serde(default)]
+    pub previously_held_interest_carrying: Option<Decimal>,
+    /// Acquisition-date fair value of the previously-held interest
+    /// (IFRS 3.42 / IFRS 10.B97 re-measurement input).
+    #[serde(default)]
+    pub previously_held_interest_fair_value: Option<Decimal>,
+    /// Cash / share consideration paid (positive on `ControlGained` /
+    /// `ControlIncreased`) or received (negative on `ControlDecreased` /
+    /// `ControlLost`).  Sign convention: positive = outflow from
+    /// parent.
+    pub consideration_paid_or_received: Decimal,
+    /// IFRS 3 § 19 acquisition-date NCI fair value when this event
+    /// triggers a new consolidation (`ControlGained` only — must be
+    /// `Some(fv)` when method is `FullGoodwill`).
+    #[serde(default)]
+    pub acquisition_date_nci_fair_value: Option<Decimal>,
+    /// Method used to measure the new NCI (only relevant for
+    /// `ControlGained`).
+    #[serde(default)]
+    pub nci_measurement_method: datasynth_core::models::intercompany::NciMeasurementMethod,
+    /// Group presentation currency the amounts are denominated in.
+    pub currency: String,
 }

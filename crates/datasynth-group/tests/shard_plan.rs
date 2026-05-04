@@ -22,6 +22,7 @@ fn make_entity(code: &str, profile: &str, rows: Option<u64>) -> ExpandedEntity {
         accounting_framework: None,
         industry: None,
         hyperinflation_status: datasynth_core::models::HyperinflationStatus::NotHyperinflationary,
+        ownership_changes: Vec::new(),
         source: EntitySource::Explicit,
         generated_block_index: None,
         rows,
