@@ -26,6 +26,7 @@ pub mod equity_method;
 pub mod fs;
 pub mod ic_matcher;
 pub mod nci;
+pub mod opening_balance;
 pub mod post_elim;
 pub mod pre_elim;
 pub mod tb_loader;
@@ -62,6 +63,9 @@ pub use ic_matcher::{
 pub use nci::{
     compute_nci_rollforward, ingest_opening_nci_balances, write_nci_rollforward, NciInputs,
     NciRollforward, NCI_ROLLFORWARD_FILENAME,
+};
+pub use opening_balance::{
+    extract_opening_balances, read_prior_period_closing_tbs, OpeningBalance,
 };
 pub use post_elim::{apply_eliminations_to_tb, apply_nci_and_equity_method};
 pub use pre_elim::{aggregate_pre_elimination, AggregatedAccount, AggregatedTb, DeferredEntity};
