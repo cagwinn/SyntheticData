@@ -50,6 +50,7 @@ use datasynth_core::models::balance::{AccountType, TrialBalance};
 use datasynth_standards::framework::AccountingFramework;
 
 use crate::aggregate::translation::classify::{classify_account, TranslationAccountType};
+use crate::aggregate::translation::restatement::IndexedRestatement;
 use crate::errors::{GroupError, GroupResult};
 use crate::manifest::FxRateMaster;
 
@@ -202,6 +203,47 @@ pub fn translate_entity_tb_with_hyperinflation(
     framework: AccountingFramework,
     hyperinflation: datasynth_core::models::HyperinflationStatus,
 ) -> GroupResult<TranslatedTb> {
+    translate_entity_tb_with_indexed_restatement(
+        entity_tb,
+        entity_functional_ccy,
+        fx_rate_master,
+        period_end,
+        presentation_currency,
+        framework,
+        hyperinflation,
+        None,
+    )
+}
+
+/// Translate an entity's trial balance with full IAS 29 / IAS 21
+/// hyperinflationary treatment.  Composes IAS 29 § 12 indexed
+/// restatement (when `restatement` is `Some`) with IAS 21 § 42(b)
+/// closing-rate translation (when `hyperinflation.requires_restatement()`):
+///
+/// ```text
+/// presentation_amount = local_amount × restatement_factor × fx_rate
+/// ```
+///
+/// `restatement_factor` is `1.0` when `restatement` is `None` (no
+/// indexation) or for monetary BS items (always 1.0 per IAS 29 § 12),
+/// `closing_index / opening_index` for non-monetary BS items + equity,
+/// and `closing_index / average_index` for income statement items.
+///
+/// The simpler [`translate_entity_tb_with_hyperinflation`] delegates
+/// here with `restatement = None`; [`translate_entity_tb`] delegates
+/// with both `hyperinflation = NotHyperinflationary` and
+/// `restatement = None` for the v5.0–v5.1 byte-identical IAS 21 path.
+#[allow(clippy::too_many_arguments)]
+pub fn translate_entity_tb_with_indexed_restatement(
+    entity_tb: &TrialBalance,
+    entity_functional_ccy: &str,
+    fx_rate_master: &FxRateMaster,
+    period_end: NaiveDate,
+    presentation_currency: &str,
+    framework: AccountingFramework,
+    hyperinflation: datasynth_core::models::HyperinflationStatus,
+    restatement: Option<&IndexedRestatement>,
+) -> GroupResult<TranslatedTb> {
     let identity = entity_functional_ccy == presentation_currency;
     let pair_key = format!("{entity_functional_ccy}/{presentation_currency}");
 
@@ -224,7 +266,20 @@ pub fn translate_entity_tb_with_hyperinflation(
             rate_basis_for(account_type)
         };
 
-        let (local_amount, local_dr_cr) = direction_and_amount(tbl);
+        let (raw_local_amount, local_dr_cr) = direction_and_amount(tbl);
+
+        // IAS 29 § 12 restatement (only when supplied — typically
+        // only for hyperinflationary entities).  The `local_amount`
+        // recorded on the output is the post-restatement amount —
+        // the measuring unit current at the period end — because
+        // that's the amount that was actually multiplied by `fx_rate`
+        // to produce `translated_amount`.  For non-hyperinflationary
+        // entities `restatement` is `None` and this is a no-op
+        // (factor = 1.0).
+        let restatement_factor = restatement
+            .map(|r| r.factor_for(account_type))
+            .unwrap_or(Decimal::ONE);
+        let local_amount = (raw_local_amount * restatement_factor).round_dp(2);
 
         let fx_rate = if identity {
             Decimal::ONE

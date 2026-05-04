@@ -24,7 +24,8 @@ use datasynth_core::models::balance::{
 use datasynth_group::config::{FxPolicyConfig, FxRateBasis};
 use datasynth_group::manifest::FxRateMaster;
 use datasynth_group::{
-    translate_entity_tb, translate_entity_tb_with_hyperinflation, DrCr, GroupError, RateBasis,
+    translate_entity_tb, translate_entity_tb_with_hyperinflation,
+    translate_entity_tb_with_indexed_restatement, DrCr, GroupError, IndexedRestatement, RateBasis,
     TranslationAccountType,
 };
 use datasynth_standards::framework::AccountingFramework;
@@ -541,4 +542,298 @@ fn hyperinflationary_translation_byte_identical_to_default_when_not_set() {
         assert_eq!(la.translated_amount, lb.translated_amount);
     }
     assert_eq!(a.cta, b.cta);
+}
+
+// ── v5.2 IAS 29 § 12 indexed restatement ───────────────────────────────
+
+/// Build a TB exercising every translation-account class so the
+/// IAS 29 restatement tests can verify per-class scaling:
+///
+/// - DR cash 10,000 → BsMonetary (factor 1)
+/// - DR inventory 4,000 → BsNonMonetary (factor non_monetary_factor)
+/// - DR fixed assets 6,000 → BsNonMonetary (factor non_monetary_factor)
+/// - DR COGS 3,000 → PlExpense (factor pl_factor)
+/// - CR revenue 9,000 → PlRevenue (factor pl_factor)
+/// - CR AP 5,000 → BsMonetary (factor 1)
+/// - CR retained earnings 9,000 → Equity (factor non_monetary_factor)
+fn build_usd_tb_mixed_classes(company_code: &str) -> TrialBalance {
+    let mut tb = TrialBalance::new(
+        format!("TB_{company_code}"),
+        company_code.to_string(),
+        period_end(),
+        2024,
+        3,
+        "USD".to_string(),
+        TrialBalanceType::Adjusted,
+    );
+
+    let push_dr = |tb: &mut TrialBalance, code: &str, ty: AccountType, amt: Decimal| {
+        tb.add_line(TrialBalanceLine {
+            account_code: code.to_string(),
+            account_description: code.to_string(),
+            category: AccountCategory::from_account_type(ty),
+            account_type: ty,
+            opening_balance: Decimal::ZERO,
+            period_debits: amt,
+            period_credits: Decimal::ZERO,
+            closing_balance: amt,
+            debit_balance: amt,
+            credit_balance: Decimal::ZERO,
+            cost_center: None,
+            profit_center: None,
+        });
+    };
+
+    let push_cr = |tb: &mut TrialBalance, code: &str, ty: AccountType, amt: Decimal| {
+        tb.add_line(TrialBalanceLine {
+            account_code: code.to_string(),
+            account_description: code.to_string(),
+            category: AccountCategory::from_account_type(ty),
+            account_type: ty,
+            opening_balance: Decimal::ZERO,
+            period_debits: Decimal::ZERO,
+            period_credits: amt,
+            closing_balance: amt,
+            debit_balance: Decimal::ZERO,
+            credit_balance: amt,
+            cost_center: None,
+            profit_center: None,
+        });
+    };
+
+    push_dr(
+        &mut tb,
+        cash_accounts::OPERATING_CASH,
+        AccountType::Asset,
+        dec!(10000),
+    );
+    // 1200 → inventory → BsNonMonetary per classify.rs
+    push_dr(&mut tb, "1200", AccountType::Asset, dec!(4000));
+    // 1500 → fixed assets → BsNonMonetary
+    push_dr(&mut tb, "1500", AccountType::Asset, dec!(6000));
+    push_dr(
+        &mut tb,
+        expense_accounts::COGS,
+        AccountType::Expense,
+        dec!(3000),
+    );
+    push_cr(
+        &mut tb,
+        revenue_accounts::PRODUCT_REVENUE,
+        AccountType::Revenue,
+        dec!(9000),
+    );
+    push_cr(
+        &mut tb,
+        control_accounts::AP_CONTROL,
+        AccountType::Liability,
+        dec!(5000),
+    );
+    push_cr(
+        &mut tb,
+        equity_accounts::RETAINED_EARNINGS,
+        AccountType::Equity,
+        dec!(9000),
+    );
+
+    tb
+}
+
+#[test]
+fn indexed_restatement_scales_only_non_monetary_and_pl_lines() {
+    // IAS 29 § 12 contract: monetary BS items pass through with
+    // factor 1; non-monetary BS items + equity scale by
+    // closing_index / opening_index (here 200/100 = 2.0); P&L items
+    // scale by closing_index / average_index (here 200/150 ≈ 1.333).
+    use datasynth_core::models::HyperinflationStatus;
+
+    let tb = build_usd_tb_mixed_classes("HYPERINF_SUB");
+    let master = nestle_fx_master_usd_chf();
+    let restatement = IndexedRestatement::new(dec!(100), dec!(200), dec!(150)).unwrap();
+    let nm = restatement.non_monetary_factor(); // 2
+    let pl = restatement.pl_factor(); // 4/3
+
+    let out = translate_entity_tb_with_indexed_restatement(
+        &tb,
+        "USD",
+        &master,
+        period_end(),
+        "CHF",
+        AccountingFramework::default(),
+        HyperinflationStatus::Hyperinflationary,
+        Some(&restatement),
+    )
+    .expect("indexed restatement translation must succeed");
+
+    // Walk each line; verify post-restatement local_amount equals
+    // raw_input × class-appropriate factor (rounded to 2dp the same
+    // way the implementation does).
+    let raw = build_usd_tb_mixed_classes("HYPERINF_SUB");
+    for (out_line, raw_line) in out.lines.iter().zip(raw.lines.iter()) {
+        let raw_amt = raw_line.debit_balance.max(raw_line.credit_balance);
+        let expected_factor = match out_line.account_type {
+            TranslationAccountType::BsMonetary => Decimal::ONE,
+            TranslationAccountType::BsNonMonetary | TranslationAccountType::Equity => nm,
+            TranslationAccountType::PlRevenue
+            | TranslationAccountType::PlExpense
+            | TranslationAccountType::PlOci => pl,
+        };
+        let expected_local = (raw_amt * expected_factor).round_dp(2);
+        assert_eq!(
+            out_line.local_amount, expected_local,
+            "account {} (type {:?}): expected restated local_amount {} but got {}",
+            out_line.account_code, out_line.account_type, expected_local, out_line.local_amount,
+        );
+    }
+}
+
+#[test]
+fn indexed_restatement_unit_factors_byte_identical_to_no_restatement() {
+    // Stable economy (all three indices equal) → all factors 1.0 →
+    // restatement is a no-op.  Pinning this guarantees that adding
+    // restatement plumbing to a non-hyperinflationary entity that
+    // accidentally supplies an `IndexedRestatement{1,1,1}` doesn't
+    // change a single number.
+    use datasynth_core::models::HyperinflationStatus;
+
+    let tb = build_usd_tb_mixed_classes("STABLE_SUB");
+    let master = nestle_fx_master_usd_chf();
+    let unit_restatement = IndexedRestatement::new(dec!(1), dec!(1), dec!(1)).unwrap();
+
+    let with_restatement = translate_entity_tb_with_indexed_restatement(
+        &tb,
+        "USD",
+        &master,
+        period_end(),
+        "CHF",
+        AccountingFramework::default(),
+        HyperinflationStatus::Hyperinflationary,
+        Some(&unit_restatement),
+    )
+    .expect("unit-factor restatement must succeed");
+
+    let without_restatement = translate_entity_tb_with_hyperinflation(
+        &tb,
+        "USD",
+        &master,
+        period_end(),
+        "CHF",
+        AccountingFramework::default(),
+        HyperinflationStatus::Hyperinflationary,
+    )
+    .expect("no-restatement hyperinflationary translation must succeed");
+
+    assert_eq!(
+        with_restatement.lines.len(),
+        without_restatement.lines.len()
+    );
+    for (a, b) in with_restatement
+        .lines
+        .iter()
+        .zip(without_restatement.lines.iter())
+    {
+        assert_eq!(a.account_code, b.account_code);
+        assert_eq!(a.local_amount, b.local_amount);
+        assert_eq!(a.fx_rate, b.fx_rate);
+        assert_eq!(a.translated_amount, b.translated_amount);
+    }
+    assert_eq!(with_restatement.cta, without_restatement.cta);
+}
+
+#[test]
+fn indexed_restatement_composes_with_closing_rate_per_ias21_para_42b() {
+    // IAS 29 § 12 + IAS 21 § 42(b) compose:
+    // translated_amount = raw_local × restatement_factor × closing_rate
+    //
+    // For a non-monetary BS line in a hyperinflationary entity:
+    //   raw 4,000 × 2.0 (nm factor) × closing_rate(USD/CHF)
+    //
+    // The implementation rounds local_amount to 2dp before applying
+    // the rate, so we mirror that ordering in the expected.
+    use datasynth_core::models::HyperinflationStatus;
+
+    let tb = build_usd_tb_mixed_classes("HYPERINF_SUB");
+    let master = nestle_fx_master_usd_chf();
+    let restatement = IndexedRestatement::new(dec!(100), dec!(200), dec!(150)).unwrap();
+
+    let out = translate_entity_tb_with_indexed_restatement(
+        &tb,
+        "USD",
+        &master,
+        period_end(),
+        "CHF",
+        AccountingFramework::default(),
+        HyperinflationStatus::Hyperinflationary,
+        Some(&restatement),
+    )
+    .expect("indexed restatement translation must succeed");
+
+    let closing_rate = master.closing_by_pair.get("USD/CHF").copied().unwrap();
+
+    // Pick out the inventory line (account 1200 = BsNonMonetary).
+    let inv = out
+        .lines
+        .iter()
+        .find(|l| l.account_code == "1200")
+        .expect("inventory line must be present");
+
+    // Restated local: raw(4000) * 2.0 = 8,000.00
+    assert_eq!(inv.local_amount, dec!(8000));
+    // Translated: 8,000 × closing_rate, rounded 2dp
+    let expected_translated = (dec!(8000) * closing_rate).round_dp(2);
+    assert_eq!(inv.translated_amount, expected_translated);
+    // Hyperinflationary status forces closing rate per § 42(b)
+    assert_eq!(inv.rate_basis, RateBasis::Closing);
+    assert_eq!(inv.fx_rate, closing_rate);
+}
+
+#[test]
+fn indexed_restatement_none_byte_identical_to_with_hyperinflation_only() {
+    // Backwards-compat pin: passing `restatement = None` to the
+    // _with_indexed_restatement entrypoint must produce byte-identical
+    // output to the _with_hyperinflation entrypoint at the same status.
+    // This is the contract that lets `_with_hyperinflation` delegate
+    // to `_with_indexed_restatement(.., None)` without behaviour drift.
+    use datasynth_core::models::HyperinflationStatus;
+
+    let tb = build_usd_tb_mixed_classes("NESTLE_USA");
+    let master = nestle_fx_master_usd_chf();
+
+    for status in [
+        HyperinflationStatus::NotHyperinflationary,
+        HyperinflationStatus::Hyperinflationary,
+    ] {
+        let a = translate_entity_tb_with_hyperinflation(
+            &tb,
+            "USD",
+            &master,
+            period_end(),
+            "CHF",
+            AccountingFramework::default(),
+            status,
+        )
+        .unwrap();
+        let b = translate_entity_tb_with_indexed_restatement(
+            &tb,
+            "USD",
+            &master,
+            period_end(),
+            "CHF",
+            AccountingFramework::default(),
+            status,
+            None,
+        )
+        .unwrap();
+        assert_eq!(a.lines.len(), b.lines.len(), "status={status:?}");
+        for (la, lb) in a.lines.iter().zip(b.lines.iter()) {
+            assert_eq!(la.account_code, lb.account_code, "status={status:?}");
+            assert_eq!(la.local_amount, lb.local_amount, "status={status:?}");
+            assert_eq!(la.fx_rate, lb.fx_rate, "status={status:?}");
+            assert_eq!(
+                la.translated_amount, lb.translated_amount,
+                "status={status:?}"
+            );
+        }
+        assert_eq!(a.cta, b.cta, "status={status:?}");
+    }
 }
