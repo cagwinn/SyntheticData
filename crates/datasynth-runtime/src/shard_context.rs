@@ -18,6 +18,7 @@
 //! `datasynth-group` depends on `datasynth-runtime`, not the other way
 //! around.
 
+use datasynth_core::models::balance::EntityOpeningBalance;
 use datasynth_core::models::journal_entry::JournalEntry;
 
 /// Context for shard-mode generation.
@@ -41,6 +42,21 @@ pub struct ShardContext {
     /// `EnhancedOrchestrator.generate()`.  Appended to the JE accumulator
     /// at the end of phase 4.
     pub extra_journal_entries: Vec<JournalEntry>,
+    /// **v5.3** — Opening-balance carryover from a prior period.  When
+    /// non-empty, the orchestrator's Phase 3b (opening balances)
+    /// **replaces** its generated openings with these carryover values
+    /// for this entity, seeding period-N+1 from period-N's closing TB
+    /// instead of generating a fresh opening from the industry-mix
+    /// generator.
+    ///
+    /// Empty by default — engagements that don't supply a prior period
+    /// (the v5.0–v5.2 default) see no behaviour change: the orchestrator
+    /// generates openings via `OpeningBalanceGenerator` as before.
+    ///
+    /// Callers prepare these by reading the prior period's per-entity
+    /// `period_close/trial_balances.json` and projecting onto BS-only
+    /// positions via `datasynth_group::aggregate::extract_opening_balances`.
+    pub opening_balances: Vec<EntityOpeningBalance>,
 }
 
 #[cfg(test)]
@@ -58,6 +74,28 @@ mod tests {
         assert!(ctx.entity_code.is_empty());
         assert_eq!(ctx.entity_seed, [0u8; 32]);
         assert!(ctx.extra_journal_entries.is_empty());
+        assert!(ctx.opening_balances.is_empty());
+    }
+
+    #[test]
+    fn test_can_hold_opening_balances_for_v53_carryover() {
+        use datasynth_core::models::balance::AccountType;
+        let mut ctx = ShardContext::default();
+        ctx.opening_balances.push(EntityOpeningBalance {
+            account_code: "1000".to_string(),
+            account_type: AccountType::Asset,
+            debit: Decimal::from(50_000),
+            credit: Decimal::ZERO,
+        });
+        ctx.opening_balances.push(EntityOpeningBalance {
+            account_code: "2000".to_string(),
+            account_type: AccountType::Liability,
+            debit: Decimal::ZERO,
+            credit: Decimal::from(30_000),
+        });
+        assert_eq!(ctx.opening_balances.len(), 2);
+        assert_eq!(ctx.opening_balances[0].account_code, "1000");
+        assert_eq!(ctx.opening_balances[1].net_balance(), Decimal::from(30_000));
     }
 
     #[test]
@@ -86,6 +124,7 @@ mod tests {
             entity_code: "E_TEST".to_string(),
             entity_seed: [42u8; 32],
             extra_journal_entries: Vec::new(),
+            opening_balances: Vec::new(),
         };
         ctx.extra_journal_entries.push(je);
         assert_eq!(ctx.extra_journal_entries.len(), 1);

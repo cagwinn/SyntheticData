@@ -10137,6 +10137,90 @@ impl EnhancedOrchestrator {
             .map_err(|e| SynthError::config(format!("Invalid start_date: {e}")))?;
         let fiscal_year = start_date.year();
 
+        // **v5.3** — When the shard context supplies prior-period
+        // opening-balance carryovers, use them directly instead of
+        // calling `OpeningBalanceGenerator`.  This implements multi-
+        // period continuity: period N+1 opens with period N's closing
+        // BS positions exactly, rather than re-rolling the industry-
+        // mix generator and losing the audit trail.
+        //
+        // Empty `opening_balances` (the v5.0–v5.2 default) falls
+        // through to the generator path — byte-identical behaviour
+        // for single-period engagements.
+        if let Some(ctx) = &self.shard_context {
+            if !ctx.opening_balances.is_empty() {
+                debug!(
+                    "Phase 3b: using v5.3 opening-balance carryover ({} accounts)",
+                    ctx.opening_balances.len()
+                );
+                let mut results = Vec::new();
+                for company in &self.config.companies {
+                    let balances: std::collections::HashMap<String, rust_decimal::Decimal> = ctx
+                        .opening_balances
+                        .iter()
+                        .map(|ob| (ob.account_code.clone(), ob.net_balance()))
+                        .collect();
+                    let total_assets = ctx
+                        .opening_balances
+                        .iter()
+                        .filter(|ob| {
+                            matches!(
+                                ob.account_type,
+                                AccountType::Asset | AccountType::ContraAsset
+                            )
+                        })
+                        .map(|ob| ob.net_balance())
+                        .sum::<rust_decimal::Decimal>();
+                    let total_liabilities = ctx
+                        .opening_balances
+                        .iter()
+                        .filter(|ob| {
+                            matches!(
+                                ob.account_type,
+                                AccountType::Liability | AccountType::ContraLiability
+                            )
+                        })
+                        .map(|ob| ob.net_balance())
+                        .sum::<rust_decimal::Decimal>();
+                    let total_equity = ctx
+                        .opening_balances
+                        .iter()
+                        .filter(|ob| {
+                            matches!(
+                                ob.account_type,
+                                AccountType::Equity | AccountType::ContraEquity
+                            )
+                        })
+                        .map(|ob| ob.net_balance())
+                        .sum::<rust_decimal::Decimal>();
+                    let is_balanced = (total_assets - total_liabilities - total_equity).abs()
+                        < rust_decimal::Decimal::ONE;
+                    results.push(GeneratedOpeningBalance {
+                        company_code: company.code.clone(),
+                        as_of_date: start_date,
+                        balances,
+                        total_assets,
+                        total_liabilities,
+                        total_equity,
+                        is_balanced,
+                        calculated_ratios: datasynth_core::models::balance::CalculatedRatios {
+                            current_ratio: None,
+                            quick_ratio: None,
+                            debt_to_equity: None,
+                            working_capital: rust_decimal::Decimal::ZERO,
+                        },
+                    });
+                }
+                stats.opening_balance_count = results.len();
+                info!(
+                    "Phase 3b: opening-balance carryover applied ({} companies)",
+                    results.len()
+                );
+                self.check_resources_with_log("post-opening-balances")?;
+                return Ok(results);
+            }
+        }
+
         let industry = match self.config.global.industry {
             IndustrySector::Manufacturing => IndustryType::Manufacturing,
             IndustrySector::Retail => IndustryType::Retail,

@@ -678,6 +678,58 @@ pub struct CalculatedRatios {
     pub working_capital: Decimal,
 }
 
+/// **v5.3** — One per-account opening-balance record carried across
+/// periods.  Produced by the prior period's closing trial balance
+/// projection (group-side helper) and consumed by the orchestrator's
+/// opening-balance phase to seed period-N+1 from period-N's closing
+/// instead of generating a fresh opening.
+///
+/// `debit` and `credit` are both non-negative; at most one is non-zero
+/// (matches the underlying `TrialBalanceLine` invariant).
+///
+/// This carrier lives in `datasynth-core` so both `datasynth-runtime`
+/// (consumer via `ShardContext`) and `datasynth-group` (producer via
+/// `extract_opening_balances`) can reference it without a dependency
+/// cycle.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EntityOpeningBalance {
+    /// GL account code (e.g. `"1100"` for AR control).
+    pub account_code: String,
+    /// Account type — informational; the consumer applies its own
+    /// sign convention based on it (assets/expenses → debit-positive,
+    /// liabilities/equity/revenue → credit-positive).
+    pub account_type: AccountType,
+    /// Debit-side closing amount from the prior period (always
+    /// non-negative; zero when the line was credit-balanced).
+    pub debit: Decimal,
+    /// Credit-side closing amount from the prior period (always
+    /// non-negative; zero when the line was debit-balanced).
+    pub credit: Decimal,
+}
+
+impl EntityOpeningBalance {
+    /// Net signed amount per the account's normal balance side.
+    /// Positive for accounts where the larger side matches the normal
+    /// side; matches the convention `GeneratedOpeningBalance.balances`
+    /// uses for its `closing_balance` map.
+    ///
+    /// For Asset / ContraLiability / ContraEquity / Expense (debit-
+    /// normal): returns `debit - credit`.  For Liability / Equity /
+    /// ContraAsset / Revenue (credit-normal): returns `credit - debit`.
+    pub fn net_balance(&self) -> Decimal {
+        match self.account_type {
+            AccountType::Asset
+            | AccountType::ContraLiability
+            | AccountType::ContraEquity
+            | AccountType::Expense => self.debit - self.credit,
+            AccountType::Liability
+            | AccountType::Equity
+            | AccountType::ContraAsset
+            | AccountType::Revenue => self.credit - self.debit,
+        }
+    }
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
@@ -757,5 +809,65 @@ mod tests {
         spec.capital_structure.debt_percent = dec!(80);
         spec.capital_structure.equity_percent = dec!(30); // Sums to 110%
         assert!(spec.validate().is_err());
+    }
+
+    // ── v5.3 EntityOpeningBalance tests ──────────────────────────────
+
+    #[test]
+    fn entity_opening_balance_net_for_asset_is_dr_minus_cr() {
+        let ob = EntityOpeningBalance {
+            account_code: "1000".to_string(),
+            account_type: AccountType::Asset,
+            debit: dec!(10000),
+            credit: Decimal::ZERO,
+        };
+        assert_eq!(ob.net_balance(), dec!(10000));
+    }
+
+    #[test]
+    fn entity_opening_balance_net_for_liability_is_cr_minus_dr() {
+        let ob = EntityOpeningBalance {
+            account_code: "2000".to_string(),
+            account_type: AccountType::Liability,
+            debit: Decimal::ZERO,
+            credit: dec!(3000),
+        };
+        assert_eq!(ob.net_balance(), dec!(3000));
+    }
+
+    #[test]
+    fn entity_opening_balance_net_for_equity_is_cr_minus_dr() {
+        let ob = EntityOpeningBalance {
+            account_code: "3000".to_string(),
+            account_type: AccountType::Equity,
+            debit: Decimal::ZERO,
+            credit: dec!(9000),
+        };
+        assert_eq!(ob.net_balance(), dec!(9000));
+    }
+
+    #[test]
+    fn entity_opening_balance_net_for_contra_asset_is_cr_minus_dr() {
+        // Accumulated depreciation: contra-asset, credit-normal.
+        let ob = EntityOpeningBalance {
+            account_code: "1599".to_string(),
+            account_type: AccountType::ContraAsset,
+            debit: Decimal::ZERO,
+            credit: dec!(2500),
+        };
+        assert_eq!(ob.net_balance(), dec!(2500));
+    }
+
+    #[test]
+    fn entity_opening_balance_round_trips_json() {
+        let ob = EntityOpeningBalance {
+            account_code: "1000".to_string(),
+            account_type: AccountType::Asset,
+            debit: dec!(12345.67),
+            credit: Decimal::ZERO,
+        };
+        let json = serde_json::to_string(&ob).unwrap();
+        let back: EntityOpeningBalance = serde_json::from_str(&json).unwrap();
+        assert_eq!(ob, back);
     }
 }

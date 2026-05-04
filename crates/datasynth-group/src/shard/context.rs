@@ -90,5 +90,10 @@ pub fn build_shard_context(
         entity_code: entity_code.to_string(),
         entity_seed,
         extra_journal_entries,
+        // v5.3: opening-balance carryover.  The shard runner doesn't
+        // populate this — the chain helper threads it in when running
+        // multi-period engagements.  Empty here preserves v5.0–v5.2
+        // single-period behaviour byte-for-byte.
+        opening_balances: Vec::new(),
     })
 }
