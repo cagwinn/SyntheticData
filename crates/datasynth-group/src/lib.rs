@@ -62,4 +62,7 @@ pub use manifest::{
     TransferPricingPlan, MANIFEST_SCHEMA_VERSION,
 };
 pub use resolve::{resolve_entity, ResolvedEntity};
-pub use standalone::{generate_standalone, StandaloneOptions, StandaloneSummary};
+pub use standalone::{
+    generate_standalone, generate_standalone_chain, PeriodChainSpec, StandaloneOptions,
+    StandaloneSummary,
+};

@@ -209,3 +209,226 @@ pub fn generate_standalone(
         aggregate,
     })
 }
+
+// ── Multi-period chain helper (v5.3) ──────────────────────────────────────────
+
+/// One period in a multi-period engagement chain.  Carries the
+/// period-specific config + the output subdirectory the chain
+/// runner uses to scope this period's archive.
+///
+/// `out_subdir` is interpreted relative to the chain's `base_out_dir`
+/// (the second parameter of [`generate_standalone_chain`]) — typically
+/// something like `"2024_Q1"` or `"period_001"`.  Subdirs must be
+/// unique within a chain or [`generate_standalone_chain`] returns
+/// [`GroupError::Config`].
+#[derive(Debug, Clone)]
+pub struct PeriodChainSpec {
+    /// Period config (start_date / length / fiscal_year_end) for this
+    /// period.  Replaces [`GroupConfig::period`] when the chain runner
+    /// invokes the per-period [`generate_standalone`] call.
+    pub period: crate::config::PeriodConfig,
+    /// Output subdirectory under `base_out_dir`.  Must be unique
+    /// within the chain.
+    pub out_subdir: String,
+}
+
+/// Drive the full v5.0 pipeline once per period, chaining the
+/// aggregate-phase prior-period plumbing automatically.
+///
+/// For each period in `periods`:
+///
+/// 1. Clone `base_cfg`, override its `.period` with the spec's
+///    period config.  All other fields (ownership, fx, audit, tax,
+///    cgu, output) flow through unchanged.
+/// 2. Compute `out_dir = base_out_dir.join(spec.out_subdir)`.
+/// 3. For period 0, use `opts` as-is — caller's
+///    `prior_period_aggregate` is preserved (lets engagements seed
+///    from an externally produced archive).
+/// 4. For periods 1..N, override `opts.prior_period_aggregate` to
+///    point to the previous period's `out_dir` so opening NCI / CTA /
+///    equity-method values flow forward automatically.
+/// 5. Invoke [`generate_standalone`] and append the [`StandaloneSummary`]
+///    to the result vector.
+///
+/// On per-period failure the chain stops; outputs already written for
+/// prior periods are preserved on disk.
+///
+/// # Companion to [`crate::aggregate::run_aggregate_chain`]
+///
+/// `run_aggregate_chain` (PR #150) handles the same prior-period
+/// stitching at the aggregate-only layer (i.e. when shard archives
+/// already exist on disk).  This helper extends the pattern to the
+/// full pipeline — it generates the data per period **and** chains
+/// the aggregate plumbing.
+///
+/// # Errors
+///
+/// - [`GroupError::Config`] if `periods` is empty.
+/// - [`GroupError::Config`] if any two `out_subdir` values collide.
+/// - Any error from the underlying [`generate_standalone`] call.
+///
+/// # Caveat — orchestrator opening balances
+///
+/// This helper threads the **aggregate-phase** prior-period plumbing
+/// (opening NCI / CTA / equity-method carrying values) through the
+/// chain.  The **orchestrator-side** opening-balance carryover —
+/// where each period's opening trial balance equals the prior
+/// period's closing balance — is a separate refinement.  For v5.3
+/// the orchestrator generates each period from its own seed, so
+/// closing balances of period N are not currently used as opening
+/// balances of period N+1 at the entity level.
+pub fn generate_standalone_chain(
+    base_cfg: &GroupConfig,
+    periods: Vec<PeriodChainSpec>,
+    base_out_dir: &Path,
+    opts: &StandaloneOptions,
+) -> GroupResult<Vec<StandaloneSummary>> {
+    if periods.is_empty() {
+        return Err(GroupError::Config(
+            "generate_standalone_chain: periods must be non-empty".to_string(),
+        ));
+    }
+
+    // Reject duplicate out_subdir values up front — running two
+    // periods into the same directory would produce a corrupt archive
+    // (the second period's outputs would silently overwrite the first).
+    let mut seen: std::collections::BTreeSet<&str> = std::collections::BTreeSet::new();
+    for spec in &periods {
+        if !seen.insert(spec.out_subdir.as_str()) {
+            return Err(GroupError::Config(format!(
+                "generate_standalone_chain: duplicate out_subdir `{}` — every \
+                 period must have a unique output directory",
+                spec.out_subdir,
+            )));
+        }
+    }
+
+    let mut summaries: Vec<StandaloneSummary> = Vec::with_capacity(periods.len());
+    let mut prior_out: Option<PathBuf> = None;
+
+    for (idx, spec) in periods.into_iter().enumerate() {
+        let mut cfg = base_cfg.clone();
+        cfg.period = spec.period;
+
+        let out_dir = base_out_dir.join(&spec.out_subdir);
+
+        let mut period_opts = opts.clone();
+        if idx > 0 {
+            period_opts.prior_period_aggregate = prior_out.clone();
+        }
+
+        let summary = generate_standalone(&cfg, &out_dir, &period_opts)?;
+        prior_out = Some(out_dir);
+        summaries.push(summary);
+    }
+
+    Ok(summaries)
+}
+
+// ── Tests ──────────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::NaiveDate;
+    use std::path::PathBuf;
+
+    #[test]
+    fn period_chain_spec_field_shape() {
+        // Pin the public API shape — refactors that hide or rename
+        // fields will break the build.
+        let spec = PeriodChainSpec {
+            period: crate::config::PeriodConfig {
+                start_date: NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
+                length: crate::config::PeriodLength::Quarterly,
+                fiscal_year_end: None,
+            },
+            out_subdir: "2024_Q1".to_string(),
+        };
+        assert_eq!(spec.out_subdir, "2024_Q1");
+        assert_eq!(spec.period.length, crate::config::PeriodLength::Quarterly);
+    }
+
+    #[test]
+    fn empty_periods_rejected() {
+        let cfg = sample_min_config();
+        let err = generate_standalone_chain(
+            &cfg,
+            Vec::new(),
+            &PathBuf::from("/tmp/never"),
+            &StandaloneOptions::default(),
+        )
+        .unwrap_err();
+        assert!(format!("{err}").contains("must be non-empty"));
+    }
+
+    #[test]
+    fn duplicate_out_subdir_rejected() {
+        let cfg = sample_min_config();
+        let p1 = PeriodChainSpec {
+            period: crate::config::PeriodConfig {
+                start_date: NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
+                length: crate::config::PeriodLength::Quarterly,
+                fiscal_year_end: None,
+            },
+            out_subdir: "DUP".to_string(),
+        };
+        let p2 = PeriodChainSpec {
+            period: crate::config::PeriodConfig {
+                start_date: NaiveDate::from_ymd_opt(2024, 4, 1).unwrap(),
+                length: crate::config::PeriodLength::Quarterly,
+                fiscal_year_end: None,
+            },
+            out_subdir: "DUP".to_string(),
+        };
+        let err = generate_standalone_chain(
+            &cfg,
+            vec![p1, p2],
+            &PathBuf::from("/tmp/never"),
+            &StandaloneOptions::default(),
+        )
+        .unwrap_err();
+        assert!(format!("{err}").contains("duplicate out_subdir"));
+    }
+
+    /// Helper — minimum-viable GroupConfig for shape-only tests.
+    /// Doesn't reach the orchestrator (early-validation tests bail
+    /// before generate_standalone is called).
+    fn sample_min_config() -> GroupConfig {
+        GroupConfig {
+            id: "TEST".to_string(),
+            name: None,
+            presentation_currency: "CHF".to_string(),
+            period: crate::config::PeriodConfig {
+                start_date: NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
+                length: crate::config::PeriodLength::Quarterly,
+                fiscal_year_end: None,
+            },
+            seed: 42,
+            defaults: serde_yaml::Value::Null,
+            scoping_profiles: Default::default(),
+            ownership: crate::config::OwnershipConfig {
+                parent_entity_code: "P".to_string(),
+                entities: Vec::new(),
+                generated: Vec::new(),
+                entities_from: None,
+            },
+            intercompany: Default::default(),
+            fx: crate::config::FxConfig {
+                base_currency: "CHF".to_string(),
+                rate_source: Default::default(),
+                rates: Default::default(),
+                policy: crate::config::FxPolicyConfig {
+                    balance_sheet: crate::config::FxRateBasis::Closing,
+                    income_statement: crate::config::FxRateBasis::Average,
+                    equity: crate::config::FxRateBasis::Historical,
+                },
+            },
+            audit: Default::default(),
+            tax: Default::default(),
+            cgu: Default::default(),
+            output: Default::default(),
+            fleet: None,
+        }
+    }
+}
