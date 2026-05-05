@@ -3651,6 +3651,7 @@ fn handle_group_generate(
         tolerate_missing_shards: false,
         cgu_test_inputs: Vec::new(),
         parallel_shards,
+        entity_opening_balances: std::collections::BTreeMap::new(),
     };
 
     let summary = match datasynth_group::generate_standalone(&cfg, out_path, &opts) {

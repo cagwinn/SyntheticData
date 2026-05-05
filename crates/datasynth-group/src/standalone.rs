@@ -72,7 +72,7 @@ use crate::aggregate::driver::{run_aggregate, AggregateOptions, AggregateSummary
 use crate::config::GroupConfig;
 use crate::errors::{GroupError, GroupResult};
 use crate::manifest::builder::build_manifest;
-use crate::shard::runner::{run_shard, ShardSummary};
+use crate::shard::runner::{run_shard_with_opening_balances, ShardSummary};
 
 // ── Public types ──────────────────────────────────────────────────────────────
 
@@ -101,6 +101,24 @@ pub struct StandaloneOptions {
     /// by default; an engagement that wants annual IAS 36 § 10
     /// impairment testing supplies one entry per CGU under test.
     pub cgu_test_inputs: Vec<crate::aggregate::cgu_impairment::CguTestInputs>,
+    /// **v5.3** — Per-entity opening-balance carryover from a prior
+    /// period.  When non-empty, the shard runner pre-populates each
+    /// matching entity's `ShardContext.opening_balances` so the
+    /// orchestrator's Phase 3b uses these BS positions instead of
+    /// generating fresh openings.  Empty by default — single-period
+    /// engagements see no behaviour change.
+    ///
+    /// Auto-populated by [`generate_standalone_chain`] from the prior
+    /// period's `entities/{code}/period_close/trial_balances.json`
+    /// via [`crate::aggregate::opening_balance::read_prior_period_closing_tbs`]
+    /// followed by [`crate::aggregate::opening_balance::extract_opening_balances`].
+    /// Callers using `generate_standalone` directly can populate this
+    /// manually when they want to drive multi-period continuity
+    /// without the chain helper.
+    pub entity_opening_balances: std::collections::BTreeMap<
+        String,
+        Vec<datasynth_core::models::balance::EntityOpeningBalance>,
+    >,
 }
 
 impl Default for StandaloneOptions {
@@ -110,6 +128,7 @@ impl Default for StandaloneOptions {
             tolerate_missing_shards: false,
             parallel_shards: true,
             cgu_test_inputs: Vec::new(),
+            entity_opening_balances: std::collections::BTreeMap::new(),
         }
     }
 }
@@ -189,12 +208,24 @@ pub fn generate_standalone(
         // Vec, so the result is still declaration-ordered.
         shard_ids
             .par_iter()
-            .map(|sid| run_shard(&manifest, sid, out_dir))
+            .map(|sid| {
+                run_shard_with_opening_balances(
+                    &manifest,
+                    sid,
+                    out_dir,
+                    &opts.entity_opening_balances,
+                )
+            })
             .collect::<GroupResult<Vec<_>>>()?
     } else {
         let mut out: Vec<ShardSummary> = Vec::with_capacity(shard_ids.len());
         for sid in &shard_ids {
-            out.push(run_shard(&manifest, sid, out_dir)?);
+            out.push(run_shard_with_opening_balances(
+                &manifest,
+                sid,
+                out_dir,
+                &opts.entity_opening_balances,
+            )?);
         }
         out
     };
@@ -277,14 +308,31 @@ pub struct PeriodChainSpec {
 ///
 /// # Caveat — orchestrator opening balances
 ///
-/// This helper threads the **aggregate-phase** prior-period plumbing
-/// (opening NCI / CTA / equity-method carrying values) through the
-/// chain.  The **orchestrator-side** opening-balance carryover —
-/// where each period's opening trial balance equals the prior
-/// period's closing balance — is a separate refinement.  For v5.3
-/// the orchestrator generates each period from its own seed, so
-/// closing balances of period N are not currently used as opening
-/// balances of period N+1 at the entity level.
+/// **v5.3** — This helper now threads **both** the aggregate-phase
+/// prior-period plumbing (opening NCI / CTA / equity-method carrying
+/// values) **and** the orchestrator-side opening-balance carryover
+/// (entity-level opening TB = prior period's closing TB).  Between
+/// periods N and N+1:
+///
+/// 1. After period N's `generate_standalone` returns, walk
+///    `period_N_out_dir/entities/{code}/period_close/trial_balances.json`
+///    via [`crate::aggregate::opening_balance::read_prior_period_closing_tbs`]
+///    for every entity in the manifest.
+/// 2. Project each closing TB onto its BS positions via
+///    [`crate::aggregate::opening_balance::extract_opening_balances`].
+/// 3. Convert the group-side `OpeningBalance` records into core-side
+///    `EntityOpeningBalance` records (the runtime-friendly carrier
+///    `ShardContext.opening_balances` consumes).
+/// 4. Populate period-(N+1)'s `StandaloneOptions.entity_opening_balances`
+///    with the per-entity carry-forwards.  The shard runner installs
+///    these into each entity's `ShardContext`, and the orchestrator's
+///    Phase 3b uses them in place of the industry-mix opening
+///    generator.
+///
+/// On the first period (idx == 0) and when the entity has no prior
+/// closing TB on disk (e.g. it was a generated entity that wasn't
+/// persisted), the carryover is silently skipped — that entity's
+/// orchestrator falls through to fresh generator output.
 pub fn generate_standalone_chain(
     base_cfg: &GroupConfig,
     periods: Vec<PeriodChainSpec>,
@@ -323,6 +371,48 @@ pub fn generate_standalone_chain(
         let mut period_opts = opts.clone();
         if idx > 0 {
             period_opts.prior_period_aggregate = prior_out.clone();
+            // **v5.3** — auto-thread the orchestrator-side opening-
+            // balance carryover from the prior period.  Walk the
+            // manifest to know which entity codes to ask for, then
+            // load + project each entity's closing TB into runtime-
+            // friendly EntityOpeningBalance records.  Entities whose
+            // closing TB doesn't exist on disk are silently skipped
+            // (best-effort — the orchestrator's industry-mix
+            // generator handles them).
+            if let Some(prior) = &prior_out {
+                let entity_codes: Vec<String> = base_cfg
+                    .ownership
+                    .entities
+                    .iter()
+                    .map(|e| e.code.clone())
+                    .collect();
+                let closing_tbs = crate::aggregate::opening_balance::read_prior_period_closing_tbs(
+                    prior,
+                    &entity_codes,
+                )?;
+                let mut openings_by_entity: std::collections::BTreeMap<
+                    String,
+                    Vec<datasynth_core::models::balance::EntityOpeningBalance>,
+                > = std::collections::BTreeMap::new();
+                for (code, tb) in &closing_tbs {
+                    let group_openings =
+                        crate::aggregate::opening_balance::extract_opening_balances(tb);
+                    let core_openings: Vec<datasynth_core::models::balance::EntityOpeningBalance> =
+                        group_openings
+                            .into_iter()
+                            .map(|ob| datasynth_core::models::balance::EntityOpeningBalance {
+                                account_code: ob.account_code,
+                                account_type: ob.account_type,
+                                debit: ob.debit,
+                                credit: ob.credit,
+                            })
+                            .collect();
+                    if !core_openings.is_empty() {
+                        openings_by_entity.insert(code.clone(), core_openings);
+                    }
+                }
+                period_opts.entity_opening_balances = openings_by_entity;
+            }
         }
 
         let summary = generate_standalone(&cfg, &out_dir, &period_opts)?;
@@ -397,6 +487,32 @@ mod tests {
         )
         .unwrap_err();
         assert!(format!("{err}").contains("duplicate out_subdir"));
+    }
+
+    #[test]
+    fn standalone_options_default_has_empty_entity_opening_balances() {
+        // v5.3 carryover field defaults to empty — single-period
+        // engagements see no behaviour change.
+        let opts = StandaloneOptions::default();
+        assert!(opts.entity_opening_balances.is_empty());
+    }
+
+    #[test]
+    fn standalone_options_can_carry_per_entity_openings() {
+        use datasynth_core::models::balance::{AccountType, EntityOpeningBalance};
+        use rust_decimal::Decimal;
+        let mut opts = StandaloneOptions::default();
+        opts.entity_opening_balances.insert(
+            "SUB".to_string(),
+            vec![EntityOpeningBalance {
+                account_code: "1000".to_string(),
+                account_type: AccountType::Asset,
+                debit: Decimal::from(50_000),
+                credit: Decimal::ZERO,
+            }],
+        );
+        assert_eq!(opts.entity_opening_balances.len(), 1);
+        assert_eq!(opts.entity_opening_balances["SUB"][0].account_code, "1000");
     }
 
     /// Helper — minimum-viable GroupConfig for shape-only tests.

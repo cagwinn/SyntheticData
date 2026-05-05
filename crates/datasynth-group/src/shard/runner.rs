@@ -102,6 +102,35 @@ pub fn run_shard(
     shard_id: &str,
     out_dir: &Path,
 ) -> GroupResult<ShardSummary> {
+    run_shard_with_opening_balances(
+        manifest,
+        shard_id,
+        out_dir,
+        &std::collections::BTreeMap::new(),
+    )
+}
+
+/// **v5.3** — Drive the shard with per-entity opening-balance
+/// carryovers from a prior period.  Identical to [`run_shard`] except
+/// that for each entity in `entity_opening_balances`, the orchestrator's
+/// `ShardContext.opening_balances` is pre-populated with the supplied
+/// `EntityOpeningBalance` records instead of starting from empty.
+/// The orchestrator's Phase 3b consumes those carryovers in place of
+/// the industry-mix `OpeningBalanceGenerator`.
+///
+/// Empty `entity_opening_balances` (or no entry for a given entity)
+/// matches `run_shard`'s behaviour byte-for-byte.  This is the path
+/// `generate_standalone_chain` uses to thread the prior period's
+/// closing TBs into the next period's generation.
+pub fn run_shard_with_opening_balances(
+    manifest: &GroupManifest,
+    shard_id: &str,
+    out_dir: &Path,
+    entity_opening_balances: &std::collections::BTreeMap<
+        String,
+        Vec<datasynth_core::models::balance::EntityOpeningBalance>,
+    >,
+) -> GroupResult<ShardSummary> {
     // ── 1. Filter entities for this shard ────────────────────────────────────
     // Collect into Vec so we can validate emptiness up front and iterate
     // without re-walking the manifest twice.
@@ -131,7 +160,11 @@ pub fn run_shard(
     let mut entity_summaries: Vec<EntitySummary> = Vec::with_capacity(entities.len());
 
     for entity in &entities {
-        let summary = run_one_entity(manifest, entity, out_dir)?;
+        let openings = entity_opening_balances
+            .get(&entity.code)
+            .cloned()
+            .unwrap_or_default();
+        let summary = run_one_entity(manifest, entity, out_dir, &openings)?;
         entity_summaries.push(summary);
     }
 
@@ -166,6 +199,7 @@ fn run_one_entity(
     manifest: &GroupManifest,
     entity: &ManifestEntity,
     out_dir: &Path,
+    opening_balances: &[datasynth_core::models::balance::EntityOpeningBalance],
 ) -> GroupResult<EntitySummary> {
     // 1. Build the per-entity GeneratorConfig.
     let config = build_entity_generator_config(manifest, entity).map_err(|e| {
@@ -189,10 +223,17 @@ fn run_one_entity(
     //    Capture the IC JE count *before* the orchestrator consumes it via
     //    `set_shard_context` — that gives us the deterministic post-hoc
     //    `ic_journal_entry_count` without re-classifying entries downstream.
-    let ctx = build_shard_context(manifest, &entity.code).map_err(|e| {
+    let mut ctx = build_shard_context(manifest, &entity.code).map_err(|e| {
         GroupError::Shard(format!("{}: build_shard_context failed: {e}", entity.code))
     })?;
     let ic_journal_entry_count = ctx.extra_journal_entries.len();
+    // **v5.3** — install the multi-period opening-balance carryover
+    // when the caller supplied one for this entity.  Empty `opening_balances`
+    // (the v5.0–v5.2 default) leaves `ctx.opening_balances` empty and the
+    // orchestrator's Phase 3b falls through to the industry-mix generator.
+    if !opening_balances.is_empty() {
+        ctx.opening_balances = opening_balances.to_vec();
+    }
     orchestrator.set_shard_context(ctx);
 
     // 4. Drive generation.
