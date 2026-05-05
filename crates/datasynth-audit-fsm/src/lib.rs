@@ -39,6 +39,7 @@ pub mod event;
 pub mod export;
 pub mod jurisdictional_overlay;
 pub mod kyc_blueprint;
+pub mod l4_graph;
 pub mod live_injection;
 pub mod loader;
 pub mod methodology_blueprint;
