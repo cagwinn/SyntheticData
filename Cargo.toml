@@ -161,7 +161,7 @@ smallvec = { version = "1.13", features = ["serde"] }
 petgraph = "0.8"
 
 # Parallel processing
-rayon = "1.10"
+rayon = "1.12"
 num_cpus = "1.16"
 crossbeam-channel = "0.5"
 
