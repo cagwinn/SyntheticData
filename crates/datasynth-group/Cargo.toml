@@ -3,8 +3,13 @@ name = "datasynth-group"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+rust-version.workspace = true
 authors.workspace = true
 repository.workspace = true
+homepage.workspace = true
+description = "Group audit simulation engine for multi-entity consolidation — manifest / shard / aggregate three-phase model with IFRS / IAS 21 / IAS 28 / IFRS 10 compliance"
+keywords = ["audit", "consolidation", "ifrs", "group-audit", "synthetic-data"]
+categories.workspace = true
 
 [dependencies]
 datasynth-core = { workspace = true }

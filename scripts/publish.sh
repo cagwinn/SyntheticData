@@ -23,8 +23,9 @@
 #   Tier 6 (audit-fsm):       datasynth-audit-optimizer
 #   Tier 7 (generators):      datasynth-eval
 #   Tier 8 (runtime):         datasynth-runtime
-#   Tier 9 (apps):            datasynth-server, datasynth-cli
-#   Excluded: datasynth-ui (Tauri app), datasynth-graph-export (local-only dep)
+#   Tier 9 (group lib):       datasynth-group
+#   Tier 10 (apps):           datasynth-server, datasynth-cli
+#   Excluded: datasynth-graph-export (local-only path dep on rustgraph-api-types)
 #
 
 set -eo pipefail
@@ -97,9 +98,8 @@ done
 
 # Crates in dependency order (leaves first, main crate last)
 # This order ensures each crate's dependencies are published before it
-# Note: datasynth-ui and datasynth-graph-export are excluded:
-#   - datasynth-ui: Tauri desktop app, not a library
-#   - datasynth-graph-export: has local-only path dep on rustgraph-api-types
+# Note: datasynth-graph-export is excluded — it has a local-only path
+# dependency on rustgraph-api-types and is not part of the default build.
 CRATES=(
     # Tier 1: No internal dependencies
     "datasynth-core"
@@ -118,22 +118,25 @@ CRATES=(
     "datasynth-fingerprint"  # depends on: core, config
 
     # Tier 5: Depends on generators + ocpm + banking
-    "datasynth-graph"        # depends on: core, banking, generators, ocpm
+    "datasynth-graph"        # depends on: core, banking, generators, ocpm, standards
     "datasynth-test-utils"   # depends on: core, config, banking
-    "datasynth-audit-fsm"   # depends on: core, standards, generators
+    "datasynth-audit-fsm"    # depends on: core, standards, generators
 
     # Tier 6: Depends on audit-fsm
     "datasynth-audit-optimizer" # depends on: audit-fsm
 
-    # Tier 7: Depends on generators + test-utils (dev)
-    "datasynth-eval"         # depends on: core, config, generators; dev-dep: test-utils
+    # Tier 7: Depends on generators + test-utils
+    "datasynth-eval"         # depends on: core, config, generators, test-utils
 
     # Tier 8: Runtime (orchestration layer)
-    "datasynth-runtime"      # depends on: core, config, eval, generators, standards, ocpm, output, banking, fingerprint, graph
+    "datasynth-runtime"      # depends on: core, config, eval, generators, standards, ocpm, output, banking, fingerprint, graph, audit-fsm, test-utils
 
-    # Tier 9: Applications
+    # Tier 9: Group audit library (must precede cli, which depends on it)
+    "datasynth-group"        # depends on: core, config, generators, runtime, standards, output, audit-fsm, test-utils
+
+    # Tier 10: Applications
     "datasynth-server"       # depends on: core, config, generators, runtime, output
-    "datasynth-cli"          # depends on: core, config, eval, generators, output, runtime, banking, fingerprint, graph
+    "datasynth-cli"          # depends on: core, config, eval, generators, output, runtime, audit-fsm, audit-optimizer, banking, fingerprint, graph, group
 )
 
 # Tier 1 crates can be verified independently

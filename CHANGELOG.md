@@ -5,6 +5,239 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.5.0] - 2026-05-05
+
+### Added — Audit-methodology layer (`datasynth-audit-fsm`)
+
+A typed audit-methodology layer derived from the
+[AuditMethodology](https://github.com/mivertowski/AuditMethodology) companion
+repo (v0.14). All blueprints, overlays, ontologies, and form schemas are
+embedded via `include_str!` so loaders are zero-I/O at runtime.
+
+- **`big4_methodology`** — ISA-derived common spine (4 phases, 17 procedures)
+  plus 4 firm overlays inheriting from the spine (EY GAM, PwC Aura, KPMG
+  Clara, Deloitte Omnia) with per-procedure firm tools and signoff chains,
+  plus a cross-firm equivalence map for harmonisation reporting.
+- **`jurisdictional_overlay`** — 7 overlays (PCAOB US, EU CSRD, UK FRC, ASIC
+  AU, JFSA JP, ACRA SG, HKICPA HK) totalling 39 procedures with
+  statute/standard citation refs. AND-logic resolution on
+  `(jurisdiction × registrant_type)`; empty `registrant_types` is treated as
+  wildcard so PCAOB applies to any US registrant. Multi-jurisdictional
+  (dual-listed) engagements call resolve once per jurisdiction and union the
+  results.
+- **`methodology_blueprint`** — `MethodologyBlueprint` /
+  `MethodologyPhase` / `MethodologyProcedure` / `MethodologyStep` types
+  carrying ISA 600 (Revised, December 2022) and CSRD limited-assurance
+  blueprints with full ISA / ESRS reference tagging.
+- **`kyc_blueprint`** — 6 KYC / AML workflows: private-banking onboarding,
+  correspondent banking (Wolfsberg CBDDQ), crypto-CASP onboarding (MiCA + TFR
+  + AMLR 2024/1624), periodic / event-triggered KYC review, SAR escalation
+  (FIU filing), and sanctions-hit remediation. KYC schema uses
+  `obligation_refs` (e.g. `obl:eu_mica:60:1`) rather than ISA refs.
+- **`banking_forms`** — 7 banking form ontologies (MROS SAR, 4 UBS public
+  reconstructions for KYC ID / SoF / Tax / Form A, Wolfsberg CBDDQ v1.4,
+  Wolfsberg FCCQ v1.2) totalling 228 fields, plus a 228-entry cross-form
+  evidence index unifying fields under canonical terms (e.g. `legal_entity_name`
+  spans MROS SAR + Wolfsberg CBDDQ + FCCQ). Helpers
+  `entries_for_canonical_term`, `entries_for_form`,
+  `forms_by_canonical_term`, `shared_canonical_terms(min_forms)`.
+- **`scenario_library`** — 15 deterministic engagement scenarios with
+  expected outcomes (opinion type, going-concern conclusion, EOM paragraph,
+  acceptance gate, undisclosed RPT, scope limitation, subsequent event) for
+  FSM verification: clean engagement, qualified opinion / material
+  misstatement, going concern (material uncertainty + inappropriate),
+  undisclosed RPT, scope limitation, subsequent event types 1 and 2,
+  equity-method impairment, failed independence at acceptance, NFP charity
+  audit, governmental ISSAI engagement, IFRS 1 first-time adoption, IFRS 8
+  segment-aggregation complexity, IAS 28 § 22 significant-influence loss.
+- **`rmm_scoring`** — Bayesian RMM scoring with conjugate Beta-Bernoulli
+  updates over a 12-factor risk taxonomy (7 inherent: account complexity,
+  estimation uncertainty, transaction volume, fraud susceptibility,
+  related-party density, FX exposure, accounting-policy change; 5 control:
+  control coverage, test results, IT general controls, deficiency history,
+  override signals). Industry-baseline `Beta(α, β)` priors with ISA citation
+  refs per factor; `compute_rmm` walks all 12 factors, applies any matching
+  evidence, and aggregates `RMM = IR × CR` per ISA 200 A39 / ISA 330 A1.
+- **`l4_graph`** — Typed multi-directed property graph (11 node types,
+  10 edge types) modelling the full engagement: entity → component →
+  account → assertion / risk → control → procedure → evidence /
+  working paper / finding. `AuditNode` is internally tagged on `node_type`
+  for 1:1 wire-format compatibility with the upstream Pydantic models.
+  `AuditGraph` wrapper validates endpoints at insertion time, allows
+  parallel edges between the same pair when the `edge_type` differs, and
+  ships `nodes_of_type` / `edges_of_type` / `neighbors` / `predecessors`
+  traversals.
+- **`working_paper_merkle`** — SHA-256 binary Merkle tree with
+  odd-leaf-last-duplicate canonical ordering. Inclusion proofs carry
+  sibling + direction per level; `verify_merkle_proof` re-derives direction
+  from the index at each level so a proof generated for one position cannot
+  be replayed at a different one. ISA 230 `WorkingPaper` /
+  `EngagementBundle` types with `Preparer` / `Reviewer` / `Signoff`,
+  five-jurisdiction `Jurisdiction` enum (IAASB / US PCAOB / UK FRC / EU
+  CSRD / Swiss FER), 5–10-year retention validation. `bundle_root` sorts
+  working papers by `wp_id` for canonical ordering before computing the
+  Merkle root; empty bundle returns `EMPTY_BUNDLE_ROOT` (64 zeros).
+
+Adds `sha2` to the `datasynth-audit-fsm` crate dependencies.
+
+## [5.4.0] - 2026-05-04
+
+### Added — Step-acquisition mid-period control gained
+
+- **IFRS 3 § 42 P&L re-measurement and time-weighted profit attribution** —
+  `compute_nci_rollforward` now consumes `ControlGained` ownership-change
+  events with mid-period `effective_date` values. `NciInputs.period_start`
+  carries the period boundary; `compute_nci_rollforward` time-weights
+  `period_net_income` / `period_oci` / `total_dividends_paid` by
+  `(period_end − effective_date + 1) / (period_end − period_start + 1)` so
+  the entity contributes only its post-acquisition fraction to consolidated
+  profit. Opening NCI seeds from the event's
+  `acquisition_date_nci_fair_value` (or the input's, whichever is non-`None`).
+  `NciRollforward.pl_remeasurement_gain_or_loss` records the IFRS 3 § 42 P&L
+  gain or loss = `previously_held_interest_fair_value −
+  previously_held_interest_carrying`. Mid-period `ControlLost` (full
+  deconsolidation with retained-interest re-measurement per IFRS 10.B97) is
+  rejected with a typed error pending follow-up work.
+
+## [5.3.0] - 2026-05-04
+
+### Added — Multi-period consolidation continuity
+
+- **Emergent-fuzzy IC matching strategy** — `IcMatchingConfig.tolerance_percent`
+  (default `0`, exact-match) plus matcher-side amount-drift comparison. When
+  `strategy = EmergentFuzzy` AND the seller / buyer JE total-amount drift
+  exceeds `tolerance_percent` (as a fraction of the larger side), both sides
+  land in `unmatched` with `AmountDriftAboveTolerance` instead of being
+  silently treated as matched. Manifest-driven mode (the v5.0–v5.2 default)
+  ignores amounts entirely — backwards-compatible byte-for-byte.
+- **Multi-period consolidation chain helper** —
+  `run_aggregate_chain(Vec<PeriodSpec>)` runs `run_aggregate` N times in
+  sequence, automatically threading each period's `out_dir` as the next
+  period's `prior_period_aggregate` so opening NCI / CTA / equity-method /
+  suppressed-loss values stitch across periods without manual path-weaving.
+  Period 0 keeps any caller-supplied `prior_period_aggregate` (lets
+  engagements seed from an external archive); periods 1..N have it
+  overridden to the previous period's `out_dir`.
+- **Multi-period orchestrator chain helper** —
+  `generate_standalone_chain(base_cfg, Vec<PeriodChainSpec>, base_out_dir, opts)`
+  extends the chain pattern to the **full pipeline** (manifest + shards +
+  aggregate per period), not just the aggregate phase. Each
+  `PeriodChainSpec { period, out_subdir }` overrides `base_cfg.period` and
+  routes outputs to `base_out_dir/{out_subdir}/`. Validation rejects empty
+  period lists and duplicate `out_subdir` values up front.
+- **Opening-balance carryover (end-to-end)** — multi-period trial-balance
+  continuity in four layers:
+  1. **Loader** — `read_prior_period_closing_tbs(prior_dir, &[entity_codes])`
+     walks `entities/*/period_close/trial_balances.json` and loads each
+     entity's latest closing TB (picks latest by `(fiscal_year, fiscal_period)`).
+  2. **Projection** — `extract_opening_balances(&tb)` projects a closing TB
+     onto its balance-sheet positions only (Asset / Liability / Equity +
+     contra variants — P&L lines drop because they close to retained
+     earnings); group-side `OpeningBalance` carrier records the
+     per-(entity, account) signed closing position.
+  3. **Orchestrator hook** — `EntityOpeningBalance` carrier in
+     `datasynth-core::models::balance` plus
+     `ShardContext.opening_balances: Vec<EntityOpeningBalance>` plus
+     `EnhancedOrchestrator::phase_opening_balances` consumption (builds the
+     period's `GeneratedOpeningBalance` directly from carryovers when
+     non-empty, falls through to the industry-mix generator otherwise).
+  4. **Chain-helper integration** — `StandaloneOptions.entity_opening_balances`
+     plus a new `run_shard_with_opening_balances` entrypoint thread carryovers
+     from chain helper through standalone → shard runner → orchestrator.
+     `generate_standalone_chain` auto-loads each entity's prior-period
+     closing TB between periods N and N+1 — no caller plumbing required.
+     Single-period engagements and empty carryovers preserve v5.0–v5.2
+     byte-identical behaviour.
+
+## [5.2.0] - 2026-05-04
+
+### Added — Acquisition accounting and hyperinflation
+
+- **Acquisition-date NCI measurement (end-to-end)** —
+  `NciMeasurementMethod` enum, `NciMeasurement::compute_with_method`,
+  `NciInputs.acquisition_date_nci_fair_value` (when supplied AND opening NCI
+  is zero, seeds period-1 opening from the fair value per IFRS 3 § 19(a)
+  full-goodwill basis; `None` preserves proportionate behaviour
+  byte-for-byte), `BusinessCombination.{nci_measurement_method,
+  acquisition_date_nci_fair_value, acquiree_entity_code}` plus
+  `nci_opening_fair_value()` helper. `run_aggregate` walks every
+  contributing shard's `accounting_standards/business_combinations.json`,
+  builds an `acquiree_entity_code → fair_value` map, and threads it into
+  `build_nci_rollforwards` automatically.
+- **Step-acquisition / divestiture event model** — `OwnershipChangeType`
+  (`ControlGained` / `ControlIncreased` / `ControlDecreased` / `ControlLost`)
+  and `OwnershipChangeEvent` cover IFRS 3.42 (control gained → re-measure at
+  fair value), IFRS 10.23 (within-control → equity transaction), IFRS 10.B97
+  (control lost → deconsolidate). Manifest plumbing — `EntityConfig.ownership_changes`
+  declares mid-period events; manifest builder validates and lifts; shard
+  runner writes `entities/{code}/intercompany/ownership_change_events.json`.
+- **IFRS 10.23 equity-transaction NCI rollforward** — `compute_nci_rollforward`
+  reads each entity's events and applies the IFRS 10.23 equity-transaction
+  adjustment (`adjustment = −consideration_paid_or_received` for
+  `ControlIncreased` / `ControlDecreased`).
+  `NciRollforward.equity_transaction_adjustments` records the signed delta.
+- **CGU goodwill impairment testing (end-to-end)** — `CashGeneratingUnit`,
+  `GoodwillAllocation`, `CguImpairmentTest`, `CguImpairmentResult` cover
+  IAS 36 § 6 (CGU definition), § 80 (acquisition-date goodwill allocation),
+  § 18 (recoverable amount = max(FV-less-costs, VIU)), § 104 (impairment
+  loss allocated first to goodwill then pro-rata to other assets), and § 124
+  (no reversal of goodwill impairment). `CguImpairmentTest::run()` is a pure
+  function returning the standards-correct allocation. Manifest plumbing
+  (`CguConfig` → `CguPlan`) plus aggregate-phase runner; emits
+  `consolidated/cgu_impairment_tests.json` only when `cgu_test_inputs` are
+  supplied (otherwise byte-identical to v5.0 archives).
+- **Hyperinflationary economies (IAS 29 § 12 + IAS 21 § 42(b))** —
+  `HyperinflationStatus`, `GeneralPriceIndex`,
+  `NetMonetaryPositionGainLoss` model layer plus manifest plumbing
+  (`EntityConfig` → `ExpandedEntity` → `ManifestEntity.hyperinflation_status`).
+  `translate_entity_tb_with_hyperinflation` applies closing-rate-for-all-items
+  when `requires_restatement()` is true. `IndexedRestatement{opening_index,
+  closing_index, average_index}` aggregate-layer type pre-multiplies each TB
+  amount by its account-class restatement factor (`closing/opening` for
+  non-monetary BS items + equity, `closing/average` for income-statement
+  items, `1.0` for monetary BS items) before the closing-rate FX
+  translation. `translate_entity_tb_with_indexed_restatement` composes both
+  standards: `local × restatement_factor × closing_rate`.
+
+## [5.1.0] - 2026-05-04
+
+### Added — Equity-method enrichments and chart cleanup
+
+- **Suppressed-loss tracking** — equity-method investments below zero now
+  track the unrecognised share-of-loss as `suppressed_loss_this_period` plus
+  `closing_suppressed_loss` per IAS 28.38, with full
+  recovery-against-future-profits per IAS 28.38 second paragraph. Surfaced
+  as a separate `consolidated/equity_method_suppressed_losses.json` artefact
+  (filtered to records with `closing_suppressed_loss > 0`).
+- **Operating segments — Note 6** — Note 6 in `notes_to_consolidated_fs.json`
+  now emits IFRS 8.13 / ASC 280-10-50-41 entity-wide geographic disclosure
+  derived from the manifest's ownership graph (per-country entity counts +
+  codes), replacing the placeholder string. Full per-segment revenue / profit
+  / asset aggregation across entities is on the roadmap.
+- **Full retained-earnings integration** — the equity-method overlay's BS
+  counterparty side now posts directly to retained earnings (`3300`),
+  retiring the v5.0 `3400` bridge account. Investment line:
+  `dr 1850 / cr 3300`; share-of-profit pickup: `cr 4900 / dr 3300`. Clean
+  equity attribution without a synthetic bridge.
+- **Configurable account-name dictionary** — `AccountNameDictionary`
+  consolidates the prior per-file static maps (BS + IS) into a single
+  layered lookup. Engagement labels from the manifest's
+  `ChartOfAccountsMaster` (SKR04 / PCG / custom client chart) win over the
+  built-in canonical English labels; built-ins fill any code the engagement
+  chart doesn't carry; bare codes are the final fallback. `run_aggregate`
+  threads the dict through `build_consolidated_balance_sheet_with_names` /
+  `build_consolidated_income_statement_with_names`.
+- **`tb_loader` cleanup** — `PeriodTrialBalance::into_canonical(company_code,
+  currency)` now runs at write time in `output_writer.rs`, so the on-disk
+  `period_close/trial_balances.json` is the canonical `TrialBalance` shape
+  end-to-end. `tb_loader` lost its dual-shape detection and now reads
+  `Vec<TrialBalance>` directly; multi-period archives pick the latest by
+  `(fiscal_year, fiscal_period)`.
+- **CEPC profit-centre master** — `ProfitCenter` model, two-level generator
+  (segments → sub-units), `SapProfitCenter` plus `write_cepc` writer, CLI
+  dispatch under `output.sap.tables: [cepc]`. CEPC is now a first-class
+  master-data table alongside CSKS.
+
 ## v5.0.0 - 2026-04-29
 
 ### Added — Group audit simulation engine
