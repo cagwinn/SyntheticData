@@ -40,5 +40,6 @@ pub mod kyc_blueprint;
 pub mod live_injection;
 pub mod loader;
 pub mod methodology_blueprint;
+pub mod scenario_library;
 pub mod schema;
 pub mod streaming;
