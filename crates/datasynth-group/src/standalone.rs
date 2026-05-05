@@ -260,7 +260,7 @@ pub fn generate_standalone(
 /// something like `"2024_Q1"` or `"period_001"`.  Subdirs must be
 /// unique within a chain or [`generate_standalone_chain`] returns
 /// [`GroupError::Config`].
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PeriodChainSpec {
     /// Period config (start_date / length / fiscal_year_end) for this
     /// period.  Replaces [`GroupConfig::period`] when the chain runner

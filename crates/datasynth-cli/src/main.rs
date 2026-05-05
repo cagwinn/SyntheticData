@@ -404,6 +404,41 @@ enum GroupCommands {
         #[arg(long)]
         no_parallel_shards: bool,
     },
+
+    /// Run manifest + shards + aggregate for N consecutive periods,
+    /// auto-threading opening-balance carryover (closing TB → next-period
+    /// opening) between periods. Wraps
+    /// [`datasynth_group::generate_standalone_chain`].
+    GenerateChain {
+        /// Path to the base group YAML configuration. The `period` field
+        /// is overridden per period from the `--periods` JSON.
+        #[arg(short, long)]
+        config: PathBuf,
+
+        /// Path to a JSON file containing the chain plan as an array of
+        /// `{ "period": <PeriodConfig>, "out_subdir": "<name>" }`
+        /// objects. Order in the array determines chain order. Each
+        /// `out_subdir` must be unique.
+        #[arg(long)]
+        periods: PathBuf,
+
+        /// Base output directory. Each period's outputs go under
+        /// `{out}/{out_subdir}/`.
+        #[arg(short, long)]
+        out: PathBuf,
+
+        /// Disable parallel shard execution within each period (matches
+        /// `Generate`'s flag).
+        #[arg(long)]
+        no_parallel_shards: bool,
+
+        /// Optional path to a prior-period aggregate `out_dir` used to
+        /// seed period 0 (engagements continuing from an external
+        /// archive). When omitted, period 0 starts with zero opening
+        /// balances; periods 1..N always carry forward from period N-1.
+        #[arg(long)]
+        prior_period_aggregate: Option<PathBuf>,
+    },
 }
 
 /// v4.1.2+: audit-optimizer subcommands. Each wraps one module in
@@ -3391,6 +3426,19 @@ fn handle_group(command: GroupCommands) -> Result<()> {
             out,
             no_parallel_shards,
         } => handle_group_generate(&config, &out, !no_parallel_shards),
+        GroupCommands::GenerateChain {
+            config,
+            periods,
+            out,
+            no_parallel_shards,
+            prior_period_aggregate,
+        } => handle_group_generate_chain(
+            &config,
+            &periods,
+            &out,
+            !no_parallel_shards,
+            prior_period_aggregate.as_deref(),
+        ),
     }
 }
 
@@ -3668,6 +3716,118 @@ fn handle_group_generate(
         summary.aggregate.artifacts_written.len(),
         out_path.display()
     );
+
+    Ok(())
+}
+
+/// v5.3+: drive the multi-period chain runner.
+///
+/// Reads the base [`datasynth_group::GroupConfig`] from `config_path`,
+/// the chain plan as `Vec<PeriodChainSpec>` from `periods_path`, and
+/// invokes [`datasynth_group::generate_standalone_chain`].
+///
+/// The `periods` JSON file shape:
+///
+/// ```json
+/// [
+///   { "period": { "start_date": "2024-01-01", "length": "quarterly" },
+///     "out_subdir": "2024-q1" },
+///   { "period": { "start_date": "2024-04-01", "length": "quarterly" },
+///     "out_subdir": "2024-q2" }
+/// ]
+/// ```
+///
+/// Each period's outputs go under `out_path.join(spec.out_subdir)/`.
+/// The chain auto-threads closing-TB → opening-TB carryover between
+/// successive periods (loaded via the orchestrator's
+/// `entity_opening_balances` plumbing).
+fn handle_group_generate_chain(
+    config_path: &std::path::Path,
+    periods_path: &std::path::Path,
+    out_path: &std::path::Path,
+    parallel_shards: bool,
+    prior_period_aggregate: Option<&std::path::Path>,
+) -> Result<()> {
+    use anyhow::Context;
+    tracing::info!(
+        config = %config_path.display(),
+        periods = %periods_path.display(),
+        out = %out_path.display(),
+        parallel_shards = parallel_shards,
+        prior_period_aggregate = ?prior_period_aggregate.map(|p| p.display().to_string()),
+        "group generate-chain: starting",
+    );
+
+    let yaml = std::fs::read_to_string(config_path)
+        .with_context(|| format!("group generate-chain: read {}", config_path.display()))?;
+    let cfg: datasynth_group::GroupConfig = serde_yaml::from_str(&yaml).with_context(|| {
+        format!(
+            "group generate-chain: parse {} as GroupConfig",
+            config_path.display()
+        )
+    })?;
+
+    if let Err(e) = datasynth_group::validate::validate(&cfg) {
+        group_error_exit(e, "generate-chain");
+    }
+
+    let periods_json = std::fs::read_to_string(periods_path).with_context(|| {
+        format!("group generate-chain: read periods {}", periods_path.display())
+    })?;
+    let periods: Vec<datasynth_group::PeriodChainSpec> = serde_json::from_str(&periods_json)
+        .with_context(|| {
+            format!(
+                "group generate-chain: parse {} as Vec<PeriodChainSpec>",
+                periods_path.display()
+            )
+        })?;
+
+    if periods.is_empty() {
+        anyhow::bail!("group generate-chain: periods must contain at least one entry");
+    }
+
+    std::fs::create_dir_all(out_path)
+        .with_context(|| format!("group generate-chain: mkdir {}", out_path.display()))?;
+
+    let opts = datasynth_group::StandaloneOptions {
+        prior_period_aggregate: prior_period_aggregate.map(std::path::PathBuf::from),
+        tolerate_missing_shards: false,
+        cgu_test_inputs: Vec::new(),
+        parallel_shards,
+        entity_opening_balances: std::collections::BTreeMap::new(),
+    };
+
+    let summaries = match datasynth_group::generate_standalone_chain(&cfg, periods, out_path, &opts)
+    {
+        Ok(s) => s,
+        Err(e) => group_error_exit(e, "generate-chain"),
+    };
+
+    let total_shards: usize = summaries.iter().map(|s| s.shard_summaries.len()).sum();
+    let total_artifacts: usize = summaries.iter().map(|s| s.aggregate.artifacts_written.len()).sum();
+    let avg_coverage: f64 = if summaries.is_empty() {
+        0.0
+    } else {
+        summaries.iter().map(|s| s.aggregate.coverage).sum::<f64>() / summaries.len() as f64
+    };
+
+    println!(
+        "group generate-chain: {} periods, {} total shards, avg aggregate coverage {:.4}, {} artefacts in {}",
+        summaries.len(),
+        total_shards,
+        avg_coverage,
+        total_artifacts,
+        out_path.display()
+    );
+    for (i, s) in summaries.iter().enumerate() {
+        println!(
+            "  period {}: {} shards, coverage {:.4}, manifest {}",
+            i,
+            s.shard_summaries.len(),
+            s.aggregate.coverage,
+            s.manifest_path.display(),
+        );
+    }
 
     Ok(())
 }
