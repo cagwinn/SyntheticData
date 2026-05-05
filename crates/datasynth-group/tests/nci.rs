@@ -84,6 +84,7 @@ fn happy_path_eighty_percent_owned_subsidiary() {
         opening_nci: dec!(800_000),
         acquisition_date_nci_fair_value: None,
         ownership_changes: &[],
+        period_start: period_end(),
         period_end: period_end(),
         currency: "CHF".to_string(),
     };
@@ -127,6 +128,7 @@ fn from_manifest_entity_directly() {
         opening_nci: dec!(0),
         acquisition_date_nci_fair_value: None,
         ownership_changes: &[],
+        period_start: period_end(),
         period_end: period_end(),
         currency: "CHF".to_string(),
     };
@@ -151,6 +153,7 @@ fn rejects_parent_consolidation_method() {
         opening_nci: Decimal::ZERO,
         acquisition_date_nci_fair_value: None,
         ownership_changes: &[],
+        period_start: period_end(),
         period_end: period_end(),
         currency: "CHF".to_string(),
     };
@@ -182,6 +185,7 @@ fn rejects_equity_method() {
         opening_nci: Decimal::ZERO,
         acquisition_date_nci_fair_value: None,
         ownership_changes: &[],
+        period_start: period_end(),
         period_end: period_end(),
         currency: "CHF".to_string(),
     };
@@ -215,6 +219,7 @@ fn rejects_full_with_one_hundred_percent_ownership() {
         opening_nci: Decimal::ZERO,
         acquisition_date_nci_fair_value: None,
         ownership_changes: &[],
+        period_start: period_end(),
         period_end: period_end(),
         currency: "CHF".to_string(),
     };
@@ -248,6 +253,7 @@ fn determinism_two_calls_produce_identical_records() {
         opening_nci: dec!(2_000),
         acquisition_date_nci_fair_value: None,
         ownership_changes: &[],
+        period_start: period_end(),
         period_end: period_end(),
         currency: "CHF".to_string(),
     };

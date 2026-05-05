@@ -40,6 +40,7 @@ fn rf(entity_code: &str, parent: &str, closing: Decimal) -> NciRollforward {
         nci_share_of_oci: dec!(0),
         nci_dividends: dec!(0),
         equity_transaction_adjustments: Decimal::ZERO,
+        pl_remeasurement_gain_or_loss: Decimal::ZERO,
         closing_nci: closing,
         period_end: period_end(),
         currency: "CHF".to_string(),

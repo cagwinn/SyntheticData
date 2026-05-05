@@ -95,6 +95,16 @@ pub struct NciRollforward {
     /// load to zero.
     #[serde(default)]
     pub equity_transaction_adjustments: Decimal,
+    /// **v5.4** — IFRS 3 § 42 P&L remeasurement gain/loss recognised
+    /// when control is gained mid-period (i.e. the parent's previously
+    /// held interest is re-measured to acquisition-date fair value).
+    /// Computed as `previously_held_interest_fair_value
+    /// − previously_held_interest_carrying`.  Zero when the entity has
+    /// no `ControlGained` event for the period.
+    /// `#[serde(default)]` keeps v5.0–v5.3 archives loading byte-
+    /// identically.
+    #[serde(default)]
+    pub pl_remeasurement_gain_or_loss: Decimal,
     /// Closing NCI =
     /// `opening_nci + nci_share_of_profit + nci_share_of_oci - nci_dividends + equity_transaction_adjustments`,
     /// rounded to 2dp (banker's rounding).
@@ -150,6 +160,14 @@ pub struct NciInputs<'a> {
     /// `intercompany/ownership_change_events.json` file (PR #155) and
     /// threads the parsed events here.
     pub ownership_changes: &'a [datasynth_core::models::intercompany::OwnershipChangeEvent],
+    /// **v5.4** — Period start date.  Used to pro-rate `period_net_income`,
+    /// `period_oci`, and `total_dividends_paid` for `ControlGained` mid-
+    /// period events: the entity contributes only the post-acquisition
+    /// fraction `(period_end - effective_date + 1) / (period_end -
+    /// period_start + 1)` to consolidated profit.  When no
+    /// `ControlGained` event applies, `period_start` is unused and the
+    /// rollforward applies the full period numbers.
+    pub period_start: NaiveDate,
     /// Period end date.
     pub period_end: NaiveDate,
     /// Group presentation currency.
@@ -265,64 +283,119 @@ pub fn compute_nci_rollforward(inputs: &NciInputs) -> GroupResult<NciRollforward
         _ => inputs.opening_nci,
     };
 
-    // 3. Apply the IFRS 10.B94 / ASC 810 share-of-equity allocation.
-    let nci_share_of_profit = nci_percent * inputs.period_net_income;
-    let nci_share_of_oci = nci_percent * inputs.period_oci;
-    let nci_dividends = nci_percent * inputs.total_dividends_paid;
-
-    // 4. **v5.2** — IFRS 10.23 / IFRS 10.B96 equity-transaction
-    //    adjustments for mid-period ownership changes that don't
-    //    affect control.  For each event:
+    // 3. **v5.4** — Walk ownership-change events to determine
+    //    effective semantics for the period:
     //
-    //    - `ControlIncreased` (parent buys NCI shares): NCI carrying
-    //      shrinks by approximately the consideration paid.  Sign:
-    //      `consideration_paid_or_received` is positive (outflow from
-    //      parent), so the adjustment is `-consideration` = negative.
-    //    - `ControlDecreased` (parent sells to NCI): NCI carrying
-    //      grows by approximately the consideration received.  Sign:
-    //      `consideration_paid_or_received` is negative (inflow to
-    //      parent), so the adjustment is `-consideration` = positive.
+    //    - `ControlIncreased` / `ControlDecreased` (within control):
+    //      equity transactions per IFRS 10.23.  NCI carrying adjusted
+    //      by approximately `-consideration_paid_or_received`.
+    //    - `ControlGained` (mid-period acquisition): IFRS 3 § 42 re-
+    //      measurement of the parent's previously-held interest at
+    //      acquisition-date FV with P&L gain/loss = `FV - carrying`.
+    //      Profit attribution is **time-weighted** by the post-
+    //      acquisition fraction of the period, since the entity was
+    //      not in consolidation pre-acquisition.  Opening NCI seeded
+    //      from `acquisition_date_nci_fair_value` regardless of the
+    //      caller's `opening_nci` (period-1 of consolidation for this
+    //      entity).
+    //    - `ControlLost` (mid-period deconsolidation): still rejected
+    //      as v5.5+ follow-up — requires removing the entity from
+    //      consolidation and IFRS 10.B97 retained-interest re-measurement.
     //
-    //    Both cases reduce to a single rule: `adjustment = -consideration`.
-    //    This is the no-premium / no-discount approximation — real
-    //    engagements may pay above or below NCI carrying value, with
-    //    the difference recognised in equity attributable to the
-    //    parent (IFRS 10.23 second sentence).  Modelling that residual
-    //    requires the subsidiary's net equity at the change date,
-    //    which the orchestrator doesn't currently emit per-entity at
-    //    sub-period granularity — a v5.4 follow-up.
-    //
-    //    `ControlGained` mid-period (i.e. *not* the period-1 case
-    //    handled by `acquisition_date_nci_fair_value`) and
-    //    `ControlLost` are out of scope: they require pro-rated
-    //    profit attribution and adding/removing the entity from
-    //    consolidation, which is a multi-PR feature.
+    //    Multiple `ControlGained` events on a single entity for one
+    //    period are treated as the latest applying — engagements can't
+    //    really have two mid-period acquisitions of the same entity in
+    //    one reporting period without intervening `ControlLost`.
     use datasynth_core::models::intercompany::OwnershipChangeType;
     let mut equity_transaction_adjustments = Decimal::ZERO;
+    let mut control_gained_event: Option<
+        &datasynth_core::models::intercompany::OwnershipChangeEvent,
+    > = None;
     for ev in inputs.ownership_changes {
         match ev.event_type {
             OwnershipChangeType::ControlIncreased | OwnershipChangeType::ControlDecreased => {
                 equity_transaction_adjustments -= ev.consideration_paid_or_received;
             }
             OwnershipChangeType::ControlGained => {
-                return Err(GroupError::Aggregate(format!(
-                    "compute_nci_rollforward: entity `{}`: ControlGained \
-                     mid-period events are not yet supported by the rollforward — \
-                     this is a v5.4 follow-up.  Period-1 acquisitions should use \
-                     `acquisition_date_nci_fair_value` instead.",
-                    entity.code,
-                )));
+                // Latest event wins if multiple supplied (rare).
+                control_gained_event = Some(ev);
             }
             OwnershipChangeType::ControlLost => {
                 return Err(GroupError::Aggregate(format!(
                     "compute_nci_rollforward: entity `{}`: ControlLost \
                      mid-period deconsolidation events are not yet supported \
-                     by the rollforward — this is a v5.4 follow-up.",
+                     by the rollforward — this is a v5.5+ follow-up.",
                     entity.code,
                 )));
             }
         }
     }
+
+    // 4. **v5.4** — Time-weight + opening-NCI override for ControlGained.
+    //
+    //    Time-weight = (period_end - effective_date + 1) / (period_end - period_start + 1).
+    //    Both numerator and denominator are inclusive day counts.  When
+    //    `effective_date == period_start`, the weight is 1.0 (full
+    //    period contributes — the acquisition occurred exactly at
+    //    period start, equivalent to a period-1 baseline).  When
+    //    `effective_date == period_end`, the weight is 1 day / N days
+    //    (only the final day's activity counts).
+    //
+    //    The IFRS 3 § 42 re-measurement gain/loss is independent of
+    //    time-weighting: it's the one-time effect of revaluing the
+    //    prior interest to FV at the acquisition date.
+    let mut time_weight = Decimal::ONE;
+    let mut pl_remeasurement_gain_or_loss = Decimal::ZERO;
+    let mut control_gained_opening_override: Option<Decimal> = None;
+    if let Some(ev) = control_gained_event {
+        // Validate effective_date is in [period_start, period_end].
+        if ev.effective_date < inputs.period_start || ev.effective_date > inputs.period_end {
+            return Err(GroupError::Aggregate(format!(
+                "compute_nci_rollforward: entity `{}`: ControlGained \
+                 effective_date {} is outside the period [{}, {}] — \
+                 the manifest builder normally rejects this; surface it \
+                 here as a defence-in-depth check",
+                entity.code, ev.effective_date, inputs.period_start, inputs.period_end,
+            )));
+        }
+        let total_days = (inputs.period_end - inputs.period_start).num_days() + 1;
+        let post_days = (inputs.period_end - ev.effective_date).num_days() + 1;
+        time_weight = Decimal::from(post_days) / Decimal::from(total_days);
+
+        // IFRS 3 § 42: gain/loss = FV - carrying.  Both fields are
+        // optional on the event; if either is missing the gain/loss
+        // is zero (engagement explicitly opted out of the IFRS 3.42
+        // P&L recognition for this acquisition, e.g. a fresh-buy with
+        // no prior interest).
+        if let (Some(fv), Some(carrying)) = (
+            ev.previously_held_interest_fair_value,
+            ev.previously_held_interest_carrying,
+        ) {
+            pl_remeasurement_gain_or_loss = fv - carrying;
+        }
+
+        // Opening NCI overrides to acquisition-date fair value when
+        // supplied.  Falls back to the input's
+        // `acquisition_date_nci_fair_value`, then to zero (proportionate
+        // basis at acquisition).
+        control_gained_opening_override = ev
+            .acquisition_date_nci_fair_value
+            .or(inputs.acquisition_date_nci_fair_value);
+    }
+
+    // 5. Apply the IFRS 10.B94 / ASC 810 share-of-equity allocation
+    //    with time-weighting (1.0 if no ControlGained mid-period).
+    let nci_share_of_profit = nci_percent * inputs.period_net_income * time_weight;
+    let nci_share_of_oci = nci_percent * inputs.period_oci * time_weight;
+    let nci_dividends = nci_percent * inputs.total_dividends_paid * time_weight;
+
+    // 6. Pick the effective opening NCI: ControlGained override wins,
+    //    then the existing period-1 fair-value seed logic, otherwise
+    //    the caller's `opening_nci`.
+    let effective_opening_nci = match control_gained_opening_override {
+        Some(fv) => fv,
+        None => effective_opening_nci,
+    };
 
     let closing_nci = (effective_opening_nci + nci_share_of_profit + nci_share_of_oci
         - nci_dividends
@@ -339,6 +412,7 @@ pub fn compute_nci_rollforward(inputs: &NciInputs) -> GroupResult<NciRollforward
         nci_share_of_oci: nci_share_of_oci.round_dp(2),
         nci_dividends: nci_dividends.round_dp(2),
         equity_transaction_adjustments: equity_transaction_adjustments.round_dp(2),
+        pl_remeasurement_gain_or_loss: pl_remeasurement_gain_or_loss.round_dp(2),
         closing_nci,
         period_end: inputs.period_end,
         currency: inputs.currency.clone(),
@@ -391,6 +465,7 @@ mod tests {
             opening_nci: dec!(800),
             acquisition_date_nci_fair_value: None,
             ownership_changes: &[],
+            period_start: period_end(),
             period_end: period_end(),
             currency: "CHF".to_string(),
         };
@@ -429,6 +504,7 @@ mod tests {
             opening_nci: Decimal::ZERO,
             acquisition_date_nci_fair_value: Some(dec!(850)),
             ownership_changes: &[],
+            period_start: period_end(),
             period_end: period_end(),
             currency: "CHF".to_string(),
         };
@@ -460,6 +536,7 @@ mod tests {
             opening_nci: dec!(940), // brought forward from a prior period
             acquisition_date_nci_fair_value: Some(dec!(1000)), // stale FV
             ownership_changes: &[],
+            period_start: period_end(),
             period_end: period_end(),
             currency: "CHF".to_string(),
         };
@@ -487,6 +564,7 @@ mod tests {
             opening_nci: dec!(800),
             acquisition_date_nci_fair_value: None, // proportionate basis
             ownership_changes: &[],
+            period_start: period_end(),
             period_end: period_end(),
             currency: "CHF".to_string(),
         };
@@ -508,6 +586,7 @@ mod tests {
             opening_nci: Decimal::ZERO,
             acquisition_date_nci_fair_value: None,
             ownership_changes: &[],
+            period_start: period_end(),
             period_end: period_end(),
             currency: "CHF".to_string(),
         };
@@ -569,6 +648,7 @@ mod tests {
             opening_nci: dec!(800),
             acquisition_date_nci_fair_value: None,
             ownership_changes: std::slice::from_ref(&event),
+            period_start: period_end(),
             period_end: period_end(),
             currency: "CHF".to_string(),
         };
@@ -598,6 +678,7 @@ mod tests {
             opening_nci: dec!(800),
             acquisition_date_nci_fair_value: None,
             ownership_changes: std::slice::from_ref(&event),
+            period_start: period_end(),
             period_end: period_end(),
             currency: "CHF".to_string(),
         };
@@ -634,6 +715,7 @@ mod tests {
             opening_nci: dec!(500),
             acquisition_date_nci_fair_value: None,
             ownership_changes: &events,
+            period_start: period_end(),
             period_end: period_end(),
             currency: "CHF".to_string(),
         };
@@ -642,16 +724,102 @@ mod tests {
         assert_eq!(rf.closing_nci, dec!(520.00));
     }
 
+    /// **v5.4** — ControlGained mid-period at the period start is the
+    /// degenerate case: time_weight = 1.0 (full period contributes),
+    /// matching what `acquisition_date_nci_fair_value` does for period-1.
     #[test]
-    fn control_gained_mid_period_rejected_with_v54_pointer() {
+    fn control_gained_at_period_start_is_full_period_contribution() {
         use datasynth_core::models::intercompany::OwnershipChangeType;
         let entity = make_entity("SUB", ConsolidationMethod::Full, Some(dec!(0.80)));
-        let event = equity_event(
+        // ControlGained at period_start with FV = 1000 (NCI) + carrying
+        // = 0 + FV = 0 (no remeasurement gain).
+        let mut ev = equity_event(
             OwnershipChangeType::ControlGained,
             Decimal::ZERO,
             dec!(0.80),
-            dec!(1000),
+            dec!(5000),
         );
+        ev.effective_date = NaiveDate::from_ymd_opt(2024, 1, 1).unwrap();
+        ev.acquisition_date_nci_fair_value = Some(dec!(1000));
+        let inputs = NciInputs {
+            entity: &entity,
+            period_net_income: dec!(2000),
+            period_oci: Decimal::ZERO,
+            total_dividends_paid: Decimal::ZERO,
+            opening_nci: Decimal::ZERO,
+            acquisition_date_nci_fair_value: None,
+            ownership_changes: std::slice::from_ref(&ev),
+            period_start: NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
+            period_end: NaiveDate::from_ymd_opt(2024, 3, 31).unwrap(),
+            currency: "CHF".to_string(),
+        };
+        let rf = compute_nci_rollforward(&inputs).unwrap();
+        // Full period: time_weight = 1.0
+        // Opening = 1000 (FV from event), share_of_profit = 0.20 × 2000 × 1.0 = 400
+        // Closing = 1000 + 400 = 1400
+        assert_eq!(rf.opening_nci, dec!(1000));
+        assert_eq!(rf.nci_share_of_profit, dec!(400.00));
+        assert_eq!(rf.closing_nci, dec!(1400.00));
+        assert_eq!(rf.pl_remeasurement_gain_or_loss, Decimal::ZERO);
+    }
+
+    /// **v5.4** — ControlGained mid-period at the midpoint pro-rates
+    /// profit by the post-acquisition fraction.
+    #[test]
+    fn control_gained_mid_period_pro_rates_profit() {
+        use datasynth_core::models::intercompany::OwnershipChangeType;
+        let entity = make_entity("SUB", ConsolidationMethod::Full, Some(dec!(0.80)));
+        // Period: Q1 2024 (90 days).  Acquisition date: Feb 15
+        // (~46 days remaining; weight ≈ 46/90).
+        let mut ev = equity_event(
+            OwnershipChangeType::ControlGained,
+            Decimal::ZERO,
+            dec!(0.80),
+            dec!(5000),
+        );
+        ev.effective_date = NaiveDate::from_ymd_opt(2024, 2, 15).unwrap();
+        ev.acquisition_date_nci_fair_value = Some(dec!(1000));
+        let inputs = NciInputs {
+            entity: &entity,
+            period_net_income: dec!(2000),
+            period_oci: Decimal::ZERO,
+            total_dividends_paid: Decimal::ZERO,
+            opening_nci: Decimal::ZERO,
+            acquisition_date_nci_fair_value: None,
+            ownership_changes: std::slice::from_ref(&ev),
+            period_start: NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
+            period_end: NaiveDate::from_ymd_opt(2024, 3, 31).unwrap(),
+            currency: "CHF".to_string(),
+        };
+        let rf = compute_nci_rollforward(&inputs).unwrap();
+        // total_days = 91 (Jan 1 to Mar 31 inclusive).
+        // post_days = 46 (Feb 15 to Mar 31 inclusive).
+        // weight = 46/91 ≈ 0.50549...
+        // share_of_profit = 0.20 × 2000 × (46/91) = 400 × 0.50549 ≈ 202.20
+        // Closing = 1000 + 202.20 = 1202.20
+        let weight = Decimal::from(46) / Decimal::from(91);
+        let expected_share = (dec!(0.20) * dec!(2000) * weight).round_dp(2);
+        assert_eq!(rf.opening_nci, dec!(1000));
+        assert_eq!(rf.nci_share_of_profit, expected_share);
+        let expected_close = (dec!(1000) + dec!(0.20) * dec!(2000) * weight).round_dp(2);
+        assert_eq!(rf.closing_nci, expected_close);
+    }
+
+    /// **v5.4** — ControlGained P&L re-measurement gain/loss = FV - carrying.
+    #[test]
+    fn control_gained_records_ifrs_3_42_remeasurement_gain() {
+        use datasynth_core::models::intercompany::OwnershipChangeType;
+        let entity = make_entity("SUB", ConsolidationMethod::Full, Some(dec!(0.80)));
+        let mut ev = equity_event(
+            OwnershipChangeType::ControlGained,
+            Decimal::ZERO,
+            dec!(0.80),
+            dec!(5000),
+        );
+        ev.effective_date = NaiveDate::from_ymd_opt(2024, 1, 1).unwrap();
+        ev.previously_held_interest_carrying = Some(dec!(800));
+        ev.previously_held_interest_fair_value = Some(dec!(1500));
+        ev.acquisition_date_nci_fair_value = Some(dec!(500));
         let inputs = NciInputs {
             entity: &entity,
             period_net_income: Decimal::ZERO,
@@ -659,18 +827,19 @@ mod tests {
             total_dividends_paid: Decimal::ZERO,
             opening_nci: Decimal::ZERO,
             acquisition_date_nci_fair_value: None,
-            ownership_changes: std::slice::from_ref(&event),
-            period_end: period_end(),
+            ownership_changes: std::slice::from_ref(&ev),
+            period_start: NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
+            period_end: NaiveDate::from_ymd_opt(2024, 3, 31).unwrap(),
             currency: "CHF".to_string(),
         };
-        let err = compute_nci_rollforward(&inputs).unwrap_err();
-        let msg = format!("{err}");
-        assert!(msg.contains("ControlGained"));
-        assert!(msg.contains("v5.4"));
+        let rf = compute_nci_rollforward(&inputs).unwrap();
+        // Re-measurement gain = 1500 - 800 = 700
+        assert_eq!(rf.pl_remeasurement_gain_or_loss, dec!(700));
     }
 
+    /// **v5.5+ follow-up** — ControlLost mid-period still rejected.
     #[test]
-    fn control_lost_mid_period_rejected_with_v54_pointer() {
+    fn control_lost_mid_period_rejected_with_v55_pointer() {
         use datasynth_core::models::intercompany::OwnershipChangeType;
         let entity = make_entity("SUB", ConsolidationMethod::Full, Some(dec!(0.80)));
         let event = equity_event(
@@ -687,13 +856,14 @@ mod tests {
             opening_nci: dec!(800),
             acquisition_date_nci_fair_value: None,
             ownership_changes: std::slice::from_ref(&event),
+            period_start: period_end(),
             period_end: period_end(),
             currency: "CHF".to_string(),
         };
         let err = compute_nci_rollforward(&inputs).unwrap_err();
         let msg = format!("{err}");
         assert!(msg.contains("ControlLost"));
-        assert!(msg.contains("v5.4"));
+        assert!(msg.contains("v5.5"));
     }
 
     #[test]
@@ -710,6 +880,7 @@ mod tests {
             opening_nci: dec!(800),
             acquisition_date_nci_fair_value: None,
             ownership_changes: &[],
+            period_start: period_end(),
             period_end: period_end(),
             currency: "CHF".to_string(),
         };

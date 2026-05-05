@@ -901,6 +901,7 @@ fn build_nci_rollforwards(
                 .get(&entity.code)
                 .map(|v| v.as_slice())
                 .unwrap_or(&[]),
+            period_start: manifest.period.end,
             period_end: manifest.period.end,
             currency: manifest.presentation_currency.clone(),
         };
