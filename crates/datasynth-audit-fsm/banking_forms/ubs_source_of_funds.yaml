@@ -1,0 +1,169 @@
+# UBS Source of Funds Declaration
+# Public-source reconstruction based on Wolfsberg Private Banking Principles
+# (P.6 — source-of-wealth establishment) and Swiss CDB20 requirements, as
+# applied in UBS private-banking onboarding. This form captures the declared
+# origin of assets and the documentary evidence provided to support it.
+#
+# Obligation slug conventions:
+#   obl:wolfsberg_pb:P.<n>:0   — Wolfsberg Private Banking Principles paragraph n
+#   obl:fatf_40:R.<n>:0        — FATF 40 Recommendation n
+
+form_id: ubs_source_of_funds_v1
+name: "UBS Source of Funds Declaration (public reconstruction)"
+version: "1.0"
+kind: source_of_funds
+source: ubs_public
+description: |
+  Public-source reconstruction of the UBS source-of-funds declaration used
+  in private-banking customer onboarding and EDD reviews. Captures the
+  primary category and description of the asset origin, the documentary
+  evidence provided by the customer, and the verification outcome recorded
+  by the compliance or relationship manager. Structure derived from
+  Wolfsberg Private Banking Principles P.6 (source-of-wealth establishment)
+  and Swiss CDB20 requirements; actual UBS proprietary template is
+  confidential.
+public_url: "https://www.ubs.com"
+is_public_reconstruction: true
+
+sections:
+
+  - section_id: source_description
+    title: "Source Description"
+    description: >
+      Customer's self-declared primary source of the funds or wealth held
+      in the account, including the relevant time period and any supporting
+      evidence provided.
+    fields:
+      - field_id: primary_source_category
+        label: "Primary source of funds category"
+        field_type: enum_single
+        is_required: true
+        canonical_term: source_of_funds_category
+        enum_values:
+          - salary_or_employment_income
+          - inheritance
+          - business_sale_proceeds
+          - investment_returns
+          - property_sale_proceeds
+          - gift
+          - loan_proceeds
+          - other
+        obligation_refs:
+          - "obl:wolfsberg_pb:P.6:0"
+          - "obl:fatf_40:R.10:0"
+        description: "Broad category of the wealth origin as declared by the customer."
+
+      - field_id: source_description
+        label: "Detailed description of the source of funds"
+        field_type: text
+        is_required: true
+        canonical_term: source_of_funds_description
+        obligation_refs:
+          - "obl:wolfsberg_pb:P.6:0"
+          - "obl:fatf_40:R.10:0"
+        description: "Narrative explanation of how the funds were generated."
+
+      - field_id: source_period_from
+        label: "Start of the period during which funds were accumulated"
+        field_type: date
+        is_required: false
+        canonical_term: source_period_from
+        obligation_refs:
+          - "obl:wolfsberg_pb:P.6:0"
+        description: "Beginning of the relevant earning or accumulation period."
+
+      - field_id: source_period_to
+        label: "End of the period during which funds were accumulated (or 'ongoing')"
+        field_type: date
+        is_required: false
+        canonical_term: source_period_to
+        obligation_refs:
+          - "obl:wolfsberg_pb:P.6:0"
+        description: "End date of the accumulation period; leave blank if funds are from an ongoing income stream."
+
+      - field_id: supporting_evidence_list
+        label: "List of supporting evidence types provided by the customer"
+        field_type: list
+        is_required: true
+        canonical_term: source_of_funds_evidence_list
+        obligation_refs:
+          - "obl:wolfsberg_pb:P.6:0"
+          - "obl:fatf_40:R.10:0"
+        description: "Itemised list of evidence types supplied (e.g. payslips, sale agreement, probate grant)."
+
+  - section_id: documentary_evidence
+    title: "Documentary Evidence"
+    description: >
+      Flags indicating which categories of documentary evidence have been
+      obtained and are held on file to substantiate the source-of-funds declaration.
+    fields:
+      - field_id: bank_statement_attached
+        label: "Bank statement(s) from external institution(s) attached?"
+        field_type: boolean
+        is_required: true
+        canonical_term: bank_statement_attached
+        obligation_refs:
+          - "obl:wolfsberg_pb:P.6:0"
+        description: "Indicates whether historical bank statements corroborating fund transfers are on file."
+
+      - field_id: contract_attached
+        label: "Signed contract or agreement (e.g. sale agreement, employment contract) attached?"
+        field_type: boolean
+        is_required: true
+        canonical_term: contract_attached
+        obligation_refs:
+          - "obl:wolfsberg_pb:P.6:0"
+        description: "Indicates whether a relevant contractual document is held."
+
+      - field_id: tax_return_attached
+        label: "Tax return or equivalent fiscal document attached?"
+        field_type: boolean
+        is_required: true
+        canonical_term: tax_return_attached
+        obligation_refs:
+          - "obl:wolfsberg_pb:P.6:0"
+          - "obl:fatf_40:R.10:0"
+        description: "Indicates whether a tax return corroborating income or asset disposition is on file."
+
+      - field_id: other_documents
+        label: "Description of any other supporting documents provided"
+        field_type: text
+        is_required: false
+        canonical_term: other_supporting_documents
+        obligation_refs:
+          - "obl:wolfsberg_pb:P.6:0"
+        description: "Free-text description of additional documents not covered by the standard categories."
+
+  - section_id: verification_status
+    title: "Verification Status"
+    description: >
+      Internal compliance record of the verification outcome for the
+      source-of-funds declaration.
+    fields:
+      - field_id: verified_by
+        label: "Name and role of the compliance officer or relationship manager who verified the declaration"
+        field_type: text
+        is_required: true
+        canonical_term: verified_by
+        obligation_refs:
+          - "obl:wolfsberg_pb:P.6:0"
+        description: "Full name and job title of the internal reviewer."
+
+      - field_id: verification_date
+        label: "Date on which the source-of-funds declaration was verified"
+        field_type: date
+        is_required: true
+        canonical_term: verification_date
+        obligation_refs:
+          - "obl:wolfsberg_pb:P.6:0"
+        description: "Date the compliance review was completed."
+
+      - field_id: verification_notes
+        label: "Compliance notes on the verification outcome (including any residual concerns)"
+        field_type: text
+        is_required: false
+        canonical_term: verification_notes
+        obligation_refs:
+          - "obl:wolfsberg_pb:P.6:0"
+          - "obl:fatf_40:R.10:0"
+        description: "Internal comments on the adequacy of evidence and any outstanding follow-up actions."

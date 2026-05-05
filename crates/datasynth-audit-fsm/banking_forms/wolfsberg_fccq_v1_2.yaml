@@ -1,0 +1,541 @@
+# Wolfsberg Financial Crime Compliance Questionnaire (FCCQ) v1.2
+# Public-source reconstruction based on the publicly-documented Wolfsberg Group
+# FCCQ structure.  Covers the financial crime compliance programme beyond
+# AML/CTF — including ABC, fraud, market abuse, and sanctions controls.
+#
+# Obligation slug conventions:
+#   obl:wolfsberg_cb:P.<n>:0   — Wolfsberg CB Principles paragraph n
+#   obl:fatf_40:R.<n>:0        — FATF 40 Recommendation n
+#   obl:eu_amlr_2024_1624:<n>:0 — EU AMLR 2024/1624 Article n
+
+form_id: wolfsberg_fccq_v1_2
+name: Wolfsberg Financial Crime Compliance Questionnaire
+version: "1.2"
+kind: financial_crime_compliance
+source: wolfsberg
+description: >
+  The Wolfsberg FCCQ extends the CBDDQ by capturing the broader financial
+  crime compliance programme — anti-bribery & corruption (ABC), fraud,
+  market abuse, and sanctions — in a single structured questionnaire.
+  Used by financial institutions to communicate their FCC posture to
+  counterparties and supervisors.
+public_url: "https://www.wolfsberg-principles.com"
+is_public_reconstruction: true
+
+sections:
+
+  - section_id: s1_entity_information
+    title: "Entity Information"
+    description: >
+      Basic identity of the responding institution, its regulatory status,
+      and the scope of this questionnaire response.
+    fields:
+      - field_id: q1_1_legal_entity_name
+        label: "Full legal name of the institution completing this questionnaire"
+        field_type: text
+        is_required: true
+        canonical_term: legal_entity_name
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.2:0"
+          - "obl:fatf_40:R.10:0"
+
+      - field_id: q1_2_registered_country
+        label: "Country of registration / incorporation"
+        field_type: text
+        is_required: true
+        canonical_term: country_of_incorporation
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.2:0"
+
+      - field_id: q1_3_primary_regulator
+        label: "Primary financial services supervisor / regulator"
+        field_type: text
+        is_required: true
+        canonical_term: primary_regulator
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.2:0"
+
+      - field_id: q1_4_fcc_officer_name
+        label: "Name and title of the Chief Compliance Officer / Head of Financial Crime Compliance"
+        field_type: text
+        is_required: true
+        canonical_term: fcc_officer_name
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+          - "obl:eu_amlr_2024_1624:21:0"
+
+      - field_id: q1_5_questionnaire_scope
+        label: "Does this questionnaire cover the entire group or a specific legal entity / branch?"
+        field_type: enum_single
+        is_required: true
+        canonical_term: questionnaire_scope
+        enum_values:
+          - entire_group
+          - specific_legal_entity
+          - specific_branch
+          - specific_jurisdiction
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.2:0"
+
+      - field_id: q1_6_response_date
+        label: "Date as of which this questionnaire response is valid"
+        field_type: date
+        is_required: true
+        canonical_term: questionnaire_response_date
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.2:0"
+
+      - field_id: q1_7_last_reviewed_date
+        label: "Date this questionnaire was last reviewed / updated by the institution"
+        field_type: date
+        is_required: true
+        canonical_term: questionnaire_last_reviewed
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+
+      - field_id: q1_8_attestation_officer
+        label: "Name and title of the officer attesting to the accuracy of this response"
+        field_type: text
+        is_required: true
+        canonical_term: questionnaire_attestation_officer
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+
+  - section_id: s2_fcc_programme
+    title: "Financial Crime Compliance Programme"
+    description: >
+      Governance, policies, risk assessment, and controls covering the full
+      spectrum of financial crime: AML, ABC, fraud, market abuse, and sanctions.
+    fields:
+      - field_id: q2_1_fcc_policy_approved
+        label: "Does the institution have a board-approved Financial Crime Compliance (FCC) policy?"
+        field_type: boolean
+        is_required: true
+        canonical_term: fcc_policy_board_approved
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+          - "obl:fatf_40:R.18:0"
+          - "obl:eu_amlr_2024_1624:21:0"
+
+      - field_id: q2_2_fcc_risk_assessment
+        label: "Does the institution conduct an enterprise-wide financial crime risk assessment?"
+        field_type: boolean
+        is_required: true
+        canonical_term: fcc_enterprise_risk_assessment
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+          - "obl:fatf_40:R.18:0"
+          - "obl:eu_amlr_2024_1624:20:0"
+
+      - field_id: q2_3_fcc_risk_assessment_frequency
+        label: "How frequently is the enterprise-wide FCC risk assessment reviewed?"
+        field_type: enum_single
+        is_required: true
+        canonical_term: fcc_risk_assessment_frequency
+        enum_values:
+          - annually
+          - bi_annually
+          - every_three_years
+          - event_driven
+          - other
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+          - "obl:eu_amlr_2024_1624:20:0"
+
+      - field_id: q2_4_abc_policy
+        label: "Does the institution have a documented Anti-Bribery & Corruption (ABC) policy?"
+        field_type: boolean
+        is_required: true
+        canonical_term: anti_bribery_corruption_policy
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+
+      - field_id: q2_5_fraud_controls
+        label: "Does the institution have documented controls for internal and external fraud prevention?"
+        field_type: boolean
+        is_required: true
+        canonical_term: fraud_prevention_controls
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+          - "obl:eu_amlr_2024_1624:20:0"
+
+      - field_id: q2_6_market_abuse_controls
+        label: "Does the institution have controls to detect and prevent market abuse / insider trading?"
+        field_type: boolean
+        is_required: true
+        canonical_term: market_abuse_controls
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+
+      - field_id: q2_7_conflicts_of_interest_policy
+        label: "Does the institution maintain a conflicts of interest policy?"
+        field_type: boolean
+        is_required: true
+        canonical_term: conflicts_of_interest_policy
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+
+      - field_id: q2_8_gifts_hospitality_policy
+        label: "Does the institution have a gifts and hospitality policy?"
+        field_type: boolean
+        is_required: true
+        canonical_term: gifts_hospitality_policy
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+
+      - field_id: q2_9_whistleblower_mechanism
+        label: "Does the institution have an anonymous whistleblower / speak-up mechanism?"
+        field_type: boolean
+        is_required: true
+        canonical_term: whistleblower_mechanism
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+
+      - field_id: q2_10_fcc_training_all_staff
+        label: "Does the institution provide financial crime compliance training to all staff?"
+        field_type: boolean
+        is_required: true
+        canonical_term: fcc_training_all_staff
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+          - "obl:fatf_40:R.18:0"
+
+      - field_id: q2_11_fcc_training_frequency
+        label: "How frequently is FCC training required for all staff?"
+        field_type: enum_single
+        is_required: true
+        canonical_term: fcc_training_frequency
+        enum_values:
+          - annually
+          - bi_annually
+          - upon_hire_only
+          - other
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+
+      - field_id: q2_12_independent_fcc_audit
+        label: "Is the FCC programme subject to independent audit or testing?"
+        field_type: boolean
+        is_required: true
+        canonical_term: independent_fcc_audit
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+          - "obl:fatf_40:R.18:0"
+
+      - field_id: q2_13_fcc_audit_frequency
+        label: "How frequently does independent audit / testing of the FCC programme occur?"
+        field_type: enum_single
+        is_required: true
+        canonical_term: fcc_independent_audit_frequency
+        enum_values:
+          - annually
+          - bi_annually
+          - every_three_years
+          - continuous
+          - other
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+
+      - field_id: q2_14_third_party_fcc_due_diligence
+        label: "Does the institution conduct FCC due diligence on material third-party relationships (agents, introducers, outsourced providers)?"
+        field_type: boolean
+        is_required: true
+        canonical_term: third_party_fcc_due_diligence
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.2:0"
+          - "obl:fatf_40:R.18:0"
+
+      - field_id: q2_15_regulatory_actions_outstanding
+        label: "Are there any outstanding material regulatory enforcement actions or consent orders relating to financial crime?"
+        field_type: boolean
+        is_required: true
+        canonical_term: outstanding_fcc_regulatory_actions
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+
+      - field_id: q2_16_fcc_metrics_board_reporting
+        label: "Are key FCC metrics (alerts, SARs, screening hits, training completion) reported to the board or board committee?"
+        field_type: boolean
+        is_required: true
+        canonical_term: fcc_metrics_board_reporting
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+          - "obl:eu_amlr_2024_1624:21:0"
+
+      - field_id: q2_17_correspondent_fcc_requirements
+        label: "Does the institution impose minimum FCC standards on respondent / correspondent institutions as a condition of the relationship?"
+        field_type: boolean
+        is_required: true
+        canonical_term: correspondent_fcc_minimum_standards
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.9:0"
+          - "obl:fatf_40:R.18:0"
+
+      - field_id: q2_18_technology_tools_fcc
+        label: "List the primary technology tools used for FCC (e.g. screening, monitoring, case management)"
+        field_type: text
+        is_required: false
+        canonical_term: fcc_technology_tools
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+
+  - section_id: s3_sanctions_compliance
+    title: "Sanctions Compliance"
+    description: >
+      Sanctions screening infrastructure, list coverage, escalation procedures,
+      OFAC / EU / UN / SECO compliance programme elements, and
+      treatment of blocked and rejected transactions.
+    fields:
+      - field_id: q3_1_sanctions_compliance_policy
+        label: "Does the institution have a documented sanctions compliance policy?"
+        field_type: boolean
+        is_required: true
+        canonical_term: sanctions_compliance_policy
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+          - "obl:eu_amlr_2024_1624:21:0"
+
+      - field_id: q3_2_sanctions_screening_scope
+        label: "What does the institution screen against sanctions lists? (select all that apply)"
+        field_type: enum_multi
+        is_required: true
+        canonical_term: sanctions_screening_scope
+        enum_values:
+          - customers_at_onboarding
+          - customers_ongoing
+          - counterparties
+          - payment_transactions
+          - payment_message_fields
+          - correspondent_banks
+          - beneficial_owners
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+          - "obl:eu_amlr_2024_1624:21:0"
+
+      - field_id: q3_3_sanctions_lists_covered
+        label: "Sanctions lists screened (select all that apply)"
+        field_type: enum_multi
+        is_required: true
+        canonical_term: sanctions_lists_covered
+        enum_values:
+          - un_consolidated_list
+          - eu_consolidated_list
+          - ofac_sdn
+          - ofac_non_sdn
+          - uk_hmt
+          - swiss_seco
+          - other_bilateral
+        obligation_refs:
+          - "obl:eu_amlr_2024_1624:21:0"
+
+      - field_id: q3_4_real_time_payment_screening
+        label: "Are payment transactions screened in real-time against sanctions lists before processing?"
+        field_type: boolean
+        is_required: true
+        canonical_term: real_time_payment_sanctions_screening
+        obligation_refs:
+          - "obl:wolfsberg_pts:P.13:0"
+          - "obl:eu_amlr_2024_1624:21:0"
+
+      - field_id: q3_5_screening_update_frequency
+        label: "How frequently are the sanctions lists used for screening updated?"
+        field_type: enum_single
+        is_required: true
+        canonical_term: sanctions_list_update_frequency
+        enum_values:
+          - real_time
+          - daily
+          - weekly
+          - monthly
+          - other
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+
+      - field_id: q3_6_blocked_transactions_procedure
+        label: "Does the institution have documented procedures for blocking / freezing assets and transactions pursuant to sanctions?"
+        field_type: boolean
+        is_required: true
+        canonical_term: blocked_transactions_procedure
+        obligation_refs:
+          - "obl:eu_amlr_2024_1624:21:0"
+
+      - field_id: q3_7_rejected_transactions_records
+        label: "Does the institution maintain records of rejected transactions and blocked assets as required by sanctions regulations?"
+        field_type: boolean
+        is_required: true
+        canonical_term: rejected_transactions_records
+        obligation_refs:
+          - "obl:eu_amlr_2024_1624:21:0"
+
+      - field_id: q3_8_primary_sanctions_jurisdiction
+        label: "Primary sanctions jurisdiction(s) to which the institution is subject (select all that apply)"
+        field_type: enum_multi
+        is_required: true
+        canonical_term: primary_sanctions_jurisdictions
+        enum_values:
+          - us_ofac
+          - eu_eeas
+          - uk_hmt
+          - un_security_council
+          - swiss_seco
+          - other
+        obligation_refs:
+          - "obl:eu_amlr_2024_1624:21:0"
+
+      - field_id: q3_9_sanctions_escalation_officer
+        label: "Is there a designated sanctions escalation officer or team responsible for reviewing hits?"
+        field_type: boolean
+        is_required: true
+        canonical_term: sanctions_escalation_officer
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+
+      - field_id: q3_10_ofac_voluntary_self_disclosure
+        label: "Has the institution made any OFAC voluntary self-disclosures (VSDs) in the last 3 years?"
+        field_type: boolean
+        is_required: true
+        canonical_term: ofac_voluntary_self_disclosures
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+
+      - field_id: q3_11_sanctions_training_specific
+        label: "Is sanctions-specific training included in the FCC training programme for all relevant staff?"
+        field_type: boolean
+        is_required: true
+        canonical_term: sanctions_specific_training
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+          - "obl:eu_amlr_2024_1624:21:0"
+
+      - field_id: q3_12_false_positive_management
+        label: "Does the institution have a process for managing false-positive sanctions alerts to reduce noise?"
+        field_type: boolean
+        is_required: true
+        canonical_term: false_positive_management_process
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+
+      - field_id: q3_13_sanctions_testing_annual
+        label: "Is the sanctions screening programme independently tested at least annually?"
+        field_type: boolean
+        is_required: true
+        canonical_term: sanctions_programme_independently_tested
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+
+      - field_id: q3_14_secondary_sanctions_risk
+        label: "Has the institution assessed its exposure to secondary / extra-territorial sanctions risk (e.g. US secondary sanctions)?"
+        field_type: boolean
+        is_required: true
+        canonical_term: secondary_sanctions_risk_assessed
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+
+  - section_id: s4_reporting_requirements
+    title: "Reporting Requirements"
+    description: >
+      Regulatory reporting obligations covering suspicious activity / transaction
+      reporting, tax information exchange, AML audits, and information-sharing
+      with supervisors and financial intelligence units.
+    fields:
+      - field_id: q4_1_sar_str_filing_process
+        label: "Does the institution have a documented process for filing Suspicious Activity Reports (SARs) or Suspicious Transaction Reports (STRs)?"
+        field_type: boolean
+        is_required: true
+        canonical_term: sar_str_filing_process
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+          - "obl:fatf_40:R.20:0"
+          - "obl:eu_amlr_2024_1624:21:0"
+
+      - field_id: q4_2_fiu_name
+        label: "Name of the Financial Intelligence Unit (FIU) to which the institution files SARs/STRs"
+        field_type: text
+        is_required: true
+        canonical_term: fiu_name
+        obligation_refs:
+          - "obl:fatf_40:R.20:0"
+
+      - field_id: q4_3_sar_escalation_timeframe
+        label: "What is the target internal escalation timeframe for potential SAR/STR cases?"
+        field_type: enum_single
+        is_required: true
+        canonical_term: sar_internal_escalation_timeframe
+        enum_values:
+          - within_24_hours
+          - within_48_hours
+          - within_5_business_days
+          - within_30_days
+          - other
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+
+      - field_id: q4_4_tipping_off_controls
+        label: "Does the institution have controls to prevent tipping-off subjects of SAR/STR filings?"
+        field_type: boolean
+        is_required: true
+        canonical_term: tipping_off_controls
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+          - "obl:eu_amlr_2024_1624:21:0"
+
+      - field_id: q4_5_fatca_crs_reporting
+        label: "Does the institution report under FATCA and/or the OECD CRS?"
+        field_type: boolean
+        is_required: true
+        canonical_term: fatca_crs_reporting
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.2:0"
+
+      - field_id: q4_6_large_cash_transaction_reporting
+        label: "Is the institution subject to mandatory large cash transaction reporting?"
+        field_type: boolean
+        is_required: true
+        canonical_term: large_cash_transaction_reporting
+        obligation_refs:
+          - "obl:eu_amlr_2024_1624:79:0"
+
+      - field_id: q4_7_information_sharing_agreements
+        label: "Does the institution participate in any cross-institution information-sharing arrangements (e.g. Section 314(b), AUSTRAC, Egmont)?  "
+        field_type: boolean
+        is_required: true
+        canonical_term: information_sharing_arrangements
+        obligation_refs:
+          - "obl:fatf_40:R.20:0"
+
+      - field_id: q4_8_record_retention_kyc
+        label: "How long are KYC/CDD records retained after the customer relationship ends?"
+        field_type: enum_single
+        is_required: true
+        canonical_term: kyc_record_retention_years
+        enum_values:
+          - "5_years"
+          - "7_years"
+          - "10_years"
+          - other
+        obligation_refs:
+          - "obl:fatf_40:R.20:0"
+          - "obl:eu_amlr_2024_1624:21:0"
+
+      - field_id: q4_9_record_retention_transactions
+        label: "How long are transaction records retained?"
+        field_type: enum_single
+        is_required: true
+        canonical_term: transaction_record_retention_years
+        enum_values:
+          - "5_years"
+          - "7_years"
+          - "10_years"
+          - other
+        obligation_refs:
+          - "obl:fatf_40:R.20:0"
+          - "obl:eu_amlr_2024_1624:21:0"
+
+      - field_id: q4_10_regulator_cooperation_policy
+        label: "Does the institution have a policy ensuring full cooperation with regulatory and law-enforcement requests for information?"
+        field_type: boolean
+        is_required: true
+        canonical_term: regulator_cooperation_policy
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+          - "obl:fatf_40:R.20:0"

@@ -1,0 +1,2908 @@
+{
+  "entries": [
+    {
+      "form_id": "mros_sar_v1",
+      "section_id": "reporting_entity",
+      "field_id": "reporting_institution_name",
+      "canonical_term": "legal_entity_name",
+      "obligation_refs": [
+        "obl:ch_amla_current:9:0"
+      ],
+      "blueprint_step_ids": [
+        "step_correspondent_identification",
+        "step_collect_id"
+      ]
+    },
+    {
+      "form_id": "mros_sar_v1",
+      "section_id": "reporting_entity",
+      "field_id": "finma_licence_number",
+      "canonical_term": "finma_licence_number",
+      "obligation_refs": [
+        "obl:ch_amla_current:9:0"
+      ],
+      "blueprint_step_ids": [
+        "step_correspondent_identification"
+      ]
+    },
+    {
+      "form_id": "mros_sar_v1",
+      "section_id": "reporting_entity",
+      "field_id": "reporting_officer_name",
+      "canonical_term": "mlro_name",
+      "obligation_refs": [
+        "obl:ch_amla_current:9:0"
+      ],
+      "blueprint_step_ids": [
+        "step_susp_staff_alert",
+        "step_correspondent_aml_review"
+      ]
+    },
+    {
+      "form_id": "mros_sar_v1",
+      "section_id": "reporting_entity",
+      "field_id": "reporting_officer_contact",
+      "canonical_term": "mlro_contact",
+      "obligation_refs": [
+        "obl:ch_amla_current:9:0"
+      ],
+      "blueprint_step_ids": [
+        "step_susp_staff_alert"
+      ]
+    },
+    {
+      "form_id": "mros_sar_v1",
+      "section_id": "reporting_entity",
+      "field_id": "date_filed",
+      "canonical_term": "sar_filing_date",
+      "obligation_refs": [
+        "obl:ch_amla_current:9:0"
+      ],
+      "blueprint_step_ids": [
+        "step_susp_staff_alert"
+      ]
+    },
+    {
+      "form_id": "mros_sar_v1",
+      "section_id": "reporting_entity",
+      "field_id": "internal_reference",
+      "canonical_term": "internal_case_reference",
+      "obligation_refs": [
+        "obl:ch_amla_current:9:0"
+      ],
+      "blueprint_step_ids": [
+        "step_susp_staff_alert"
+      ]
+    },
+    {
+      "form_id": "mros_sar_v1",
+      "section_id": "subject",
+      "field_id": "customer_id",
+      "canonical_term": "customer_id",
+      "obligation_refs": [
+        "obl:ch_amla_current:9:0"
+      ],
+      "blueprint_step_ids": [
+        "step_collect_id",
+        "step_pb_identification"
+      ]
+    },
+    {
+      "form_id": "mros_sar_v1",
+      "section_id": "subject",
+      "field_id": "subject_name",
+      "canonical_term": "subject_name",
+      "obligation_refs": [
+        "obl:ch_amla_current:9:0"
+      ],
+      "blueprint_step_ids": [
+        "step_collect_id"
+      ]
+    },
+    {
+      "form_id": "mros_sar_v1",
+      "section_id": "subject",
+      "field_id": "subject_dob",
+      "canonical_term": "subject_date_of_birth",
+      "obligation_refs": [
+        "obl:ch_amla_current:9:0"
+      ],
+      "blueprint_step_ids": [
+        "step_collect_id"
+      ]
+    },
+    {
+      "form_id": "mros_sar_v1",
+      "section_id": "subject",
+      "field_id": "subject_nationality",
+      "canonical_term": "subject_nationality",
+      "obligation_refs": [
+        "obl:ch_amla_current:9:0"
+      ],
+      "blueprint_step_ids": [
+        "step_collect_id"
+      ]
+    },
+    {
+      "form_id": "mros_sar_v1",
+      "section_id": "subject",
+      "field_id": "subject_address",
+      "canonical_term": "subject_address",
+      "obligation_refs": [
+        "obl:ch_amla_current:9:0"
+      ],
+      "blueprint_step_ids": [
+        "step_address_verify"
+      ]
+    },
+    {
+      "form_id": "mros_sar_v1",
+      "section_id": "subject",
+      "field_id": "account_number",
+      "canonical_term": "account_number",
+      "obligation_refs": [
+        "obl:ch_amla_current:9:0"
+      ],
+      "blueprint_step_ids": [
+        "step_pb_identification"
+      ]
+    },
+    {
+      "form_id": "mros_sar_v1",
+      "section_id": "subject",
+      "field_id": "customer_relationship_start",
+      "canonical_term": "customer_relationship_start_date",
+      "obligation_refs": [
+        "obl:ch_amla_current:9:0"
+      ],
+      "blueprint_step_ids": [
+        "step_pb_identification"
+      ]
+    },
+    {
+      "form_id": "mros_sar_v1",
+      "section_id": "subject",
+      "field_id": "customer_kind",
+      "canonical_term": "customer_kind",
+      "obligation_refs": [
+        "obl:ch_amla_current:9:0"
+      ],
+      "blueprint_step_ids": [
+        "step_collect_id"
+      ]
+    },
+    {
+      "form_id": "mros_sar_v1",
+      "section_id": "subject",
+      "field_id": "beneficial_owner_known",
+      "canonical_term": "beneficial_owner_known",
+      "obligation_refs": [
+        "obl:ch_amla_current:9:0"
+      ],
+      "blueprint_step_ids": [
+        "step_ubo_resolution"
+      ]
+    },
+    {
+      "form_id": "mros_sar_v1",
+      "section_id": "subject",
+      "field_id": "beneficial_owner_details",
+      "canonical_term": "beneficial_owner_details",
+      "obligation_refs": [
+        "obl:ch_amla_current:9:0"
+      ],
+      "blueprint_step_ids": [
+        "step_form_a_collect",
+        "step_ubo_resolution"
+      ]
+    },
+    {
+      "form_id": "mros_sar_v1",
+      "section_id": "suspicious_activity",
+      "field_id": "suspicion_category",
+      "canonical_term": "suspicion_category",
+      "obligation_refs": [
+        "obl:ch_amla_current:9:0"
+      ],
+      "blueprint_step_ids": [
+        "step_susp_staff_alert"
+      ]
+    },
+    {
+      "form_id": "mros_sar_v1",
+      "section_id": "suspicious_activity",
+      "field_id": "suspicion_narrative",
+      "canonical_term": "suspicion_narrative",
+      "obligation_refs": [
+        "obl:ch_amla_current:9:0"
+      ],
+      "blueprint_step_ids": [
+        "step_susp_staff_alert"
+      ]
+    },
+    {
+      "form_id": "mros_sar_v1",
+      "section_id": "suspicious_activity",
+      "field_id": "trigger_event_date",
+      "canonical_term": "trigger_event_date",
+      "obligation_refs": [
+        "obl:ch_amla_current:9:0"
+      ],
+      "blueprint_step_ids": [
+        "step_susp_staff_alert"
+      ]
+    },
+    {
+      "form_id": "mros_sar_v1",
+      "section_id": "suspicious_activity",
+      "field_id": "trigger_event_description",
+      "canonical_term": "trigger_event_description",
+      "obligation_refs": [
+        "obl:ch_amla_current:9:0"
+      ],
+      "blueprint_step_ids": [
+        "step_susp_staff_alert"
+      ]
+    },
+    {
+      "form_id": "mros_sar_v1",
+      "section_id": "suspicious_activity",
+      "field_id": "internal_investigation_summary",
+      "canonical_term": "internal_investigation_summary",
+      "obligation_refs": [
+        "obl:ch_amla_current:9:0"
+      ],
+      "blueprint_step_ids": [
+        "step_susp_staff_alert"
+      ]
+    },
+    {
+      "form_id": "mros_sar_v1",
+      "section_id": "suspicious_activity",
+      "field_id": "kyc_review_outcome",
+      "canonical_term": "kyc_review_outcome",
+      "obligation_refs": [
+        "obl:ch_amla_current:9:0"
+      ],
+      "blueprint_step_ids": [
+        "step_pkyc_review"
+      ]
+    },
+    {
+      "form_id": "mros_sar_v1",
+      "section_id": "suspicious_activity",
+      "field_id": "edd_performed",
+      "canonical_term": "edd_performed",
+      "obligation_refs": [
+        "obl:ch_amla_current:9:0"
+      ],
+      "blueprint_step_ids": [
+        "step_pb_ubo",
+        "step_ubo_resolution"
+      ]
+    },
+    {
+      "form_id": "mros_sar_v1",
+      "section_id": "suspicious_activity",
+      "field_id": "mlro_assessment",
+      "canonical_term": "mlro_assessment",
+      "obligation_refs": [
+        "obl:ch_amla_current:9:0",
+        "obl:ch_amla_current:10a:0"
+      ],
+      "blueprint_step_ids": [
+        "step_susp_staff_alert"
+      ]
+    },
+    {
+      "form_id": "mros_sar_v1",
+      "section_id": "transaction_details",
+      "field_id": "transaction_dates_list",
+      "canonical_term": "transaction_dates",
+      "obligation_refs": [
+        "obl:ch_amla_current:9:0",
+        "obl:wolfsberg_pts:P.13:0"
+      ],
+      "blueprint_step_ids": [
+        "step_transaction_review",
+        "step_susp_staff_alert"
+      ]
+    },
+    {
+      "form_id": "mros_sar_v1",
+      "section_id": "transaction_details",
+      "field_id": "transaction_amounts_list",
+      "canonical_term": "transaction_amounts",
+      "obligation_refs": [
+        "obl:ch_amla_current:9:0"
+      ],
+      "blueprint_step_ids": [
+        "step_transaction_review",
+        "step_susp_staff_alert"
+      ]
+    },
+    {
+      "form_id": "mros_sar_v1",
+      "section_id": "transaction_details",
+      "field_id": "transaction_counterparties",
+      "canonical_term": "transaction_counterparties",
+      "obligation_refs": [
+        "obl:ch_amla_current:9:0",
+        "obl:wolfsberg_pts:P.13:0"
+      ],
+      "blueprint_step_ids": [
+        "step_transaction_review"
+      ]
+    },
+    {
+      "form_id": "mros_sar_v1",
+      "section_id": "transaction_details",
+      "field_id": "currencies",
+      "canonical_term": "transaction_currencies",
+      "obligation_refs": [
+        "obl:ch_amla_current:9:0"
+      ],
+      "blueprint_step_ids": [
+        "step_transaction_review"
+      ]
+    },
+    {
+      "form_id": "mros_sar_v1",
+      "section_id": "transaction_details",
+      "field_id": "transaction_type",
+      "canonical_term": "transaction_type",
+      "obligation_refs": [
+        "obl:ch_amla_current:9:0"
+      ],
+      "blueprint_step_ids": [
+        "step_transaction_review"
+      ]
+    },
+    {
+      "form_id": "mros_sar_v1",
+      "section_id": "transaction_details",
+      "field_id": "total_aggregate_chf",
+      "canonical_term": "total_aggregate_amount_chf",
+      "obligation_refs": [
+        "obl:ch_amla_current:9:0"
+      ],
+      "blueprint_step_ids": [
+        "step_susp_staff_alert"
+      ]
+    },
+    {
+      "form_id": "mros_sar_v1",
+      "section_id": "transaction_details",
+      "field_id": "suspicious_pattern_description",
+      "canonical_term": "suspicious_pattern_description",
+      "obligation_refs": [
+        "obl:ch_amla_current:9:0"
+      ],
+      "blueprint_step_ids": [
+        "step_susp_staff_alert"
+      ]
+    },
+    {
+      "form_id": "mros_sar_v1",
+      "section_id": "documents_attached",
+      "field_id": "supporting_documents_list",
+      "canonical_term": "supporting_documents_list",
+      "obligation_refs": [
+        "obl:ch_amla_current:9:0"
+      ],
+      "blueprint_step_ids": []
+    },
+    {
+      "form_id": "mros_sar_v1",
+      "section_id": "documents_attached",
+      "field_id": "customer_id_docs",
+      "canonical_term": "customer_identity_documents",
+      "obligation_refs": [
+        "obl:ch_amla_current:9:0"
+      ],
+      "blueprint_step_ids": [
+        "step_collect_id",
+        "step_pb_identification"
+      ]
+    },
+    {
+      "form_id": "mros_sar_v1",
+      "section_id": "documents_attached",
+      "field_id": "transaction_records",
+      "canonical_term": "transaction_records",
+      "obligation_refs": [
+        "obl:ch_amla_current:9:0",
+        "obl:wolfsberg_pts:P.13:0"
+      ],
+      "blueprint_step_ids": [
+        "step_transaction_review"
+      ]
+    },
+    {
+      "form_id": "mros_sar_v1",
+      "section_id": "documents_attached",
+      "field_id": "internal_memos",
+      "canonical_term": "internal_investigation_memos",
+      "obligation_refs": [
+        "obl:ch_amla_current:9:0"
+      ],
+      "blueprint_step_ids": [
+        "step_susp_staff_alert"
+      ]
+    },
+    {
+      "form_id": "mros_sar_v1",
+      "section_id": "documents_attached",
+      "field_id": "prior_correspondence",
+      "canonical_term": "prior_authority_correspondence",
+      "obligation_refs": [
+        "obl:ch_amla_current:10a:0"
+      ],
+      "blueprint_step_ids": [
+        "step_qa_review",
+        "step_internal_audit"
+      ]
+    },
+    {
+      "form_id": "ubs_form_a_beneficial_owner_v1",
+      "section_id": "customer_identity",
+      "field_id": "customer_id",
+      "canonical_term": "customer_id",
+      "obligation_refs": [
+        "obl:ch_cdb20:1:0",
+        "obl:fatf_40:R.10:0"
+      ],
+      "blueprint_step_ids": [
+        "step_collect_id",
+        "step_pb_identification"
+      ]
+    },
+    {
+      "form_id": "ubs_form_a_beneficial_owner_v1",
+      "section_id": "customer_identity",
+      "field_id": "customer_name",
+      "canonical_term": "customer_name",
+      "obligation_refs": [
+        "obl:ch_cdb20:1:0",
+        "obl:fatf_40:R.10:0"
+      ],
+      "blueprint_step_ids": [
+        "step_collect_id",
+        "step_pb_identification"
+      ]
+    },
+    {
+      "form_id": "ubs_form_a_beneficial_owner_v1",
+      "section_id": "customer_identity",
+      "field_id": "account_number",
+      "canonical_term": "account_number",
+      "obligation_refs": [
+        "obl:ch_cdb20:1:0"
+      ],
+      "blueprint_step_ids": [
+        "step_pb_identification"
+      ]
+    },
+    {
+      "form_id": "ubs_form_a_beneficial_owner_v1",
+      "section_id": "customer_identity",
+      "field_id": "declaration_date",
+      "canonical_term": "declaration_date",
+      "obligation_refs": [
+        "obl:ch_cdb20:1:0"
+      ],
+      "blueprint_step_ids": [
+        "step_tax_residency_collect",
+        "step_form_a_collect"
+      ]
+    },
+    {
+      "form_id": "ubs_form_a_beneficial_owner_v1",
+      "section_id": "customer_identity",
+      "field_id": "customer_signature_obtained",
+      "canonical_term": "signature_obtained",
+      "obligation_refs": [
+        "obl:ch_cdb20:1:0"
+      ],
+      "blueprint_step_ids": [
+        "step_pb_identification"
+      ]
+    },
+    {
+      "form_id": "ubs_form_a_beneficial_owner_v1",
+      "section_id": "beneficial_owner_declaration",
+      "field_id": "bo_is_self",
+      "canonical_term": "beneficial_owner_is_self",
+      "obligation_refs": [
+        "obl:ch_cdb20:1:0",
+        "obl:fatf_40:R.10:0"
+      ],
+      "blueprint_step_ids": [
+        "step_form_a_collect"
+      ]
+    },
+    {
+      "form_id": "ubs_form_a_beneficial_owner_v1",
+      "section_id": "beneficial_owner_declaration",
+      "field_id": "bo_name",
+      "canonical_term": "beneficial_owner_name",
+      "obligation_refs": [
+        "obl:ch_cdb20:1:0",
+        "obl:fatf_40:R.10:0"
+      ],
+      "blueprint_step_ids": [
+        "step_form_a_collect",
+        "step_ubo_resolution"
+      ]
+    },
+    {
+      "form_id": "ubs_form_a_beneficial_owner_v1",
+      "section_id": "beneficial_owner_declaration",
+      "field_id": "bo_dob",
+      "canonical_term": "beneficial_owner_dob",
+      "obligation_refs": [
+        "obl:ch_cdb20:1:0",
+        "obl:fatf_40:R.10:0"
+      ],
+      "blueprint_step_ids": [
+        "step_form_a_collect",
+        "step_ubo_resolution"
+      ]
+    },
+    {
+      "form_id": "ubs_form_a_beneficial_owner_v1",
+      "section_id": "beneficial_owner_declaration",
+      "field_id": "bo_nationality",
+      "canonical_term": "beneficial_owner_nationality",
+      "obligation_refs": [
+        "obl:ch_cdb20:1:0",
+        "obl:fatf_40:R.10:0"
+      ],
+      "blueprint_step_ids": [
+        "step_form_a_collect",
+        "step_ubo_resolution"
+      ]
+    },
+    {
+      "form_id": "ubs_form_a_beneficial_owner_v1",
+      "section_id": "beneficial_owner_declaration",
+      "field_id": "bo_address",
+      "canonical_term": "beneficial_owner_address",
+      "obligation_refs": [
+        "obl:ch_cdb20:1:0",
+        "obl:fatf_40:R.10:0"
+      ],
+      "blueprint_step_ids": [
+        "step_form_a_collect",
+        "step_ubo_resolution"
+      ]
+    },
+    {
+      "form_id": "ubs_form_a_beneficial_owner_v1",
+      "section_id": "beneficial_owner_declaration",
+      "field_id": "bo_relationship_to_customer",
+      "canonical_term": "bo_relationship_to_customer",
+      "obligation_refs": [
+        "obl:ch_cdb20:1:0"
+      ],
+      "blueprint_step_ids": [
+        "step_form_a_collect"
+      ]
+    },
+    {
+      "form_id": "ubs_form_a_beneficial_owner_v1",
+      "section_id": "beneficial_owner_declaration",
+      "field_id": "bo_chain_complete",
+      "canonical_term": "ownership_chain_documented",
+      "obligation_refs": [
+        "obl:ch_cdb20:1:0",
+        "obl:fatf_40:R.10:0"
+      ],
+      "blueprint_step_ids": [
+        "step_ubo_resolution",
+        "step_form_a_collect"
+      ]
+    },
+    {
+      "form_id": "ubs_form_a_beneficial_owner_v1",
+      "section_id": "beneficial_owner_declaration",
+      "field_id": "notes",
+      "canonical_term": "beneficial_owner_notes",
+      "obligation_refs": [
+        "obl:ch_cdb20:1:0"
+      ],
+      "blueprint_step_ids": [
+        "step_form_a_collect",
+        "step_ubo_resolution"
+      ]
+    },
+    {
+      "form_id": "ubs_form_a_beneficial_owner_v1",
+      "section_id": "special_cases",
+      "field_id": "trust_or_foundation_flag",
+      "canonical_term": "trust_or_foundation_flag",
+      "obligation_refs": [
+        "obl:ch_cdb20:1:0",
+        "obl:fatf_40:R.10:0"
+      ],
+      "blueprint_step_ids": [
+        "step_ubo_resolution"
+      ]
+    },
+    {
+      "form_id": "ubs_form_a_beneficial_owner_v1",
+      "section_id": "special_cases",
+      "field_id": "complex_structure_flag",
+      "canonical_term": "complex_structure_flag",
+      "obligation_refs": [
+        "obl:ch_cdb20:1:0",
+        "obl:fatf_40:R.10:0"
+      ],
+      "blueprint_step_ids": [
+        "step_ubo_resolution"
+      ]
+    },
+    {
+      "form_id": "ubs_form_a_beneficial_owner_v1",
+      "section_id": "special_cases",
+      "field_id": "additional_disclosures",
+      "canonical_term": "additional_disclosures",
+      "obligation_refs": [
+        "obl:ch_cdb20:1:0"
+      ],
+      "blueprint_step_ids": []
+    },
+    {
+      "form_id": "ubs_form_a_beneficial_owner_v1",
+      "section_id": "special_cases",
+      "field_id": "supporting_documents",
+      "canonical_term": "supporting_documents",
+      "obligation_refs": [
+        "obl:ch_cdb20:1:0",
+        "obl:fatf_40:R.10:0"
+      ],
+      "blueprint_step_ids": []
+    },
+    {
+      "form_id": "ubs_kyc_identification_v1",
+      "section_id": "customer_identification",
+      "field_id": "full_legal_name",
+      "canonical_term": "customer_name",
+      "obligation_refs": [
+        "obl:fatf_40:R.10:0",
+        "obl:ch_cdb20:1:0"
+      ],
+      "blueprint_step_ids": [
+        "step_collect_id",
+        "step_pb_identification"
+      ]
+    },
+    {
+      "form_id": "ubs_kyc_identification_v1",
+      "section_id": "customer_identification",
+      "field_id": "dob",
+      "canonical_term": "date_of_birth",
+      "obligation_refs": [
+        "obl:fatf_40:R.10:0",
+        "obl:ch_cdb20:1:0"
+      ],
+      "blueprint_step_ids": [
+        "step_collect_id",
+        "step_pb_identification"
+      ]
+    },
+    {
+      "form_id": "ubs_kyc_identification_v1",
+      "section_id": "customer_identification",
+      "field_id": "nationality",
+      "canonical_term": "nationality",
+      "obligation_refs": [
+        "obl:fatf_40:R.10:0",
+        "obl:ch_cdb20:1:0"
+      ],
+      "blueprint_step_ids": [
+        "step_collect_id",
+        "step_pb_identification"
+      ]
+    },
+    {
+      "form_id": "ubs_kyc_identification_v1",
+      "section_id": "customer_identification",
+      "field_id": "primary_id_document_type",
+      "canonical_term": "primary_id_document_type",
+      "obligation_refs": [
+        "obl:fatf_40:R.10:0",
+        "obl:ch_cdb20:1:0"
+      ],
+      "blueprint_step_ids": [
+        "step_collect_id",
+        "step_pb_identification"
+      ]
+    },
+    {
+      "form_id": "ubs_kyc_identification_v1",
+      "section_id": "customer_identification",
+      "field_id": "primary_id_number",
+      "canonical_term": "primary_id_document_number",
+      "obligation_refs": [
+        "obl:fatf_40:R.10:0",
+        "obl:ch_cdb20:1:0"
+      ],
+      "blueprint_step_ids": [
+        "step_collect_id",
+        "step_pb_identification"
+      ]
+    },
+    {
+      "form_id": "ubs_kyc_identification_v1",
+      "section_id": "customer_identification",
+      "field_id": "primary_id_expiry",
+      "canonical_term": "primary_id_expiry_date",
+      "obligation_refs": [
+        "obl:fatf_40:R.10:0",
+        "obl:ch_cdb20:1:0"
+      ],
+      "blueprint_step_ids": [
+        "step_collect_id",
+        "step_pb_identification"
+      ]
+    },
+    {
+      "form_id": "ubs_kyc_identification_v1",
+      "section_id": "address_verification",
+      "field_id": "residence_address",
+      "canonical_term": "residence_address",
+      "obligation_refs": [
+        "obl:fatf_40:R.10:0",
+        "obl:ch_cdb20:1:0"
+      ],
+      "blueprint_step_ids": [
+        "step_address_verify",
+        "step_pb_identification"
+      ]
+    },
+    {
+      "form_id": "ubs_kyc_identification_v1",
+      "section_id": "address_verification",
+      "field_id": "address_proof_document_type",
+      "canonical_term": "address_proof_document_type",
+      "obligation_refs": [
+        "obl:fatf_40:R.10:0",
+        "obl:ch_cdb20:1:0"
+      ],
+      "blueprint_step_ids": [
+        "step_address_verify"
+      ]
+    },
+    {
+      "form_id": "ubs_kyc_identification_v1",
+      "section_id": "address_verification",
+      "field_id": "address_proof_date",
+      "canonical_term": "address_proof_document_date",
+      "obligation_refs": [
+        "obl:fatf_40:R.10:0"
+      ],
+      "blueprint_step_ids": [
+        "step_address_verify"
+      ]
+    },
+    {
+      "form_id": "ubs_kyc_identification_v1",
+      "section_id": "address_verification",
+      "field_id": "address_verified",
+      "canonical_term": "address_verified",
+      "obligation_refs": [
+        "obl:fatf_40:R.10:0",
+        "obl:ch_cdb20:1:0"
+      ],
+      "blueprint_step_ids": [
+        "step_address_verify"
+      ]
+    },
+    {
+      "form_id": "ubs_kyc_identification_v1",
+      "section_id": "risk_profile",
+      "field_id": "risk_classification",
+      "canonical_term": "customer_risk_classification",
+      "obligation_refs": [
+        "obl:fatf_40:R.10:0",
+        "obl:ch_cdb20:1:0"
+      ],
+      "blueprint_step_ids": [
+        "step_risk_score",
+        "step_pkyc_review"
+      ]
+    },
+    {
+      "form_id": "ubs_kyc_identification_v1",
+      "section_id": "risk_profile",
+      "field_id": "pep_status",
+      "canonical_term": "pep_status",
+      "obligation_refs": [
+        "obl:fatf_40:R.10:0",
+        "obl:ch_cdb20:1:0"
+      ],
+      "blueprint_step_ids": [
+        "step_pep_screening",
+        "step_pep_periodic"
+      ]
+    },
+    {
+      "form_id": "ubs_kyc_identification_v1",
+      "section_id": "risk_profile",
+      "field_id": "sanctions_screening_result",
+      "canonical_term": "sanctions_screening_result",
+      "obligation_refs": [
+        "obl:fatf_40:R.10:0",
+        "obl:ch_cdb20:1:0"
+      ],
+      "blueprint_step_ids": [
+        "step_sanctions_initial",
+        "step_sanctions_periodic"
+      ]
+    },
+    {
+      "form_id": "ubs_kyc_identification_v1",
+      "section_id": "risk_profile",
+      "field_id": "adverse_media_check",
+      "canonical_term": "adverse_media_check_result",
+      "obligation_refs": [
+        "obl:fatf_40:R.10:0"
+      ],
+      "blueprint_step_ids": [
+        "step_pep_screening",
+        "step_pep_periodic"
+      ]
+    },
+    {
+      "form_id": "ubs_kyc_identification_v1",
+      "section_id": "risk_profile",
+      "field_id": "ongoing_monitoring_consent",
+      "canonical_term": "ongoing_monitoring_consent",
+      "obligation_refs": [
+        "obl:fatf_40:R.10:0",
+        "obl:ch_cdb20:1:0"
+      ],
+      "blueprint_step_ids": [
+        "step_pkyc_review"
+      ]
+    },
+    {
+      "form_id": "ubs_source_of_funds_v1",
+      "section_id": "source_description",
+      "field_id": "primary_source_category",
+      "canonical_term": "source_of_funds_category",
+      "obligation_refs": [
+        "obl:wolfsberg_pb:P.6:0",
+        "obl:fatf_40:R.10:0"
+      ],
+      "blueprint_step_ids": [
+        "step_pb_source_of_wealth"
+      ]
+    },
+    {
+      "form_id": "ubs_source_of_funds_v1",
+      "section_id": "source_description",
+      "field_id": "source_description",
+      "canonical_term": "source_of_funds_description",
+      "obligation_refs": [
+        "obl:wolfsberg_pb:P.6:0",
+        "obl:fatf_40:R.10:0"
+      ],
+      "blueprint_step_ids": [
+        "step_pb_source_of_wealth"
+      ]
+    },
+    {
+      "form_id": "ubs_source_of_funds_v1",
+      "section_id": "source_description",
+      "field_id": "source_period_from",
+      "canonical_term": "source_period_from",
+      "obligation_refs": [
+        "obl:wolfsberg_pb:P.6:0"
+      ],
+      "blueprint_step_ids": [
+        "step_pb_source_of_wealth"
+      ]
+    },
+    {
+      "form_id": "ubs_source_of_funds_v1",
+      "section_id": "source_description",
+      "field_id": "source_period_to",
+      "canonical_term": "source_period_to",
+      "obligation_refs": [
+        "obl:wolfsberg_pb:P.6:0"
+      ],
+      "blueprint_step_ids": [
+        "step_pb_source_of_wealth"
+      ]
+    },
+    {
+      "form_id": "ubs_source_of_funds_v1",
+      "section_id": "source_description",
+      "field_id": "supporting_evidence_list",
+      "canonical_term": "source_of_funds_evidence_list",
+      "obligation_refs": [
+        "obl:wolfsberg_pb:P.6:0",
+        "obl:fatf_40:R.10:0"
+      ],
+      "blueprint_step_ids": [
+        "step_pb_source_of_wealth"
+      ]
+    },
+    {
+      "form_id": "ubs_source_of_funds_v1",
+      "section_id": "documentary_evidence",
+      "field_id": "bank_statement_attached",
+      "canonical_term": "bank_statement_attached",
+      "obligation_refs": [
+        "obl:wolfsberg_pb:P.6:0"
+      ],
+      "blueprint_step_ids": [
+        "step_pb_source_of_wealth"
+      ]
+    },
+    {
+      "form_id": "ubs_source_of_funds_v1",
+      "section_id": "documentary_evidence",
+      "field_id": "contract_attached",
+      "canonical_term": "contract_attached",
+      "obligation_refs": [
+        "obl:wolfsberg_pb:P.6:0"
+      ],
+      "blueprint_step_ids": [
+        "step_pb_source_of_wealth"
+      ]
+    },
+    {
+      "form_id": "ubs_source_of_funds_v1",
+      "section_id": "documentary_evidence",
+      "field_id": "tax_return_attached",
+      "canonical_term": "tax_return_attached",
+      "obligation_refs": [
+        "obl:wolfsberg_pb:P.6:0",
+        "obl:fatf_40:R.10:0"
+      ],
+      "blueprint_step_ids": [
+        "step_pb_source_of_wealth",
+        "step_pb_tax_review"
+      ]
+    },
+    {
+      "form_id": "ubs_source_of_funds_v1",
+      "section_id": "documentary_evidence",
+      "field_id": "other_documents",
+      "canonical_term": "other_supporting_documents",
+      "obligation_refs": [
+        "obl:wolfsberg_pb:P.6:0"
+      ],
+      "blueprint_step_ids": []
+    },
+    {
+      "form_id": "ubs_source_of_funds_v1",
+      "section_id": "verification_status",
+      "field_id": "verified_by",
+      "canonical_term": "verified_by",
+      "obligation_refs": [
+        "obl:wolfsberg_pb:P.6:0"
+      ],
+      "blueprint_step_ids": [
+        "step_collect_id",
+        "step_pb_identification"
+      ]
+    },
+    {
+      "form_id": "ubs_source_of_funds_v1",
+      "section_id": "verification_status",
+      "field_id": "verification_date",
+      "canonical_term": "verification_date",
+      "obligation_refs": [
+        "obl:wolfsberg_pb:P.6:0"
+      ],
+      "blueprint_step_ids": [
+        "step_collect_id"
+      ]
+    },
+    {
+      "form_id": "ubs_source_of_funds_v1",
+      "section_id": "verification_status",
+      "field_id": "verification_notes",
+      "canonical_term": "verification_notes",
+      "obligation_refs": [
+        "obl:wolfsberg_pb:P.6:0",
+        "obl:fatf_40:R.10:0"
+      ],
+      "blueprint_step_ids": [
+        "step_collect_id"
+      ]
+    },
+    {
+      "form_id": "ubs_tax_compliance_v1",
+      "section_id": "tax_residency",
+      "field_id": "tax_residency_country",
+      "canonical_term": "tax_residency_country",
+      "obligation_refs": [
+        "obl:wolfsberg_pb:P.6:0",
+        "obl:eu_amlr_2024_1624:21:0"
+      ],
+      "blueprint_step_ids": [
+        "step_tax_residency_collect",
+        "step_pb_tax_review"
+      ]
+    },
+    {
+      "form_id": "ubs_tax_compliance_v1",
+      "section_id": "tax_residency",
+      "field_id": "tin_number",
+      "canonical_term": "tin_number",
+      "obligation_refs": [
+        "obl:wolfsberg_pb:P.6:0",
+        "obl:eu_amlr_2024_1624:21:0"
+      ],
+      "blueprint_step_ids": [
+        "step_tax_residency_collect"
+      ]
+    },
+    {
+      "form_id": "ubs_tax_compliance_v1",
+      "section_id": "tax_residency",
+      "field_id": "multi_residency_flag",
+      "canonical_term": "multi_tax_residency_flag",
+      "obligation_refs": [
+        "obl:wolfsberg_pb:P.6:0",
+        "obl:eu_amlr_2024_1624:21:0"
+      ],
+      "blueprint_step_ids": [
+        "step_tax_residency_collect"
+      ]
+    },
+    {
+      "form_id": "ubs_tax_compliance_v1",
+      "section_id": "tax_residency",
+      "field_id": "secondary_residencies_list",
+      "canonical_term": "secondary_tax_residencies",
+      "obligation_refs": [
+        "obl:wolfsberg_pb:P.6:0",
+        "obl:eu_amlr_2024_1624:21:0"
+      ],
+      "blueprint_step_ids": [
+        "step_tax_residency_collect"
+      ]
+    },
+    {
+      "form_id": "ubs_tax_compliance_v1",
+      "section_id": "compliance_statement",
+      "field_id": "tax_returns_filed_current_year",
+      "canonical_term": "tax_returns_filed_current_year",
+      "obligation_refs": [
+        "obl:eu_amlr_2024_1624:21:0"
+      ],
+      "blueprint_step_ids": [
+        "step_pb_tax_review"
+      ]
+    },
+    {
+      "form_id": "ubs_tax_compliance_v1",
+      "section_id": "compliance_statement",
+      "field_id": "fatca_status_if_us",
+      "canonical_term": "fatca_status",
+      "obligation_refs": [
+        "obl:wolfsberg_pb:P.6:0"
+      ],
+      "blueprint_step_ids": [
+        "step_tax_residency_collect"
+      ]
+    },
+    {
+      "form_id": "ubs_tax_compliance_v1",
+      "section_id": "compliance_statement",
+      "field_id": "crs_consent",
+      "canonical_term": "crs_aeoi_consent",
+      "obligation_refs": [
+        "obl:wolfsberg_pb:P.6:0",
+        "obl:eu_amlr_2024_1624:21:0"
+      ],
+      "blueprint_step_ids": [
+        "step_tax_residency_collect"
+      ]
+    },
+    {
+      "form_id": "ubs_tax_compliance_v1",
+      "section_id": "compliance_statement",
+      "field_id": "declaration_signed_date",
+      "canonical_term": "compliance_declaration_signed_date",
+      "obligation_refs": [
+        "obl:wolfsberg_pb:P.6:0",
+        "obl:eu_amlr_2024_1624:21:0"
+      ],
+      "blueprint_step_ids": [
+        "step_correspondent_aml_review"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s1_entity_ownership",
+      "field_id": "q1_1_legal_name",
+      "canonical_term": "legal_entity_name",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.2:0",
+        "obl:fatf_40:R.10:0"
+      ],
+      "blueprint_step_ids": [
+        "step_correspondent_identification",
+        "step_collect_id"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s1_entity_ownership",
+      "field_id": "q1_2_country_of_incorporation",
+      "canonical_term": "country_of_incorporation",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.2:0",
+        "obl:fatf_40:R.10:0"
+      ],
+      "blueprint_step_ids": [
+        "step_correspondent_identification",
+        "step_collect_id"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s1_entity_ownership",
+      "field_id": "q1_3_primary_supervisor",
+      "canonical_term": "primary_regulator",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.2:0",
+        "obl:eu_amlr_2024_1624:20:0"
+      ],
+      "blueprint_step_ids": [
+        "step_correspondent_identification"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s1_entity_ownership",
+      "field_id": "q1_4_swift_bic",
+      "canonical_term": "swift_bic",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.2:0"
+      ],
+      "blueprint_step_ids": [
+        "step_correspondent_identification"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s1_entity_ownership",
+      "field_id": "q1_5_lei",
+      "canonical_term": "legal_entity_identifier",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.2:0"
+      ],
+      "blueprint_step_ids": [
+        "step_correspondent_identification"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s1_entity_ownership",
+      "field_id": "q1_6_is_publicly_listed",
+      "canonical_term": "publicly_listed",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.2:0",
+        "obl:fatf_40:R.12:0"
+      ],
+      "blueprint_step_ids": [
+        "step_correspondent_identification"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s1_entity_ownership",
+      "field_id": "q1_7_stock_exchange_ticker",
+      "canonical_term": "stock_exchange_ticker",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.2:0"
+      ],
+      "blueprint_step_ids": [
+        "step_correspondent_identification"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s1_entity_ownership",
+      "field_id": "q1_8_ubo_threshold",
+      "canonical_term": "beneficial_owner_above_threshold",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0",
+        "obl:fatf_40:R.10:0",
+        "obl:eu_amlr_2024_1624:34:0"
+      ],
+      "blueprint_step_ids": [
+        "step_ubo_resolution"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s1_entity_ownership",
+      "field_id": "q1_9_ownership_chart_available",
+      "canonical_term": "ownership_chart_available",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0",
+        "obl:eu_amlr_2024_1624:34:0"
+      ],
+      "blueprint_step_ids": [
+        "step_ubo_resolution"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s1_entity_ownership",
+      "field_id": "q1_10_holding_company_name",
+      "canonical_term": "ultimate_parent_name",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.2:0"
+      ],
+      "blueprint_step_ids": [
+        "step_correspondent_identification"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s1_entity_ownership",
+      "field_id": "q1_11_year_established",
+      "canonical_term": "year_established",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.2:0"
+      ],
+      "blueprint_step_ids": [
+        "step_correspondent_identification"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s2_products_services",
+      "field_id": "q2_1_customer_types",
+      "canonical_term": "customer_types_served",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.2:0",
+        "obl:eu_amlr_2024_1624:20:0"
+      ],
+      "blueprint_step_ids": [
+        "step_risk_score"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s2_products_services",
+      "field_id": "q2_2_geographic_markets",
+      "canonical_term": "geographic_markets",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.2:0",
+        "obl:fatf_40:R.18:0"
+      ],
+      "blueprint_step_ids": [
+        "step_correspondent_identification",
+        "step_risk_score"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s2_products_services",
+      "field_id": "q2_3_products_offered",
+      "canonical_term": "products_offered",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.2:0"
+      ],
+      "blueprint_step_ids": [
+        "step_correspondent_identification"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s2_products_services",
+      "field_id": "q2_4_payment_message_types",
+      "canonical_term": "payment_message_types",
+      "obligation_refs": [
+        "obl:wolfsberg_pts:P.13:0"
+      ],
+      "blueprint_step_ids": [
+        "step_correspondent_aml_review"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s2_products_services",
+      "field_id": "q2_5_payable_through_accounts",
+      "canonical_term": "payable_through_accounts",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.9:0",
+        "obl:fatf_40:R.18:0"
+      ],
+      "blueprint_step_ids": [
+        "step_correspondent_aml_review"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s2_products_services",
+      "field_id": "q2_6_nested_correspondents",
+      "canonical_term": "nested_correspondents",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.9:0",
+        "obl:fatf_40:R.18:0"
+      ],
+      "blueprint_step_ids": [
+        "step_correspondent_aml_review"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s2_products_services",
+      "field_id": "q2_7_pta_controls",
+      "canonical_term": "pta_controls_description",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.9:0"
+      ],
+      "blueprint_step_ids": [
+        "step_correspondent_aml_review"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s2_products_services",
+      "field_id": "q2_8_cash_intensive_customers",
+      "canonical_term": "cash_intensive_customers",
+      "obligation_refs": [
+        "obl:eu_amlr_2024_1624:79:0",
+        "obl:fatf_40:R.20:0"
+      ],
+      "blueprint_step_ids": [
+        "step_risk_score"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s2_products_services",
+      "field_id": "q2_9_msb_customers",
+      "canonical_term": "msb_customers",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.2:0",
+        "obl:fatf_40:R.18:0",
+        "obl:eu_amlr_2024_1624:80:0"
+      ],
+      "blueprint_step_ids": [
+        "step_risk_score"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s2_products_services",
+      "field_id": "q2_10_crypto_customers",
+      "canonical_term": "crypto_casp_customers",
+      "obligation_refs": [
+        "obl:eu_amlr_2024_1624:80:0",
+        "obl:fatf_40:R.18:0"
+      ],
+      "blueprint_step_ids": [
+        "step_risk_score"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s2_products_services",
+      "field_id": "q2_11_shell_company_policy",
+      "canonical_term": "shell_company_policy",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0",
+        "obl:eu_amlr_2024_1624:34:0"
+      ],
+      "blueprint_step_ids": [
+        "step_correspondent_aml_review"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s3_aml_ctf_sanctions_programme",
+      "field_id": "q3_1_written_aml_policy",
+      "canonical_term": "written_aml_policy",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0",
+        "obl:fatf_40:R.18:0",
+        "obl:eu_amlr_2024_1624:21:0"
+      ],
+      "blueprint_step_ids": [
+        "step_correspondent_aml_review"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s3_aml_ctf_sanctions_programme",
+      "field_id": "q3_2_bsa_aml_officer_name",
+      "canonical_term": "aml_compliance_officer",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0",
+        "obl:fatf_40:R.18:0"
+      ],
+      "blueprint_step_ids": [
+        "step_correspondent_aml_review"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s3_aml_ctf_sanctions_programme",
+      "field_id": "q3_3_mlro_reports_to",
+      "canonical_term": "mlro_reporting_line",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0",
+        "obl:eu_amlr_2024_1624:21:0"
+      ],
+      "blueprint_step_ids": [
+        "step_correspondent_aml_review"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s3_aml_ctf_sanctions_programme",
+      "field_id": "q3_4_risk_assessment_frequency",
+      "canonical_term": "risk_assessment_review_frequency",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0",
+        "obl:fatf_40:R.18:0",
+        "obl:eu_amlr_2024_1624:20:0"
+      ],
+      "blueprint_step_ids": [
+        "step_pkyc_review"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s3_aml_ctf_sanctions_programme",
+      "field_id": "q3_5_sanctions_screening_tool",
+      "canonical_term": "sanctions_screening_tool",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0",
+        "obl:eu_amlr_2024_1624:21:0"
+      ],
+      "blueprint_step_ids": [
+        "step_sanctions_initial",
+        "step_sanctions_periodic"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s3_aml_ctf_sanctions_programme",
+      "field_id": "q3_6_sanctions_lists_screened",
+      "canonical_term": "sanctions_lists_screened",
+      "obligation_refs": [
+        "obl:eu_amlr_2024_1624:21:0"
+      ],
+      "blueprint_step_ids": [
+        "step_sanctions_initial",
+        "step_sanctions_periodic"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s3_aml_ctf_sanctions_programme",
+      "field_id": "q3_7_real_time_payment_screening",
+      "canonical_term": "real_time_payment_sanctions_screening",
+      "obligation_refs": [
+        "obl:wolfsberg_pts:P.13:0",
+        "obl:eu_amlr_2024_1624:21:0"
+      ],
+      "blueprint_step_ids": [
+        "step_sanctions_initial",
+        "step_sanctions_periodic"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s3_aml_ctf_sanctions_programme",
+      "field_id": "q3_8_correspondent_aml_requirements",
+      "canonical_term": "correspondent_aml_requirements",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.2:0",
+        "obl:fatf_40:R.18:0"
+      ],
+      "blueprint_step_ids": [
+        "step_correspondent_aml_review"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s3_aml_ctf_sanctions_programme",
+      "field_id": "q3_9_pep_screening_tool",
+      "canonical_term": "pep_adverse_media_screening_tool",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0",
+        "obl:fatf_40:R.12:0",
+        "obl:eu_amlr_2024_1624:34:0"
+      ],
+      "blueprint_step_ids": [
+        "step_pep_screening",
+        "step_pep_periodic"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s3_aml_ctf_sanctions_programme",
+      "field_id": "q3_10_edd_triggers",
+      "canonical_term": "edd_triggers",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0",
+        "obl:fatf_40:R.18:0",
+        "obl:eu_amlr_2024_1624:20:0"
+      ],
+      "blueprint_step_ids": [
+        "step_pb_ubo",
+        "step_pkyc_review"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s3_aml_ctf_sanctions_programme",
+      "field_id": "q3_11_sanctions_escalation_procedure",
+      "canonical_term": "sanctions_escalation_procedure",
+      "obligation_refs": [
+        "obl:eu_amlr_2024_1624:21:0"
+      ],
+      "blueprint_step_ids": [
+        "step_correspondent_aml_review"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s3_aml_ctf_sanctions_programme",
+      "field_id": "q3_12_independent_testing_frequency",
+      "canonical_term": "aml_independent_testing_frequency",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0",
+        "obl:fatf_40:R.18:0"
+      ],
+      "blueprint_step_ids": [
+        "step_qa_review"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s4_kyc_cdd_edd",
+      "field_id": "q4_1_cdd_programme_documented",
+      "canonical_term": "cdd_programme_documented",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0",
+        "obl:fatf_40:R.10:0",
+        "obl:eu_amlr_2024_1624:20:0"
+      ],
+      "blueprint_step_ids": [
+        "step_correspondent_aml_review"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s4_kyc_cdd_edd",
+      "field_id": "q4_2_customer_risk_rating_methodology",
+      "canonical_term": "customer_risk_rating_methodology",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0",
+        "obl:fatf_40:R.10:0"
+      ],
+      "blueprint_step_ids": [
+        "step_risk_score"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s4_kyc_cdd_edd",
+      "field_id": "q4_3_customer_risk_rating_factors",
+      "canonical_term": "customer_risk_rating_factors",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0",
+        "obl:eu_amlr_2024_1624:20:0"
+      ],
+      "blueprint_step_ids": [
+        "step_risk_score"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s4_kyc_cdd_edd",
+      "field_id": "q4_4_bo_verification_method",
+      "canonical_term": "bo_verification_method",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0",
+        "obl:fatf_40:R.10:0",
+        "obl:eu_amlr_2024_1624:34:0"
+      ],
+      "blueprint_step_ids": [
+        "step_form_a_collect",
+        "step_ubo_resolution"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s4_kyc_cdd_edd",
+      "field_id": "q4_5_pep_identification_process",
+      "canonical_term": "pep_identification_process",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0",
+        "obl:fatf_40:R.12:0",
+        "obl:eu_amlr_2024_1624:34:0"
+      ],
+      "blueprint_step_ids": [
+        "step_pep_screening"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s4_kyc_cdd_edd",
+      "field_id": "q4_6_pep_senior_approval",
+      "canonical_term": "pep_senior_management_approval",
+      "obligation_refs": [
+        "obl:fatf_40:R.12:0",
+        "obl:eu_amlr_2024_1624:34:0"
+      ],
+      "blueprint_step_ids": [
+        "step_pep_screening"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s4_kyc_cdd_edd",
+      "field_id": "q4_7_high_risk_country_list_source",
+      "canonical_term": "high_risk_country_list_source",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0",
+        "obl:eu_amlr_2024_1624:20:0",
+        "obl:fatf_40:R.18:0"
+      ],
+      "blueprint_step_ids": [
+        "step_risk_score"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s4_kyc_cdd_edd",
+      "field_id": "q4_8_customer_review_frequency_high_risk",
+      "canonical_term": "high_risk_customer_review_frequency",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0",
+        "obl:eu_amlr_2024_1624:20:0"
+      ],
+      "blueprint_step_ids": [
+        "step_pkyc_review"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s4_kyc_cdd_edd",
+      "field_id": "q4_9_sof_verification_required",
+      "canonical_term": "source_of_funds_verification_required",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0",
+        "obl:eu_amlr_2024_1624:20:0"
+      ],
+      "blueprint_step_ids": [
+        "step_pb_source_of_wealth"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s4_kyc_cdd_edd",
+      "field_id": "q4_10_simplified_dd_applied",
+      "canonical_term": "simplified_dd_applied",
+      "obligation_refs": [
+        "obl:fatf_40:R.10:0",
+        "obl:eu_amlr_2024_1624:20:0"
+      ],
+      "blueprint_step_ids": [
+        "step_risk_score"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s4_kyc_cdd_edd",
+      "field_id": "q4_11_reliance_on_third_party_kyc",
+      "canonical_term": "third_party_kyc_reliance",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.2:0",
+        "obl:fatf_40:R.10:0"
+      ],
+      "blueprint_step_ids": [
+        "step_correspondent_aml_review"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s4_kyc_cdd_edd",
+      "field_id": "q4_12_correspondent_kyc_reliance",
+      "canonical_term": "correspondent_kyc_reliance",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.9:0",
+        "obl:fatf_40:R.18:0"
+      ],
+      "blueprint_step_ids": [
+        "step_correspondent_aml_review"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s5_monitoring_reporting",
+      "field_id": "q5_1_automated_txn_monitoring",
+      "canonical_term": "automated_transaction_monitoring",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0",
+        "obl:fatf_40:R.20:0",
+        "obl:eu_amlr_2024_1624:20:0"
+      ],
+      "blueprint_step_ids": [
+        "step_transaction_review"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s5_monitoring_reporting",
+      "field_id": "q5_2_txn_monitoring_system_name",
+      "canonical_term": "transaction_monitoring_system",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0"
+      ],
+      "blueprint_step_ids": [
+        "step_transaction_review"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s5_monitoring_reporting",
+      "field_id": "q5_3_alert_review_timeframe",
+      "canonical_term": "alert_review_timeframe",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0"
+      ],
+      "blueprint_step_ids": [
+        "step_susp_staff_alert",
+        "step_transaction_review"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s5_monitoring_reporting",
+      "field_id": "q5_4_sar_str_process_documented",
+      "canonical_term": "sar_str_process_documented",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0",
+        "obl:fatf_40:R.20:0",
+        "obl:eu_amlr_2024_1624:21:0"
+      ],
+      "blueprint_step_ids": [
+        "step_correspondent_aml_review"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s5_monitoring_reporting",
+      "field_id": "q5_5_sar_fiu_name",
+      "canonical_term": "fiu_name",
+      "obligation_refs": [
+        "obl:fatf_40:R.20:0"
+      ],
+      "blueprint_step_ids": [
+        "step_susp_staff_alert"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s5_monitoring_reporting",
+      "field_id": "q5_6_correspondent_activity_monitoring",
+      "canonical_term": "correspondent_activity_monitoring",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.9:0",
+        "obl:fatf_40:R.18:0"
+      ],
+      "blueprint_step_ids": [
+        "step_transaction_review",
+        "step_pkyc_review"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s5_monitoring_reporting",
+      "field_id": "q5_7_de_risking_policy",
+      "canonical_term": "de_risking_policy",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.2:0"
+      ],
+      "blueprint_step_ids": [
+        "step_risk_score"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s5_monitoring_reporting",
+      "field_id": "q5_8_cash_threshold_reporting",
+      "canonical_term": "cash_threshold_reporting",
+      "obligation_refs": [
+        "obl:eu_amlr_2024_1624:79:0"
+      ],
+      "blueprint_step_ids": [
+        "step_susp_staff_alert"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s5_monitoring_reporting",
+      "field_id": "q5_9_cash_reporting_threshold_amount",
+      "canonical_term": "cash_reporting_threshold",
+      "obligation_refs": [
+        "obl:eu_amlr_2024_1624:79:0"
+      ],
+      "blueprint_step_ids": [
+        "step_susp_staff_alert"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s5_monitoring_reporting",
+      "field_id": "q5_10_wire_transfer_records_retained",
+      "canonical_term": "wire_transfer_record_retention_years",
+      "obligation_refs": [
+        "obl:wolfsberg_pts:P.13:0",
+        "obl:eu_amlr_2024_1624:21:0"
+      ],
+      "blueprint_step_ids": [
+        "step_transaction_review"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s5_monitoring_reporting",
+      "field_id": "q5_11_kyc_record_retention",
+      "canonical_term": "kyc_record_retention_years",
+      "obligation_refs": [
+        "obl:fatf_40:R.20:0",
+        "obl:eu_amlr_2024_1624:21:0"
+      ],
+      "blueprint_step_ids": [
+        "step_pb_identification",
+        "step_correspondent_identification"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s6_aml_training",
+      "field_id": "q6_1_aml_training_programme",
+      "canonical_term": "aml_training_programme",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0",
+        "obl:fatf_40:R.18:0"
+      ],
+      "blueprint_step_ids": [
+        "step_training_review"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s6_aml_training",
+      "field_id": "q6_2_training_frequency",
+      "canonical_term": "aml_training_frequency",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0"
+      ],
+      "blueprint_step_ids": [
+        "step_training_review"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s6_aml_training",
+      "field_id": "q6_3_training_tracks_high_risk_roles",
+      "canonical_term": "specialist_training_high_risk_roles",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0",
+        "obl:eu_amlr_2024_1624:20:0"
+      ],
+      "blueprint_step_ids": [
+        "step_training_review"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s6_aml_training",
+      "field_id": "q6_4_training_completion_tracked",
+      "canonical_term": "training_completion_tracked",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0"
+      ],
+      "blueprint_step_ids": [
+        "step_training_review"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s6_aml_training",
+      "field_id": "q6_5_training_sanctions_specific",
+      "canonical_term": "sanctions_specific_training",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0",
+        "obl:eu_amlr_2024_1624:21:0"
+      ],
+      "blueprint_step_ids": [
+        "step_training_review"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s6_aml_training",
+      "field_id": "q6_6_new_hire_training_timeframe",
+      "canonical_term": "new_hire_aml_training_timeframe",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0"
+      ],
+      "blueprint_step_ids": [
+        "step_training_review"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s6_aml_training",
+      "field_id": "q6_7_training_updated_for_typologies",
+      "canonical_term": "training_updated_for_typologies",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0",
+        "obl:fatf_40:R.18:0"
+      ],
+      "blueprint_step_ids": [
+        "step_training_review"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s6_aml_training",
+      "field_id": "q6_8_training_attestation_required",
+      "canonical_term": "training_attestation_required",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0"
+      ],
+      "blueprint_step_ids": [
+        "step_training_review"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s6_aml_training",
+      "field_id": "q6_9_training_delivery_method",
+      "canonical_term": "training_delivery_method",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0"
+      ],
+      "blueprint_step_ids": [
+        "step_training_review"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s6_aml_training",
+      "field_id": "q6_10_third_party_training_provider",
+      "canonical_term": "third_party_training_provider",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0"
+      ],
+      "blueprint_step_ids": [
+        "step_training_review"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s6_aml_training",
+      "field_id": "q6_11_training_records_retained",
+      "canonical_term": "training_records_retention_years",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0"
+      ],
+      "blueprint_step_ids": [
+        "step_training_review"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s7_qa_audit",
+      "field_id": "q7_1_independent_aml_audit",
+      "canonical_term": "independent_aml_audit",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0",
+        "obl:fatf_40:R.18:0"
+      ],
+      "blueprint_step_ids": [
+        "step_internal_audit",
+        "step_qa_review"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s7_qa_audit",
+      "field_id": "q7_2_audit_function_independent",
+      "canonical_term": "audit_function_independent",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0"
+      ],
+      "blueprint_step_ids": [
+        "step_internal_audit"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s7_qa_audit",
+      "field_id": "q7_3_last_regulatory_exam_date",
+      "canonical_term": "last_regulatory_exam_date",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0"
+      ],
+      "blueprint_step_ids": [
+        "step_internal_audit"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s7_qa_audit",
+      "field_id": "q7_4_regulatory_exam_findings_outstanding",
+      "canonical_term": "outstanding_regulatory_findings",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0"
+      ],
+      "blueprint_step_ids": [
+        "step_qa_review",
+        "step_internal_audit"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s7_qa_audit",
+      "field_id": "q7_5_remediation_plan_in_place",
+      "canonical_term": "remediation_plan_in_place",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0"
+      ],
+      "blueprint_step_ids": [
+        "step_qa_review"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s7_qa_audit",
+      "field_id": "q7_6_internal_audit_reports_available",
+      "canonical_term": "audit_reports_shareable",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0"
+      ],
+      "blueprint_step_ids": [
+        "step_internal_audit"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s7_qa_audit",
+      "field_id": "q7_7_testing_covers_correspondent_banking",
+      "canonical_term": "testing_covers_correspondent_banking",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.9:0",
+        "obl:fatf_40:R.18:0"
+      ],
+      "blueprint_step_ids": [
+        "step_qa_review"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s7_qa_audit",
+      "field_id": "q7_8_audit_committee_oversight",
+      "canonical_term": "audit_committee_aml_oversight",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0",
+        "obl:eu_amlr_2024_1624:21:0"
+      ],
+      "blueprint_step_ids": [
+        "step_internal_audit"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s7_qa_audit",
+      "field_id": "q7_9_qa_function_separate",
+      "canonical_term": "qa_function_separate",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0"
+      ],
+      "blueprint_step_ids": [
+        "step_qa_review"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s7_qa_audit",
+      "field_id": "q7_10_penetration_testing_aml_systems",
+      "canonical_term": "aml_systems_technology_testing",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0"
+      ],
+      "blueprint_step_ids": [
+        "step_qa_review"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s8_reporting_tax_evasion",
+      "field_id": "q8_1_fatca_compliant",
+      "canonical_term": "fatca_compliant",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.2:0"
+      ],
+      "blueprint_step_ids": [
+        "step_tax_residency_collect",
+        "step_pb_tax_review"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s8_reporting_tax_evasion",
+      "field_id": "q8_2_fatca_giin",
+      "canonical_term": "fatca_giin",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.2:0"
+      ],
+      "blueprint_step_ids": [
+        "step_tax_residency_collect"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s8_reporting_tax_evasion",
+      "field_id": "q8_3_crs_aeoi_participating",
+      "canonical_term": "crs_aeoi_participating",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.2:0"
+      ],
+      "blueprint_step_ids": [
+        "step_tax_residency_collect"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s8_reporting_tax_evasion",
+      "field_id": "q8_4_tax_evasion_policy",
+      "canonical_term": "tax_evasion_prohibition_policy",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0"
+      ],
+      "blueprint_step_ids": [
+        "step_pb_tax_review"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s8_reporting_tax_evasion",
+      "field_id": "q8_5_w8_w9_collection",
+      "canonical_term": "tax_self_certification_collected",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.2:0"
+      ],
+      "blueprint_step_ids": [
+        "step_tax_residency_collect"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s8_reporting_tax_evasion",
+      "field_id": "q8_6_beps_mlat_procedures",
+      "canonical_term": "mlat_beps_procedures",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0"
+      ],
+      "blueprint_step_ids": [
+        "step_pb_tax_review"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s8_reporting_tax_evasion",
+      "field_id": "q8_7_shell_bank_prohibition",
+      "canonical_term": "shell_bank_prohibition_policy",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.9:0",
+        "obl:fatf_40:R.18:0"
+      ],
+      "blueprint_step_ids": [
+        "step_correspondent_aml_review"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s8_reporting_tax_evasion",
+      "field_id": "q8_8_kyc_record_retention",
+      "canonical_term": "kyc_record_retention_years",
+      "obligation_refs": [
+        "obl:fatf_40:R.20:0",
+        "obl:eu_amlr_2024_1624:21:0"
+      ],
+      "blueprint_step_ids": [
+        "step_pb_identification",
+        "step_correspondent_identification"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s8_reporting_tax_evasion",
+      "field_id": "q8_9_aeoi_reporting_jurisdictions",
+      "canonical_term": "aeoi_reporting_jurisdictions",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.2:0"
+      ],
+      "blueprint_step_ids": [
+        "step_tax_residency_collect"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s8_reporting_tax_evasion",
+      "field_id": "q8_10_country_by_country_reporting",
+      "canonical_term": "country_by_country_reporting",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.2:0"
+      ],
+      "blueprint_step_ids": [
+        "step_pb_tax_review"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s8_reporting_tax_evasion",
+      "field_id": "q8_11_tax_governance_framework",
+      "canonical_term": "tax_governance_framework",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0"
+      ],
+      "blueprint_step_ids": [
+        "step_pb_tax_review"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_cbddq_v1_4",
+      "section_id": "s8_reporting_tax_evasion",
+      "field_id": "q8_12_ubo_tax_residence_collected",
+      "canonical_term": "ubo_tax_residence_collected",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0",
+        "obl:eu_amlr_2024_1624:34:0"
+      ],
+      "blueprint_step_ids": [
+        "step_ubo_resolution",
+        "step_pb_tax_review"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_fccq_v1_2",
+      "section_id": "s1_entity_information",
+      "field_id": "q1_1_legal_entity_name",
+      "canonical_term": "legal_entity_name",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.2:0",
+        "obl:fatf_40:R.10:0"
+      ],
+      "blueprint_step_ids": [
+        "step_correspondent_identification",
+        "step_collect_id"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_fccq_v1_2",
+      "section_id": "s1_entity_information",
+      "field_id": "q1_2_registered_country",
+      "canonical_term": "country_of_incorporation",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.2:0"
+      ],
+      "blueprint_step_ids": [
+        "step_correspondent_identification",
+        "step_collect_id"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_fccq_v1_2",
+      "section_id": "s1_entity_information",
+      "field_id": "q1_3_primary_regulator",
+      "canonical_term": "primary_regulator",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.2:0"
+      ],
+      "blueprint_step_ids": [
+        "step_correspondent_identification"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_fccq_v1_2",
+      "section_id": "s1_entity_information",
+      "field_id": "q1_4_fcc_officer_name",
+      "canonical_term": "fcc_officer_name",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0",
+        "obl:eu_amlr_2024_1624:21:0"
+      ],
+      "blueprint_step_ids": [
+        "step_correspondent_aml_review"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_fccq_v1_2",
+      "section_id": "s1_entity_information",
+      "field_id": "q1_5_questionnaire_scope",
+      "canonical_term": "questionnaire_scope",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.2:0"
+      ],
+      "blueprint_step_ids": []
+    },
+    {
+      "form_id": "wolfsberg_fccq_v1_2",
+      "section_id": "s1_entity_information",
+      "field_id": "q1_6_response_date",
+      "canonical_term": "questionnaire_response_date",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.2:0"
+      ],
+      "blueprint_step_ids": []
+    },
+    {
+      "form_id": "wolfsberg_fccq_v1_2",
+      "section_id": "s1_entity_information",
+      "field_id": "q1_7_last_reviewed_date",
+      "canonical_term": "questionnaire_last_reviewed",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0"
+      ],
+      "blueprint_step_ids": []
+    },
+    {
+      "form_id": "wolfsberg_fccq_v1_2",
+      "section_id": "s1_entity_information",
+      "field_id": "q1_8_attestation_officer",
+      "canonical_term": "questionnaire_attestation_officer",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0"
+      ],
+      "blueprint_step_ids": []
+    },
+    {
+      "form_id": "wolfsberg_fccq_v1_2",
+      "section_id": "s2_fcc_programme",
+      "field_id": "q2_1_fcc_policy_approved",
+      "canonical_term": "fcc_policy_board_approved",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0",
+        "obl:fatf_40:R.18:0",
+        "obl:eu_amlr_2024_1624:21:0"
+      ],
+      "blueprint_step_ids": [
+        "step_internal_audit"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_fccq_v1_2",
+      "section_id": "s2_fcc_programme",
+      "field_id": "q2_2_fcc_risk_assessment",
+      "canonical_term": "fcc_enterprise_risk_assessment",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0",
+        "obl:fatf_40:R.18:0",
+        "obl:eu_amlr_2024_1624:20:0"
+      ],
+      "blueprint_step_ids": [
+        "step_risk_score"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_fccq_v1_2",
+      "section_id": "s2_fcc_programme",
+      "field_id": "q2_3_fcc_risk_assessment_frequency",
+      "canonical_term": "fcc_risk_assessment_frequency",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0",
+        "obl:eu_amlr_2024_1624:20:0"
+      ],
+      "blueprint_step_ids": [
+        "step_pkyc_review"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_fccq_v1_2",
+      "section_id": "s2_fcc_programme",
+      "field_id": "q2_4_abc_policy",
+      "canonical_term": "anti_bribery_corruption_policy",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0"
+      ],
+      "blueprint_step_ids": [
+        "step_correspondent_aml_review"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_fccq_v1_2",
+      "section_id": "s2_fcc_programme",
+      "field_id": "q2_5_fraud_controls",
+      "canonical_term": "fraud_prevention_controls",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0",
+        "obl:eu_amlr_2024_1624:20:0"
+      ],
+      "blueprint_step_ids": [
+        "step_correspondent_aml_review"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_fccq_v1_2",
+      "section_id": "s2_fcc_programme",
+      "field_id": "q2_6_market_abuse_controls",
+      "canonical_term": "market_abuse_controls",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0"
+      ],
+      "blueprint_step_ids": [
+        "step_correspondent_aml_review"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_fccq_v1_2",
+      "section_id": "s2_fcc_programme",
+      "field_id": "q2_7_conflicts_of_interest_policy",
+      "canonical_term": "conflicts_of_interest_policy",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0"
+      ],
+      "blueprint_step_ids": [
+        "step_correspondent_aml_review"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_fccq_v1_2",
+      "section_id": "s2_fcc_programme",
+      "field_id": "q2_8_gifts_hospitality_policy",
+      "canonical_term": "gifts_hospitality_policy",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0"
+      ],
+      "blueprint_step_ids": [
+        "step_correspondent_aml_review"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_fccq_v1_2",
+      "section_id": "s2_fcc_programme",
+      "field_id": "q2_9_whistleblower_mechanism",
+      "canonical_term": "whistleblower_mechanism",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0"
+      ],
+      "blueprint_step_ids": [
+        "step_correspondent_aml_review"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_fccq_v1_2",
+      "section_id": "s2_fcc_programme",
+      "field_id": "q2_10_fcc_training_all_staff",
+      "canonical_term": "fcc_training_all_staff",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0",
+        "obl:fatf_40:R.18:0"
+      ],
+      "blueprint_step_ids": [
+        "step_training_review"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_fccq_v1_2",
+      "section_id": "s2_fcc_programme",
+      "field_id": "q2_11_fcc_training_frequency",
+      "canonical_term": "fcc_training_frequency",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0"
+      ],
+      "blueprint_step_ids": [
+        "step_training_review"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_fccq_v1_2",
+      "section_id": "s2_fcc_programme",
+      "field_id": "q2_12_independent_fcc_audit",
+      "canonical_term": "independent_fcc_audit",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0",
+        "obl:fatf_40:R.18:0"
+      ],
+      "blueprint_step_ids": [
+        "step_internal_audit",
+        "step_qa_review"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_fccq_v1_2",
+      "section_id": "s2_fcc_programme",
+      "field_id": "q2_13_fcc_audit_frequency",
+      "canonical_term": "fcc_independent_audit_frequency",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0"
+      ],
+      "blueprint_step_ids": [
+        "step_qa_review",
+        "step_internal_audit"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_fccq_v1_2",
+      "section_id": "s2_fcc_programme",
+      "field_id": "q2_14_third_party_fcc_due_diligence",
+      "canonical_term": "third_party_fcc_due_diligence",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.2:0",
+        "obl:fatf_40:R.18:0"
+      ],
+      "blueprint_step_ids": [
+        "step_correspondent_aml_review"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_fccq_v1_2",
+      "section_id": "s2_fcc_programme",
+      "field_id": "q2_15_regulatory_actions_outstanding",
+      "canonical_term": "outstanding_fcc_regulatory_actions",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0"
+      ],
+      "blueprint_step_ids": [
+        "step_qa_review"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_fccq_v1_2",
+      "section_id": "s2_fcc_programme",
+      "field_id": "q2_16_fcc_metrics_board_reporting",
+      "canonical_term": "fcc_metrics_board_reporting",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0",
+        "obl:eu_amlr_2024_1624:21:0"
+      ],
+      "blueprint_step_ids": [
+        "step_internal_audit"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_fccq_v1_2",
+      "section_id": "s2_fcc_programme",
+      "field_id": "q2_17_correspondent_fcc_requirements",
+      "canonical_term": "correspondent_fcc_minimum_standards",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.9:0",
+        "obl:fatf_40:R.18:0"
+      ],
+      "blueprint_step_ids": [
+        "step_correspondent_aml_review"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_fccq_v1_2",
+      "section_id": "s2_fcc_programme",
+      "field_id": "q2_18_technology_tools_fcc",
+      "canonical_term": "fcc_technology_tools",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0"
+      ],
+      "blueprint_step_ids": [
+        "step_correspondent_aml_review"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_fccq_v1_2",
+      "section_id": "s3_sanctions_compliance",
+      "field_id": "q3_1_sanctions_compliance_policy",
+      "canonical_term": "sanctions_compliance_policy",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0",
+        "obl:eu_amlr_2024_1624:21:0"
+      ],
+      "blueprint_step_ids": [
+        "step_correspondent_aml_review"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_fccq_v1_2",
+      "section_id": "s3_sanctions_compliance",
+      "field_id": "q3_2_sanctions_screening_scope",
+      "canonical_term": "sanctions_screening_scope",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0",
+        "obl:eu_amlr_2024_1624:21:0"
+      ],
+      "blueprint_step_ids": [
+        "step_sanctions_initial"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_fccq_v1_2",
+      "section_id": "s3_sanctions_compliance",
+      "field_id": "q3_3_sanctions_lists_covered",
+      "canonical_term": "sanctions_lists_covered",
+      "obligation_refs": [
+        "obl:eu_amlr_2024_1624:21:0"
+      ],
+      "blueprint_step_ids": [
+        "step_sanctions_initial"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_fccq_v1_2",
+      "section_id": "s3_sanctions_compliance",
+      "field_id": "q3_4_real_time_payment_screening",
+      "canonical_term": "real_time_payment_sanctions_screening",
+      "obligation_refs": [
+        "obl:wolfsberg_pts:P.13:0",
+        "obl:eu_amlr_2024_1624:21:0"
+      ],
+      "blueprint_step_ids": [
+        "step_sanctions_initial",
+        "step_sanctions_periodic"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_fccq_v1_2",
+      "section_id": "s3_sanctions_compliance",
+      "field_id": "q3_5_screening_update_frequency",
+      "canonical_term": "sanctions_list_update_frequency",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0"
+      ],
+      "blueprint_step_ids": [
+        "step_sanctions_initial"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_fccq_v1_2",
+      "section_id": "s3_sanctions_compliance",
+      "field_id": "q3_6_blocked_transactions_procedure",
+      "canonical_term": "blocked_transactions_procedure",
+      "obligation_refs": [
+        "obl:eu_amlr_2024_1624:21:0"
+      ],
+      "blueprint_step_ids": [
+        "step_sanctions_initial",
+        "step_correspondent_aml_review"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_fccq_v1_2",
+      "section_id": "s3_sanctions_compliance",
+      "field_id": "q3_7_rejected_transactions_records",
+      "canonical_term": "rejected_transactions_records",
+      "obligation_refs": [
+        "obl:eu_amlr_2024_1624:21:0"
+      ],
+      "blueprint_step_ids": [
+        "step_sanctions_initial"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_fccq_v1_2",
+      "section_id": "s3_sanctions_compliance",
+      "field_id": "q3_8_primary_sanctions_jurisdiction",
+      "canonical_term": "primary_sanctions_jurisdictions",
+      "obligation_refs": [
+        "obl:eu_amlr_2024_1624:21:0"
+      ],
+      "blueprint_step_ids": [
+        "step_sanctions_initial"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_fccq_v1_2",
+      "section_id": "s3_sanctions_compliance",
+      "field_id": "q3_9_sanctions_escalation_officer",
+      "canonical_term": "sanctions_escalation_officer",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0"
+      ],
+      "blueprint_step_ids": [
+        "step_correspondent_aml_review"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_fccq_v1_2",
+      "section_id": "s3_sanctions_compliance",
+      "field_id": "q3_10_ofac_voluntary_self_disclosure",
+      "canonical_term": "ofac_voluntary_self_disclosures",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0"
+      ],
+      "blueprint_step_ids": [
+        "step_correspondent_aml_review"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_fccq_v1_2",
+      "section_id": "s3_sanctions_compliance",
+      "field_id": "q3_11_sanctions_training_specific",
+      "canonical_term": "sanctions_specific_training",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0",
+        "obl:eu_amlr_2024_1624:21:0"
+      ],
+      "blueprint_step_ids": [
+        "step_training_review"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_fccq_v1_2",
+      "section_id": "s3_sanctions_compliance",
+      "field_id": "q3_12_false_positive_management",
+      "canonical_term": "false_positive_management_process",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0"
+      ],
+      "blueprint_step_ids": [
+        "step_transaction_review"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_fccq_v1_2",
+      "section_id": "s3_sanctions_compliance",
+      "field_id": "q3_13_sanctions_testing_annual",
+      "canonical_term": "sanctions_programme_independently_tested",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0"
+      ],
+      "blueprint_step_ids": [
+        "step_qa_review"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_fccq_v1_2",
+      "section_id": "s3_sanctions_compliance",
+      "field_id": "q3_14_secondary_sanctions_risk",
+      "canonical_term": "secondary_sanctions_risk_assessed",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0"
+      ],
+      "blueprint_step_ids": [
+        "step_sanctions_initial"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_fccq_v1_2",
+      "section_id": "s4_reporting_requirements",
+      "field_id": "q4_1_sar_str_filing_process",
+      "canonical_term": "sar_str_filing_process",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0",
+        "obl:fatf_40:R.20:0",
+        "obl:eu_amlr_2024_1624:21:0"
+      ],
+      "blueprint_step_ids": [
+        "step_susp_staff_alert",
+        "step_correspondent_aml_review"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_fccq_v1_2",
+      "section_id": "s4_reporting_requirements",
+      "field_id": "q4_2_fiu_name",
+      "canonical_term": "fiu_name",
+      "obligation_refs": [
+        "obl:fatf_40:R.20:0"
+      ],
+      "blueprint_step_ids": [
+        "step_susp_staff_alert"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_fccq_v1_2",
+      "section_id": "s4_reporting_requirements",
+      "field_id": "q4_3_sar_escalation_timeframe",
+      "canonical_term": "sar_internal_escalation_timeframe",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0"
+      ],
+      "blueprint_step_ids": [
+        "step_susp_staff_alert"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_fccq_v1_2",
+      "section_id": "s4_reporting_requirements",
+      "field_id": "q4_4_tipping_off_controls",
+      "canonical_term": "tipping_off_controls",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0",
+        "obl:eu_amlr_2024_1624:21:0"
+      ],
+      "blueprint_step_ids": [
+        "step_pb_aml_check",
+        "step_correspondent_aml_review"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_fccq_v1_2",
+      "section_id": "s4_reporting_requirements",
+      "field_id": "q4_5_fatca_crs_reporting",
+      "canonical_term": "fatca_crs_reporting",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.2:0"
+      ],
+      "blueprint_step_ids": [
+        "step_tax_residency_collect"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_fccq_v1_2",
+      "section_id": "s4_reporting_requirements",
+      "field_id": "q4_6_large_cash_transaction_reporting",
+      "canonical_term": "large_cash_transaction_reporting",
+      "obligation_refs": [
+        "obl:eu_amlr_2024_1624:79:0"
+      ],
+      "blueprint_step_ids": [
+        "step_susp_staff_alert",
+        "step_correspondent_aml_review"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_fccq_v1_2",
+      "section_id": "s4_reporting_requirements",
+      "field_id": "q4_7_information_sharing_agreements",
+      "canonical_term": "information_sharing_arrangements",
+      "obligation_refs": [
+        "obl:fatf_40:R.20:0"
+      ],
+      "blueprint_step_ids": [
+        "step_correspondent_aml_review"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_fccq_v1_2",
+      "section_id": "s4_reporting_requirements",
+      "field_id": "q4_8_record_retention_kyc",
+      "canonical_term": "kyc_record_retention_years",
+      "obligation_refs": [
+        "obl:fatf_40:R.20:0",
+        "obl:eu_amlr_2024_1624:21:0"
+      ],
+      "blueprint_step_ids": [
+        "step_pb_identification",
+        "step_correspondent_identification"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_fccq_v1_2",
+      "section_id": "s4_reporting_requirements",
+      "field_id": "q4_9_record_retention_transactions",
+      "canonical_term": "transaction_record_retention_years",
+      "obligation_refs": [
+        "obl:fatf_40:R.20:0",
+        "obl:eu_amlr_2024_1624:21:0"
+      ],
+      "blueprint_step_ids": [
+        "step_transaction_review"
+      ]
+    },
+    {
+      "form_id": "wolfsberg_fccq_v1_2",
+      "section_id": "s4_reporting_requirements",
+      "field_id": "q4_10_regulator_cooperation_policy",
+      "canonical_term": "regulator_cooperation_policy",
+      "obligation_refs": [
+        "obl:wolfsberg_cb:P.7:0",
+        "obl:fatf_40:R.20:0"
+      ],
+      "blueprint_step_ids": [
+        "step_correspondent_aml_review"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,125 @@
+# UBS Tax Compliance Statement
+# Public-source reconstruction based on OECD CRS/AEOI self-certification
+# requirements, FATCA W-8/W-9 obligations, and EU AMLR 2024/1624 Art. 21
+# (ongoing monitoring — tax evasion is a listed predicate offence).
+# Captures tax residency, TIN details, and the customer's compliance statement.
+#
+# Obligation slug conventions:
+#   obl:wolfsberg_pb:P.<n>:0        — Wolfsberg Private Banking Principles paragraph n
+#   obl:eu_amlr_2024_1624:<art>:0   — EU AMLR 2024/1624 Article <art>
+
+form_id: ubs_tax_compliance_v1
+name: "UBS Tax Compliance Statement (public reconstruction)"
+version: "1.0"
+kind: tax_compliance
+source: ubs_public
+description: |
+  Public-source reconstruction of the UBS tax-compliance self-certification
+  statement used in private-banking customer onboarding and periodic reviews.
+  Captures tax residency declarations, TIN numbers, FATCA/CRS status, and
+  the customer's signed compliance attestation. Structure derived from OECD
+  CRS/AEOI self-certification guidance, FATCA W-8/W-9 requirements, Wolfsberg
+  Private Banking Principles P.6, and EU AMLR 2024/1624 Art. 21 (tax evasion
+  as a listed predicate offence); actual UBS proprietary template is
+  confidential.
+public_url: "https://www.ubs.com"
+is_public_reconstruction: true
+
+sections:
+
+  - section_id: tax_residency
+    title: "Tax Residency"
+    description: >
+      Declaration of the customer's tax residency and taxpayer identification
+      details across all relevant jurisdictions.
+    fields:
+      - field_id: tax_residency_country
+        label: "Primary country of tax residency"
+        field_type: text
+        is_required: true
+        canonical_term: tax_residency_country
+        obligation_refs:
+          - "obl:wolfsberg_pb:P.6:0"
+          - "obl:eu_amlr_2024_1624:21:0"
+        description: "ISO 3166-1 alpha-2 country code of the customer's primary tax residence."
+
+      - field_id: tin_number
+        label: "Taxpayer Identification Number (TIN) for the primary tax residency jurisdiction"
+        field_type: text
+        is_required: true
+        canonical_term: tin_number
+        obligation_refs:
+          - "obl:wolfsberg_pb:P.6:0"
+          - "obl:eu_amlr_2024_1624:21:0"
+        description: "TIN, NIF, or equivalent identifier as issued by the primary tax authority."
+
+      - field_id: multi_residency_flag
+        label: "Is the customer tax-resident in more than one jurisdiction?"
+        field_type: boolean
+        is_required: true
+        canonical_term: multi_tax_residency_flag
+        obligation_refs:
+          - "obl:wolfsberg_pb:P.6:0"
+          - "obl:eu_amlr_2024_1624:21:0"
+        description: "If true, all secondary residencies must be listed in the field below."
+
+      - field_id: secondary_residencies_list
+        label: "List of secondary tax residency countries and corresponding TINs"
+        field_type: list
+        is_required: false
+        canonical_term: secondary_tax_residencies
+        obligation_refs:
+          - "obl:wolfsberg_pb:P.6:0"
+          - "obl:eu_amlr_2024_1624:21:0"
+        description: "Additional tax residency countries in format 'country:TIN'; required when multi_residency_flag is true."
+
+  - section_id: compliance_statement
+    title: "Compliance Statement"
+    description: >
+      Customer's declarations regarding tax-return filing, FATCA status,
+      CRS consent, and the signed attestation date.
+    fields:
+      - field_id: tax_returns_filed_current_year
+        label: "Has the customer filed tax returns in all jurisdictions of tax residency for the current (or most recent) tax year?"
+        field_type: boolean
+        is_required: true
+        canonical_term: tax_returns_filed_current_year
+        obligation_refs:
+          - "obl:eu_amlr_2024_1624:21:0"
+        description: "Confirms tax compliance for the most recent filing period."
+
+      - field_id: fatca_status_if_us
+        label: "FATCA status (required only for US persons or US-connected accounts)"
+        field_type: enum_single
+        is_required: false
+        canonical_term: fatca_status
+        enum_values:
+          - not_applicable
+          - us_citizen_or_resident
+          - us_entity
+          - w8_submitted
+          - w9_submitted
+          - exempt_payee
+        obligation_refs:
+          - "obl:wolfsberg_pb:P.6:0"
+        description: "Applicable only when the customer is a US person or the account has US nexus."
+
+      - field_id: crs_consent
+        label: "Has the customer consented to automatic exchange of account information (CRS/AEOI) where applicable?"
+        field_type: boolean
+        is_required: true
+        canonical_term: crs_aeoi_consent
+        obligation_refs:
+          - "obl:wolfsberg_pb:P.6:0"
+          - "obl:eu_amlr_2024_1624:21:0"
+        description: "CRS self-certification consent per OECD Common Reporting Standard."
+
+      - field_id: declaration_signed_date
+        label: "Date the tax compliance statement was signed by the customer"
+        field_type: date
+        is_required: true
+        canonical_term: compliance_declaration_signed_date
+        obligation_refs:
+          - "obl:wolfsberg_pb:P.6:0"
+          - "obl:eu_amlr_2024_1624:21:0"
+        description: "Signature date confirming the customer's attestation."

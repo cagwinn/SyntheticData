@@ -1,0 +1,225 @@
+# UBS KYC Identification Form
+# Public-source reconstruction based on FATF R.10 (customer identification),
+# Swiss CDB20 Art. 1 (identification obligation), and UBS-published
+# private-banking customer due-diligence requirements. Covers identity
+# verification, address confirmation, and initial risk-profile assignment.
+#
+# Obligation slug conventions:
+#   obl:fatf_40:R.<n>:0   — FATF 40 Recommendation n
+#   obl:ch_cdb20:<art>:0  — Swiss CDB 2020, Article <art>
+
+form_id: ubs_kyc_identification_v1
+name: "UBS KYC Identification Form (public reconstruction)"
+version: "1.0"
+kind: due_diligence
+source: ubs_public
+description: |
+  Public-source reconstruction of the UBS KYC customer identification form
+  used in private-banking onboarding. Covers the three core KYC pillars:
+  (1) customer identity verification against government-issued documents,
+  (2) address verification, and (3) initial risk-profile assignment including
+  PEP/sanctions screening and adverse media checks. Structure derived from
+  FATF R.10, Swiss CDB20 Art. 1, and UBS-published guidance; actual UBS
+  proprietary template is confidential.
+public_url: "https://www.ubs.com"
+is_public_reconstruction: true
+
+sections:
+
+  - section_id: customer_identification
+    title: "Customer Identification"
+    description: >
+      Identification of the customer against government-issued identity
+      documents per FATF R.10 and Swiss CDB20 Art. 1.
+    fields:
+      - field_id: full_legal_name
+        label: "Full legal name of the customer as it appears on identity documents"
+        field_type: text
+        is_required: true
+        canonical_term: customer_name
+        obligation_refs:
+          - "obl:fatf_40:R.10:0"
+          - "obl:ch_cdb20:1:0"
+        description: "Complete name including all given names and family name as per primary ID."
+
+      - field_id: dob
+        label: "Date of birth"
+        field_type: date
+        is_required: true
+        canonical_term: date_of_birth
+        obligation_refs:
+          - "obl:fatf_40:R.10:0"
+          - "obl:ch_cdb20:1:0"
+        description: "Date of birth as stated on the primary identity document."
+
+      - field_id: nationality
+        label: "Nationality (ISO 3166-1 alpha-2 country code)"
+        field_type: text
+        is_required: true
+        canonical_term: nationality
+        obligation_refs:
+          - "obl:fatf_40:R.10:0"
+          - "obl:ch_cdb20:1:0"
+        description: "Primary nationality of the customer."
+
+      - field_id: primary_id_document_type
+        label: "Type of primary identity document presented"
+        field_type: enum_single
+        is_required: true
+        canonical_term: primary_id_document_type
+        enum_values:
+          - passport
+          - national_identity_card
+          - driving_licence
+          - residence_permit
+          - other
+        obligation_refs:
+          - "obl:fatf_40:R.10:0"
+          - "obl:ch_cdb20:1:0"
+        description: "Category of the government-issued document used for identity verification."
+
+      - field_id: primary_id_number
+        label: "Document number of the primary identity document"
+        field_type: text
+        is_required: true
+        canonical_term: primary_id_document_number
+        obligation_refs:
+          - "obl:fatf_40:R.10:0"
+          - "obl:ch_cdb20:1:0"
+        description: "Unique number printed on the primary identity document."
+
+      - field_id: primary_id_expiry
+        label: "Expiry date of the primary identity document"
+        field_type: date
+        is_required: true
+        canonical_term: primary_id_expiry_date
+        obligation_refs:
+          - "obl:fatf_40:R.10:0"
+          - "obl:ch_cdb20:1:0"
+        description: "Document must be valid (not expired) at onboarding."
+
+  - section_id: address_verification
+    title: "Address Verification"
+    description: >
+      Verification of the customer's residence address using a secondary
+      proof-of-address document.
+    fields:
+      - field_id: residence_address
+        label: "Current residence address of the customer"
+        field_type: text
+        is_required: true
+        canonical_term: residence_address
+        obligation_refs:
+          - "obl:fatf_40:R.10:0"
+          - "obl:ch_cdb20:1:0"
+        description: "Full address including street, city, postcode, and country."
+
+      - field_id: address_proof_document_type
+        label: "Type of address proof document presented"
+        field_type: enum_single
+        is_required: true
+        canonical_term: address_proof_document_type
+        enum_values:
+          - utility_bill
+          - bank_statement
+          - official_government_letter
+          - lease_agreement
+          - municipality_registration_certificate
+          - other
+        obligation_refs:
+          - "obl:fatf_40:R.10:0"
+          - "obl:ch_cdb20:1:0"
+        description: "Category of the secondary document used to verify the declared address."
+
+      - field_id: address_proof_date
+        label: "Date of the address proof document (must be within 6 months)"
+        field_type: date
+        is_required: true
+        canonical_term: address_proof_document_date
+        obligation_refs:
+          - "obl:fatf_40:R.10:0"
+        description: "Issue or statement date of the address verification document."
+
+      - field_id: address_verified
+        label: "Has the address been verified against the proof document by a compliance officer or RM?"
+        field_type: boolean
+        is_required: true
+        canonical_term: address_verified
+        obligation_refs:
+          - "obl:fatf_40:R.10:0"
+          - "obl:ch_cdb20:1:0"
+        description: "Confirms that the compliance team has reviewed and accepted the address proof."
+
+  - section_id: risk_profile
+    title: "Risk Profile"
+    description: >
+      Initial risk classification, PEP and sanctions screening results,
+      adverse media check outcome, and ongoing monitoring consent.
+    fields:
+      - field_id: risk_classification
+        label: "Initial customer risk classification"
+        field_type: enum_single
+        is_required: true
+        canonical_term: customer_risk_classification
+        enum_values:
+          - low
+          - medium
+          - high
+          - very_high
+        obligation_refs:
+          - "obl:fatf_40:R.10:0"
+          - "obl:ch_cdb20:1:0"
+        description: "Risk tier assigned at onboarding based on the institution's risk-based methodology."
+
+      - field_id: pep_status
+        label: "PEP screening outcome"
+        field_type: enum_single
+        is_required: true
+        canonical_term: pep_status
+        enum_values:
+          - not_pep
+          - pep
+          - close_associate_of_pep
+          - rca_of_pep
+          - former_pep
+        obligation_refs:
+          - "obl:fatf_40:R.10:0"
+          - "obl:ch_cdb20:1:0"
+        description: "Result of the PEP screening run at onboarding."
+
+      - field_id: sanctions_screening_result
+        label: "Sanctions screening result at onboarding"
+        field_type: enum_single
+        is_required: true
+        canonical_term: sanctions_screening_result
+        enum_values:
+          - clear
+          - potential_match_under_review
+          - confirmed_match_escalated
+        obligation_refs:
+          - "obl:fatf_40:R.10:0"
+          - "obl:ch_cdb20:1:0"
+        description: "Outcome of the sanctions list check at account opening."
+
+      - field_id: adverse_media_check
+        label: "Adverse media screening result"
+        field_type: enum_single
+        is_required: true
+        canonical_term: adverse_media_check_result
+        enum_values:
+          - clear
+          - unverified_hits_under_review
+          - confirmed_adverse_escalated
+        obligation_refs:
+          - "obl:fatf_40:R.10:0"
+        description: "Outcome of the adverse media search conducted at onboarding."
+
+      - field_id: ongoing_monitoring_consent
+        label: "Has the customer been informed of and consented to ongoing monitoring?"
+        field_type: boolean
+        is_required: true
+        canonical_term: ongoing_monitoring_consent
+        obligation_refs:
+          - "obl:fatf_40:R.10:0"
+          - "obl:ch_cdb20:1:0"
+        description: "Confirms that the customer has been notified of the institution's ongoing monitoring obligations."

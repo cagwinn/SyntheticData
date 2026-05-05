@@ -1,0 +1,411 @@
+# MROS Suspicious Activity Report Template
+# Public-source reconstruction based on publicly-available MROS guidance and
+# the Swiss Anti-Money Laundering Act (AMLA) Art. 9 + 9a reporting obligations.
+# Filed by Swiss financial intermediaries with the Money Laundering Reporting
+# Office Switzerland (MROS / MELDESTELLE GwG).
+#
+# Obligation slug conventions:
+#   obl:ch_amla_current:<art>:0  — Swiss AMLA current version, Article <art>
+#   obl:wolfsberg_pts:P.<n>:0   — Wolfsberg Payment Transparency Standards
+
+form_id: mros_sar_v1
+name: MROS Suspicious Activity Report
+version: "1.0"
+kind: sar
+source: mros
+description: |
+  Public-source reconstruction of the MROS Suspicious Activity Report template
+  per Swiss AMLA Art. 9 + 9a. Used by every Swiss financial intermediary when
+  filing a suspicious-activity report with the Money Laundering Reporting Office
+  Switzerland (MROS). Sections cover the reporting entity, the subject of the
+  report, the suspicious activity and its triggers, transaction details, and
+  supporting documents attached to the filing.
+public_url: "https://www.fedpol.admin.ch/fedpol/en/home/kriminalitaet/geldwaescherei.html"
+is_public_reconstruction: true
+
+sections:
+
+  - section_id: reporting_entity
+    title: "Reporting Entity"
+    description: >
+      Details of the financial intermediary submitting the SAR, including
+      FINMA licence reference, the designated reporting officer and contact
+      information, and the institution's internal reference for this filing.
+    fields:
+      - field_id: reporting_institution_name
+        label: "Full legal name of the reporting financial intermediary"
+        field_type: text
+        is_required: true
+        canonical_term: legal_entity_name
+        obligation_refs:
+          - "obl:ch_amla_current:9:0"
+        description: "The registered legal name of the institution filing this SAR."
+
+      - field_id: finma_licence_number
+        label: "FINMA licence / authorisation number"
+        field_type: text
+        is_required: true
+        canonical_term: finma_licence_number
+        obligation_refs:
+          - "obl:ch_amla_current:9:0"
+        description: "FINMA-issued licence number confirming the institution is a supervised financial intermediary."
+
+      - field_id: reporting_officer_name
+        label: "Name and title of the designated Money Laundering Reporting Officer (MLRO)"
+        field_type: text
+        is_required: true
+        canonical_term: mlro_name
+        obligation_refs:
+          - "obl:ch_amla_current:9:0"
+        description: "The MLRO responsible for this SAR filing."
+
+      - field_id: reporting_officer_contact
+        label: "Contact details of the MLRO (telephone and e-mail)"
+        field_type: text
+        is_required: true
+        canonical_term: mlro_contact
+        obligation_refs:
+          - "obl:ch_amla_current:9:0"
+        description: "Direct contact information for MROS follow-up queries."
+
+      - field_id: date_filed
+        label: "Date this SAR was submitted to MROS"
+        field_type: date
+        is_required: true
+        canonical_term: sar_filing_date
+        obligation_refs:
+          - "obl:ch_amla_current:9:0"
+        description: "Calendar date on which the report was transmitted to MROS."
+
+      - field_id: internal_reference
+        label: "Institution's internal case / SAR reference number"
+        field_type: text
+        is_required: true
+        canonical_term: internal_case_reference
+        obligation_refs:
+          - "obl:ch_amla_current:9:0"
+        description: "Unique identifier assigned internally for tracking purposes."
+
+  - section_id: subject
+    title: "Subject of Report"
+    description: >
+      Identity and relationship details of the customer or counterparty
+      who is the subject of the suspicious-activity report.
+    fields:
+      - field_id: customer_id
+        label: "Institution's internal customer identifier"
+        field_type: text
+        is_required: true
+        canonical_term: customer_id
+        obligation_refs:
+          - "obl:ch_amla_current:9:0"
+        description: "Internal CRM identifier for the subject customer."
+
+      - field_id: subject_name
+        label: "Full legal name of the subject (or anonymized reference if identity unknown)"
+        field_type: text
+        is_required: true
+        canonical_term: subject_name
+        obligation_refs:
+          - "obl:ch_amla_current:9:0"
+        description: "Name as per identity documents; use anonymized reference when identity cannot be established."
+
+      - field_id: subject_dob
+        label: "Date of birth of the subject (natural person) or date of incorporation (legal entity)"
+        field_type: date
+        is_required: false
+        canonical_term: subject_date_of_birth
+        obligation_refs:
+          - "obl:ch_amla_current:9:0"
+        description: "DOB for natural persons; incorporation date for legal entities."
+
+      - field_id: subject_nationality
+        label: "Nationality / country of incorporation of the subject"
+        field_type: text
+        is_required: false
+        canonical_term: subject_nationality
+        obligation_refs:
+          - "obl:ch_amla_current:9:0"
+        description: "Primary nationality for natural persons; jurisdiction of incorporation for legal entities."
+
+      - field_id: subject_address
+        label: "Registered or residential address of the subject"
+        field_type: text
+        is_required: false
+        canonical_term: subject_address
+        obligation_refs:
+          - "obl:ch_amla_current:9:0"
+        description: "Current known address on file."
+
+      - field_id: account_number
+        label: "Account number(s) associated with the subject at this institution"
+        field_type: text
+        is_required: true
+        canonical_term: account_number
+        obligation_refs:
+          - "obl:ch_amla_current:9:0"
+        description: "All account numbers held by the subject at the reporting institution relevant to this report."
+
+      - field_id: customer_relationship_start
+        label: "Date the business relationship with the subject commenced"
+        field_type: date
+        is_required: false
+        canonical_term: customer_relationship_start_date
+        obligation_refs:
+          - "obl:ch_amla_current:9:0"
+        description: "Relationship start date as recorded in CRM or onboarding files."
+
+      - field_id: customer_kind
+        label: "Type of customer / subject"
+        field_type: enum_single
+        is_required: true
+        canonical_term: customer_kind
+        enum_values:
+          - natural_person
+          - legal_entity
+          - trust_or_foundation
+          - other
+        obligation_refs:
+          - "obl:ch_amla_current:9:0"
+        description: "Classification of the subject of the report."
+
+      - field_id: beneficial_owner_known
+        label: "Is the beneficial owner of the assets known to the institution?"
+        field_type: boolean
+        is_required: true
+        canonical_term: beneficial_owner_known
+        obligation_refs:
+          - "obl:ch_amla_current:9:0"
+        description: "Indicates whether the institution has identified the ultimate beneficial owner."
+
+      - field_id: beneficial_owner_details
+        label: "Details of the beneficial owner (name, DOB, nationality) if known and different from subject"
+        field_type: text
+        is_required: false
+        canonical_term: beneficial_owner_details
+        obligation_refs:
+          - "obl:ch_amla_current:9:0"
+        description: "Populated when beneficial owner differs from the named subject."
+
+  - section_id: suspicious_activity
+    title: "Suspicious Activity"
+    description: >
+      Description of the suspicious activity giving rise to the reporting
+      obligation, including the typology category, trigger event, internal
+      investigation summary and MLRO assessment.
+    fields:
+      - field_id: suspicion_category
+        label: "Category of suspicion (select all that apply)"
+        field_type: enum_multi
+        is_required: true
+        canonical_term: suspicion_category
+        enum_values:
+          - layering
+          - structuring
+          - sanctions_evasion
+          - terrorism_financing
+          - fraud
+          - tax_evasion
+          - bribery_corruption
+          - other
+        obligation_refs:
+          - "obl:ch_amla_current:9:0"
+        description: "Primary ML/TF/sanctions typology identified by the MLRO."
+
+      - field_id: suspicion_narrative
+        label: "Narrative description of the suspicious activity"
+        field_type: text
+        is_required: true
+        canonical_term: suspicion_narrative
+        obligation_refs:
+          - "obl:ch_amla_current:9:0"
+        description: "Free-text description of the facts and circumstances underpinning the suspicion."
+
+      - field_id: trigger_event_date
+        label: "Date on which the triggering event was first identified"
+        field_type: date
+        is_required: true
+        canonical_term: trigger_event_date
+        obligation_refs:
+          - "obl:ch_amla_current:9:0"
+        description: "The date the institution first became aware of the suspicious transaction or behaviour."
+
+      - field_id: trigger_event_description
+        label: "Description of the specific trigger event"
+        field_type: text
+        is_required: true
+        canonical_term: trigger_event_description
+        obligation_refs:
+          - "obl:ch_amla_current:9:0"
+        description: "Specific event, alert, or observation that initiated the internal review."
+
+      - field_id: internal_investigation_summary
+        label: "Summary of the internal investigation conducted before filing"
+        field_type: text
+        is_required: true
+        canonical_term: internal_investigation_summary
+        obligation_refs:
+          - "obl:ch_amla_current:9:0"
+        description: "Steps taken internally to investigate the suspicion prior to MROS notification."
+
+      - field_id: kyc_review_outcome
+        label: "Outcome of the KYC/CDD review conducted in connection with this SAR"
+        field_type: text
+        is_required: false
+        canonical_term: kyc_review_outcome
+        obligation_refs:
+          - "obl:ch_amla_current:9:0"
+        description: "Summary of findings from the KYC refresh triggered by the suspicious activity."
+
+      - field_id: edd_performed
+        label: "Was Enhanced Due Diligence (EDD) performed?"
+        field_type: boolean
+        is_required: true
+        canonical_term: edd_performed
+        obligation_refs:
+          - "obl:ch_amla_current:9:0"
+        description: "Indicates whether EDD was conducted as part of the pre-filing investigation."
+
+      - field_id: mlro_assessment
+        label: "MLRO's overall assessment and recommendation"
+        field_type: text
+        is_required: true
+        canonical_term: mlro_assessment
+        obligation_refs:
+          - "obl:ch_amla_current:9:0"
+          - "obl:ch_amla_current:10a:0"
+        description: "The MLRO's written conclusion on the suspicion and rationale for filing."
+
+  - section_id: transaction_details
+    title: "Transaction Details"
+    description: >
+      Specific transactions associated with the suspicious activity, including
+      amounts, currencies, counterparties, and a description of the suspicious
+      pattern identified.
+    fields:
+      - field_id: transaction_dates_list
+        label: "Dates of suspicious transactions (list)"
+        field_type: list
+        is_required: true
+        canonical_term: transaction_dates
+        obligation_refs:
+          - "obl:ch_amla_current:9:0"
+          - "obl:wolfsberg_pts:P.13:0"
+        description: "Chronological list of transaction execution dates."
+
+      - field_id: transaction_amounts_list
+        label: "Amounts of suspicious transactions (list, in original currency)"
+        field_type: list
+        is_required: true
+        canonical_term: transaction_amounts
+        obligation_refs:
+          - "obl:ch_amla_current:9:0"
+        description: "Transaction amounts in original currency, mirroring the dates list."
+
+      - field_id: transaction_counterparties
+        label: "Counterparty names and institutions for each suspicious transaction"
+        field_type: list
+        is_required: false
+        canonical_term: transaction_counterparties
+        obligation_refs:
+          - "obl:ch_amla_current:9:0"
+          - "obl:wolfsberg_pts:P.13:0"
+        description: "Beneficiary or ordering-party details for each transaction."
+
+      - field_id: currencies
+        label: "Currencies involved in the suspicious transactions"
+        field_type: list
+        is_required: true
+        canonical_term: transaction_currencies
+        obligation_refs:
+          - "obl:ch_amla_current:9:0"
+        description: "ISO 4217 currency codes for each transaction."
+
+      - field_id: transaction_type
+        label: "Type of transactions involved"
+        field_type: enum_multi
+        is_required: true
+        canonical_term: transaction_type
+        enum_values:
+          - wire_transfer
+          - cash_deposit
+          - cash_withdrawal
+          - fx_conversion
+          - securities_trade
+          - internal_transfer
+          - crypto_asset_transaction
+          - other
+        obligation_refs:
+          - "obl:ch_amla_current:9:0"
+        description: "Nature of the transactions flagged as suspicious."
+
+      - field_id: total_aggregate_chf
+        label: "Total aggregate value of suspicious transactions in CHF"
+        field_type: numeric
+        is_required: true
+        canonical_term: total_aggregate_amount_chf
+        obligation_refs:
+          - "obl:ch_amla_current:9:0"
+        description: "Sum of all suspicious transaction amounts converted to CHF."
+
+      - field_id: suspicious_pattern_description
+        label: "Description of the suspicious pattern or structuring behaviour"
+        field_type: text
+        is_required: true
+        canonical_term: suspicious_pattern_description
+        obligation_refs:
+          - "obl:ch_amla_current:9:0"
+        description: "Narrative of the transaction pattern that supports the suspicion."
+
+  - section_id: documents_attached
+    title: "Documents Attached"
+    description: >
+      Inventory of supporting documents enclosed with the SAR filing,
+      including customer identity documents, transaction records, internal
+      investigation memos, and any prior correspondence with MROS.
+    fields:
+      - field_id: supporting_documents_list
+        label: "List of all supporting documents attached to this SAR"
+        field_type: list
+        is_required: true
+        canonical_term: supporting_documents_list
+        obligation_refs:
+          - "obl:ch_amla_current:9:0"
+        description: "Index of all attachments submitted with this report."
+
+      - field_id: customer_id_docs
+        label: "Customer identification documents enclosed (e.g. passport copy, commercial register extract)"
+        field_type: document_reference
+        is_required: false
+        canonical_term: customer_identity_documents
+        obligation_refs:
+          - "obl:ch_amla_current:9:0"
+        description: "References to ID documents on file for the subject."
+
+      - field_id: transaction_records
+        label: "Transaction records / account statements attached"
+        field_type: document_reference
+        is_required: true
+        canonical_term: transaction_records
+        obligation_refs:
+          - "obl:ch_amla_current:9:0"
+          - "obl:wolfsberg_pts:P.13:0"
+        description: "Account statements or transaction logs covering the suspicious period."
+
+      - field_id: internal_memos
+        label: "Internal investigation memos and compliance notes attached"
+        field_type: document_reference
+        is_required: false
+        canonical_term: internal_investigation_memos
+        obligation_refs:
+          - "obl:ch_amla_current:9:0"
+        description: "Internal documents generated during the pre-filing investigation."
+
+      - field_id: prior_correspondence
+        label: "Prior correspondence with MROS or other authorities relating to this subject"
+        field_type: document_reference
+        is_required: false
+        canonical_term: prior_authority_correspondence
+        obligation_refs:
+          - "obl:ch_amla_current:10a:0"
+        description: "Any earlier MROS acknowledgments, information requests, or authority correspondence."

@@ -25,6 +25,7 @@
 
 pub mod analytics_inventory;
 pub mod artifact;
+pub mod banking_forms;
 pub mod benchmark;
 pub mod big4_methodology;
 pub mod content;

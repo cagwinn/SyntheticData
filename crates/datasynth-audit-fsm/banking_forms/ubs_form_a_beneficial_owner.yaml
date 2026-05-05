@@ -1,0 +1,211 @@
+# UBS Form A — Beneficial Owner Declaration
+# Public-source reconstruction based on the Swiss Identification Agreement (CDB20)
+# Art. 4 and UBS-published customer due-diligence guidance.
+# Form A is the industry-standard Swiss declaration used by financial intermediaries
+# to identify the ultimate beneficial owner of assets held in an account.
+#
+# Obligation slug conventions:
+#   obl:ch_cdb20:<art>:0   — Swiss CDB 2020 (Vereinbarung über die Standesregeln), Article <art>
+#   obl:fatf_40:R.<n>:0    — FATF 40 Recommendation n
+
+form_id: ubs_form_a_beneficial_owner_v1
+name: "UBS Form A — Beneficial Owner Declaration (public reconstruction)"
+version: "1.0"
+kind: beneficial_owner
+source: ubs_public
+description: |
+  Public-source reconstruction of the UBS Form A beneficial-owner declaration
+  per Swiss CDB20 Art. 4. The form captures whether the account holder is the
+  beneficial owner of the assets, or whether a third party is the ultimate
+  beneficial owner. Where the customer is not the beneficial owner the form
+  collects the identity details of the natural person(s) exercising beneficial
+  ownership. Complex ownership structures (trusts, foundations, multi-layer
+  entities) are flagged for enhanced documentation. Structure derived from
+  Swiss CDB20 requirements and UBS-published guidance; actual UBS proprietary
+  template is confidential.
+public_url: "https://www.ubs.com"
+is_public_reconstruction: true
+
+sections:
+
+  - section_id: customer_identity
+    title: "Customer Identity"
+    description: >
+      Basic identification of the account holder completing and signing
+      the beneficial-owner declaration.
+    fields:
+      - field_id: customer_id
+        label: "Institution's internal customer identifier"
+        field_type: text
+        is_required: true
+        canonical_term: customer_id
+        obligation_refs:
+          - "obl:ch_cdb20:1:0"
+          - "obl:fatf_40:R.10:0"
+        description: "CRM or core-banking system identifier for the account holder."
+
+      - field_id: customer_name
+        label: "Full legal name of the account holder"
+        field_type: text
+        is_required: true
+        canonical_term: customer_name
+        obligation_refs:
+          - "obl:ch_cdb20:1:0"
+          - "obl:fatf_40:R.10:0"
+        description: "Name as it appears on the identity document."
+
+      - field_id: account_number
+        label: "Account number to which this declaration relates"
+        field_type: text
+        is_required: true
+        canonical_term: account_number
+        obligation_refs:
+          - "obl:ch_cdb20:1:0"
+        description: "The specific account or portfolio covered by this Form A."
+
+      - field_id: declaration_date
+        label: "Date the declaration was completed and signed by the customer"
+        field_type: date
+        is_required: true
+        canonical_term: declaration_date
+        obligation_refs:
+          - "obl:ch_cdb20:1:0"
+        description: "Signature date of this Form A."
+
+      - field_id: customer_signature_obtained
+        label: "Has the customer's wet or electronic signature been obtained?"
+        field_type: boolean
+        is_required: true
+        canonical_term: signature_obtained
+        obligation_refs:
+          - "obl:ch_cdb20:1:0"
+        description: "Confirms that the declaration has been duly signed by the account holder."
+
+  - section_id: beneficial_owner_declaration
+    title: "Beneficial Owner Declaration"
+    description: >
+      Declaration of whether the customer is the beneficial owner of the
+      assets, and if not, the full identity details of the true beneficial owner.
+    fields:
+      - field_id: bo_is_self
+        label: "Is the account holder the beneficial owner of all assets in the account?"
+        field_type: boolean
+        is_required: true
+        canonical_term: beneficial_owner_is_self
+        obligation_refs:
+          - "obl:ch_cdb20:1:0"
+          - "obl:fatf_40:R.10:0"
+        description: "If true, no further BO fields are required. If false, populate the fields below."
+
+      - field_id: bo_name
+        label: "Full legal name of the beneficial owner (if different from account holder)"
+        field_type: text
+        is_required: false
+        canonical_term: beneficial_owner_name
+        obligation_refs:
+          - "obl:ch_cdb20:1:0"
+          - "obl:fatf_40:R.10:0"
+        description: "Required when bo_is_self is false."
+
+      - field_id: bo_dob
+        label: "Date of birth of the beneficial owner"
+        field_type: date
+        is_required: false
+        canonical_term: beneficial_owner_dob
+        obligation_refs:
+          - "obl:ch_cdb20:1:0"
+          - "obl:fatf_40:R.10:0"
+        description: "Required for natural-person beneficial owners."
+
+      - field_id: bo_nationality
+        label: "Nationality of the beneficial owner"
+        field_type: text
+        is_required: false
+        canonical_term: beneficial_owner_nationality
+        obligation_refs:
+          - "obl:ch_cdb20:1:0"
+          - "obl:fatf_40:R.10:0"
+        description: "ISO country code of the beneficial owner's nationality."
+
+      - field_id: bo_address
+        label: "Residential or domicile address of the beneficial owner"
+        field_type: text
+        is_required: false
+        canonical_term: beneficial_owner_address
+        obligation_refs:
+          - "obl:ch_cdb20:1:0"
+          - "obl:fatf_40:R.10:0"
+        description: "Current address of the beneficial owner as declared."
+
+      - field_id: bo_relationship_to_customer
+        label: "Relationship of the beneficial owner to the account holder"
+        field_type: text
+        is_required: false
+        canonical_term: bo_relationship_to_customer
+        obligation_refs:
+          - "obl:ch_cdb20:1:0"
+        description: "Explanation of the legal or economic relationship (e.g. principal, settlor, controller)."
+
+      - field_id: bo_chain_complete
+        label: "Has the full ownership chain been documented (all intermediate entities identified)?"
+        field_type: boolean
+        is_required: true
+        canonical_term: ownership_chain_documented
+        obligation_refs:
+          - "obl:ch_cdb20:1:0"
+          - "obl:fatf_40:R.10:0"
+        description: "Confirms that the complete chain from account holder to ultimate natural-person BO is on file."
+
+      - field_id: notes
+        label: "Additional notes on the beneficial ownership structure"
+        field_type: text
+        is_required: false
+        canonical_term: beneficial_owner_notes
+        obligation_refs:
+          - "obl:ch_cdb20:1:0"
+        description: "Free-text field for any supplementary explanations."
+
+  - section_id: special_cases
+    title: "Special Cases"
+    description: >
+      Flags for complex ownership structures (trusts, foundations, multi-layer
+      entities) requiring supplementary documentation under CDB20.
+    fields:
+      - field_id: trust_or_foundation_flag
+        label: "Is the account held by or for a trust, foundation, or similar structure?"
+        field_type: boolean
+        is_required: true
+        canonical_term: trust_or_foundation_flag
+        obligation_refs:
+          - "obl:ch_cdb20:1:0"
+          - "obl:fatf_40:R.10:0"
+        description: "Triggers additional documentation requirements for discretionary/non-discretionary structures."
+
+      - field_id: complex_structure_flag
+        label: "Does the account involve a complex corporate ownership structure (multi-layer, offshore)?"
+        field_type: boolean
+        is_required: true
+        canonical_term: complex_structure_flag
+        obligation_refs:
+          - "obl:ch_cdb20:1:0"
+          - "obl:fatf_40:R.10:0"
+        description: "Flags structures where the BO chain spans multiple jurisdictions or entities."
+
+      - field_id: additional_disclosures
+        label: "Additional disclosures required for complex or special-case structures"
+        field_type: text
+        is_required: false
+        canonical_term: additional_disclosures
+        obligation_refs:
+          - "obl:ch_cdb20:1:0"
+        description: "Supplementary information requested by compliance when standard Form A is insufficient."
+
+      - field_id: supporting_documents
+        label: "Supporting documents attached (e.g. trust deed, ownership chart, notarised extracts)"
+        field_type: document_reference
+        is_required: false
+        canonical_term: supporting_documents
+        obligation_refs:
+          - "obl:ch_cdb20:1:0"
+          - "obl:fatf_40:R.10:0"
+        description: "References to documents provided to substantiate the beneficial ownership declaration."

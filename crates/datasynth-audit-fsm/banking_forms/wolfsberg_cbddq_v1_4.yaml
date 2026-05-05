@@ -1,0 +1,991 @@
+# Wolfsberg Correspondent Banking Due Diligence Questionnaire (CBDDQ) v1.4
+# Public-source reconstruction based on the publicly-documented Wolfsberg Group
+# CBDDQ structure (https://www.wolfsberg-principles.com/sites/default/files/wb/pdfs/wolfsberg-standards/Wolfsberg_CBDDQ_v1.4.pdf).
+# This file contains the SCHEMA of the questionnaire; actual answers supplied
+# by respondent banks are out of scope for this ontology.
+#
+# Obligation slug conventions:
+#   obl:wolfsberg_cb:P.<n>:0   — Wolfsberg CB Principles paragraph n
+#   obl:fatf_40:R.<n>:0        — FATF 40 Recommendation n
+#   obl:eu_amlr_2024_1624:<n>:0 — EU AMLR 2024/1624 Article n
+
+form_id: wolfsberg_cbddq_v1_4
+name: Wolfsberg Correspondent Banking Due Diligence Questionnaire
+version: "1.4"
+kind: correspondent_banking_questionnaire
+source: wolfsberg
+description: >
+  The Wolfsberg CBDDQ is the industry-standard questionnaire used by
+  respondent banks to disclose their AML/CTF/Sanctions compliance programme
+  to correspondent banks.  Sections cover entity identity, product exposure,
+  and the full AML programme lifecycle.
+public_url: "https://www.wolfsberg-principles.com/sites/default/files/wb/pdfs/wolfsberg-standards/Wolfsberg_CBDDQ_v1.4.pdf"
+is_public_reconstruction: true
+
+sections:
+
+  - section_id: s1_entity_ownership
+    title: "Entity & Ownership"
+    description: >
+      Basic corporate identity, ownership structure, regulatory authorisation,
+      and public-listing status of the respondent institution.
+    fields:
+      - field_id: q1_1_legal_name
+        label: "Full legal name of the institution"
+        field_type: text
+        is_required: true
+        canonical_term: legal_entity_name
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.2:0"
+          - "obl:fatf_40:R.10:0"
+
+      - field_id: q1_2_country_of_incorporation
+        label: "Country of incorporation / registration"
+        field_type: text
+        is_required: true
+        canonical_term: country_of_incorporation
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.2:0"
+          - "obl:fatf_40:R.10:0"
+
+      - field_id: q1_3_primary_supervisor
+        label: "Name of primary financial services supervisor / regulator"
+        field_type: text
+        is_required: true
+        canonical_term: primary_regulator
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.2:0"
+          - "obl:eu_amlr_2024_1624:20:0"
+
+      - field_id: q1_4_swift_bic
+        label: "SWIFT BIC code"
+        field_type: text
+        is_required: true
+        canonical_term: swift_bic
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.2:0"
+
+      - field_id: q1_5_lei
+        label: "Legal Entity Identifier (LEI)"
+        field_type: text
+        is_required: false
+        canonical_term: legal_entity_identifier
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.2:0"
+
+      - field_id: q1_6_is_publicly_listed
+        label: "Is the institution publicly listed on a recognised stock exchange?"
+        field_type: boolean
+        is_required: true
+        canonical_term: publicly_listed
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.2:0"
+          - "obl:fatf_40:R.12:0"
+
+      - field_id: q1_7_stock_exchange_ticker
+        label: "If publicly listed, stock exchange name and ticker symbol"
+        field_type: text
+        is_required: false
+        canonical_term: stock_exchange_ticker
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.2:0"
+
+      - field_id: q1_8_ubo_threshold
+        label: >
+          Identify all beneficial owners (natural persons) holding 25% or more
+          of shares / voting rights, or exercising equivalent control
+        field_type: list
+        is_required: true
+        canonical_term: beneficial_owner_above_threshold
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+          - "obl:fatf_40:R.10:0"
+          - "obl:eu_amlr_2024_1624:34:0"
+
+      - field_id: q1_9_ownership_chart_available
+        label: "Is a current ownership / corporate structure chart available on request?"
+        field_type: boolean
+        is_required: true
+        canonical_term: ownership_chart_available
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+          - "obl:eu_amlr_2024_1624:34:0"
+
+      - field_id: q1_10_holding_company_name
+        label: "Name of ultimate parent / holding company (if applicable)"
+        field_type: text
+        is_required: false
+        canonical_term: ultimate_parent_name
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.2:0"
+
+      - field_id: q1_11_year_established
+        label: "Year the institution was established"
+        field_type: numeric
+        is_required: true
+        canonical_term: year_established
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.2:0"
+
+  - section_id: s2_products_services
+    title: "Products & Services"
+    description: >
+      Customer segments served, geographic markets, product and payment-channel
+      offering, and any high-risk product lines.
+    fields:
+      - field_id: q2_1_customer_types
+        label: "Customer types served (select all that apply)"
+        field_type: enum_multi
+        is_required: true
+        canonical_term: customer_types_served
+        enum_values:
+          - retail_individuals
+          - sme
+          - large_corporate
+          - financial_institutions
+          - governments_public_sector
+          - non_profit_ngo
+          - money_service_businesses
+          - crypto_asset_service_providers
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.2:0"
+          - "obl:eu_amlr_2024_1624:20:0"
+
+      - field_id: q2_2_geographic_markets
+        label: "List the primary countries / jurisdictions in which the institution operates"
+        field_type: list
+        is_required: true
+        canonical_term: geographic_markets
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.2:0"
+          - "obl:fatf_40:R.18:0"
+
+      - field_id: q2_3_products_offered
+        label: "Core banking products offered (select all that apply)"
+        field_type: enum_multi
+        is_required: true
+        canonical_term: products_offered
+        enum_values:
+          - correspondent_banking
+          - trade_finance
+          - payments_clearing
+          - private_banking
+          - retail_banking
+          - custody
+          - fx
+          - securities
+          - crypto_asset_services
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.2:0"
+
+      - field_id: q2_4_payment_message_types
+        label: "Payment message types used (e.g. SWIFT MT, MX/ISO 20022, SEPA)"
+        field_type: enum_multi
+        is_required: true
+        canonical_term: payment_message_types
+        enum_values:
+          - swift_mt
+          - swift_mx_iso20022
+          - sepa_credit_transfer
+          - sepa_direct_debit
+          - rtgs
+          - ach
+          - other
+        obligation_refs:
+          - "obl:wolfsberg_pts:P.13:0"
+
+      - field_id: q2_5_payable_through_accounts
+        label: "Does the institution offer payable-through accounts to third parties?"
+        field_type: boolean
+        is_required: true
+        canonical_term: payable_through_accounts
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.9:0"
+          - "obl:fatf_40:R.18:0"
+
+      - field_id: q2_6_nested_correspondents
+        label: "Does the institution offer correspondent services to other respondent banks (nested correspondents)?"
+        field_type: boolean
+        is_required: true
+        canonical_term: nested_correspondents
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.9:0"
+          - "obl:fatf_40:R.18:0"
+
+      - field_id: q2_7_pta_controls
+        label: >
+          If payable-through or nested correspondent accounts are offered,
+          describe the controls applied to monitor sub-account holders
+        field_type: text
+        is_required: false
+        canonical_term: pta_controls_description
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.9:0"
+
+      - field_id: q2_8_cash_intensive_customers
+        label: "Does the institution serve cash-intensive business customers?"
+        field_type: boolean
+        is_required: true
+        canonical_term: cash_intensive_customers
+        obligation_refs:
+          - "obl:eu_amlr_2024_1624:79:0"
+          - "obl:fatf_40:R.20:0"
+
+      - field_id: q2_9_msb_customers
+        label: "Does the institution maintain accounts for money service businesses (MSBs / MTO)?"
+        field_type: boolean
+        is_required: true
+        canonical_term: msb_customers
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.2:0"
+          - "obl:fatf_40:R.18:0"
+          - "obl:eu_amlr_2024_1624:80:0"
+
+      - field_id: q2_10_crypto_customers
+        label: "Does the institution maintain accounts for crypto-asset service providers (CASPs / VASPs)?"
+        field_type: boolean
+        is_required: true
+        canonical_term: crypto_casp_customers
+        obligation_refs:
+          - "obl:eu_amlr_2024_1624:80:0"
+          - "obl:fatf_40:R.18:0"
+
+      - field_id: q2_11_shell_company_policy
+        label: "Does the institution have a specific policy for shell companies / special purpose vehicles?"
+        field_type: boolean
+        is_required: true
+        canonical_term: shell_company_policy
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+          - "obl:eu_amlr_2024_1624:34:0"
+
+  - section_id: s3_aml_ctf_sanctions_programme
+    title: "AML, CTF & Sanctions Programme"
+    description: >
+      Governance, policies, risk assessment methodology, escalation procedures
+      and third-party screening tools covering the full AML/CTF/Sanctions
+      compliance framework.
+    fields:
+      - field_id: q3_1_written_aml_policy
+        label: "Does the institution maintain a written AML/CTF policy approved by senior management?"
+        field_type: boolean
+        is_required: true
+        canonical_term: written_aml_policy
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+          - "obl:fatf_40:R.18:0"
+          - "obl:eu_amlr_2024_1624:21:0"
+
+      - field_id: q3_2_bsa_aml_officer_name
+        label: "Name and title of the BSA/AML Compliance Officer (or equivalent)"
+        field_type: text
+        is_required: true
+        canonical_term: aml_compliance_officer
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+          - "obl:fatf_40:R.18:0"
+
+      - field_id: q3_3_mlro_reports_to
+        label: "To whom does the MLRO / Compliance Officer report (board, CEO, general counsel)?"
+        field_type: text
+        is_required: true
+        canonical_term: mlro_reporting_line
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+          - "obl:eu_amlr_2024_1624:21:0"
+
+      - field_id: q3_4_risk_assessment_frequency
+        label: "How frequently is the enterprise-wide ML/TF risk assessment reviewed?"
+        field_type: enum_single
+        is_required: true
+        canonical_term: risk_assessment_review_frequency
+        enum_values:
+          - annually
+          - bi_annually
+          - every_three_years
+          - event_driven
+          - other
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+          - "obl:fatf_40:R.18:0"
+          - "obl:eu_amlr_2024_1624:20:0"
+
+      - field_id: q3_5_sanctions_screening_tool
+        label: "Name the primary sanctions screening tool(s) used"
+        field_type: text
+        is_required: true
+        canonical_term: sanctions_screening_tool
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+          - "obl:eu_amlr_2024_1624:21:0"
+
+      - field_id: q3_6_sanctions_lists_screened
+        label: "Which sanctions lists does the institution screen against? (select all that apply)"
+        field_type: enum_multi
+        is_required: true
+        canonical_term: sanctions_lists_screened
+        enum_values:
+          - un_consolidated_list
+          - eu_consolidated_list
+          - ofac_sdn
+          - ofac_non_sdn
+          - uk_hmt
+          - swiss_seco
+          - other
+        obligation_refs:
+          - "obl:eu_amlr_2024_1624:21:0"
+
+      - field_id: q3_7_real_time_payment_screening
+        label: "Does the institution screen payments in real-time against sanctions lists?"
+        field_type: boolean
+        is_required: true
+        canonical_term: real_time_payment_sanctions_screening
+        obligation_refs:
+          - "obl:wolfsberg_pts:P.13:0"
+          - "obl:eu_amlr_2024_1624:21:0"
+
+      - field_id: q3_8_correspondent_aml_requirements
+        label: >
+          Does the institution impose AML/CTF minimum standards on respondent
+          banks as a condition of the correspondent relationship?
+        field_type: boolean
+        is_required: true
+        canonical_term: correspondent_aml_requirements
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.2:0"
+          - "obl:fatf_40:R.18:0"
+
+      - field_id: q3_9_pep_screening_tool
+        label: "Name the primary PEP and adverse media screening tool(s) used"
+        field_type: text
+        is_required: true
+        canonical_term: pep_adverse_media_screening_tool
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+          - "obl:fatf_40:R.12:0"
+          - "obl:eu_amlr_2024_1624:34:0"
+
+      - field_id: q3_10_edd_triggers
+        label: "What triggers Enhanced Due Diligence (EDD) at the institution? (select all that apply)"
+        field_type: enum_multi
+        is_required: true
+        canonical_term: edd_triggers
+        enum_values:
+          - high_risk_country
+          - pep
+          - complex_ownership_structure
+          - high_risk_product
+          - large_transaction_volume
+          - adverse_media
+          - msb_vasp
+          - correspondent_bank
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+          - "obl:fatf_40:R.18:0"
+          - "obl:eu_amlr_2024_1624:20:0"
+
+      - field_id: q3_11_sanctions_escalation_procedure
+        label: "Does the institution have a documented sanctions escalation / OFAC compliance procedure?"
+        field_type: boolean
+        is_required: true
+        canonical_term: sanctions_escalation_procedure
+        obligation_refs:
+          - "obl:eu_amlr_2024_1624:21:0"
+
+      - field_id: q3_12_independent_testing_frequency
+        label: "How frequently does independent audit / testing of the AML programme occur?"
+        field_type: enum_single
+        is_required: true
+        canonical_term: aml_independent_testing_frequency
+        enum_values:
+          - annually
+          - bi_annually
+          - every_three_years
+          - continuous
+          - other
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+          - "obl:fatf_40:R.18:0"
+
+  - section_id: s4_kyc_cdd_edd
+    title: "KYC, CDD & EDD"
+    description: >
+      Customer identification, beneficial ownership verification, Enhanced Due
+      Diligence triggers and procedures, and ongoing monitoring of the customer
+      base and transaction profiles.
+    fields:
+      - field_id: q4_1_cdd_programme_documented
+        label: "Does the institution have a documented Customer Due Diligence (CDD) programme?"
+        field_type: boolean
+        is_required: true
+        canonical_term: cdd_programme_documented
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+          - "obl:fatf_40:R.10:0"
+          - "obl:eu_amlr_2024_1624:20:0"
+
+      - field_id: q4_2_customer_risk_rating_methodology
+        label: "Does the institution use a risk-based customer risk rating methodology?"
+        field_type: boolean
+        is_required: true
+        canonical_term: customer_risk_rating_methodology
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+          - "obl:fatf_40:R.10:0"
+
+      - field_id: q4_3_customer_risk_rating_factors
+        label: "Risk factors included in the customer risk rating (select all that apply)"
+        field_type: enum_multi
+        is_required: true
+        canonical_term: customer_risk_rating_factors
+        enum_values:
+          - country_risk
+          - product_risk
+          - customer_type
+          - pep_status
+          - ownership_structure_complexity
+          - transaction_volume_pattern
+          - adverse_media
+          - delivery_channel
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+          - "obl:eu_amlr_2024_1624:20:0"
+
+      - field_id: q4_4_bo_verification_method
+        label: "How does the institution verify beneficial ownership? (select all that apply)"
+        field_type: enum_multi
+        is_required: true
+        canonical_term: bo_verification_method
+        enum_values:
+          - official_company_registry
+          - identity_document_review
+          - third_party_data_provider
+          - client_self_certification
+          - on_site_visit
+          - other
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+          - "obl:fatf_40:R.10:0"
+          - "obl:eu_amlr_2024_1624:34:0"
+
+      - field_id: q4_5_pep_identification_process
+        label: "Does the institution have a formal process to identify PEPs at account opening and on an ongoing basis?"
+        field_type: boolean
+        is_required: true
+        canonical_term: pep_identification_process
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+          - "obl:fatf_40:R.12:0"
+          - "obl:eu_amlr_2024_1624:34:0"
+
+      - field_id: q4_6_pep_senior_approval
+        label: "Is senior management approval required before onboarding a PEP?"
+        field_type: boolean
+        is_required: true
+        canonical_term: pep_senior_management_approval
+        obligation_refs:
+          - "obl:fatf_40:R.12:0"
+          - "obl:eu_amlr_2024_1624:34:0"
+
+      - field_id: q4_7_high_risk_country_list_source
+        label: "Source of high-risk country list used by the institution (select all that apply)"
+        field_type: enum_multi
+        is_required: true
+        canonical_term: high_risk_country_list_source
+        enum_values:
+          - fatf_grey_list
+          - fatf_black_list
+          - eu_high_risk_third_countries
+          - internal_risk_assessment
+          - us_state_department
+          - other
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+          - "obl:eu_amlr_2024_1624:20:0"
+          - "obl:fatf_40:R.18:0"
+
+      - field_id: q4_8_customer_review_frequency_high_risk
+        label: "How frequently are high-risk customers reviewed / recertified?"
+        field_type: enum_single
+        is_required: true
+        canonical_term: high_risk_customer_review_frequency
+        enum_values:
+          - annually
+          - bi_annually
+          - event_driven
+          - other
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+          - "obl:eu_amlr_2024_1624:20:0"
+
+      - field_id: q4_9_sof_verification_required
+        label: "Is source of funds (SOF) / source of wealth (SOW) verification required for high-risk customers?"
+        field_type: boolean
+        is_required: true
+        canonical_term: source_of_funds_verification_required
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+          - "obl:eu_amlr_2024_1624:20:0"
+
+      - field_id: q4_10_simplified_dd_applied
+        label: "Does the institution apply simplified due diligence for any customer categories?"
+        field_type: boolean
+        is_required: true
+        canonical_term: simplified_dd_applied
+        obligation_refs:
+          - "obl:fatf_40:R.10:0"
+          - "obl:eu_amlr_2024_1624:20:0"
+
+      - field_id: q4_11_reliance_on_third_party_kyc
+        label: "Does the institution rely on third parties to perform CDD / KYC on its behalf?"
+        field_type: boolean
+        is_required: true
+        canonical_term: third_party_kyc_reliance
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.2:0"
+          - "obl:fatf_40:R.10:0"
+
+      - field_id: q4_12_correspondent_kyc_reliance
+        label: "Does the institution rely on correspondent banks to perform CDD for introduced customers?"
+        field_type: boolean
+        is_required: true
+        canonical_term: correspondent_kyc_reliance
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.9:0"
+          - "obl:fatf_40:R.18:0"
+
+  - section_id: s5_monitoring_reporting
+    title: "Monitoring & Reporting"
+    description: >
+      Transaction monitoring systems, suspicious activity reporting (SAR/STR)
+      processes, and escalation chains for AML alerts.
+    fields:
+      - field_id: q5_1_automated_txn_monitoring
+        label: "Does the institution use automated transaction monitoring software?"
+        field_type: boolean
+        is_required: true
+        canonical_term: automated_transaction_monitoring
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+          - "obl:fatf_40:R.20:0"
+          - "obl:eu_amlr_2024_1624:20:0"
+
+      - field_id: q5_2_txn_monitoring_system_name
+        label: "Name the primary transaction monitoring system(s)"
+        field_type: text
+        is_required: true
+        canonical_term: transaction_monitoring_system
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+
+      - field_id: q5_3_alert_review_timeframe
+        label: "What is the target timeframe for reviewing and dispositioning AML alerts?"
+        field_type: enum_single
+        is_required: true
+        canonical_term: alert_review_timeframe
+        enum_values:
+          - within_24_hours
+          - within_48_hours
+          - within_5_business_days
+          - within_30_days
+          - other
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+
+      - field_id: q5_4_sar_str_process_documented
+        label: "Does the institution have a documented SAR/STR filing process?"
+        field_type: boolean
+        is_required: true
+        canonical_term: sar_str_process_documented
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+          - "obl:fatf_40:R.20:0"
+          - "obl:eu_amlr_2024_1624:21:0"
+
+      - field_id: q5_5_sar_fiu_name
+        label: "Name of the Financial Intelligence Unit (FIU) to which SARs/STRs are reported"
+        field_type: text
+        is_required: true
+        canonical_term: fiu_name
+        obligation_refs:
+          - "obl:fatf_40:R.20:0"
+
+      - field_id: q5_6_correspondent_activity_monitoring
+        label: "Does the institution monitor the aggregate activity of its correspondent banking relationships?"
+        field_type: boolean
+        is_required: true
+        canonical_term: correspondent_activity_monitoring
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.9:0"
+          - "obl:fatf_40:R.18:0"
+
+      - field_id: q5_7_de_risking_policy
+        label: "Does the institution have a documented policy for exiting high-risk correspondent relationships (de-risking)?"
+        field_type: boolean
+        is_required: true
+        canonical_term: de_risking_policy
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.2:0"
+
+      - field_id: q5_8_cash_threshold_reporting
+        label: "Is the institution subject to mandatory cash transaction reporting above a threshold?"
+        field_type: boolean
+        is_required: true
+        canonical_term: cash_threshold_reporting
+        obligation_refs:
+          - "obl:eu_amlr_2024_1624:79:0"
+
+      - field_id: q5_9_cash_reporting_threshold_amount
+        label: "If yes, the cash reporting threshold amount and currency"
+        field_type: text
+        is_required: false
+        canonical_term: cash_reporting_threshold
+        obligation_refs:
+          - "obl:eu_amlr_2024_1624:79:0"
+
+      - field_id: q5_10_wire_transfer_records_retained
+        label: "How long are wire-transfer records (including originator and beneficiary details) retained?"
+        field_type: enum_single
+        is_required: true
+        canonical_term: wire_transfer_record_retention_years
+        enum_values:
+          - "5_years"
+          - "7_years"
+          - "10_years"
+          - other
+        obligation_refs:
+          - "obl:wolfsberg_pts:P.13:0"
+          - "obl:eu_amlr_2024_1624:21:0"
+
+      - field_id: q5_11_kyc_record_retention
+        label: "How long are KYC records retained after the customer relationship ends?"
+        field_type: enum_single
+        is_required: true
+        canonical_term: kyc_record_retention_years
+        enum_values:
+          - "5_years"
+          - "7_years"
+          - "10_years"
+          - other
+        obligation_refs:
+          - "obl:fatf_40:R.20:0"
+          - "obl:eu_amlr_2024_1624:21:0"
+
+  - section_id: s6_aml_training
+    title: "AML, CTF & Sanctions Training"
+    description: >
+      Training programme scope, frequency, coverage tracking, and
+      specialist training for high-risk roles.
+    fields:
+      - field_id: q6_1_aml_training_programme
+        label: "Does the institution have a formal AML/CTF/Sanctions training programme?"
+        field_type: boolean
+        is_required: true
+        canonical_term: aml_training_programme
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+          - "obl:fatf_40:R.18:0"
+
+      - field_id: q6_2_training_frequency
+        label: "How frequently is mandatory AML/CTF training required for all staff?"
+        field_type: enum_single
+        is_required: true
+        canonical_term: aml_training_frequency
+        enum_values:
+          - annually
+          - bi_annually
+          - upon_hire_only
+          - other
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+
+      - field_id: q6_3_training_tracks_high_risk_roles
+        label: "Is enhanced/specialist training provided for higher-risk roles (e.g. relationship managers, compliance, trade finance)?"
+        field_type: boolean
+        is_required: true
+        canonical_term: specialist_training_high_risk_roles
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+          - "obl:eu_amlr_2024_1624:20:0"
+
+      - field_id: q6_4_training_completion_tracked
+        label: "Is training completion tracked and reported to senior management?"
+        field_type: boolean
+        is_required: true
+        canonical_term: training_completion_tracked
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+
+      - field_id: q6_5_training_sanctions_specific
+        label: "Does the training programme include sanctions-specific content (OFAC, UN, EU, SECO)?"
+        field_type: boolean
+        is_required: true
+        canonical_term: sanctions_specific_training
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+          - "obl:eu_amlr_2024_1624:21:0"
+
+      - field_id: q6_6_new_hire_training_timeframe
+        label: "Within what timeframe must new hires complete AML/CTF training?"
+        field_type: enum_single
+        is_required: true
+        canonical_term: new_hire_aml_training_timeframe
+        enum_values:
+          - within_30_days
+          - within_60_days
+          - within_90_days
+          - before_client_contact
+          - other
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+
+      - field_id: q6_7_training_updated_for_typologies
+        label: "Is training content updated to reflect current AML typologies and regulatory developments?"
+        field_type: boolean
+        is_required: true
+        canonical_term: training_updated_for_typologies
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+          - "obl:fatf_40:R.18:0"
+
+      - field_id: q6_8_training_attestation_required
+        label: "Is a written attestation / acknowledgment required from staff upon completion of training?"
+        field_type: boolean
+        is_required: true
+        canonical_term: training_attestation_required
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+
+      - field_id: q6_9_training_delivery_method
+        label: "Primary delivery method for AML/CTF training (select all that apply)"
+        field_type: enum_multi
+        is_required: true
+        canonical_term: training_delivery_method
+        enum_values:
+          - e_learning_online
+          - in_person_classroom
+          - blended
+          - on_the_job
+          - external_seminar
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+
+      - field_id: q6_10_third_party_training_provider
+        label: "Does the institution use an external / third-party provider for any AML training content?"
+        field_type: boolean
+        is_required: false
+        canonical_term: third_party_training_provider
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+
+      - field_id: q6_11_training_records_retained
+        label: "How long are training completion records retained?"
+        field_type: enum_single
+        is_required: true
+        canonical_term: training_records_retention_years
+        enum_values:
+          - "3_years"
+          - "5_years"
+          - "7_years"
+          - other
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+
+  - section_id: s7_qa_audit
+    title: "Quality Assurance / Audit"
+    description: >
+      Independent testing of the AML/CTF/Sanctions programme, regulatory
+      examination outcomes, and remediation tracking.
+    fields:
+      - field_id: q7_1_independent_aml_audit
+        label: "Is the AML/CTF/Sanctions programme subject to independent audit or testing?"
+        field_type: boolean
+        is_required: true
+        canonical_term: independent_aml_audit
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+          - "obl:fatf_40:R.18:0"
+
+      - field_id: q7_2_audit_function_independent
+        label: "Is the audit / testing function organisationally independent from the compliance function?"
+        field_type: boolean
+        is_required: true
+        canonical_term: audit_function_independent
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+
+      - field_id: q7_3_last_regulatory_exam_date
+        label: "Date of the most recent AML/CTF regulatory examination"
+        field_type: date
+        is_required: false
+        canonical_term: last_regulatory_exam_date
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+
+      - field_id: q7_4_regulatory_exam_findings_outstanding
+        label: "Are there any material outstanding AML/CTF findings from the most recent regulatory examination?"
+        field_type: boolean
+        is_required: true
+        canonical_term: outstanding_regulatory_findings
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+
+      - field_id: q7_5_remediation_plan_in_place
+        label: "If yes, is a formal remediation plan in place with agreed milestones?"
+        field_type: boolean
+        is_required: false
+        canonical_term: remediation_plan_in_place
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+
+      - field_id: q7_6_internal_audit_reports_available
+        label: "Are internal audit reports on the AML programme available for sharing with correspondent banks on request?"
+        field_type: boolean
+        is_required: true
+        canonical_term: audit_reports_shareable
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+
+      - field_id: q7_7_testing_covers_correspondent_banking
+        label: "Does the independent testing scope specifically cover correspondent banking activities?"
+        field_type: boolean
+        is_required: true
+        canonical_term: testing_covers_correspondent_banking
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.9:0"
+          - "obl:fatf_40:R.18:0"
+
+      - field_id: q7_8_audit_committee_oversight
+        label: "Does a board audit or risk committee receive reports on AML programme effectiveness?"
+        field_type: boolean
+        is_required: true
+        canonical_term: audit_committee_aml_oversight
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+          - "obl:eu_amlr_2024_1624:21:0"
+
+      - field_id: q7_9_qa_function_separate
+        label: "Does the institution have a dedicated Quality Assurance (QA) function separate from first-line operations?"
+        field_type: boolean
+        is_required: true
+        canonical_term: qa_function_separate
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+
+      - field_id: q7_10_penetration_testing_aml_systems
+        label: "Are the AML technology systems (monitoring, screening) subject to periodic technology or penetration testing?"
+        field_type: boolean
+        is_required: false
+        canonical_term: aml_systems_technology_testing
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+
+  - section_id: s8_reporting_tax_evasion
+    title: "Reporting / Tax Evasion"
+    description: >
+      Tax-information reporting obligations (FATCA, CRS/AEOI) and policies
+      to prevent facilitation of tax evasion.
+    fields:
+      - field_id: q8_1_fatca_compliant
+        label: "Is the institution FATCA-compliant and registered with the IRS?"
+        field_type: boolean
+        is_required: true
+        canonical_term: fatca_compliant
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.2:0"
+
+      - field_id: q8_2_fatca_giin
+        label: "FATCA Global Intermediary Identification Number (GIIN)"
+        field_type: text
+        is_required: false
+        canonical_term: fatca_giin
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.2:0"
+
+      - field_id: q8_3_crs_aeoi_participating
+        label: "Does the institution participate in the OECD Common Reporting Standard (CRS/AEOI)?"
+        field_type: boolean
+        is_required: true
+        canonical_term: crs_aeoi_participating
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.2:0"
+
+      - field_id: q8_4_tax_evasion_policy
+        label: "Does the institution have a policy explicitly prohibiting the facilitation of tax evasion?"
+        field_type: boolean
+        is_required: true
+        canonical_term: tax_evasion_prohibition_policy
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+
+      - field_id: q8_5_w8_w9_collection
+        label: "Does the institution collect W-8/W-9 or equivalent tax self-certification forms from customers?"
+        field_type: boolean
+        is_required: true
+        canonical_term: tax_self_certification_collected
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.2:0"
+
+      - field_id: q8_6_beps_mlat_procedures
+        label: "Does the institution have procedures to respond to mutual legal assistance treaty (MLAT) requests and BEPS-related information requests?"
+        field_type: boolean
+        is_required: true
+        canonical_term: mlat_beps_procedures
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+
+      - field_id: q8_7_shell_bank_prohibition
+        label: "Does the institution have a policy prohibiting the opening or maintaining of accounts for shell banks?"
+        field_type: boolean
+        is_required: true
+        canonical_term: shell_bank_prohibition_policy
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.9:0"
+          - "obl:fatf_40:R.18:0"
+
+      - field_id: q8_8_kyc_record_retention
+        label: "How long are KYC and customer due diligence records retained after relationship termination?"
+        field_type: enum_single
+        is_required: true
+        canonical_term: kyc_record_retention_years
+        enum_values:
+          - "5_years"
+          - "7_years"
+          - "10_years"
+          - other
+        obligation_refs:
+          - "obl:fatf_40:R.20:0"
+          - "obl:eu_amlr_2024_1624:21:0"
+
+      - field_id: q8_9_aeoi_reporting_jurisdictions
+        label: "List all jurisdictions under which the institution has AEOI/CRS reporting obligations"
+        field_type: list
+        is_required: false
+        canonical_term: aeoi_reporting_jurisdictions
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.2:0"
+
+      - field_id: q8_10_country_by_country_reporting
+        label: "Is the institution subject to country-by-country reporting (CbCR) obligations?"
+        field_type: boolean
+        is_required: true
+        canonical_term: country_by_country_reporting
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.2:0"
+
+      - field_id: q8_11_tax_governance_framework
+        label: "Does the institution maintain a board-approved tax governance / tax risk framework?"
+        field_type: boolean
+        is_required: true
+        canonical_term: tax_governance_framework
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+
+      - field_id: q8_12_ubo_tax_residence_collected
+        label: "Does the institution collect tax residency and TIN information for all beneficial owners?"
+        field_type: boolean
+        is_required: true
+        canonical_term: ubo_tax_residence_collected
+        obligation_refs:
+          - "obl:wolfsberg_cb:P.7:0"
+          - "obl:eu_amlr_2024_1624:34:0"
