@@ -1,0 +1,22 @@
+schema_version: "1.0.0"
+blueprint_id: kpmg_clara_overlay
+name: KPMG Clara Overlay
+inherits_from: big4_spine
+firm: KPMG
+procedure_extensions:
+  - id: proc_understanding_entity
+    firm_name: Business Understanding (Clara BPM)
+    firm_tools: ["Clara Business Process Mining"]
+    signoff_chain: ["staff", "senior", "manager"]
+  - id: proc_risk_assessment
+    firm_name: Risk Assessment Workflow (RAW)
+    firm_tools: ["Clara Risk Workflow"]
+    signoff_chain: ["senior", "manager", "partner"]
+  - id: proc_eqr
+    firm_name: EQCR Multi-Point Review
+    firm_tools: ["Clara EQCR"]
+    signoff_chain: ["EQCR partner"]
+  - id: proc_opinion
+    firm_name: Auditor's Report
+    firm_tools: ["Clara Reporting"]
+    signoff_chain: ["partner", "EQR partner"]

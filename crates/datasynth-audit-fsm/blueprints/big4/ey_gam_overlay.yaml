@@ -1,0 +1,22 @@
+schema_version: "1.0.0"
+blueprint_id: ey_gam_overlay
+name: EY GAM Overlay
+inherits_from: big4_spine
+firm: EY
+procedure_extensions:
+  - id: proc_understanding_entity
+    firm_name: Understand the Entity (EY)
+    firm_tools: ["Helix GL", "Helix Analytics", "Atlas KMS"]
+    signoff_chain: ["staff", "senior", "manager", "partner"]
+  - id: proc_risk_assessment
+    firm_name: Risk Assessment & Response (RAR)
+    firm_tools: ["EY Helix RA", "Atlas RAR module"]
+    signoff_chain: ["senior", "manager", "partner"]
+  - id: proc_substantive_procedures
+    firm_name: Substantive Audit Procedures
+    firm_tools: ["EY Helix Substantive", "Helix Sampling"]
+    signoff_chain: ["staff", "senior", "manager"]
+  - id: proc_opinion
+    firm_name: Auditor's Report
+    firm_tools: ["EY Atlas Reporting"]
+    signoff_chain: ["partner", "EQR partner"]

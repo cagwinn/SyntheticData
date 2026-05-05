@@ -1,0 +1,22 @@
+schema_version: "1.0.0"
+blueprint_id: pwc_aura_overlay
+name: PwC Aura Overlay
+inherits_from: big4_spine
+firm: PwC
+procedure_extensions:
+  - id: proc_acceptance
+    firm_name: Engagement Acceptance (FRisk)
+    firm_tools: ["PwC FRisk"]
+    signoff_chain: ["partner", "risk-management partner"]
+  - id: proc_risk_assessment
+    firm_name: Risk Assessment Matrix
+    firm_tools: ["Aura Risk Module"]
+    signoff_chain: ["senior", "manager", "partner"]
+  - id: proc_substantive_procedures
+    firm_name: Substantive Procedures
+    firm_tools: ["Aura Substantive Workflow"]
+    signoff_chain: ["staff", "senior", "manager"]
+  - id: proc_opinion
+    firm_name: Auditor's Report
+    firm_tools: ["Aura Reporting"]
+    signoff_chain: ["partner", "EQR partner"]

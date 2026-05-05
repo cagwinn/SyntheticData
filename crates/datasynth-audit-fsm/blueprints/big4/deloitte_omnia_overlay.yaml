@@ -1,0 +1,22 @@
+schema_version: "1.0.0"
+blueprint_id: deloitte_omnia_overlay
+name: Deloitte Omnia Overlay
+inherits_from: big4_spine
+firm: Deloitte
+procedure_extensions:
+  - id: proc_understanding_entity
+    firm_name: Cortex Data Ingestion + Argus Document Extraction
+    firm_tools: ["Cortex", "Argus", "DartBot Research"]
+    signoff_chain: ["staff", "senior", "manager"]
+  - id: proc_risk_assessment
+    firm_name: Risk Assessment Response (RAR)
+    firm_tools: ["Omnia RAR Module"]
+    signoff_chain: ["senior", "manager", "partner"]
+  - id: proc_substantive_procedures
+    firm_name: Substantive Procedures with iConfirm
+    firm_tools: ["iConfirm", "Omnia Substantive"]
+    signoff_chain: ["staff", "senior", "manager"]
+  - id: proc_opinion
+    firm_name: Auditor's Report
+    firm_tools: ["Omnia Reporting"]
+    signoff_chain: ["partner", "EQR partner"]

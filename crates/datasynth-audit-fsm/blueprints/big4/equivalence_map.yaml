@@ -1,0 +1,35 @@
+schema_version: "1.0.0"
+description: |
+  Cross-firm equivalence map. Each entry maps a spine procedure ID to the
+  firm-specific naming used in each Big4 methodology.
+procedure_equivalence:
+  proc_acceptance:
+    ey: "Acceptance & Continuance"
+    pwc: "Engagement Acceptance (FRisk)"
+    kpmg: "Acceptance Workflow"
+    deloitte: "Engagement Compliance Review"
+  proc_risk_assessment:
+    ey: "Risk Assessment & Response (RAR)"
+    pwc: "Risk Assessment Matrix"
+    kpmg: "Risk Assessment Workflow (RAW)"
+    deloitte: "Risk Assessment Response (RAR)"
+  proc_understanding_entity:
+    ey: "Understand the Entity"
+    pwc: "Understand the Business"
+    kpmg: "Business Process Mining"
+    deloitte: "Cortex Data Ingestion + Argus Extraction"
+  proc_substantive_procedures:
+    ey: "Substantive Audit Procedures"
+    pwc: "Substantive Procedures"
+    kpmg: "Substantive Procedures"
+    deloitte: "Substantive Procedures with iConfirm"
+  proc_eqr:
+    ey: "EQR"
+    pwc: "EQR"
+    kpmg: "EQCR Multi-Point Review"
+    deloitte: "EQR"
+  proc_opinion:
+    ey: "Auditor's Report"
+    pwc: "Auditor's Report"
+    kpmg: "Auditor's Report"
+    deloitte: "Auditor's Report"

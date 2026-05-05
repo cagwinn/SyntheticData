@@ -1,0 +1,80 @@
+schema_version: "1.0.0"
+blueprint_id: big4_spine
+name: Big4 ISA-Derived Common Spine
+description: |
+  Jurisdiction-neutral, tool-neutral procedure tree derived from the ISAs.
+  Big4 firm overlays inherit from this spine and add firm-specific tools,
+  naming, and signoff chains. Used as the harmonization root for EY GAM,
+  PwC Aura, KPMG Clara, and Deloitte Omnia.
+
+phases:
+  - id: phase_pre_engagement
+    name: Pre-engagement
+    procedures:
+      - id: proc_acceptance
+        name: Acceptance and Continuance
+        isa_refs: ["ISA 220 R12-R14", "IESBA Code R210"]
+      - id: proc_independence
+        name: Independence Assessment
+        isa_refs: ["IESBA Code R290", "ISA 220 R11"]
+      - id: proc_engagement_letter
+        name: Engagement Letter
+        isa_refs: ["ISA 210"]
+
+  - id: phase_planning
+    name: Planning
+    procedures:
+      - id: proc_understanding_entity
+        name: Understanding Entity and Environment
+        isa_refs: ["ISA 315 R11-R28"]
+      - id: proc_materiality
+        name: Determine Materiality
+        isa_refs: ["ISA 320", "ISA 600 R32-R34"]
+      - id: proc_risk_assessment
+        name: Risk Assessment Procedures
+        isa_refs: ["ISA 315", "ISA 240 R16-R24"]
+      - id: proc_audit_strategy
+        name: Overall Audit Strategy
+        isa_refs: ["ISA 300 R7-R12"]
+
+  - id: phase_execution
+    name: Execution
+    procedures:
+      - id: proc_test_of_controls
+        name: Tests of Controls
+        isa_refs: ["ISA 330 R8-R17"]
+      - id: proc_substantive_procedures
+        name: Substantive Procedures
+        isa_refs: ["ISA 330 R18-R23", "ISA 500", "ISA 520", "ISA 530"]
+      - id: proc_specific_areas
+        name: Specific-Area Procedures
+        isa_refs:
+          - "ISA 540 (estimates)"
+          - "ISA 550 (related parties)"
+          - "ISA 501 (inventory)"
+          - "ISA 505 (confirmations)"
+      - id: proc_group_components
+        name: Group / Component Procedures
+        isa_refs: ["ISA 600 R29-R51"]
+
+  - id: phase_closure
+    name: Closure
+    procedures:
+      - id: proc_subsequent_events
+        name: Subsequent Events
+        isa_refs: ["ISA 560"]
+      - id: proc_going_concern
+        name: Going Concern Conclusion
+        isa_refs: ["ISA 570"]
+      - id: proc_written_representations
+        name: Written Representations
+        isa_refs: ["ISA 580"]
+      - id: proc_communication_tcwg
+        name: Communication with TCWG
+        isa_refs: ["ISA 260", "ISA 265"]
+      - id: proc_eqr
+        name: Engagement Quality Review
+        isa_refs: ["ISQM 2"]
+      - id: proc_opinion
+        name: Auditor's Report and Opinion
+        isa_refs: ["ISA 700", "ISA 701", "ISA 705", "ISA 706", "ISA 720"]
