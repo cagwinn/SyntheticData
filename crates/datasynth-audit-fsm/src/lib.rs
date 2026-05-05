@@ -47,3 +47,4 @@ pub mod scenario_library;
 pub mod rmm_scoring;
 pub mod schema;
 pub mod streaming;
+pub mod working_paper_merkle;
