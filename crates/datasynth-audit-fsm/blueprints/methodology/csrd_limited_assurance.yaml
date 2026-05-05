@@ -1,0 +1,260 @@
+schema_version: "1.0.0"
+blueprint_id: csrd_limited_assurance
+name: CSRD Limited Assurance Engagement
+description: |
+  Limited assurance engagement covering EU CSRD sustainability disclosures
+  per Directive 2022/2464, ESRS Delegated Regulation 2023/2772, and
+  ISAE 3000 (Revised) Assurance Engagements Other Than Audits or Reviews.
+assurance_level: limited
+phases:
+  - id: phase_acceptance
+    name: Engagement Acceptance + Scope
+    description: >
+      Confirm that the engagement is within scope of CSRD Directive 2022/2464
+      and establish the ISAE 3000 assurance framework and terms of engagement.
+    procedures:
+      - id: proc_csrd_acceptance
+        name: Confirm CSRD scope and ISAE 3000 framework
+        esrs_refs:
+          - esrs_1
+        isae_refs:
+          - "ISAE 3000 R20-R26"
+        assurance_level: limited
+        description: >
+          Assess whether the entity is within CSRD scope (wave classification),
+          confirm ISAE 3000 (Revised) as the applicable framework, agree
+          engagement terms including use of materiality and scope limitations,
+          and document the preconditions for acceptance per ISAE 3000 R20-R26.
+
+  - id: phase_planning_materiality
+    name: Planning + Sustainability Materiality
+    description: >
+      Understand the entity's sustainability reporting process, assess
+      double-materiality, scope ESRS topics, and set assurance-level
+      materiality thresholds.
+    procedures:
+      - id: proc_csrd_double_materiality
+        name: Review management's double-materiality assessment
+        esrs_refs:
+          - esrs_1
+          - esrs_2
+        isae_refs:
+          - "ISAE 3000 R29"
+        assurance_level: limited
+        description: >
+          Obtain and evaluate management's double-materiality assessment
+          (impact materiality + financial materiality per ESRS 1 AR16).
+          Assess whether the methodology applied is consistent with ESRS 1
+          requirements and whether significant topics have been identified or
+          excluded with adequate rationale.
+      - id: proc_csrd_scoping
+        name: Scoping by ESRS topic relevance
+        esrs_refs:
+          - esrs_1
+          - esrs_2
+        isae_refs:
+          - "ISAE 3000 R30"
+        assurance_level: limited
+        description: >
+          Determine which topical ESRS standards (E1-E5, S1-S4, G1) are
+          applicable based on the entity's materiality assessment and sector
+          context. Document the rationale for any omissions permitted under
+          ESRS 1 phase-in provisions.
+      - id: proc_csrd_sustainability_materiality
+        name: Set sustainability materiality thresholds
+        esrs_refs:
+          - esrs_1
+        isae_refs:
+          - "ISAE 3000 R30"
+        assurance_level: limited
+        description: >
+          Establish quantitative and qualitative materiality thresholds for
+          the sustainability statement. Considering ESRS 1 requirements,
+          determine planning materiality and performance materiality for
+          evaluating misstatements in sustainability disclosures.
+
+  - id: phase_evidence_environmental
+    name: Environmental Disclosures (E1-E5)
+    description: >
+      Obtain limited assurance evidence over each applicable environmental
+      standard disclosure. For each standard, the practitioner applies
+      inquiry, analytical procedures, and observation consistent with
+      ISAE 3000 limited assurance.
+    procedures:
+      - id: proc_e1_climate
+        name: Climate disclosures (GHG, transition plan)
+        esrs_refs:
+          - e1_climate
+        isae_refs:
+          - "ISAE 3000 R49L"
+        assurance_level: limited
+        description: >
+          Assess the completeness and accuracy of ESRS E1 disclosures including
+          GHG inventory (Scope 1, 2, 3), climate transition plan, climate-related
+          targets and progress metrics. Verify alignment with GHG Protocol and
+          TCFD-compatible disclosure requirements embedded in ESRS E1.
+      - id: proc_e2_pollution
+        name: Pollution disclosures
+        esrs_refs:
+          - e2_pollution
+        isae_refs:
+          - "ISAE 3000 R49L"
+        assurance_level: limited
+        description: >
+          Evaluate ESRS E2 disclosures on air, water, and soil pollution
+          including substance-of-very-high-concern (SVHC) reporting and
+          pollution prevention policies.
+      - id: proc_e3_water
+        name: Water and marine resources disclosures
+        esrs_refs:
+          - e3_water
+        isae_refs:
+          - "ISAE 3000 R49L"
+        assurance_level: limited
+        description: >
+          Evaluate ESRS E3 disclosures on water consumption, water recycling,
+          and impacts on marine resources. Assess data collection methodology
+          and alignment with water-stressed area identification requirements.
+      - id: proc_e4_biodiversity
+        name: Biodiversity and ecosystems disclosures
+        esrs_refs:
+          - e4_biodiversity
+        isae_refs:
+          - "ISAE 3000 R49L"
+        assurance_level: limited
+        description: >
+          Assess ESRS E4 disclosures covering impact drivers on biodiversity
+          (land use, pollution, invasive species), biodiversity-sensitive area
+          operations, and alignment with the Global Biodiversity Framework.
+      - id: proc_e5_resources
+        name: Resource use and circular economy disclosures
+        esrs_refs:
+          - e5_resources
+        isae_refs:
+          - "ISAE 3000 R49L"
+        assurance_level: limited
+        description: >
+          Evaluate ESRS E5 disclosures on resource inflows/outflows, waste
+          management practices, and circular economy metrics. Assess
+          consistency with EU Taxonomy reporting where applicable.
+
+  - id: phase_evidence_social
+    name: Social Disclosures (S1-S4)
+    description: >
+      Obtain limited assurance evidence over each applicable social standard
+      disclosure, including own workforce, value chain workers, affected
+      communities, and consumers.
+    procedures:
+      - id: proc_s1_own_workforce
+        name: Own workforce disclosures
+        esrs_refs:
+          - s1_own_workforce
+        isae_refs:
+          - "ISAE 3000 R49L"
+        assurance_level: limited
+        description: >
+          Assess ESRS S1 disclosures on own workforce including headcount
+          metrics, diversity statistics, pay gap data, health and safety
+          indicators, and policies for working conditions. Evaluate data
+          collection across employment categories (employees, non-employees).
+      - id: proc_s2_value_chain_workers
+        name: Workers in value chain disclosures
+        esrs_refs:
+          - s2_value_chain_workers
+        isae_refs:
+          - "ISAE 3000 R49L"
+        assurance_level: limited
+        description: >
+          Evaluate ESRS S2 disclosures regarding impacts on workers throughout
+          the upstream and downstream value chain. Assess due diligence process
+          disclosures, remedy mechanisms, and supplier engagement practices.
+      - id: proc_s3_affected_communities
+        name: Affected communities disclosures
+        esrs_refs:
+          - s3_affected_communities
+        isae_refs:
+          - "ISAE 3000 R49L"
+        assurance_level: limited
+        description: >
+          Assess ESRS S3 disclosures on impacts to local and indigenous
+          communities, including community engagement processes, land rights,
+          and social impact mitigation measures.
+      - id: proc_s4_consumers
+        name: Consumers and end-users disclosures
+        esrs_refs:
+          - s4_consumers
+        isae_refs:
+          - "ISAE 3000 R49L"
+        assurance_level: limited
+        description: >
+          Evaluate ESRS S4 disclosures covering product safety, privacy, data
+          protection, and responsible marketing practices affecting consumers
+          and end-users.
+
+  - id: phase_evidence_governance
+    name: Governance Disclosures (G1)
+    description: >
+      Obtain limited assurance evidence over business conduct disclosures
+      under ESRS G1.
+    procedures:
+      - id: proc_g1_business_conduct
+        name: Business conduct disclosures
+        esrs_refs:
+          - g1_business_conduct
+        isae_refs:
+          - "ISAE 3000 R49L"
+        assurance_level: limited
+        description: >
+          Assess ESRS G1 disclosures on corporate culture, whistleblower
+          protections, anti-bribery and anti-corruption policies, political
+          engagement, and payment practices. Evaluate alignment with applicable
+          national legislation and entity-level conduct policies.
+
+  - id: phase_review_reporting
+    name: Review + Reporting
+    description: >
+      Perform wrap-up review procedures, assess the sustainability statement
+      for consistency with the financial statements, and issue the ISAE 3000
+      limited assurance conclusion.
+    procedures:
+      - id: proc_esef_tagging_consistency
+        name: ESEF tagging consistency check
+        esrs_refs:
+          - esrs_1
+          - esrs_2
+        isae_refs:
+          - "ISAE 3000 R72"
+        assurance_level: limited
+        description: >
+          Verify that the sustainability disclosures tagged under the European
+          Single Electronic Format (ESEF) taxonomy are consistent with the
+          underlying narrative and quantitative disclosures. Assess application
+          of ESRS XBRL tags per ESMA requirements embedded in CSRD reporting.
+      - id: proc_csrd_going_concern_interaction
+        name: Sustainability-disclosure interaction with going-concern
+        esrs_refs:
+          - esrs_2
+          - e1_climate
+        isae_refs:
+          - "ISAE 3000 R56"
+        assurance_level: limited
+        description: >
+          Assess whether material climate-related and other sustainability risks
+          disclosed under ESRS interact with the entity's going-concern
+          assessment under ISA 570. Evaluate whether management has adequately
+          disclosed climate-related financial risks that may affect viability.
+      - id: proc_csrd_conclusion_drafting
+        name: Draft assurance conclusion
+        esrs_refs:
+          - esrs_1
+          - esrs_2
+        isae_refs:
+          - "ISAE 3000 R69-R76"
+        assurance_level: limited
+        description: >
+          Draft the limited assurance conclusion in accordance with ISAE 3000
+          (Revised) R69-R76. The conclusion states whether anything has come to
+          the practitioner's attention to indicate that the sustainability
+          statement is not prepared, in all material respects, in accordance
+          with the applicable ESRS framework. Ensure the report meets CSRD
+          Article 26 assurance reporting requirements.

@@ -38,5 +38,6 @@ pub mod export;
 pub mod jurisdictional_overlay;
 pub mod live_injection;
 pub mod loader;
+pub mod methodology_blueprint;
 pub mod schema;
 pub mod streaming;

@@ -1,0 +1,747 @@
+schema_version: "1.0.0"
+blueprint_id: iso_600_revised
+name: ISA 600 (Revised) Group Audit Blueprint
+description: |
+  Procedure tree covering all requirement paragraphs of ISA 600 (Revised)
+  "Special Considerations – Audits of Group Financial Statements
+  (Including the Work of Component Auditors)".
+  Six phases mirror the engagement lifecycle: acceptance → planning →
+  component communication → evidence & misstatements →
+  subsequent events & review → documentation & communication.
+  Every procedure and step carries at least one ISA 600 requirement citation.
+
+phases:
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # PHASE 1: Acceptance and Continuance
+  # ISA 600 paragraphs: R16, R17, R18
+  # ─────────────────────────────────────────────────────────────────────────
+  - id: phase_acceptance_continuance
+    name: Acceptance and Continuance
+    description: >
+      The group engagement partner determines whether to accept or continue the
+      group audit engagement, taking overall quality-management responsibility
+      under ISA 220 (Revised) and evaluating whether sufficient appropriate
+      audit evidence can reasonably be expected to be obtained.
+    procedures:
+
+      - id: proc_quality_management_responsibility
+        name: Quality Management Responsibility (ISA 220 Application)
+        isa_refs: ["ISA 600 R16"]
+        description: >
+          Group engagement partner takes overall responsibility for managing
+          and achieving quality on the group audit engagement, including
+          determining whether the engagement complies with applicable
+          professional standards and regulatory requirements.
+        steps:
+          - id: step_qm_overall_responsibility
+            name: Assess overall quality management responsibilities
+            isa_refs: ["ISA 600 R16"]
+            evidence_kind: inspection
+            description: >
+              Review engagement-level quality management documentation to
+              confirm the group engagement partner has accepted overall
+              responsibility for quality on the group audit engagement.
+
+      - id: proc_acceptance_decision
+        name: Acceptance and Continuance Evaluation
+        isa_refs: ["ISA 600 R17"]
+        description: >
+          Before accepting or continuing, the group engagement partner
+          determines whether sufficient appropriate audit evidence can
+          reasonably be expected to be obtained for the group financial
+          statements as a whole.
+        steps:
+          - id: step_accept_evidence_expectation
+            name: Evaluate expected evidence sufficiency at acceptance stage
+            isa_refs: ["ISA 600 R17"]
+            evidence_kind: inquiry
+            description: >
+              Make enquiries of group management regarding structure, component
+              auditor access, and information availability to assess whether
+              sufficient appropriate audit evidence can be obtained.
+          - id: step_accept_document_conclusion
+            name: Document acceptance conclusion
+            isa_refs: ["ISA 600 R17"]
+            evidence_kind: inspection
+            description: >
+              Inspect engagement acceptance documentation to confirm the
+              conclusion on evidence sufficiency is recorded.
+
+      - id: proc_post_acceptance_withdrawal
+        name: Post-Acceptance Withdrawal Assessment
+        isa_refs: ["ISA 600 R18"]
+        description: >
+          If, after acceptance, the group engagement partner concludes
+          sufficient evidence cannot be obtained, the partner considers
+          withdrawal from the engagement if permitted by applicable law or
+          regulation.
+        steps:
+          - id: step_withdrawal_evaluation
+            name: Evaluate withdrawal conditions if evidence insufficient
+            isa_refs: ["ISA 600 R18"]
+            evidence_kind: inquiry
+            description: >
+              Enquire of engagement leadership and legal counsel regarding
+              withdrawal obligations if access restrictions prevent obtaining
+              sufficient audit evidence after engagement acceptance.
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # PHASE 2: Planning and Scoping
+  # ISA 600 paragraphs: R19, R20, R21, R22, R23, R24, R25, R26, R27, R28,
+  #                     R29, R30, R31, R32
+  # ─────────────────────────────────────────────────────────────────────────
+  - id: phase_planning_and_scoping
+    name: Planning and Scoping
+    description: >
+      Establish the overall group audit strategy and group audit plan, assess
+      risks, determine materiality, scope components, and evaluate component
+      auditors' competence and independence.
+    procedures:
+
+      - id: proc_group_management_agreement
+        name: Group Management Responsibilities Agreement
+        isa_refs: ["ISA 600 R19", "ISA 600 R20", "ISA 600 R21"]
+        description: >
+          Obtain group management's acknowledgement of its responsibilities
+          and evaluate any access restrictions that may prevent obtaining
+          sufficient appropriate audit evidence.
+        steps:
+          - id: step_management_agreement_letter
+            name: Obtain management acknowledgement of group responsibilities
+            isa_refs: ["ISA 600 R19"]
+            evidence_kind: inspection
+            description: >
+              Inspect engagement letter or separate acknowledgement confirming
+              group management's responsibility to provide access to
+              information and persons within the group.
+          - id: step_restriction_access_evaluation
+            name: Evaluate access restrictions affecting evidence gathering
+            isa_refs: ["ISA 600 R20"]
+            evidence_kind: inquiry
+            description: >
+              Enquire of group management about any legal, regulatory or
+              contractual restrictions limiting access to information or
+              personnel at the group or component level.
+          - id: step_opinion_impossibility_assessment
+            name: Assess whether group opinion is possible given restrictions
+            isa_refs: ["ISA 600 R21"]
+            evidence_kind: inquiry
+            description: >
+              Determine whether restrictions make it impossible to obtain
+              sufficient appropriate evidence; consider disclaiming the opinion
+              or other implications.
+
+      - id: proc_group_audit_strategy_and_plan
+        name: Group Audit Strategy and Audit Plan
+        isa_refs: ["ISA 600 R22"]
+        description: >
+          Establish, and update as necessary, the overall group audit strategy
+          and group audit plan in accordance with ISA 300.
+        steps:
+          - id: step_strategy_document
+            name: Prepare overall group audit strategy document
+            isa_refs: ["ISA 600 R22"]
+            evidence_kind: inspection
+            description: >
+              Review the documented group audit strategy for completeness,
+              including planned scope of work at group and component levels,
+              timing, and direction of the engagement team.
+          - id: step_plan_update
+            name: Update group audit plan as circumstances change
+            isa_refs: ["ISA 600 R22"]
+            evidence_kind: inspection
+            description: >
+              Inspect revised audit plan documents to confirm they reflect
+              changes in circumstances identified during the engagement.
+
+      - id: proc_fraud_risk_and_component_auditor_cooperation
+        name: Fraud Risk Assessment and Component Auditor Cooperation
+        isa_refs: ["ISA 600 R23", "ISA 600 R24"]
+        description: >
+          Evaluate whether the group auditor will be able to be involved
+          sufficiently in component auditor work; confirm component auditor
+          cooperation; assess fraud risks at the group level.
+        steps:
+          - id: step_involvement_evaluation
+            name: Evaluate group auditor involvement in component work
+            isa_refs: ["ISA 600 R23"]
+            evidence_kind: analytical
+            description: >
+              Assess planned level of involvement in component auditor work
+              to evaluate whether identified fraud risks can be adequately
+              addressed and whether sufficient appropriate evidence can be
+              obtained.
+          - id: step_component_auditor_cooperation_confirmation
+            name: Request component auditor cooperation confirmation
+            isa_refs: ["ISA 600 R24"]
+            evidence_kind: inquiry
+            description: >
+              Request confirmation from component auditors that they will
+              cooperate with the group auditor, including providing access
+              to their working papers if required.
+
+      - id: proc_component_auditor_competence_independence
+        name: Component Auditor Competence and Independence
+        isa_refs: ["ISA 600 R25", "ISA 600 R26"]
+        description: >
+          Take responsibility for understanding component auditors' professional
+          competence and independence; determine whether they have appropriate
+          capabilities, including the necessary time and resources.
+        steps:
+          - id: step_component_auditor_independence
+            name: Evaluate component auditor independence
+            isa_refs: ["ISA 600 R25"]
+            evidence_kind: inspection
+            description: >
+              Review component auditor independence declarations and any
+              relevant firm-level independence monitoring information.
+          - id: step_component_auditor_capabilities
+            name: Assess component auditor capabilities and resources
+            isa_refs: ["ISA 600 R26"]
+            evidence_kind: inquiry
+            description: >
+              Enquire of component auditors regarding their understanding of
+              applicable standards, regulatory requirements, professional
+              competence, and available resources.
+
+      - id: proc_components_without_component_auditor
+        name: Components Audited Without Component Auditor Involvement
+        isa_refs: ["ISA 600 R27"]
+        description: >
+          Obtain sufficient appropriate audit evidence for components where
+          component auditors are not involved, including through direct
+          performance of procedures.
+        steps:
+          - id: step_direct_procedures_planning
+            name: Plan direct procedures for components without component auditors
+            isa_refs: ["ISA 600 R27"]
+            evidence_kind: inspection
+            description: >
+              Inspect audit plan for components where the group team performs
+              work directly, confirming planned procedures are sufficient to
+              obtain the required evidence.
+
+      - id: proc_direction_supervision_review
+        name: Direction, Supervision and Review Planning
+        isa_refs: ["ISA 600 R28"]
+        description: >
+          Take responsibility for the nature, timing and extent of direction,
+          supervision and review of component auditors' work, commensurate
+          with the assessed risks of material misstatement and the group
+          auditor's understanding of component auditors.
+        steps:
+          - id: step_dsr_plan
+            name: Document direction, supervision and review plan
+            isa_refs: ["ISA 600 R28"]
+            evidence_kind: inspection
+            description: >
+              Review documentation of planned direction, supervision and
+              review activities for component auditors, including the
+              group engagement partner's involvement.
+
+      - id: proc_component_communication_planning
+        name: Component Communication — Pre-Engagement Planning
+        isa_refs: ["ISA 600 R29"]
+        description: >
+          Communicate with component auditors regarding their respective
+          responsibilities and the group auditor's expectations before
+          component work commences.
+        steps:
+          - id: step_initial_communication_letter
+            name: Issue initial communication to component auditors
+            isa_refs: ["ISA 600 R29"]
+            evidence_kind: inspection
+            description: >
+              Inspect the group auditor's communication to component auditors,
+              confirming it covers their responsibilities, the applicable
+              standards, the group audit plan and timelines.
+
+      - id: proc_group_understanding_and_component_scoping
+        name: Group-Level Understanding and Component Scoping
+        isa_refs: ["ISA 600 R30", "ISA 600 R31", "ISA 600 R32"]
+        description: >
+          Obtain an understanding of the group and its environment as required
+          by ISA 315; communicate relevant matters to component auditors
+          and receive timely communications from component auditors on
+          scoping-related matters.
+        steps:
+          - id: step_group_understanding
+            name: Obtain understanding of group, its components and environment
+            isa_refs: ["ISA 600 R30"]
+            evidence_kind: analytical
+            description: >
+              Apply ISA 315 risk assessment procedures to develop understanding
+              of the group structure, significant components, consolidation
+              process, and group-level controls.
+          - id: step_outgoing_component_communication
+            name: Communicate relevant matters to component auditors
+            isa_refs: ["ISA 600 R31"]
+            evidence_kind: inspection
+            description: >
+              Review outgoing communication to component auditors confirming
+              it includes matters determined to be relevant to their audit
+              procedures on a timely basis.
+          - id: step_incoming_component_requests
+            name: Request timely communication from component auditors
+            isa_refs: ["ISA 600 R32"]
+            evidence_kind: inspection
+            description: >
+              Review received communications from component auditors on matters
+              arising during their work, including findings, issues and
+              exceptions, confirming timeliness of receipt.
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # PHASE 3: Communication with Components
+  # ISA 600 paragraphs: R33, R34, R35, R36, R37, R38, R39, R40, R41, R42, R43
+  # ─────────────────────────────────────────────────────────────────────────
+  - id: phase_communication_with_components
+    name: Communication with Components
+    description: >
+      Identify and assess risks of material misstatement in the group financial
+      statements; determine component materiality; design and communicate
+      further audit procedures to component auditors; supervise execution.
+    procedures:
+
+      - id: proc_risk_identification_group_level
+        name: Risk Identification and Assessment at Group Level
+        isa_refs: ["ISA 600 R33", "ISA 600 R34"]
+        description: >
+          Take responsibility for identifying and assessing risks of material
+          misstatement at the group financial statement level, using the
+          understanding obtained in Phase 2, and evaluate whether risk
+          assessment procedures performed by component auditors are sufficient.
+        steps:
+          - id: step_group_risk_identification
+            name: Identify risks of material misstatement at group level
+            isa_refs: ["ISA 600 R33"]
+            evidence_kind: analytical
+            description: >
+              Apply ISA 315 to identify and assess risks of material
+              misstatement in the group financial statements arising from
+              the group's entity-level controls, consolidation process,
+              and component-level activities.
+          - id: step_component_risk_assessment_evaluation
+            name: Evaluate component auditor risk assessment procedures
+            isa_refs: ["ISA 600 R34"]
+            evidence_kind: inspection
+            description: >
+              Inspect component auditors' risk assessment documentation to
+              evaluate whether procedures performed are sufficient for the
+              group audit purposes.
+
+      - id: proc_materiality_determination_and_communication
+        name: Materiality Determination and Communication
+        isa_refs: ["ISA 600 R35", "ISA 600 R36"]
+        description: >
+          Determine component materiality and performance materiality for
+          components; communicate those amounts to component auditors.
+        steps:
+          - id: step_component_materiality_calculation
+            name: Calculate component materiality and performance materiality
+            isa_refs: ["ISA 600 R35"]
+            evidence_kind: recalculation
+            description: >
+              Apply ISA 320 and ISA 450 to calculate component materiality
+              (and performance materiality) for each component where component
+              auditors will perform work; disaggregate by class of transaction,
+              account balance, and disclosure as appropriate.
+          - id: step_communicate_materiality
+            name: Communicate materiality amounts to component auditors
+            isa_refs: ["ISA 600 R36"]
+            evidence_kind: inspection
+            description: >
+              Inspect outgoing communications to component auditors to confirm
+              materiality amounts, thresholds for communication of misstatements,
+              and performance materiality have been included.
+
+      - id: proc_further_audit_procedures_design
+        name: Further Audit Procedures — Design and Responsibility
+        isa_refs: ["ISA 600 R37", "ISA 600 R38"]
+        description: >
+          Take responsibility for the nature, timing and extent of further
+          audit procedures to respond to assessed risks; design and
+          perform group-level procedures to respond to risks of material
+          misstatement of the group financial statements.
+        steps:
+          - id: step_further_procedures_responsibility
+            name: Assume responsibility for further audit procedure design
+            isa_refs: ["ISA 600 R37"]
+            evidence_kind: inspection
+            description: >
+              Review engagement planning documentation confirming the group
+              engagement partner has assumed responsibility for the nature,
+              timing and extent of further audit procedures across all
+              significant components.
+          - id: step_group_level_procedures
+            name: Design group-level further audit procedures
+            isa_refs: ["ISA 600 R38"]
+            evidence_kind: inspection
+            description: >
+              Inspect the group audit plan for procedures responding to
+              assessed risks of material misstatement at the group financial
+              statement level, including consolidation and elimination entries.
+
+      - id: proc_accounting_policies_and_reporting_dates
+        name: Accounting Policy Consistency and Component Reporting Dates
+        isa_refs: ["ISA 600 R39", "ISA 600 R40"]
+        description: >
+          Address differences in accounting policies applied across components
+          and any differences in component financial reporting period-ends
+          relative to the group financial statements date.
+        steps:
+          - id: step_accounting_policy_consistency
+            name: Assess accounting policy differences across components
+            isa_refs: ["ISA 600 R39"]
+            evidence_kind: inspection
+            description: >
+              Inspect component financial statements and group consolidation
+              workpapers to identify components applying different accounting
+              policies and confirm that appropriate adjustments are made.
+          - id: step_reporting_date_differences
+            name: Address component period-end differences
+            isa_refs: ["ISA 600 R40"]
+            evidence_kind: inspection
+            description: >
+              Inspect consolidation procedures applied to components whose
+              period-end differs from the group to confirm appropriate
+              adjustments and disclosures have been made.
+
+      - id: proc_gai_letters_and_higher_risk_areas
+        name: GAI Letters and Higher-Risk Area Procedures
+        isa_refs: ["ISA 600 R41", "ISA 600 R42", "ISA 600 R43"]
+        description: >
+          Communicate group-level instructions to component auditors when
+          involving them in further audit procedures; specify enhanced
+          procedures for higher-risk areas; address consolidation process.
+        steps:
+          - id: step_gai_letter_issuance
+            name: Issue group audit instructions to component auditors
+            isa_refs: ["ISA 600 R41"]
+            evidence_kind: inspection
+            description: >
+              Inspect Group Audit Instructions (GAI) letters issued to
+              component auditors to confirm they cover identified risks,
+              required procedures, materiality, reporting deadlines, and
+              other relevant matters.
+          - id: step_higher_risk_procedures
+            name: Specify and review higher-risk area procedures
+            isa_refs: ["ISA 600 R42"]
+            evidence_kind: inspection
+            description: >
+              For areas of higher assessed risk and significant risks, inspect
+              the group audit plan to confirm component auditors have been
+              directed to perform additional or more targeted procedures.
+          - id: step_consolidation_procedures
+            name: Oversee component auditor consolidation procedures
+            isa_refs: ["ISA 600 R43"]
+            evidence_kind: reperformance
+            description: >
+              Where component auditors perform further audit procedures on the
+              consolidation process (including sub-consolidations), review
+              their procedures and reperform selected consolidation steps
+              to confirm accuracy.
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # PHASE 4: Evidence and Misstatements
+  # ISA 600 paragraphs: R44, R45, R46, R47, R48
+  # ─────────────────────────────────────────────────────────────────────────
+  - id: phase_evidence_and_misstatements
+    name: Evidence and Misstatements
+    description: >
+      Evaluate the sufficiency and appropriateness of audit evidence from
+      component auditors; aggregate uncorrected misstatements; determine
+      whether additional procedures are needed when component auditor work
+      is inadequate.
+    procedures:
+
+      - id: proc_component_auditor_communications_review
+        name: Review of Component Auditor Communications
+        isa_refs: ["ISA 600 R44", "ISA 600 R45"]
+        description: >
+          Determine whether the financial information in component auditor
+          communications is appropriate and complete; request component
+          auditors to communicate all matters relevant to the group audit
+          conclusion.
+        steps:
+          - id: step_financial_information_adequacy
+            name: Assess adequacy of financial information in component communications
+            isa_refs: ["ISA 600 R44"]
+            evidence_kind: inspection
+            description: >
+              Review component auditor reports and communications to determine
+              whether the financial information provided is sufficiently
+              complete and appropriate to support the group audit conclusion.
+          - id: step_request_component_conclusion_matters
+            name: Request matters relevant to group audit conclusion
+            isa_refs: ["ISA 600 R45"]
+            evidence_kind: inspection
+            description: >
+              Inspect component auditor communication templates and received
+              reports to confirm they include all matters required: findings,
+              misstatements, significant risks, deficiencies, and going
+              concern indicators.
+
+      - id: proc_misstatement_evaluation_and_workpaper_review
+        name: Misstatement Evaluation and Additional Documentation Review
+        isa_refs: ["ISA 600 R46", "ISA 600 R47"]
+        description: >
+          Discuss significant matters from component auditor communications
+          with management and component auditors; determine whether additional
+          component auditor documentation needs to be reviewed.
+        steps:
+          - id: step_discuss_significant_matters
+            name: Discuss significant component matters with management
+            isa_refs: ["ISA 600 R46"]
+            evidence_kind: inquiry
+            description: >
+              Enquire of group management and component auditors regarding
+              significant matters arising from component auditor communications,
+              document discussions and management's responses.
+          - id: step_additional_documentation_review
+            name: Determine whether to review additional component documentation
+            isa_refs: ["ISA 600 R47"]
+            evidence_kind: inspection
+            description: >
+              Assess whether it is necessary to review additional component
+              auditor working papers beyond the summary communication; inspect
+              selected component workpapers where additional review is required.
+
+      - id: proc_inadequate_component_work
+        name: Response to Inadequate Component Auditor Work
+        isa_refs: ["ISA 600 R48"]
+        description: >
+          If the group auditor concludes that a component auditor's work
+          is not adequate, determine and perform additional procedures,
+          including performing additional procedures directly at the component.
+        steps:
+          - id: step_inadequacy_assessment
+            name: Identify and conclude on component work inadequacy
+            isa_refs: ["ISA 600 R48"]
+            evidence_kind: inspection
+            description: >
+              Review component audit deliverables against GAI requirements
+              and group audit standards; document the basis for any conclusion
+              that component work is inadequate.
+          - id: step_supplemental_procedures
+            name: Perform supplemental procedures for inadequate component work
+            isa_refs: ["ISA 600 R48"]
+            evidence_kind: reperformance
+            description: >
+              Design and perform additional audit procedures (including direct
+              testing or extended review of component working papers) to
+              compensate for any identified inadequacy in component auditor work.
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # PHASE 5: Subsequent Events and Completion Review
+  # ISA 600 paragraphs: R49, R50, R51, R52, R53, R54, R55
+  # ─────────────────────────────────────────────────────────────────────────
+  - id: phase_subsequent_events_and_review
+    name: Subsequent Events and Completion Review
+    description: >
+      Apply ISA 560 subsequent events procedures at group and component levels;
+      evaluate sufficiency of evidence obtained; aggregate uncorrected
+      misstatements; conclude on the group audit opinion; address fraud
+      identified during the engagement.
+    procedures:
+
+      - id: proc_subsequent_events
+        name: Subsequent Events Procedures
+        isa_refs: ["ISA 600 R49", "ISA 600 R50"]
+        description: >
+          Take responsibility for performing subsequent events procedures
+          including requesting component auditors to notify the group auditor
+          of subsequent events that may require adjustment or disclosure.
+        steps:
+          - id: step_group_subsequent_events
+            name: Perform group-level subsequent events procedures
+            isa_refs: ["ISA 600 R49"]
+            evidence_kind: inquiry
+            description: >
+              Apply ISA 560 procedures at the group level; enquire of group
+              management and review board minutes, management accounts and
+              other information for events between the reporting date and
+              the date of the auditor's report.
+          - id: step_component_subsequent_events_notification
+            name: Request component auditors to notify of subsequent events
+            isa_refs: ["ISA 600 R50"]
+            evidence_kind: inspection
+            description: >
+              Inspect the subsequent events section of GAI letters and received
+              component notifications to confirm component auditors have been
+              required to notify the group auditor of subsequent events
+              that may affect the group financial statements.
+
+      - id: proc_evidence_sufficiency_and_misstatement_evaluation
+        name: Evidence Sufficiency and Uncorrected Misstatement Evaluation
+        isa_refs: ["ISA 600 R51", "ISA 600 R52"]
+        description: >
+          Evaluate whether sufficient appropriate audit evidence has been
+          obtained from the overall audit procedures; evaluate uncorrected
+          misstatements and their effect on the group audit opinion.
+        steps:
+          - id: step_evidence_sufficiency_conclusion
+            name: Conclude on sufficiency of audit evidence obtained
+            isa_refs: ["ISA 600 R51"]
+            evidence_kind: inspection
+            description: >
+              Apply ISA 330 evaluation to conclude whether sufficient
+              appropriate audit evidence has been obtained from audit procedures
+              performed across all components and at the group level.
+          - id: step_uncorrected_misstatements
+            name: Evaluate uncorrected misstatements on group opinion
+            isa_refs: ["ISA 600 R52"]
+            evidence_kind: analytical
+            description: >
+              Aggregate uncorrected misstatements identified by the group and
+              component auditors; evaluate their combined effect on the group
+              financial statements and the auditor's report.
+
+      - id: proc_auditor_report_component_reference
+        name: Auditor's Report — Component Auditor Reference
+        isa_refs: ["ISA 600 R53"]
+        description: >
+          Ensure the group auditor's report does not refer to a component
+          auditor unless required by law or regulation; where such reference
+          is required, the group auditor's report shall indicate that the
+          reference does not reduce responsibility.
+        steps:
+          - id: step_report_component_reference_review
+            name: Review auditor's report for impermissible component auditor reference
+            isa_refs: ["ISA 600 R53"]
+            evidence_kind: inspection
+            description: >
+              Inspect the draft auditor's report to confirm no reference is
+              made to a component auditor unless required by law or regulation;
+              where required, confirm the mandatory language is included.
+
+      - id: proc_communication_scope_timing_and_fraud
+        name: Communication of Scope, Timing, and Fraud Findings
+        isa_refs: ["ISA 600 R54", "ISA 600 R55"]
+        description: >
+          Communicate an overview of planned scope and timing to group
+          management; communicate fraud identified during the group audit to
+          appropriate parties including regulators where required.
+        steps:
+          - id: step_scope_timing_communication
+            name: Communicate planned scope and timing overview to management
+            isa_refs: ["ISA 600 R54"]
+            evidence_kind: inspection
+            description: >
+              Inspect communication to group management confirming it includes
+              an overview of planned scope, timing, and involvement of
+              component auditors.
+          - id: step_fraud_communication
+            name: Communicate fraud findings to appropriate parties
+            isa_refs: ["ISA 600 R55"]
+            evidence_kind: inquiry
+            description: >
+              Where fraud has been identified or brought to the group auditor's
+              attention by a component auditor, enquire of management and
+              legal counsel; document communications made to those charged with
+              governance and, where required, to regulators.
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # PHASE 6: Documentation and Communication with TCWG
+  # ISA 600 paragraphs: R56, R57, R58, R59
+  # ─────────────────────────────────────────────────────────────────────────
+  - id: phase_documentation_and_communication
+    name: Documentation and Communication with TCWG
+    description: >
+      Prepare sufficient engagement documentation; communicate required matters
+      to those charged with governance of the group (TCWG); identify internal
+      control deficiencies reportable to TCWG; address situations where a
+      component auditor expresses a separate opinion.
+    procedures:
+
+      - id: proc_separate_component_opinion
+        name: Separate Component Auditor Opinion
+        isa_refs: ["ISA 600 R56"]
+        description: >
+          Where a component auditor is required by statute, regulation or other
+          reasons to express an audit opinion on the financial statements of an
+          entity whose financial information is included in the group financial
+          statements, evaluate the impact on the group audit.
+        steps:
+          - id: step_separate_opinion_evaluation
+            name: Evaluate impact of separate component audit opinion
+            isa_refs: ["ISA 600 R56"]
+            evidence_kind: inspection
+            description: >
+              Inspect component auditor opinions on standalone financial
+              statements (where applicable) to assess consistency with the
+              group audit approach and identify any implications for the
+              group auditor's report.
+
+      - id: proc_tcwg_communication
+        name: Communication with Those Charged with Governance
+        isa_refs: ["ISA 600 R57"]
+        description: >
+          Communicate required ISA 600-specific matters to those charged with
+          governance in addition to requirements of ISA 260, including the
+          group engagement partner's view on the appropriateness of component
+          auditor involvement.
+        steps:
+          - id: step_tcwg_communication_content
+            name: Prepare and issue TCWG communication on group audit matters
+            isa_refs: ["ISA 600 R57"]
+            evidence_kind: inspection
+            description: >
+              Inspect TCWG communication to confirm it includes all ISA
+              600-required matters: overview of component work performed, any
+              limitations on group audit scope, significant findings from
+              component auditors, and the group engagement partner's assessment.
+
+      - id: proc_internal_control_deficiencies
+        name: Internal Control Deficiencies Communication
+        isa_refs: ["ISA 600 R58"]
+        description: >
+          Determine whether any internal control deficiencies identified at the
+          group or component level are significant enough to be communicated to
+          group management and TCWG in accordance with ISA 265.
+        steps:
+          - id: step_control_deficiency_identification
+            name: Identify and evaluate internal control deficiencies
+            isa_refs: ["ISA 600 R58"]
+            evidence_kind: inspection
+            description: >
+              Review component auditor communications and group audit findings
+              to identify deficiencies in the group's system of internal
+              control; determine which require communication to management and
+              TCWG under ISA 265.
+          - id: step_control_deficiency_communication
+            name: Communicate significant deficiencies to management and TCWG
+            isa_refs: ["ISA 600 R58"]
+            evidence_kind: inspection
+            description: >
+              Inspect management letter and TCWG written communication to
+              confirm all significant deficiencies identified at group and
+              component levels have been appropriately reported.
+
+      - id: proc_group_audit_documentation
+        name: Group Audit Documentation
+        isa_refs: ["ISA 600 R59"]
+        description: >
+          Prepare audit documentation that is sufficient to enable an
+          experienced auditor with no prior connection to the engagement
+          to understand the nature, timing and extent of group audit procedures
+          and the basis for the group audit conclusion.
+        steps:
+          - id: step_documentation_completeness_review
+            name: Review group audit file for completeness
+            isa_refs: ["ISA 600 R59"]
+            evidence_kind: inspection
+            description: >
+              Inspect the group audit documentation file to confirm it includes
+              all ISA 230-required content: the group engagement partner's
+              involvement in component work, analysis of components, materiality
+              calculations, component auditor communications, and the basis for
+              the group audit opinion.
+          - id: step_documentation_finalisation
+            name: Finalise and archive group audit documentation
+            isa_refs: ["ISA 600 R59"]
+            evidence_kind: inspection
+            description: >
+              Confirm the group audit file has been assembled and archived
+              within the time limit required by ISQM 1 and relevant regulatory
+              requirements.
