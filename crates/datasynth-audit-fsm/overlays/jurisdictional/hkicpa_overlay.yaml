@@ -1,0 +1,34 @@
+schema_version: "1.0.0"
+overlay_id: hkicpa_overlay
+name: HKICPA (Hong Kong Institute of CPAs) Overlay
+description: |
+  Procedures specific to Hong Kong-regulated audits under HKSA (Hong Kong
+  Standards on Auditing) issued by HKICPA. HKSAs are conformed to ISAs
+  with Hong Kong-specific Practice Notes. The Securities and Futures
+  Commission (SFC) and Hong Kong Exchange (HKEX) listing rules add
+  additional compliance procedures.
+applicability:
+  jurisdictions: [hk]
+  registrant_types: [hk_listed]
+  audit_types: []
+  threshold: null
+  rationale: HKICPA jurisdiction with HK listed registrant
+procedures:
+  - id: hkicpa_proc_hksa_700_report
+    name: Independent auditor's report under HKSA 700 (Revised)
+    citation_refs: ["HKSA 700 (Revised)"]
+  - id: hkicpa_proc_companies_ordinance_audit
+    name: Audit pursuant to Hong Kong Companies Ordinance Cap. 622 s405
+    citation_refs: ["Cap. 622 s405"]
+  - id: hkicpa_proc_hkex_listing_compliance
+    name: HKEX Listing Rules continuous disclosure compliance
+    citation_refs: ["HKEX Listing Rule 13.46"]
+  - id: hkicpa_proc_sfc_inspection_readiness
+    name: SFC inspection-readiness documentation
+    citation_refs: ["SFC Code of Conduct"]
+  - id: hkicpa_proc_hksa_240_fraud
+    name: HKSA 240 fraud risk procedures (HK-specific connected-party signals)
+    citation_refs: ["HKSA 240", "Cap. 622 s621"]
+  - id: hkicpa_proc_practice_review_readiness
+    name: HKICPA Practice Review Programme readiness
+    citation_refs: ["HKICPA Quality Management Standard 1"]

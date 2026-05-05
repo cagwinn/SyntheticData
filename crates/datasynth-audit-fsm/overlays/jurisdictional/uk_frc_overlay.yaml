@@ -1,0 +1,23 @@
+schema_version: "1.0.0"
+overlay_id: uk_frc_overlay
+name: UK FRC Overlay
+description: Procedures specific to UK FRC-regulated audits under ISA (UK).
+applicability:
+  jurisdictions: [uk]
+  registrant_types: [uk_listed]
+  audit_types: []
+  threshold: null
+  rationale: UK FRC jurisdiction with listed status
+procedures:
+  - id: uk_frc_proc_ethical_standard
+    name: FRC Ethical Standard 2024 compliance check
+    citation_refs: ["FRC Ethical Standard 2024"]
+  - id: uk_frc_proc_isa_uk_240
+    name: Revised ISA (UK) 240 fraud risk evidence
+    citation_refs: ["ISA (UK) 240 R26", "ISA (UK) 240 R29"]
+  - id: uk_frc_proc_aqi_reporting
+    name: Audit Quality Indicators (AQI) firm reporting
+    citation_refs: ["FRC AQI Framework 2024"]
+  - id: uk_frc_proc_esef
+    name: ESEF tagging (UK retained EU law)
+    citation_refs: ["ISA (UK) 720 R14"]

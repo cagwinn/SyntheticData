@@ -1,0 +1,34 @@
+schema_version: "1.0.0"
+overlay_id: acra_overlay
+name: ACRA (Accounting and Corporate Regulatory Authority of Singapore) Overlay
+description: |
+  Procedures specific to ACRA-regulated audits of Singapore listed entities
+  under SSA (Singapore Standards on Auditing). SSAs are conformed to ISAs
+  with Singapore-specific Practice Notes from ISCA (Institute of Singapore
+  Chartered Accountants). Singapore has additional audit requirements
+  under the Companies Act and SFA (Securities and Futures Act).
+applicability:
+  jurisdictions: [sg]
+  registrant_types: [sg_listed]
+  audit_types: []
+  threshold: null
+  rationale: ACRA jurisdiction with SG listed registrant
+procedures:
+  - id: acra_proc_ssa_700_report
+    name: Independent auditor's report under SSA 700 (Revised)
+    citation_refs: ["SSA 700 (Revised)"]
+  - id: acra_proc_companies_act_s201
+    name: Audit pursuant to Singapore Companies Act s201
+    citation_refs: ["Companies Act (Singapore) s201"]
+  - id: acra_proc_isca_practice_note_700
+    name: ISCA Practice Note 700.1 enhanced auditor's report
+    citation_refs: ["ISCA Practice Note 700.1"]
+  - id: acra_proc_acra_inspection_readiness
+    name: ACRA Practice Monitoring Programme inspection readiness
+    citation_refs: ["ACRA Code of Professional Conduct"]
+  - id: acra_proc_sgx_listing_compliance
+    name: SGX Listing Manual compliance verification
+    citation_refs: ["SGX Listing Rule 1207"]
+  - id: acra_proc_ssa_240_fraud_red_flags
+    name: SSA 240 fraud risk with Singapore-specific PEP/sanctions signals
+    citation_refs: ["SSA 240", "MAS Notice 1014"]

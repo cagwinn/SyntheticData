@@ -1,0 +1,33 @@
+schema_version: "1.0.0"
+overlay_id: asic_overlay
+name: ASIC (Australian Securities & Investments Commission) Overlay
+description: |
+  Procedures specific to ASIC-regulated audits of Australian listed entities
+  under ASA (Australian Auditing Standards) issued by AUASB (Auditing and
+  Assurance Standards Board). ASA standards are conformed with ISAs but
+  carry Australia-specific paragraphs.
+applicability:
+  jurisdictions: [au]
+  registrant_types: [au_listed]
+  audit_types: []
+  threshold: null
+  rationale: ASIC jurisdiction with AU listed registrant
+procedures:
+  - id: asic_proc_corporations_act_compliance
+    name: Compliance with Corporations Act 2001 audit obligations
+    citation_refs: ["Corporations Act 2001 s307", "ASA 250"]
+  - id: asic_proc_asa_240_fraud
+    name: ASA 240 fraud risk assessment (with AU-specific Class Order signals)
+    citation_refs: ["ASA 240.A12", "ASIC Class Order 98/100"]
+  - id: asic_proc_asa_700_report
+    name: Independent auditor's report under ASA 700
+    citation_refs: ["ASA 700"]
+  - id: asic_proc_concise_financial_report
+    name: Concise financial report consideration (Corporations Act s314)
+    citation_refs: ["Corporations Act 2001 s314"]
+  - id: asic_proc_asic_act_inspection
+    name: ASIC Act inspection-readiness documentation
+    citation_refs: ["ASIC Act 2001 s30"]
+  - id: asic_proc_asx_listing_rules
+    name: ASX Listing Rules continuous disclosure verification
+    citation_refs: ["ASX Listing Rule 4.10"]

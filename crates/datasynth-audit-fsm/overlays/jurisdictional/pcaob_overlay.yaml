@@ -1,0 +1,32 @@
+schema_version: "1.0.0"
+overlay_id: pcaob_overlay
+name: PCAOB Auditing Standards Overlay
+description: Procedures specific to PCAOB-registered auditors of US issuers.
+applicability:
+  jurisdictions: [us]
+  registrant_types: []
+  audit_types: []
+  threshold: null
+  rationale: PCAOB jurisdiction
+procedures:
+  - id: pcaob_proc_due_care
+    name: Document due professional care evidence
+    citation_refs: ["AS 1015"]
+  - id: pcaob_proc_risk_assessment
+    name: PCAOB-specific risk assessment procedures
+    citation_refs: ["AS 2110.05-A12"]
+  - id: pcaob_proc_icfr_audit
+    name: Audit of internal control over financial reporting
+    citation_refs: ["AS 2201.85-89"]
+  - id: pcaob_proc_related_parties
+    name: PCAOB-specific related-party transaction procedures
+    citation_refs: ["AS 2410.10"]
+  - id: pcaob_proc_cam_communication
+    name: Critical Audit Matter identification + communication
+    citation_refs: ["AS 3101.11-17"]
+  - id: pcaob_proc_form_ap_filing
+    name: PCAOB Form AP partner identification disclosure
+    citation_refs: ["PCAOB Rule 3211"]
+  - id: pcaob_proc_report_dating
+    name: Auditor's report dating + subsequent-events cutoff
+    citation_refs: ["AS 3105"]

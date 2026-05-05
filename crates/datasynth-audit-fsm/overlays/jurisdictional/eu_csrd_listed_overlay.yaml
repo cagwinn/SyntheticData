@@ -1,0 +1,23 @@
+schema_version: "1.0.0"
+overlay_id: eu_csrd_listed_overlay
+name: EU CSRD Listed-Issuer Overlay
+description: Procedures specific to EU-regulated-market listed issuers under CSRD.
+applicability:
+  jurisdictions: [eu]
+  registrant_types: [eu_listed_first_wave]
+  audit_types: []
+  threshold: null
+  rationale: EU regulated-market listed issuer
+procedures:
+  - id: eu_csrd_proc_esef_tagging
+    name: ESEF (European Single Electronic Format) tagging audit
+    citation_refs: ["ESMA RTS 2018/815", "ISA 720 R14"]
+  - id: eu_csrd_proc_esma_priorities
+    name: ESMA enforcement priorities consideration
+    citation_refs: ["ESMA Public Statement 2024/eu-priorities"]
+  - id: eu_csrd_proc_audit_committee_comm
+    name: Audit committee communication per EU Statutory Audit Regulation
+    citation_refs: ["EU Reg 537/2014 Art. 11", "ISA 260"]
+  - id: eu_csrd_proc_sustainability_assurance_link
+    name: Link financial-statement audit to CSRD sustainability assurance
+    citation_refs: ["EU Reg 537/2014 Art. 11", "ISAE 3000"]

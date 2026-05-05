@@ -1,0 +1,33 @@
+schema_version: "1.0.0"
+overlay_id: jfsa_overlay
+name: JFSA (Japan Financial Services Agency) Overlay
+description: |
+  Procedures specific to JFSA-regulated audits of Japanese listed entities
+  under JSA (Japanese Standards on Auditing) issued by JICPA. Japan
+  implements ISAs but with JSOX (J-SOX) ICFR audit requirements that diverge
+  from PCAOB AS 2201.
+applicability:
+  jurisdictions: [jp]
+  registrant_types: [jp_listed]
+  audit_types: []
+  threshold: null
+  rationale: JFSA jurisdiction with JP listed registrant
+procedures:
+  - id: jfsa_proc_jsox_icfr_audit
+    name: J-SOX (Internal Control Reporting System) audit
+    citation_refs: ["FIEA Art. 24-4-4", "JSA 580"]
+  - id: jfsa_proc_jsa_240_fraud
+    name: JSA 240 fraud risk procedures (Japan-specific keiretsu signals)
+    citation_refs: ["JSA 240"]
+  - id: jfsa_proc_fiea_disclosure
+    name: FIEA (Financial Instruments and Exchange Act) disclosure compliance
+    citation_refs: ["FIEA Art. 193-2"]
+  - id: jfsa_proc_kansayaku_communication
+    name: Communication with Kansayaku (statutory auditor) per Companies Act
+    citation_refs: ["Companies Act Art. 397", "JSA 260"]
+  - id: jfsa_proc_jsa_700_report
+    name: Auditor's report under JSA 700 (Japanese conformance to ISA 700)
+    citation_refs: ["JSA 700"]
+  - id: jfsa_proc_jicpa_quality_review
+    name: JICPA quality review readiness documentation
+    citation_refs: ["JICPA Quality Control Standard"]
