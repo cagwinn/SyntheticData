@@ -1,0 +1,544 @@
+id: kyc_correspondent_onboarding
+name: Correspondent Banking Onboarding (CBDDQ-driven)
+description: >
+  Wolfsberg-CBDDQ-driven onboarding of a respondent bank. The CBDDQ's
+  110+ questions are digested into 10 procedure steps under the intake
+  procedure; the remaining procedures cover licence/regulator verification,
+  ownership + management diligence, correspondent risk rating, shell bank
+  prohibition, AML program attestation, and periodic review.
+primary_anchors:
+  - wolfsberg_cb
+  - wolfsberg_cbddq_v14
+  - eu_amlr_2024_1624
+discriminator_profile:
+  tiers: [edd]
+  overlays: [correspondent, group_cross_border]
+  jurisdictions: [ch, eu, us, uk, apac]
+procedures:
+  - id: proc_cbddq_intake
+    name: CBDDQ Intake (110+ questions, 10 sections)
+    description: >
+      Digest the Wolfsberg Correspondent Banking Due Diligence Questionnaire
+      (CBDDQ v1.4) into 10 procedure steps, one per CBDDQ section. Each step
+      records the respondent's answers plus supporting evidence and is
+      anchored to a Wolfsberg CB Principle.
+    obligation_refs:
+      - obl:wolfsberg_cb:P.7:0
+      - obl:wolfsberg_cb:P.7:1
+      - obl:eu_amlr_2024_1624:26:0
+    steps:
+      - id: step_cbddq_entity_ownership
+        blueprint_ref: kyc_correspondent_onboarding
+        procedure_ref: proc_cbddq_intake
+        description: >
+          CBDDQ Section 1 — Entity and Ownership. Capture legal name,
+          registration, ultimate beneficial ownership, and group structure
+          from the respondent's CBDDQ responses (Q.19a, Q.22c, Q.65a).
+        obligation_refs:
+          - obl:wolfsberg_cb:P.7:0
+          - obl:wolfsberg_cb:P.7:1
+          - obl:wolfsberg_cb:P.7:2
+          - obl:eu_amlr_2024_1624:26:0
+          - obl:eu_amlr_2024_1624:26:1
+        kind: generic
+
+      - id: step_cbddq_aml_program_scope
+        blueprint_ref: kyc_correspondent_onboarding
+        procedure_ref: proc_cbddq_intake
+        description: >
+          CBDDQ Section 2 — Products & Services / AML/CTF Programme Scope.
+          Record the respondent's product mix, client types, and the scope
+          of its AML/CTF programme (CBDDQ Q.40-Q.55).
+        obligation_refs:
+          - obl:wolfsberg_cb:P.7:3
+          - obl:wolfsberg_cb:P.7:4
+          - obl:wolfsberg_cbddq_v14:Q.40 e:0
+          - obl:eu_amlr_2024_1624:26:2
+        kind: generic
+
+      - id: step_cbddq_pep_exposure
+        blueprint_ref: kyc_correspondent_onboarding
+        procedure_ref: proc_cbddq_intake
+        description: >
+          CBDDQ Section 3 — PEP exposure. Capture the respondent's PEP
+          identification, classification, and risk-based controls for
+          senior management approval of PEP relationships.
+        obligation_refs:
+          - obl:wolfsberg_cb:P.7:5
+          - obl:wolfsberg_cb:P.7:6
+          - obl:eu_amlr_2024_1624:11:0
+          - obl:eu_amlr_2024_1624:11:1
+        kind: generic
+
+      - id: step_cbddq_sanctions_program
+        blueprint_ref: kyc_correspondent_onboarding
+        procedure_ref: proc_cbddq_intake
+        description: >
+          CBDDQ Section 4 — Sanctions compliance programme. Capture the
+          respondent's list coverage, screening frequency, match-handling,
+          and governance over sanctions risk (CBDDQ Q.123j, Q.46c).
+        obligation_refs:
+          - obl:wolfsberg_cb:P.7:7
+          - obl:wolfsberg_sms:P.1:0
+          - obl:wolfsberg_sms:P.3:3
+          - obl:eu_amlr_2024_1624:26:7
+        kind: generic
+
+      - id: step_cbddq_kyc_controls
+        blueprint_ref: kyc_correspondent_onboarding
+        procedure_ref: proc_cbddq_intake
+        description: >
+          CBDDQ Section 5 — KYC controls and customer risk management.
+          Capture the respondent's CDD/EDD processes, beneficial ownership
+          identification, and ongoing monitoring framework.
+        obligation_refs:
+          - obl:wolfsberg_cb:P.7:8
+          - obl:wolfsberg_cb:P.7:9
+          - obl:eu_amlr_2024_1624:26:3
+          - obl:eu_amlr_2024_1624:26:4
+        kind: generic
+
+      - id: step_cbddq_testing_audit
+        blueprint_ref: kyc_correspondent_onboarding
+        procedure_ref: proc_cbddq_intake
+        description: >
+          CBDDQ Section 6 — Testing, independent audit, and programme
+          assurance. Record the frequency, scope, and findings history of
+          internal audit and independent testing over the AML programme.
+        obligation_refs:
+          - obl:wolfsberg_cb:P.7:10
+          - obl:wolfsberg_cb:P.7:11
+          - obl:eu_amlr_2024_1624:11:5
+          - obl:eu_amlr_2024_1624:26:5
+        kind: generic
+
+      - id: step_cbddq_transparency
+        blueprint_ref: kyc_correspondent_onboarding
+        procedure_ref: proc_cbddq_intake
+        description: >
+          CBDDQ Section 7 — Transparency and payment-message integrity.
+          Capture the respondent's handling of originator/beneficiary
+          information, cover payments, and Travel-Rule / TFR compliance.
+        obligation_refs:
+          - obl:wolfsberg_cb:P.7:12
+          - obl:wolfsberg_cb:P.7:13
+          - obl:eu_tfr:7:0
+          - obl:eu_tfr:14:0
+        kind: generic
+
+      - id: step_cbddq_training
+        blueprint_ref: kyc_correspondent_onboarding
+        procedure_ref: proc_cbddq_intake
+        description: >
+          CBDDQ Section 8 — Training and awareness. Record the respondent's
+          AML/sanctions training programme coverage, cadence, and tailoring
+          to role-specific risk (CBDDQ Q.114).
+        obligation_refs:
+          - obl:wolfsberg_cb:P.7:14
+          - obl:wolfsberg_cb:P.7:15
+          - obl:eu_amlr_2024_1624:11:3
+        kind: generic
+
+      - id: step_cbddq_third_parties
+        blueprint_ref: kyc_correspondent_onboarding
+        procedure_ref: proc_cbddq_intake
+        description: >
+          CBDDQ Section 9 — Reliance on third parties and nested
+          relationships. Record the respondent's use of downstream
+          correspondents, agents, and outsourced AML functions.
+        obligation_refs:
+          - obl:wolfsberg_cb:P.7:16
+          - obl:wolfsberg_cb:P.9:0
+          - obl:wolfsberg_cb:P.9:1
+          - obl:eu_amlr_2024_1624:26:6
+        kind: generic
+
+      - id: step_cbddq_board_reporting
+        blueprint_ref: kyc_correspondent_onboarding
+        procedure_ref: proc_cbddq_intake
+        description: >
+          CBDDQ Section 10 — Governance and board reporting. Record the
+          respondent's governance structure, board reporting cadence, and
+          escalation channels for AML issues; close the CBDDQ.
+        obligation_refs:
+          - obl:wolfsberg_cb:P.9:2
+          - obl:wolfsberg_cb:P.9:3
+          - obl:eu_amlr_2024_1624:11:6
+          - obl:eu_amlr_2024_1624:11:7
+        kind: generic
+
+  - id: proc_license_and_regulator_verification
+    name: Licence and Regulator Verification
+    description: >
+      Verify the respondent's banking licence, competent regulator,
+      and regulatory standing in its home jurisdiction.
+    obligation_refs:
+      - obl:wolfsberg_cb:P.7:4
+      - obl:eu_amlr_2024_1624:26:1
+    steps:
+      - id: step_lic_verify_banking_licence
+        blueprint_ref: kyc_correspondent_onboarding
+        procedure_ref: proc_license_and_regulator_verification
+        description: >
+          Verify that the respondent holds a current banking licence and
+          confirm the scope of authorised activities in its home jurisdiction.
+        obligation_refs:
+          - obl:wolfsberg_cb:P.7:4
+          - obl:wolfsberg_cb:P.7:8
+          - obl:eu_amlr_2024_1624:26:1
+        kind: generic
+
+      - id: step_lic_confirm_regulator
+        blueprint_ref: kyc_correspondent_onboarding
+        procedure_ref: proc_license_and_regulator_verification
+        description: >
+          Confirm the respondent's competent prudential and AML regulator
+          and obtain the most recent inspection or supervisory reference.
+        obligation_refs:
+          - obl:wolfsberg_cb:P.7:4
+          - obl:wolfsberg_cb:P.7:5
+          - obl:eu_amlr_2024_1624:26:1
+        kind: generic
+
+      - id: step_lic_check_sanctions_history
+        blueprint_ref: kyc_correspondent_onboarding
+        procedure_ref: proc_license_and_regulator_verification
+        description: >
+          Check the respondent's regulatory-sanctions / enforcement history
+          and any outstanding consent-orders across jurisdictions.
+        obligation_refs:
+          - obl:wolfsberg_cb:P.7:7
+          - obl:wolfsberg_cb:P.7:12
+          - obl:eu_amlr_2024_1624:26:8
+        kind: generic
+
+      - id: step_lic_record_verification
+        blueprint_ref: kyc_correspondent_onboarding
+        procedure_ref: proc_license_and_regulator_verification
+        description: >
+          Record licence, regulator, and sanctions-history verification
+          outcomes in the onboarding case file with supporting evidence.
+        obligation_refs:
+          - obl:wolfsberg_cb:P.7:4
+          - obl:eu_amlr_2024_1624:77:0
+          - obl:eu_amlr_2024_1624:77:4
+        kind: generic
+
+  - id: proc_ownership_and_management
+    name: Ownership and Management Diligence
+    description: >
+      Identify and assess the ultimate beneficial owners and senior
+      management of the respondent bank.
+    obligation_refs:
+      - obl:wolfsberg_cb:P.7:1
+      - obl:eu_amlr_2024_1624:26:0
+    steps:
+      - id: step_own_identify_ubo
+        blueprint_ref: kyc_correspondent_onboarding
+        procedure_ref: proc_ownership_and_management
+        description: >
+          Identify the ultimate beneficial owner(s) of the respondent bank
+          per the CBDDQ ownership section and independent register checks.
+        obligation_refs:
+          - obl:wolfsberg_cb:P.7:1
+          - obl:wolfsberg_cb:P.7:6
+          - obl:eu_amlr_2024_1624:26:0
+        kind: generic
+
+      - id: step_own_group_structure
+        blueprint_ref: kyc_correspondent_onboarding
+        procedure_ref: proc_ownership_and_management
+        description: >
+          Map the respondent's group structure, parent entity, and any
+          cross-border branches or subsidiaries relevant to AML risk.
+        obligation_refs:
+          - obl:wolfsberg_cb:P.7:2
+          - obl:wolfsberg_cb:P.7:7
+          - obl:eu_amlr_2024_1624:26:0
+        kind: generic
+
+      - id: step_own_senior_management_review
+        blueprint_ref: kyc_correspondent_onboarding
+        procedure_ref: proc_ownership_and_management
+        description: >
+          Review senior management and the AML officer for fit-and-proper
+          status, adverse media, and regulatory sanctions history.
+        obligation_refs:
+          - obl:wolfsberg_cb:P.9:2
+          - obl:wolfsberg_cb:P.9:3
+          - obl:eu_amlr_2024_1624:11:0
+        kind: generic
+
+      - id: step_own_pep_screening
+        blueprint_ref: kyc_correspondent_onboarding
+        procedure_ref: proc_ownership_and_management
+        description: >
+          Screen UBOs and senior management against PEP and adverse-media
+          lists; flag any positive matches for escalation.
+        obligation_refs:
+          - obl:wolfsberg_cb:P.7:5
+          - obl:eu_amlr_2024_1624:11:0
+          - obl:eu_amlr_2024_1624:11:1
+        kind: generic
+
+      - id: step_own_record_ownership
+        blueprint_ref: kyc_correspondent_onboarding
+        procedure_ref: proc_ownership_and_management
+        description: >
+          Record ownership and management findings in the case file with
+          source citations for each identified UBO and senior manager.
+        obligation_refs:
+          - obl:eu_amlr_2024_1624:77:0
+          - obl:eu_amlr_2024_1624:77:4
+          - obl:wolfsberg_cb:P.9:4
+        kind: generic
+
+  - id: proc_risk_rating_correspondent
+    name: Correspondent Risk Rating
+    description: >
+      Compute inherent, residual, and overall correspondent risk using
+      the Wolfsberg RBA factors across jurisdiction, product, client,
+      and transaction dimensions.
+    obligation_refs:
+      - obl:wolfsberg_cb:P.7:16
+      - obl:eu_amlr_2024_1624:26:2
+    steps:
+      - id: step_rr_jurisdiction_factors
+        blueprint_ref: kyc_correspondent_onboarding
+        procedure_ref: proc_risk_rating_correspondent
+        description: >
+          Score jurisdiction risk using home-country and operating-country
+          factors (FATF listings, Basel AML index, sanctions exposure).
+        obligation_refs:
+          - obl:wolfsberg_cb:P.7:14
+          - obl:wolfsberg_cb:P.7:7
+          - obl:eu_amlr_2024_1624:26:2
+        kind: generic
+
+      - id: step_rr_product_factors
+        blueprint_ref: kyc_correspondent_onboarding
+        procedure_ref: proc_risk_rating_correspondent
+        description: >
+          Score product and service risk (nested correspondent, PUPID,
+          trade finance, MSBs served) for the proposed relationship.
+        obligation_refs:
+          - obl:wolfsberg_cb:P.7:16
+          - obl:wolfsberg_cb:P.9:0
+          - obl:eu_amlr_2024_1624:26:3
+        kind: generic
+
+      - id: step_rr_client_factors
+        blueprint_ref: kyc_correspondent_onboarding
+        procedure_ref: proc_risk_rating_correspondent
+        description: >
+          Score client-base risk: the respondent's customer mix, PEP
+          concentrations, and exposure to high-risk sectors or geographies.
+        obligation_refs:
+          - obl:wolfsberg_cb:P.7:7
+          - obl:wolfsberg_cb:P.7:6
+          - obl:eu_amlr_2024_1624:26:4
+        kind: generic
+
+      - id: step_rr_transaction_factors
+        blueprint_ref: kyc_correspondent_onboarding
+        procedure_ref: proc_risk_rating_correspondent
+        description: >
+          Score transaction risk: expected volume, currencies, payment
+          corridors, and counterparty concentrations for the relationship.
+        obligation_refs:
+          - obl:wolfsberg_cb:P.7:12
+          - obl:wolfsberg_cb:P.7:13
+          - obl:eu_amlr_2024_1624:26:5
+        kind: generic
+
+      - id: step_rr_compute_residual
+        blueprint_ref: kyc_correspondent_onboarding
+        procedure_ref: proc_risk_rating_correspondent
+        description: >
+          Compute residual correspondent risk from inherent risk * controls
+          effectiveness and record the band (standard / elevated / high).
+        obligation_refs:
+          - obl:wolfsberg_cb:P.7:16
+          - obl:eu_amlr_2024_1624:26:2
+          - obl:eu_amlr_2024_1624:26:8
+        kind: risk_scoring
+        attrs:
+          model: wolfsberg_rba_factors
+          inputs:
+            - jurisdiction_score
+            - product_score
+            - client_score
+            - transaction_score
+            - controls_effectiveness_score
+          output_field: correspondent_residual_risk
+          thresholds:
+            standard: 0.4
+            elevated: 0.7
+
+  - id: proc_shell_bank_prohibition_check
+    name: Shell Bank Prohibition Check
+    description: >
+      Verify that the respondent is not a shell bank and does not
+      maintain correspondent relationships with shell banks; block
+      any relationship where shell-bank indicators are detected.
+    obligation_refs:
+      - obl:wolfsberg_cb:P.7:8
+      - obl:eu_amlr_2024_1624:27:0
+    steps:
+      - id: step_shell_check_physical_presence
+        blueprint_ref: kyc_correspondent_onboarding
+        procedure_ref: proc_shell_bank_prohibition_check
+        description: >
+          Confirm the respondent maintains meaningful physical presence
+          (staff, premises, and management) in its country of licence.
+        obligation_refs:
+          - obl:wolfsberg_cb:P.7:8
+          - obl:wolfsberg_cb:P.7:9
+          - obl:eu_amlr_2024_1624:27:0
+        kind: generic
+
+      - id: step_shell_check_downstream
+        blueprint_ref: kyc_correspondent_onboarding
+        procedure_ref: proc_shell_bank_prohibition_check
+        description: >
+          Confirm the respondent does not provide accounts to shell banks
+          and has policies to refuse relationships with shell banks.
+        obligation_refs:
+          - obl:wolfsberg_cb:P.7:8
+          - obl:wolfsberg_cb:P.9:5
+          - obl:eu_amlr_2024_1624:27:0
+          - obl:eu_amlr_2024_1624:27:1
+        kind: generic
+
+      - id: step_shell_approval_gate
+        blueprint_ref: kyc_correspondent_onboarding
+        procedure_ref: proc_shell_bank_prohibition_check
+        description: >
+          Compliance-officer approval gate: block the relationship if any
+          shell-bank indicator is detected; otherwise clear for onboarding.
+        obligation_refs:
+          - obl:wolfsberg_cb:P.7:8
+          - obl:wolfsberg_cb:P.9:6
+          - obl:eu_amlr_2024_1624:27:0
+        kind: approval_gate
+        attrs:
+          required_role: compliance_officer
+          escalation_chain:
+            - mlro
+            - senior_management
+          sla_hours: 24
+
+  - id: proc_aml_program_attestation
+    name: AML Programme Attestation
+    description: >
+      Obtain and review a senior-management attestation of the
+      respondent's AML/CTF programme against Wolfsberg principles.
+    obligation_refs:
+      - obl:wolfsberg_cb:P.9:2
+      - obl:eu_amlr_2024_1624:11:0
+    steps:
+      - id: step_aml_collect_attestation
+        blueprint_ref: kyc_correspondent_onboarding
+        procedure_ref: proc_aml_program_attestation
+        description: >
+          Collect the respondent's senior-management-signed attestation
+          that its AML/CTF programme meets Wolfsberg / FATF expectations.
+        obligation_refs:
+          - obl:wolfsberg_cb:P.9:2
+          - obl:wolfsberg_cb:P.9:3
+          - obl:eu_amlr_2024_1624:11:0
+        kind: generic
+
+      - id: step_aml_review_policies
+        blueprint_ref: kyc_correspondent_onboarding
+        procedure_ref: proc_aml_program_attestation
+        description: >
+          Review the respondent's AML policies, wire-stripping prohibition,
+          sanctions programme, and Travel-Rule handling against internal
+          standards and the CBDDQ Section 2 responses.
+        obligation_refs:
+          - obl:wolfsberg_cb:P.7:3
+          - obl:wolfsberg_cb:P.7:12
+          - obl:eu_tfr:7:0
+          - obl:eu_tfr:14:0
+        kind: generic
+
+      - id: step_aml_record_gaps
+        blueprint_ref: kyc_correspondent_onboarding
+        procedure_ref: proc_aml_program_attestation
+        description: >
+          Record any identified gaps or mitigants and the remediation
+          plan agreed with the respondent as a condition to establishment.
+        obligation_refs:
+          - obl:wolfsberg_cb:P.9:4
+          - obl:eu_amlr_2024_1624:11:6
+          - obl:eu_amlr_2024_1624:77:0
+        kind: generic
+
+      - id: step_aml_record_attestation
+        blueprint_ref: kyc_correspondent_onboarding
+        procedure_ref: proc_aml_program_attestation
+        description: >
+          Record the AML attestation outcome and link to the onboarding
+          decision in the case file with retention-compliant metadata.
+        obligation_refs:
+          - obl:eu_amlr_2024_1624:77:0
+          - obl:eu_amlr_2024_1624:77:4
+          - obl:wolfsberg_cb:P.9:2
+        kind: generic
+
+  - id: proc_periodic_review
+    name: Periodic Correspondent Review
+    description: >
+      Schedule and operate periodic refresh of the CBDDQ and associated
+      diligence on an anniversary cadence aligned with residual risk.
+    obligation_refs:
+      - obl:wolfsberg_cb:P.9:4
+      - obl:eu_amlr_2024_1624:26:8
+    steps:
+      - id: step_pr_schedule_anniversary
+        blueprint_ref: kyc_correspondent_onboarding
+        procedure_ref: proc_periodic_review
+        description: >
+          Schedule the next periodic review anniversary based on the
+          correspondent risk rating (annual for elevated/high, three-yearly
+          for standard) and persist the due date.
+        obligation_refs:
+          - obl:wolfsberg_cb:P.9:4
+          - obl:eu_amlr_2024_1624:26:8
+          - obl:eu_amlr_2024_1624:26:9
+        kind: generic
+
+      - id: step_pr_refresh_cbddq
+        blueprint_ref: kyc_correspondent_onboarding
+        procedure_ref: proc_periodic_review
+        description: >
+          Refresh the CBDDQ, re-verify ownership and senior management,
+          and re-score correspondent risk on the anniversary or on
+          qualifying trigger events.
+        obligation_refs:
+          - obl:wolfsberg_cb:P.9:5
+          - obl:wolfsberg_cb:P.9:6
+          - obl:eu_amlr_2024_1624:26:9
+        kind: generic
+
+      - id: step_pr_trigger_anniversary
+        blueprint_ref: kyc_correspondent_onboarding
+        procedure_ref: proc_periodic_review
+        description: >
+          Respond to a periodic-anniversary trigger event by initiating a
+          CBDDQ refresh and dispatching downstream review procedures.
+        obligation_refs:
+          - obl:wolfsberg_cb:P.9:4
+          - obl:eu_amlr_2024_1624:26:8
+          - obl:eu_amlr_2024_1624:77:0
+        kind: trigger_event
+        attrs:
+          event_types:
+            - periodic_anniversary
+          debounce_hours: 24
+
+liveness_formulas:
+  - "G(respondent_onboarded -> F cbddq_complete)"
+  - "G(shell_bank_indicators -> !relationship_established)"
+  - "G(periodic_anniversary -> F cbddq_refreshed)"

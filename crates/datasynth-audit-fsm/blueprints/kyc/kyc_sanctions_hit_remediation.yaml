@@ -1,0 +1,297 @@
+id: kyc_sanctions_hit_remediation
+name: Sanctions Hit Remediation Workflow
+description: >
+  End-to-end workflow when sanctions screening detects a match. Covers
+  hit classification, adjudication (true hit vs false positive), freeze
+  + report for true hits, false-positive clearance, and list-update
+  handling for periodic portfolio rescreening.
+primary_anchors:
+  - wolfsberg_sms
+  - eu_tfr
+  - ch_amla_current
+  - eu_amlr_2024_1624
+discriminator_profile:
+  tiers: [sdd, standard, edd]
+  overlays: []
+  jurisdictions: [ch, eu, us, uk]
+procedures:
+  - id: proc_hit_classification
+    name: Hit Classification
+    description: Classify the screening match (exact / fuzzy / alias / entity) and attach the screening context.
+    obligation_refs:
+      - obl:wolfsberg_sms:P.1:0
+      - obl:wolfsberg_sms:P.1:2
+    steps:
+      - id: step_hit_ingest_alert
+        blueprint_ref: kyc_sanctions_hit_remediation
+        procedure_ref: proc_hit_classification
+        description: Ingest the screening alert with its matched record, list source, and score.
+        obligation_refs:
+          - obl:wolfsberg_sms:P.1:1
+          - obl:wolfsberg_sms:P.4:7
+          - obl:eu_amlr_2024_1624:26:7
+        kind: generic
+
+      - id: step_hit_enrich_context
+        blueprint_ref: kyc_sanctions_hit_remediation
+        procedure_ref: proc_hit_classification
+        description: Enrich the alert with customer, beneficial-owner, and payment-counterparty context required for classification.
+        obligation_refs:
+          - obl:wolfsberg_sms:P.1:2
+          - obl:wolfsberg_sms:P.4:1
+          - obl:eu_tfr:7:0
+        kind: generic
+
+      - id: step_hit_severity_assign
+        blueprint_ref: kyc_sanctions_hit_remediation
+        procedure_ref: proc_hit_classification
+        description: Assign severity and priority based on list (UN, EU, OFAC, SECO, UK OFSI), match type, and payment urgency.
+        obligation_refs:
+          - obl:wolfsberg_sms:P.3:3
+          - obl:eu_amlr_2024_1624:26:8
+          - obl:eu_amlr_2024_1624:27:0
+        kind: generic
+
+      - id: step_hit_classify_match
+        blueprint_ref: kyc_sanctions_hit_remediation
+        procedure_ref: proc_hit_classification
+        description: Classify the match as exact, fuzzy, alias, or entity and dispatch to adjudication.
+        obligation_refs:
+          - obl:wolfsberg_sms:P.1:2
+          - obl:wolfsberg_sms:P.3:0
+          - obl:wolfsberg_sms:P.3:1
+        kind: sanctions_adjudication
+        attrs:
+          match_types: [exact, fuzzy, alias, entity]
+          false_positive_criteria:
+            - date_of_birth_mismatch
+            - jurisdiction_mismatch
+            - profession_mismatch
+            - name_common_variant
+          hit_escalation_role: compliance_officer
+
+  - id: proc_adjudication
+    name: Adjudication
+    description: Adjudicate the match — true hit vs false positive — under defined criteria and with audit trail.
+    obligation_refs:
+      - obl:wolfsberg_sms:P.3:1
+      - obl:eu_amlr_2024_1624:11:6
+    steps:
+      - id: step_adj_review_identifiers
+        blueprint_ref: kyc_sanctions_hit_remediation
+        procedure_ref: proc_adjudication
+        description: Review the identifiers (name, DOB, nationality, identifiers) compared against the listed entity.
+        obligation_refs:
+          - obl:wolfsberg_sms:P.4:7
+          - obl:wolfsberg_sms:P.1:2
+          - obl:eu_tfr:4:3
+        kind: generic
+
+      - id: step_adj_apply_fp_criteria
+        blueprint_ref: kyc_sanctions_hit_remediation
+        procedure_ref: proc_adjudication
+        description: Apply false-positive criteria (DOB mismatch, jurisdiction mismatch, profession mismatch, name-common-variant).
+        obligation_refs:
+          - obl:wolfsberg_sms:P.3:1
+          - obl:wolfsberg_sms:P.4:2
+          - obl:eu_amlr_2024_1624:26:9
+        kind: generic
+
+      - id: step_adj_document_rationale
+        blueprint_ref: kyc_sanctions_hit_remediation
+        procedure_ref: proc_adjudication
+        description: Document rationale for the adjudication decision with supporting evidence references.
+        obligation_refs:
+          - obl:ch_amla_current:7:0
+          - obl:eu_amlr_2024_1624:77:0
+          - obl:eu_amlr_2024_1624:77:4
+        kind: generic
+
+      - id: step_adj_dual_control_review
+        blueprint_ref: kyc_sanctions_hit_remediation
+        procedure_ref: proc_adjudication
+        description: Dual-control / four-eyes review by a second compliance officer on EDD or true-hit candidates.
+        obligation_refs:
+          - obl:eu_amlr_2024_1624:11:5
+          - obl:wolfsberg_sms:P.6:0
+          - obl:wolfsberg_sms:P.3:4
+        kind: generic
+
+      - id: step_adj_record_outcome
+        blueprint_ref: kyc_sanctions_hit_remediation
+        procedure_ref: proc_adjudication
+        description: Record the binding adjudication outcome (true hit / false positive) and dispatch downstream.
+        obligation_refs:
+          - obl:wolfsberg_sms:P.3:1
+          - obl:wolfsberg_sms:P.3:2
+          - obl:eu_amlr_2024_1624:11:6
+        kind: sanctions_adjudication
+        attrs:
+          match_types: [exact, fuzzy, alias, entity]
+          false_positive_criteria:
+            - date_of_birth_mismatch
+            - jurisdiction_mismatch
+            - profession_mismatch
+            - name_common_variant
+          hit_escalation_role: mlro
+
+  - id: proc_true_hit_freeze_and_report
+    name: True Hit Freeze and Report
+    description: Apply asset freeze, inhibit outgoing payments, notify authorities, and report the true hit.
+    obligation_refs:
+      - obl:ch_amla_current:10:0
+      - obl:eu_amlr_2024_1624:27:0
+    steps:
+      - id: step_freeze_apply_asset_block
+        blueprint_ref: kyc_sanctions_hit_remediation
+        procedure_ref: proc_true_hit_freeze_and_report
+        description: Apply the asset freeze on the customer's accounts and related reported assets.
+        obligation_refs:
+          - obl:ch_amla_current:10:0
+          - obl:ch_amla_current:10:1
+          - obl:eu_amlr_2024_1624:26:8
+        kind: generic
+
+      - id: step_freeze_inhibit_payments
+        blueprint_ref: kyc_sanctions_hit_remediation
+        procedure_ref: proc_true_hit_freeze_and_report
+        description: Inhibit outgoing and incoming payment instructions, including Travel Rule / TFR execution.
+        obligation_refs:
+          - obl:eu_tfr:4:5
+          - obl:eu_tfr:8:1
+          - obl:eu_tfr:12:1
+          - obl:eu_tfr:17:1
+        kind: generic
+
+      - id: step_freeze_notify_authorities
+        blueprint_ref: kyc_sanctions_hit_remediation
+        procedure_ref: proc_true_hit_freeze_and_report
+        description: Notify the competent authority (SECO / FINMA / FIU / OFAC / OFSI) per the relevant regime.
+        obligation_refs:
+          - obl:wolfsberg_sms:P.3:2
+          - obl:wolfsberg_sms:P.4:0
+          - obl:ch_amla_current:9:0
+          - obl:ch_amlo_finma:7:0
+        kind: generic
+
+      - id: step_freeze_file_report
+        blueprint_ref: kyc_sanctions_hit_remediation
+        procedure_ref: proc_true_hit_freeze_and_report
+        description: File the statutory sanctions report and, where required, a parallel SAR to the FIU / MROS.
+        obligation_refs:
+          - obl:eu_amlr_2024_1624:27:1
+          - obl:eu_tfr:8:3
+          - obl:eu_tfr:12:3
+          - obl:ch_amla_current:9:0
+        kind: generic
+
+      - id: step_freeze_monitor_reassess
+        blueprint_ref: kyc_sanctions_hit_remediation
+        procedure_ref: proc_true_hit_freeze_and_report
+        description: Monitor the frozen relationship, reassess on list changes, and maintain retention per retention rules.
+        obligation_refs:
+          - obl:eu_amlr_2024_1624:27:0
+          - obl:eu_amlr_2024_1624:77:0
+          - obl:eu_amlr_2024_1624:77:4
+          - obl:ch_amla_current:10:2
+        kind: generic
+
+  - id: proc_false_positive_clearance
+    name: False Positive Clearance
+    description: Clear a false-positive match with audit trail and resume normal servicing.
+    obligation_refs:
+      - obl:wolfsberg_sms:P.3:1
+      - obl:eu_amlr_2024_1624:77:0
+    steps:
+      - id: step_fp_document_clearance
+        blueprint_ref: kyc_sanctions_hit_remediation
+        procedure_ref: proc_false_positive_clearance
+        description: Document the false-positive clearance with the criteria that were satisfied and the reviewer identity.
+        obligation_refs:
+          - obl:eu_amlr_2024_1624:77:0
+          - obl:eu_amlr_2024_1624:77:4
+          - obl:ch_amla_current:7:0
+        kind: generic
+
+      - id: step_fp_release_transactions
+        blueprint_ref: kyc_sanctions_hit_remediation
+        procedure_ref: proc_false_positive_clearance
+        description: Release the held transactions and restore normal servicing after clearance.
+        obligation_refs:
+          - obl:eu_tfr:7:0
+          - obl:wolfsberg_sms:P.4:1
+          - obl:wolfsberg_sms:P.5:0
+        kind: generic
+
+      - id: step_fp_audit_trail_seal
+        blueprint_ref: kyc_sanctions_hit_remediation
+        procedure_ref: proc_false_positive_clearance
+        description: Seal the audit trail entry with the clearance decision and retain per retention rules.
+        obligation_refs:
+          - obl:eu_amlr_2024_1624:77:0
+          - obl:eu_amlr_2024_1624:77:4
+          - obl:wolfsberg_sms:P.6:0
+        kind: generic
+
+  - id: proc_list_update_handling
+    name: List Update Handling
+    description: Respond to a sanctions list update by rescreening the portfolio and processing any new matches.
+    obligation_refs:
+      - obl:eu_amlr_2024_1624:26:8
+      - obl:wolfsberg_sms:P.3:3
+    steps:
+      - id: step_listup_ingest_delta
+        blueprint_ref: kyc_sanctions_hit_remediation
+        procedure_ref: proc_list_update_handling
+        description: Ingest the sanctions-list delta (additions, removals, amendments) from the authoritative feed.
+        obligation_refs:
+          - obl:eu_amlr_2024_1624:26:8
+          - obl:wolfsberg_sms:P.3:3
+          - obl:wolfsberg_sms:P.4:8
+        kind: generic
+
+      - id: step_listup_schedule_rescreen
+        blueprint_ref: kyc_sanctions_hit_remediation
+        procedure_ref: proc_list_update_handling
+        description: Schedule a portfolio rescreening job against the updated list scope.
+        obligation_refs:
+          - obl:eu_amlr_2024_1624:26:7
+          - obl:eu_amlr_2024_1624:27:0
+          - obl:wolfsberg_sms:P.4:2
+        kind: generic
+
+      - id: step_listup_rescreen_portfolio
+        blueprint_ref: kyc_sanctions_hit_remediation
+        procedure_ref: proc_list_update_handling
+        description: Rescreen the relevant portfolio segments against the updated consolidated list.
+        obligation_refs:
+          - obl:wolfsberg_sms:P.1:0
+          - obl:wolfsberg_sms:P.1:1
+          - obl:wolfsberg_sms:P.3:3
+        kind: screening
+        attrs:
+          screening_type: sanctions
+          list_refs:
+            - sr:ofac_sdn
+            - sr:eu_consolidated
+            - sr:un_consolidated
+            - sr:seco
+            - sr:uk_ofsi
+          match_policy: fuzzy
+          escalation_on_hit: adjudicate
+
+      - id: step_listup_dispatch_new_matches
+        blueprint_ref: kyc_sanctions_hit_remediation
+        procedure_ref: proc_list_update_handling
+        description: Dispatch any new matches to the hit-classification procedure and record the rescreening run outcome.
+        obligation_refs:
+          - obl:eu_amlr_2024_1624:27:1
+          - obl:eu_amlr_2024_1624:77:0
+          - obl:wolfsberg_sms:P.6:0
+        kind: generic
+
+liveness_formulas:
+  - "G(sanctions_hit -> F adjudicated)"
+  - "G(true_hit -> F account_frozen)"
+  - "G(false_positive -> (F cleared & !account_frozen))"
+  - "G(list_update -> F portfolio_rescreened)"

@@ -36,6 +36,7 @@ pub mod error;
 pub mod event;
 pub mod export;
 pub mod jurisdictional_overlay;
+pub mod kyc_blueprint;
 pub mod live_injection;
 pub mod loader;
 pub mod methodology_blueprint;

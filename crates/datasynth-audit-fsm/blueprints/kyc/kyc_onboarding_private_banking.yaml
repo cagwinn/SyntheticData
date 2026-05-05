@@ -1,0 +1,415 @@
+id: kyc_onboarding_private_banking
+name: Private Banking Customer Onboarding
+description: >
+  UBS-centric KYC onboarding flow for private-banking customers. Covers
+  identification, beneficial owner determination, source-of-wealth
+  collection, risk rating, screening, senior-management approval,
+  account activation, and post-activation refresh scheduling.
+primary_anchors:
+  - wolfsberg_pb
+  - eu_amlr_2024_1624
+  - ch_cdb20
+  - ch_amlo_finma
+  - ch_finma_circ_2016_7
+discriminator_profile:
+  tiers: [edd]
+  overlays: [wealth_private_banking]
+  jurisdictions: [ch]
+procedures:
+  - id: proc_identification
+    name: Identification of Contracting Partner
+    description: Verify the identity of the customer establishing the relationship.
+    obligation_refs:
+      - obl:ch_cdb20:4:0
+      - obl:eu_amlr_2024_1624:19:0
+    steps:
+      - id: step_id_document_collection
+        blueprint_ref: kyc_onboarding_private_banking
+        procedure_ref: proc_identification
+        description: Collect an original or certified-copy government identification document.
+        obligation_refs:
+          - obl:ch_cdb20:10:0
+          - obl:eu_amlr_2024_1624:19:1
+        kind: generic
+
+      - id: step_id_verification
+        blueprint_ref: kyc_onboarding_private_banking
+        procedure_ref: proc_identification
+        description: Verify document authenticity (physical or digital via FINMA Circular 2016/7).
+        obligation_refs:
+          - obl:ch_finma_circ_2016_7:I:0
+          - obl:ch_amlo_finma:10:0
+        kind: generic
+
+      - id: step_face_to_face_or_video
+        blueprint_ref: kyc_onboarding_private_banking
+        procedure_ref: proc_identification
+        description: Perform face-to-face meeting OR FINMA-compliant video identification.
+        obligation_refs:
+          - obl:ch_finma_circ_2016_7:VIII:0
+          - obl:ch_cdb20:9:0
+        kind: generic
+
+      - id: step_address_verification
+        blueprint_ref: kyc_onboarding_private_banking
+        procedure_ref: proc_identification
+        description: Verify residential address per AMLO-FINMA requirements.
+        obligation_refs:
+          - obl:ch_amlo_finma:11:0
+        kind: generic
+
+      - id: step_id_record_creation
+        blueprint_ref: kyc_onboarding_private_banking
+        procedure_ref: proc_identification
+        description: Record identification outcome + supporting documents in case file.
+        obligation_refs:
+          - obl:ch_cdb20:37:1
+          - obl:eu_amlr_2024_1624:21:0
+        kind: generic
+
+  - id: proc_beneficial_owner
+    name: Beneficial Owner Determination
+    description: Identify and verify the ultimate beneficial owner(s) of the assets.
+    obligation_refs:
+      - obl:ch_cdb20:7:0
+      - obl:eu_amlr_2024_1624:20:0
+    steps:
+      - id: step_bo_declaration
+        blueprint_ref: kyc_onboarding_private_banking
+        procedure_ref: proc_beneficial_owner
+        description: Obtain a written declaration of beneficial owner(s) from the contracting partner.
+        obligation_refs:
+          - obl:ch_cdb20:27:0
+          - obl:ch_amla_current:4:0
+        kind: generic
+
+      - id: step_bo_verification
+        blueprint_ref: kyc_onboarding_private_banking
+        procedure_ref: proc_beneficial_owner
+        description: Cross-check declared BOs against public registers (incl. LETA once in force).
+        obligation_refs:
+          - obl:eu_amlr_2024_1624:20:1
+        kind: generic
+
+      - id: step_ownership_structure_map
+        blueprint_ref: kyc_onboarding_private_banking
+        procedure_ref: proc_beneficial_owner
+        description: Map ownership structure for legal entities (layered ownership, trusts).
+        obligation_refs:
+          - obl:eu_amlr_2024_1624:20:2
+        kind: generic
+
+      - id: step_bo_approval
+        blueprint_ref: kyc_onboarding_private_banking
+        procedure_ref: proc_beneficial_owner
+        description: Sign off BO determination (compliance officer review).
+        obligation_refs:
+          - obl:ch_cdb20:39:0
+        kind: approval_gate
+        attrs:
+          required_role: compliance_officer
+          sla_hours: 48
+
+  - id: proc_source_of_wealth
+    name: Source of Wealth Collection
+    description: Collect and verify source-of-wealth for a private-banking relationship.
+    obligation_refs:
+      - obl:wolfsberg_pb:P.1:3
+    steps:
+      # Author may replace these stubs with fragment !include once YAML anchors wired.
+      - id: step_sow_request
+        blueprint_ref: kyc_onboarding_private_banking
+        procedure_ref: proc_source_of_wealth
+        description: Request source-of-wealth documentation from the client.
+        obligation_refs:
+          - obl:wolfsberg_pb:P.1:3
+        kind: generic
+
+      - id: step_sow_collect
+        blueprint_ref: kyc_onboarding_private_banking
+        procedure_ref: proc_source_of_wealth
+        description: Collect a minimum of 2 supporting documents covering the declared SoW.
+        obligation_refs:
+          - obl:eu_eba_mltf_rf:4.50:0
+          - obl:eu_amlr_2024_1624:22:0
+        kind: source_of_wealth
+        attrs:
+          document_types: [tax_return, salary_slip, business_sale_agreement, inheritance_deed, dividend_statement]
+          minimum_documents: 2
+          freshness_days: 365
+
+      - id: step_sow_plausibility_review
+        blueprint_ref: kyc_onboarding_private_banking
+        procedure_ref: proc_source_of_wealth
+        description: Review documentation for plausibility against declared wealth.
+        obligation_refs:
+          - obl:eu_eba_mltf_rf:4.50:2
+        kind: generic
+
+      - id: step_sow_followup
+        blueprint_ref: kyc_onboarding_private_banking
+        procedure_ref: proc_source_of_wealth
+        description: Request follow-up documentation where gaps identified.
+        obligation_refs:
+          - obl:eu_eba_mltf_rf:4.50:1
+        kind: generic
+
+      - id: step_sow_signoff
+        blueprint_ref: kyc_onboarding_private_banking
+        procedure_ref: proc_source_of_wealth
+        description: Sign off SoW package — compliance officer review.
+        obligation_refs:
+          - obl:wolfsberg_pb:P.2:0
+        kind: approval_gate
+        attrs:
+          required_role: compliance_officer
+          escalation_chain: [senior_management]
+          sla_hours: 72
+
+      - id: step_sow_record
+        blueprint_ref: kyc_onboarding_private_banking
+        procedure_ref: proc_source_of_wealth
+        description: Record SoW conclusion and supporting documents in case file.
+        obligation_refs:
+          - obl:eu_amlr_2024_1624:21:0
+          - obl:wolfsberg_pb:P.9:0
+        kind: generic
+
+  - id: proc_risk_rating
+    name: Risk Rating
+    description: Compute inherent + residual risk for the relationship.
+    obligation_refs:
+      - obl:eu_amlr_2024_1624:20:0
+      - obl:wolfsberg_pb:P.2:0
+    steps:
+      - id: step_collect_risk_factors
+        blueprint_ref: kyc_onboarding_private_banking
+        procedure_ref: proc_risk_rating
+        description: Collect AMLR risk factors (customer, product, channel, geography).
+        obligation_refs:
+          - obl:eu_amlr_2024_1624:20:0
+          - obl:eu_eba_mltf_rf:1.2:0
+        kind: generic
+
+      - id: step_inherent_risk_compute
+        blueprint_ref: kyc_onboarding_private_banking
+        procedure_ref: proc_risk_rating
+        description: Compute inherent risk score.
+        obligation_refs:
+          - obl:eu_amlr_2024_1624:20:1
+        kind: risk_scoring
+        attrs:
+          model: amlr_inherent_controls_residual
+          inputs: [customer_type, product, channel, geography]
+          output_field: inherent_risk
+          thresholds: {edd_threshold: 0.6, sdd_threshold: 0.2}
+
+      - id: step_controls_strength_compute
+        blueprint_ref: kyc_onboarding_private_banking
+        procedure_ref: proc_risk_rating
+        description: Score the strength of applicable controls for this relationship.
+        obligation_refs:
+          - obl:eu_amlr_2024_1624:20:2
+        kind: risk_scoring
+        attrs:
+          model: amlr_inherent_controls_residual
+          inputs: [controls_catalog]
+          output_field: controls_strength
+
+      - id: step_residual_risk_compute
+        blueprint_ref: kyc_onboarding_private_banking
+        procedure_ref: proc_risk_rating
+        description: Derive residual risk = Inherent × Controls.
+        obligation_refs:
+          - obl:eu_amlr_2024_1624:20:3
+        kind: risk_scoring
+        attrs:
+          model: amlr_inherent_controls_residual
+          inputs: [inherent_risk, controls_strength]
+          output_field: residual_risk
+          thresholds: {edd_threshold: 0.7}
+        decisions:
+          - id: dp_residual_branch
+            condition: {kind: numeric, expression: "customer.residual_risk > 0.7"}
+            if_true_next: step_edd_trigger
+            if_false_next: step_standard_path
+
+      - id: step_edd_trigger
+        blueprint_ref: kyc_onboarding_private_banking
+        procedure_ref: proc_risk_rating
+        description: Trigger Enhanced Due Diligence path.
+        obligation_refs:
+          - obl:eu_amlr_2024_1624:20:4
+          - obl:wolfsberg_pb:P.2:0
+        kind: generic
+
+      - id: step_standard_path
+        blueprint_ref: kyc_onboarding_private_banking
+        procedure_ref: proc_risk_rating
+        description: Proceed with Standard CDD path.
+        obligation_refs:
+          - obl:eu_amlr_2024_1624:19:2
+        kind: generic
+
+  - id: proc_screening
+    name: Screening
+    description: Sanctions, PEP, and adverse media screening.
+    obligation_refs:
+      - obl:wolfsberg_sms:P.1:0
+    steps:
+      - id: step_sanctions_screen
+        blueprint_ref: kyc_onboarding_private_banking
+        procedure_ref: proc_screening
+        description: Screen against sanctions lists (OFAC, EU, UN, SECO, UK).
+        obligation_refs:
+          - obl:wolfsberg_sms:P.1:1
+          - obl:eu_amlr_2024_1624:19:3
+        kind: screening
+        attrs:
+          screening_type: sanctions
+          list_refs: [sr:ofac_sdn, sr:eu_consolidated, sr:un_consolidated, sr:seco, sr:uk_ofsi]
+          match_policy: fuzzy
+          escalation_on_hit: adjudicate
+
+      - id: step_pep_screen
+        blueprint_ref: kyc_onboarding_private_banking
+        procedure_ref: proc_screening
+        description: PEP screening against commercial PEP lists.
+        obligation_refs:
+          - obl:eu_amlr_2024_1624:25:0
+          - obl:wolfsberg_pb:P.3:0
+        kind: screening
+        attrs:
+          screening_type: pep
+          list_refs: [sr:pep_global]
+          match_policy: fuzzy
+          escalation_on_hit: review
+
+      - id: step_adverse_media_screen
+        blueprint_ref: kyc_onboarding_private_banking
+        procedure_ref: proc_screening
+        description: Adverse media screening.
+        obligation_refs:
+          - obl:wolfsberg_pb:P.3:1
+        kind: screening
+        attrs:
+          screening_type: adverse_media
+          list_refs: [sr:adverse_media]
+          match_policy: fuzzy
+          escalation_on_hit: review
+
+      - id: step_screening_adjudication
+        blueprint_ref: kyc_onboarding_private_banking
+        procedure_ref: proc_screening
+        description: Adjudicate all matches — true-hit vs false-positive.
+        obligation_refs:
+          - obl:wolfsberg_sms:P.3:1
+        kind: sanctions_adjudication
+        attrs:
+          match_types: [exact, fuzzy, alias, entity]
+          false_positive_criteria: [date_of_birth_mismatch, jurisdiction_mismatch, name_common_variant]
+          hit_escalation_role: compliance_officer
+
+  - id: proc_senior_management_approval
+    name: Senior Management Approval
+    description: EDD sign-off by senior management.
+    obligation_refs:
+      - obl:wolfsberg_pb:P.2:0
+      - obl:eu_amlr_2024_1624:21:0
+    steps:
+      - id: step_package_edd_file
+        blueprint_ref: kyc_onboarding_private_banking
+        procedure_ref: proc_senior_management_approval
+        description: Package the EDD file (identification, BO, SoW, risk, screening).
+        obligation_refs:
+          - obl:eu_amlr_2024_1624:21:1
+        kind: generic
+
+      - id: step_senior_mgmt_review
+        blueprint_ref: kyc_onboarding_private_banking
+        procedure_ref: proc_senior_management_approval
+        description: Senior management reviews EDD file + signs off.
+        obligation_refs:
+          - obl:wolfsberg_pb:P.2:0
+          - obl:eu_amlr_2024_1624:21:0
+        kind: approval_gate
+        attrs:
+          required_role: senior_management
+          escalation_chain: [mlro]
+          sla_hours: 120
+
+  - id: proc_account_activation
+    name: Account Activation
+    description: Activate the account once all prerequisites cleared.
+    obligation_refs:
+      - obl:ch_cdb20:4:2
+    steps:
+      - id: step_final_gate
+        blueprint_ref: kyc_onboarding_private_banking
+        procedure_ref: proc_account_activation
+        description: Final pre-activation gate — verify all required approvals + no outstanding flags.
+        obligation_refs:
+          - obl:ch_cdb20:15:0
+          - obl:eu_amlr_2024_1624:19:4
+        kind: generic
+
+      - id: step_activate
+        blueprint_ref: kyc_onboarding_private_banking
+        procedure_ref: proc_account_activation
+        description: Activate account — customer may transact.
+        obligation_refs:
+          - obl:eu_amlr_2024_1624:19:5
+        kind: generic
+
+  - id: proc_refresh_schedule
+    name: Post-activation Refresh Schedule
+    description: Schedule pKYC review triggers per customer risk rating.
+    obligation_refs:
+      - obl:eu_amlr_2024_1624:22:0
+      - obl:wolfsberg_pb:P.4:0
+    steps:
+      - id: step_trigger_registration
+        blueprint_ref: kyc_onboarding_private_banking
+        procedure_ref: proc_refresh_schedule
+        description: Register pKYC triggers (anniversary, adverse media, PEP changes, BO changes).
+        obligation_refs:
+          - obl:eu_amlr_2024_1624:22:1
+          - obl:eu_eba_mltf_rf:4.73:0
+        kind: trigger_event
+        attrs:
+          event_types:
+            - periodic_anniversary
+            - adverse_media_hit
+            - pep_status_change
+            - beneficial_owner_change
+            - address_change
+
+      - id: step_schedule_periodic_review
+        blueprint_ref: kyc_onboarding_private_banking
+        procedure_ref: proc_refresh_schedule
+        description: Schedule periodic review per risk tier (EDD=12mo, Standard=24mo).
+        obligation_refs:
+          - obl:eu_amlr_2024_1624:22:2
+        kind: generic
+
+      - id: step_handoff_to_pkyc
+        blueprint_ref: kyc_onboarding_private_banking
+        procedure_ref: proc_refresh_schedule
+        description: Hand off customer to pKYC review blueprint.
+        obligation_refs:
+          - obl:eu_amlr_2024_1624:22:3
+        kind: generic
+
+      - id: step_record_activation
+        blueprint_ref: kyc_onboarding_private_banking
+        procedure_ref: proc_refresh_schedule
+        description: Record activation + schedule in case file.
+        obligation_refs:
+          - obl:ch_amlo_finma:20:0
+        kind: generic
+
+liveness_formulas:
+  - "□(relationship_opened → ◇ edd_package_complete)"
+  - "□(sow_missing ∧ high_value → ¬account_activated)"
+  - "□(pep_identified → ◇ senior_mgmt_approval_signed)"
+  - "□(account_activated → ◇ periodic_review_scheduled)"

@@ -1,0 +1,268 @@
+id: kyc_sar_escalation
+name: Swiss SAR / MROS Escalation
+description: >
+  End-to-end suspicious-activity-report workflow under Swiss AMLA + MROS
+  regime. Staff suspicion -> investigation -> MLRO escalation -> filing
+  decision -> MROS submission + transaction hold. Tipping-off prohibition
+  enforced throughout.
+primary_anchors:
+  - ch_amla_current
+  - ch_amlo_finma
+  - wolfsberg_sms
+  - eu_amlr_2024_1624
+discriminator_profile:
+  tiers: [standard, edd]
+  overlays: []
+  jurisdictions: [ch]
+procedures:
+  - id: proc_suspicion_identification
+    name: Suspicion Identification
+    description: Identify, contextualise, and record an initial suspicion of money laundering or terrorist financing.
+    obligation_refs:
+      - obl:wolfsberg_sms:P.3:0
+      - obl:eu_amlr_2024_1624:69:5
+    steps:
+      - id: step_susp_staff_alert
+        blueprint_ref: kyc_sar_escalation
+        procedure_ref: proc_suspicion_identification
+        description: Staff member raises an internal suspicion alert citing the indicator (unusual pattern, adverse media, monitoring alert).
+        obligation_refs:
+          - obl:wolfsberg_sms:P.3:0
+          - obl:wolfsberg_sms:P.4:1
+          - obl:eu_amlr_2024_1624:69:5
+        emits:
+          - sar_triggered
+        kind: generic
+
+      - id: step_susp_context_gather
+        blueprint_ref: kyc_sar_escalation
+        procedure_ref: proc_suspicion_identification
+        description: Gather immediate context for the alert (account data, recent transactions, customer profile snapshot).
+        obligation_refs:
+          - obl:eu_amlr_2024_1624:69:6
+          - obl:eu_amlr_2024_1624:69:7
+          - obl:wolfsberg_sms:P.5:0
+        kind: generic
+
+      - id: step_susp_initial_assessment
+        blueprint_ref: kyc_sar_escalation
+        procedure_ref: proc_suspicion_identification
+        description: Perform an initial assessment to determine whether the alert reaches the reasonable-grounds threshold for escalation.
+        obligation_refs:
+          - obl:wolfsberg_sms:P.3:1
+          - obl:eu_amlr_2024_1624:69:5
+          - obl:ch_amla_current:6:0
+        kind: generic
+
+      - id: step_susp_internal_record
+        blueprint_ref: kyc_sar_escalation
+        procedure_ref: proc_suspicion_identification
+        description: Record the alert, initial context, and preliminary assessment in the case file under tipping-off-safe access controls.
+        obligation_refs:
+          - obl:ch_amla_current:7:0
+          - obl:eu_amlr_2024_1624:77:0
+          - obl:eu_amlr_2024_1624:73:0
+        kind: generic
+
+  - id: proc_investigation
+    name: Investigation
+    description: Investigate the alert in depth and assemble findings for the MLRO decision.
+    obligation_refs:
+      - obl:eu_amlr_2024_1624:69:5
+      - obl:wolfsberg_sms:P.3:1
+    steps:
+      - id: step_inv_transaction_history
+        blueprint_ref: kyc_sar_escalation
+        procedure_ref: proc_investigation
+        description: Pull the full transaction history relevant to the alert, including look-back and attempted transactions.
+        obligation_refs:
+          - obl:eu_amlr_2024_1624:69:6
+          - obl:eu_amlr_2024_1624:69:7
+          - obl:wolfsberg_sms:P.4:1
+        kind: generic
+
+      - id: step_inv_counterparty_profile
+        blueprint_ref: kyc_sar_escalation
+        procedure_ref: proc_investigation
+        description: Profile the counterparties (name, jurisdiction, sanctions/PEP status, business rationale).
+        obligation_refs:
+          - obl:wolfsberg_sms:P.1:2
+          - obl:eu_amlr_2024_1624:69:7
+          - obl:eu_eba_mltf_rf:4.77:0
+        kind: generic
+
+      - id: step_inv_source_of_funds_review
+        blueprint_ref: kyc_sar_escalation
+        procedure_ref: proc_investigation
+        description: Re-examine source of funds / source of wealth plausibility in light of the alerted activity.
+        obligation_refs:
+          - obl:eu_eba_mltf_rf:4.74:0
+          - obl:eu_eba_mltf_rf:4.76:0
+          - obl:eu_amlr_2024_1624:69:5
+        kind: generic
+
+      - id: step_inv_assemble_findings
+        blueprint_ref: kyc_sar_escalation
+        procedure_ref: proc_investigation
+        description: Assemble structured findings (timeline, red flags, assessment rationale, mitigations considered).
+        obligation_refs:
+          - obl:eu_amlr_2024_1624:69:5
+          - obl:eu_amlr_2024_1624:77:0
+          - obl:wolfsberg_sms:P.5:0
+        kind: generic
+
+      - id: step_inv_finalise_report
+        blueprint_ref: kyc_sar_escalation
+        procedure_ref: proc_investigation
+        description: Finalise the investigation report for MLRO review under strict confidentiality.
+        obligation_refs:
+          - obl:ch_amla_current:7:0
+          - obl:eu_amlr_2024_1624:73:0
+          - obl:eu_amlr_2024_1624:73:1
+        kind: generic
+
+  - id: proc_internal_escalation_to_mlro
+    name: Internal Escalation to MLRO
+    description: Route the investigation to the Money Laundering Reporting Officer for decision.
+    obligation_refs:
+      - obl:eu_amlr_2024_1624:11:5
+      - obl:eu_amlr_2024_1624:11:6
+    steps:
+      - id: step_mlro_transmit_package
+        blueprint_ref: kyc_sar_escalation
+        procedure_ref: proc_internal_escalation_to_mlro
+        description: Transmit the investigation package to the MLRO through the restricted reporting channel.
+        obligation_refs:
+          - obl:eu_amlr_2024_1624:11:6
+          - obl:eu_amlr_2024_1624:73:0
+          - obl:ch_amlo_finma:7:0
+        kind: generic
+
+      - id: step_mlro_receive_acknowledge
+        blueprint_ref: kyc_sar_escalation
+        procedure_ref: proc_internal_escalation_to_mlro
+        description: MLRO receives, acknowledges, and logs the package with a unique case reference.
+        obligation_refs:
+          - obl:eu_amlr_2024_1624:11:5
+          - obl:ch_amla_current:7:0
+          - obl:wolfsberg_sms:P.6:0
+        kind: generic
+
+      - id: step_mlro_preliminary_gate
+        blueprint_ref: kyc_sar_escalation
+        procedure_ref: proc_internal_escalation_to_mlro
+        description: MLRO preliminary-assessment approval gate — confirms whether the case proceeds to a filing decision.
+        obligation_refs:
+          - obl:eu_amlr_2024_1624:11:6
+          - obl:eu_amlr_2024_1624:69:13
+          - obl:wolfsberg_sms:P.3:1
+        kind: approval_gate
+        attrs:
+          required_role: mlro
+          escalation_chain: [senior_management]
+          sla_hours: 24
+
+  - id: proc_filing_decision
+    name: Filing Decision
+    description: MLRO makes a binding decision to file (or not) a report to MROS.
+    obligation_refs:
+      - obl:ch_amla_current:9:0
+      - obl:eu_amlr_2024_1624:69:0
+    steps:
+      - id: step_file_decision_rationale
+        blueprint_ref: kyc_sar_escalation
+        procedure_ref: proc_filing_decision
+        description: Record the filing rationale (indicators, analysis, reasonable-grounds assessment) under the tipping-off prohibition.
+        obligation_refs:
+          - obl:eu_amlr_2024_1624:69:5
+          - obl:eu_amlr_2024_1624:73:0
+          - obl:eu_amlr_2024_1624:73:1
+        kind: generic
+
+      - id: step_file_decision_confidentiality
+        blueprint_ref: kyc_sar_escalation
+        procedure_ref: proc_filing_decision
+        description: Confirm that no disclosure to the customer or unauthorised third parties has occurred or will occur.
+        obligation_refs:
+          - obl:eu_amlr_2024_1624:73:0
+          - obl:eu_amlr_2024_1624:73:5
+          - obl:fatf_40:R.21:0
+        kind: generic
+
+      - id: step_file_decision_documented
+        blueprint_ref: kyc_sar_escalation
+        procedure_ref: proc_filing_decision
+        description: Produce the formal filing / non-filing memorandum with version-controlled evidence pack.
+        obligation_refs:
+          - obl:eu_amlr_2024_1624:77:0
+          - obl:eu_amlr_2024_1624:77:4
+          - obl:ch_amla_current:7:0
+        kind: generic
+
+      - id: step_file_decision_signoff
+        blueprint_ref: kyc_sar_escalation
+        procedure_ref: proc_filing_decision
+        description: MLRO decision sign-off gate — binding decision to file to MROS or close without filing, with reasoned record.
+        obligation_refs:
+          - obl:ch_amla_current:9:0
+          - obl:eu_amlr_2024_1624:69:0
+          - obl:eu_amlr_2024_1624:11:6
+        kind: approval_gate
+        attrs:
+          required_role: mlro
+          escalation_chain: [senior_management]
+          sla_hours: 48
+
+  - id: proc_mros_submission_and_hold
+    name: MROS Submission and Transaction Hold
+    description: Transmit the report to MROS, confirm receipt, apply the transaction hold, and monitor until MROS instruction.
+    obligation_refs:
+      - obl:ch_amla_current:9:0
+      - obl:ch_amla_current:10:0
+    steps:
+      - id: step_mros_transmit
+        blueprint_ref: kyc_sar_escalation
+        procedure_ref: proc_mros_submission_and_hold
+        description: Transmit the SAR to MROS via the goAML secure channel within the statutory deadline.
+        obligation_refs:
+          - obl:ch_amla_current:9:0
+          - obl:eu_amlr_2024_1624:69:0
+          - obl:eu_amlr_2024_1624:69:2
+        kind: generic
+
+      - id: step_mros_receipt_confirmation
+        blueprint_ref: kyc_sar_escalation
+        procedure_ref: proc_mros_submission_and_hold
+        description: Record MROS receipt acknowledgement (reference number, timestamp) in the case file.
+        obligation_refs:
+          - obl:ch_amla_current:1a:0
+          - obl:eu_amlr_2024_1624:69:20
+          - obl:eu_amlr_2024_1624:77:0
+        kind: generic
+
+      - id: step_mros_hold_transactions
+        blueprint_ref: kyc_sar_escalation
+        procedure_ref: proc_mros_submission_and_hold
+        description: Apply the statutory transaction hold on the reported assets and freeze customer-initiated orders.
+        obligation_refs:
+          - obl:ch_amla_current:10:0
+          - obl:ch_amla_current:10:1
+          - obl:ch_amla_current:9:2
+          - obl:eu_amlr_2024_1624:71:0
+        kind: generic
+
+      - id: step_mros_monitor_until_instruction
+        blueprint_ref: kyc_sar_escalation
+        procedure_ref: proc_mros_submission_and_hold
+        description: Monitor the case until MROS instruction (release, extension, or forwarding to prosecution) and act accordingly.
+        obligation_refs:
+          - obl:ch_amla_current:10:2
+          - obl:ch_amla_current:10:3
+          - obl:eu_amlr_2024_1624:71:1
+          - obl:eu_amlr_2024_1624:71:2
+        kind: generic
+
+liveness_formulas:
+  - "G(suspicion_identified -> F mros_report_filed)"
+  - "G(sar_filed -> !customer_tipped_off)"
+  - "G(mros_hold_ordered -> !transactions_released)"

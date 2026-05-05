@@ -1,0 +1,470 @@
+id: kyc_casp_onboarding
+name: CASP / Crypto Customer Onboarding (MiCA + TFR)
+description: >
+  Crypto-asset service provider customer onboarding under MiCA
+  + Transfer of Funds Regulation. Covers CASP licence verification,
+  crypto-specific customer identification, wallet ownership, Travel Rule
+  data handling, crypto-EDD, and on-chain ongoing monitoring.
+primary_anchors:
+  - eu_mica
+  - eu_tfr
+  - eu_amlr_2024_1624
+discriminator_profile:
+  tiers: [edd]
+  overlays: [casp]
+  jurisdictions: [ch, eu]
+procedures:
+  - id: proc_casp_license_verification
+    name: CASP Licence Verification
+    description: >
+      Verify that the CASP (self or counterparty) holds a current MiCA
+      authorisation or equivalent non-EU licence, and confirm the scope
+      of authorised crypto-asset services per Article 60 MiCA.
+    obligation_refs:
+      - obl:eu_mica:59:0
+      - obl:eu_mica:60:0
+    steps:
+      - id: step_casp_lic_verify_authorisation
+        blueprint_ref: kyc_casp_onboarding
+        procedure_ref: proc_casp_license_verification
+        description: >
+          Verify the CASP's MiCA authorisation status in the ESMA register
+          of authorised CASPs (Article 109 MiCA) and record the licence
+          reference and entity ID.
+        obligation_refs:
+          - obl:eu_mica:59:0
+          - obl:eu_mica:59:1
+          - obl:eu_mica:60:0
+        kind: generic
+
+      - id: step_casp_lic_confirm_services_scope
+        blueprint_ref: kyc_casp_onboarding
+        procedure_ref: proc_casp_license_verification
+        description: >
+          Confirm the scope of authorised crypto-asset services (custody,
+          exchange, execution, reception-and-transmission, advice, portfolio
+          management, placement, transfer) per Article 60 MiCA.
+        obligation_refs:
+          - obl:eu_mica:60:1
+          - obl:eu_mica:60:2
+          - obl:eu_mica:62:2
+        kind: generic
+
+      - id: step_casp_lic_management_fit_and_proper
+        blueprint_ref: kyc_casp_onboarding
+        procedure_ref: proc_casp_license_verification
+        description: >
+          Verify the fit-and-proper status of the CASP's management body
+          and qualifying shareholders per Article 62 MiCA, confirming the
+          absence of criminal records and AML convictions.
+        obligation_refs:
+          - obl:eu_mica:62:2
+          - obl:eu_mica:68:0
+          - obl:eu_amlr_2024_1624:26:1
+        kind: generic
+
+      - id: step_casp_lic_record_verification
+        blueprint_ref: kyc_casp_onboarding
+        procedure_ref: proc_casp_license_verification
+        description: >
+          Record the CASP-licence verification outcome (authorisation ref,
+          service scope, management review) in the onboarding case file.
+        obligation_refs:
+          - obl:eu_mica:59:0
+          - obl:eu_amlr_2024_1624:77:0
+          - obl:eu_amlr_2024_1624:77:4
+        kind: generic
+
+  - id: proc_customer_identification_crypto
+    name: Crypto Customer Identification
+    description: >
+      Perform crypto-specific customer identification including address
+      derivation verification, on-chain history enrichment, and initial
+      sanctions / PEP screening on both the natural person and the
+      associated crypto addresses.
+    obligation_refs:
+      - obl:eu_amlr_2024_1624:22:0
+      - obl:eu_mica:68:0
+    steps:
+      - id: step_crypto_id_collect_documents
+        blueprint_ref: kyc_casp_onboarding
+        procedure_ref: proc_customer_identification_crypto
+        description: >
+          Collect government-issued identification documents and capture
+          the customer's declared home address, tax residence, and contact
+          details per Article 22 AMLR.
+        obligation_refs:
+          - obl:eu_amlr_2024_1624:22:0
+          - obl:eu_amlr_2024_1624:22:1
+          - obl:eu_mica:68:0
+        kind: generic
+
+      - id: step_crypto_id_verify_identity
+        blueprint_ref: kyc_casp_onboarding
+        procedure_ref: proc_customer_identification_crypto
+        description: >
+          Verify the customer's identity from an independent source
+          (authenticated document, reliable eID scheme, or equivalent)
+          per Article 22 AMLR and record the verification method.
+        obligation_refs:
+          - obl:eu_amlr_2024_1624:22:2
+          - obl:eu_amlr_2024_1624:22:3
+          - obl:eu_mica:68:1
+        kind: generic
+
+      - id: step_crypto_id_collect_addresses
+        blueprint_ref: kyc_casp_onboarding
+        procedure_ref: proc_customer_identification_crypto
+        description: >
+          Capture the customer's associated crypto-asset addresses and
+          wallet types (custodial, self-hosted, smart-contract wallet)
+          per Article 38 AMLR and link them to the customer record.
+        obligation_refs:
+          - obl:eu_amlr_2024_1624:38:0
+          - obl:eu_amlr_2024_1624:38:1
+          - obl:eu_mica:68:2
+        kind: generic
+
+      - id: step_crypto_id_anonymous_account_prohibition
+        blueprint_ref: kyc_casp_onboarding
+        procedure_ref: proc_customer_identification_crypto
+        description: >
+          Confirm that no anonymous crypto-asset accounts are opened or
+          maintained for the customer, per the Article 79 AMLR prohibition
+          on anonymous crypto accounts.
+        obligation_refs:
+          - obl:eu_amlr_2024_1624:79:0
+          - obl:eu_amlr_2024_1624:79:1
+          - obl:eu_amlr_2024_1624:38:2
+        kind: generic
+
+      - id: step_crypto_id_screen_customer_and_addresses
+        blueprint_ref: kyc_casp_onboarding
+        procedure_ref: proc_customer_identification_crypto
+        description: >
+          Screen the customer and their crypto-asset addresses against
+          sanctions, PEP, and adverse-media lists; on-chain address
+          screening detects exposure to sanctioned addresses per TFR / AMLR.
+        obligation_refs:
+          - obl:eu_amlr_2024_1624:38:0
+          - obl:eu_amlr_2024_1624:11:0
+          - obl:eu_tfr:20:0
+          - obl:eu_tfr:21:0
+        kind: screening
+        attrs:
+          screening_type: combined
+          list_refs:
+            - sr:ofac_sdn
+            - sr:eu_consolidated
+            - sr:un_consolidated
+            - sr:seco
+            - sr:uk_ofsi
+            - sr:onchain_sanctioned_addresses
+          match_policy: fuzzy
+          escalation_on_hit: review
+
+  - id: proc_wallet_ownership_verification
+    name: Wallet Ownership Verification
+    description: >
+      Verify the customer's control of any self-hosted wallets linked to
+      the relationship, using satoshi-test / message-sign / micro-transfer
+      proofs per Article 38(1) AMLR and Article 14 TFR.
+    obligation_refs:
+      - obl:eu_amlr_2024_1624:38:3
+      - obl:eu_tfr:14:0
+    steps:
+      - id: step_wallet_capture_self_hosted
+        blueprint_ref: kyc_casp_onboarding
+        procedure_ref: proc_wallet_ownership_verification
+        description: >
+          Capture all self-hosted wallet addresses the customer intends to
+          use with the CASP and annotate their wallet software where known.
+        obligation_refs:
+          - obl:eu_amlr_2024_1624:38:0
+          - obl:eu_amlr_2024_1624:38:3
+          - obl:eu_tfr:14:2
+        kind: generic
+
+      - id: step_wallet_proof_of_control
+        blueprint_ref: kyc_casp_onboarding
+        procedure_ref: proc_wallet_ownership_verification
+        description: >
+          Obtain proof-of-control for each self-hosted wallet via signed
+          message, micro-transfer, or AOPP / SPV-style attestation per
+          Article 38(1) AMLR and Article 14 TFR.
+        obligation_refs:
+          - obl:eu_amlr_2024_1624:38:3
+          - obl:eu_amlr_2024_1624:38:4
+          - obl:eu_tfr:14:0
+          - obl:eu_tfr:14:3
+        kind: generic
+
+      - id: step_wallet_risk_flag_unhosted
+        blueprint_ref: kyc_casp_onboarding
+        procedure_ref: proc_wallet_ownership_verification
+        description: >
+          Flag the wallet-ownership outcome (verified / unverified) and
+          trigger enhanced diligence where a customer proposes transfers
+          to / from an unhosted wallet that cannot be attributed.
+        obligation_refs:
+          - obl:eu_amlr_2024_1624:38:5
+          - obl:eu_tfr:14:5
+          - obl:eu_tfr:19:0
+        kind: generic
+
+      - id: step_wallet_record_verification
+        blueprint_ref: kyc_casp_onboarding
+        procedure_ref: proc_wallet_ownership_verification
+        description: >
+          Record the wallet-verification outcomes in the case file with
+          timestamped evidence and link to the customer and address index.
+        obligation_refs:
+          - obl:eu_amlr_2024_1624:77:0
+          - obl:eu_amlr_2024_1624:77:4
+          - obl:eu_tfr:14:7
+        kind: generic
+
+  - id: proc_travel_rule_data_handling
+    name: Travel Rule Data Handling
+    description: >
+      Implement Article 14 TFR Travel Rule data handling for crypto-asset
+      transfers: capture originator / beneficiary data, validate it on
+      inbound, attach it on outbound, and pre-assess transaction risk.
+    obligation_refs:
+      - obl:eu_tfr:14:0
+      - obl:eu_tfr:16:0
+    steps:
+      - id: step_tr_configure_policy
+        blueprint_ref: kyc_casp_onboarding
+        procedure_ref: proc_travel_rule_data_handling
+        description: >
+          Configure the Travel-Rule policy: information set required on
+          outbound, acceptance rules for inbound, and the de-minimis
+          threshold (EUR 1,000 aggregation) per Article 14 TFR.
+        obligation_refs:
+          - obl:eu_tfr:14:0
+          - obl:eu_tfr:14:1
+          - obl:eu_tfr:14:2
+        kind: generic
+
+      - id: step_tr_capture_originator_data
+        blueprint_ref: kyc_casp_onboarding
+        procedure_ref: proc_travel_rule_data_handling
+        description: >
+          Capture the originator data set (name, address or equivalent,
+          account/wallet identifier, customer identification number)
+          for every outbound crypto-asset transfer.
+        obligation_refs:
+          - obl:eu_tfr:14:0
+          - obl:eu_tfr:14:3
+          - obl:eu_tfr:14:4
+        kind: generic
+
+      - id: step_tr_capture_beneficiary_data
+        blueprint_ref: kyc_casp_onboarding
+        procedure_ref: proc_travel_rule_data_handling
+        description: >
+          Capture the beneficiary data set (name, account / wallet
+          identifier) and confirm that the beneficiary CASP will accept
+          the transfer payload.
+        obligation_refs:
+          - obl:eu_tfr:14:5
+          - obl:eu_tfr:14:6
+          - obl:eu_tfr:16:0
+        kind: generic
+
+      - id: step_tr_validate_inbound_data
+        blueprint_ref: kyc_casp_onboarding
+        procedure_ref: proc_travel_rule_data_handling
+        description: >
+          Validate the originator / beneficiary data attached to inbound
+          transfers; execute, hold, reject, or return the transfer per
+          Article 16 / 17 TFR.
+        obligation_refs:
+          - obl:eu_tfr:16:0
+          - obl:eu_tfr:16:1
+          - obl:eu_tfr:17:0
+          - obl:eu_tfr:17:1
+        kind: generic
+
+      - id: step_tr_attach_outbound_data
+        blueprint_ref: kyc_casp_onboarding
+        procedure_ref: proc_travel_rule_data_handling
+        description: >
+          Attach the Travel-Rule payload to every outbound transfer; reject
+          the transfer if required data cannot be attached per Article 14 TFR.
+        obligation_refs:
+          - obl:eu_tfr:14:0
+          - obl:eu_tfr:14:7
+          - obl:eu_tfr:14:8
+        kind: generic
+
+      - id: step_tr_pre_assess_transaction_risk
+        blueprint_ref: kyc_casp_onboarding
+        procedure_ref: proc_travel_rule_data_handling
+        description: >
+          Pre-assess per-transaction risk using counterparty reputation,
+          value, corridor, and on-chain exposure; compute a Travel-Rule
+          transaction risk score and set the gating threshold.
+        obligation_refs:
+          - obl:eu_tfr:16:2
+          - obl:eu_amlr_2024_1624:26:2
+          - obl:eu_amlr_2024_1624:38:1
+        kind: risk_scoring
+        attrs:
+          model: amlr_inherent_controls_residual
+          inputs:
+            - counterparty_reputation
+            - value_eur
+            - corridor_risk
+            - onchain_exposure
+            - travel_rule_data_quality
+          output_field: travel_rule_transaction_risk
+          thresholds:
+            standard: 0.4
+            review: 0.7
+            block: 0.9
+
+  - id: proc_enhanced_due_diligence_crypto
+    name: Crypto Enhanced Due Diligence
+    description: >
+      Crypto-EDD when a customer's on-chain footprint exposes them to
+      mixers, tumblers, privacy coins, or sanctioned-cluster proximity.
+    obligation_refs:
+      - obl:eu_amlr_2024_1624:38:0
+      - obl:eu_amlr_2024_1624:26:0
+    steps:
+      - id: step_edd_onchain_history_review
+        blueprint_ref: kyc_casp_onboarding
+        procedure_ref: proc_enhanced_due_diligence_crypto
+        description: >
+          Review on-chain transaction history for the customer's addresses;
+          identify exposure to mixers, tumblers, privacy-coin conversions,
+          or sanctioned-cluster proximity.
+        obligation_refs:
+          - obl:eu_amlr_2024_1624:38:0
+          - obl:eu_amlr_2024_1624:38:1
+          - obl:eu_amlr_2024_1624:26:0
+        kind: generic
+
+      - id: step_edd_source_of_funds
+        blueprint_ref: kyc_casp_onboarding
+        procedure_ref: proc_enhanced_due_diligence_crypto
+        description: >
+          Obtain documentary evidence of source-of-funds for the crypto
+          holdings (exchange statements, purchase receipts, income
+          declarations) per Article 26 AMLR.
+        obligation_refs:
+          - obl:eu_amlr_2024_1624:26:0
+          - obl:eu_amlr_2024_1624:26:3
+          - obl:eu_amlr_2024_1624:38:3
+        kind: generic
+
+      - id: step_edd_counterparty_review
+        blueprint_ref: kyc_casp_onboarding
+        procedure_ref: proc_enhanced_due_diligence_crypto
+        description: >
+          Review key counterparties the customer transacts with, focusing
+          on unhosted wallets, non-MiCA CASPs, and high-risk jurisdictions.
+        obligation_refs:
+          - obl:eu_amlr_2024_1624:38:4
+          - obl:eu_amlr_2024_1624:38:5
+          - obl:eu_tfr:19:0
+        kind: generic
+
+      - id: step_edd_senior_management_escalation
+        blueprint_ref: kyc_casp_onboarding
+        procedure_ref: proc_enhanced_due_diligence_crypto
+        description: >
+          Escalate mixer / privacy-coin / sanctioned-proximity findings to
+          senior management for an explicit decision to maintain, restrict,
+          or exit the relationship.
+        obligation_refs:
+          - obl:eu_amlr_2024_1624:26:8
+          - obl:eu_amlr_2024_1624:11:0
+          - obl:eu_amlr_2024_1624:11:5
+        kind: generic
+
+      - id: step_edd_document_outcome
+        blueprint_ref: kyc_casp_onboarding
+        procedure_ref: proc_enhanced_due_diligence_crypto
+        description: >
+          Document the EDD outcome, mitigations applied, and the
+          residual-risk decision with retention-compliant metadata.
+        obligation_refs:
+          - obl:eu_amlr_2024_1624:77:0
+          - obl:eu_amlr_2024_1624:77:4
+          - obl:eu_amlr_2024_1624:26:9
+        kind: generic
+
+  - id: proc_ongoing_monitoring_on_chain
+    name: On-chain Ongoing Monitoring
+    description: >
+      Continuous on-chain transaction monitoring for the customer's
+      addresses, with alerting on mixer interactions, unusual transactions,
+      and sanctioned-cluster exposure.
+    obligation_refs:
+      - obl:eu_amlr_2024_1624:38:0
+      - obl:eu_tfr:20:0
+    steps:
+      - id: step_monitor_configure_alerts
+        blueprint_ref: kyc_casp_onboarding
+        procedure_ref: proc_ongoing_monitoring_on_chain
+        description: >
+          Configure on-chain monitoring alerts (mixer interaction, privacy
+          coin conversion, sanctioned cluster proximity, unusual volume)
+          with per-customer thresholds based on the risk rating.
+        obligation_refs:
+          - obl:eu_amlr_2024_1624:38:0
+          - obl:eu_amlr_2024_1624:26:7
+          - obl:eu_tfr:20:0
+        kind: generic
+
+      - id: step_monitor_ingest_onchain_feed
+        blueprint_ref: kyc_casp_onboarding
+        procedure_ref: proc_ongoing_monitoring_on_chain
+        description: >
+          Ingest the on-chain activity feed for the customer's addresses,
+          enrich with counterparty labels, and persist to the monitoring
+          store for replay and investigation.
+        obligation_refs:
+          - obl:eu_amlr_2024_1624:38:1
+          - obl:eu_amlr_2024_1624:38:2
+          - obl:eu_tfr:20:0
+        kind: generic
+
+      - id: step_monitor_evaluate_and_alert
+        blueprint_ref: kyc_casp_onboarding
+        procedure_ref: proc_ongoing_monitoring_on_chain
+        description: >
+          Evaluate each transaction against the alert configuration; on
+          alert, raise an investigation ticket and dispatch to EDD or SAR
+          escalation where appropriate.
+        obligation_refs:
+          - obl:eu_amlr_2024_1624:38:0
+          - obl:eu_amlr_2024_1624:26:9
+          - obl:eu_tfr:21:0
+        kind: generic
+
+      - id: step_monitor_trigger_events
+        blueprint_ref: kyc_casp_onboarding
+        procedure_ref: proc_ongoing_monitoring_on_chain
+        description: >
+          React to on-chain trigger events (mixer interaction, unusual
+          transaction) by dispatching to the EDD procedure and, where
+          warranted, the SAR-escalation blueprint.
+        obligation_refs:
+          - obl:eu_amlr_2024_1624:38:0
+          - obl:eu_amlr_2024_1624:26:8
+          - obl:eu_tfr:21:1
+        kind: trigger_event
+        attrs:
+          event_types:
+            - unusual_transaction
+            - adverse_media_hit
+          debounce_hours: 0
+
+liveness_formulas:
+  - "G(crypto_service_offered -> F mica_license_verified)"
+  - "G(transfer_outbound -> F travel_rule_data_attached)"
+  - "G(mixer_interaction & !edd_completed -> F escalated)"
