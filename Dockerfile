@@ -30,7 +30,8 @@ RUN cargo chef cook --release --recipe-path recipe.json
 # Build application
 COPY . .
 RUN sed -i '/"crates\/datasynth-graph-export"/d' Cargo.toml
-RUN cargo build --release -p datasynth-server -p datasynth-cli
+RUN cargo build --release -p datasynth-server
+RUN cargo build --release -p datasynth-cli
 
 # Stage shared libs to a well-known path for the final image
 RUN mkdir -p /staging/lib && \
