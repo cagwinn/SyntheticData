@@ -90,14 +90,18 @@ fn write_journal_entries_csv(
 
     // Write header.
     //
-    // Schema note: the v5.6+ writer appends a block of audit/coverage
-    // columns after the historical FEC columns. New columns are added at
-    // the end so existing column-positional consumers keep working:
-    //   - is_manual, is_post_close, source_system   (audit / ETL provenance)
-    //   - account_description                       (joined from CoA)
-    //   - financial_statement_category              (asset/liability/...)
-    //   - assignment, value_date, tax_code          (already-populated line fields)
-    //   - transaction_id                            (stable per-line id)
+    // Schema note: each release that widens the schema appends new
+    // columns at the end so existing column-positional consumers keep
+    // working.
+    //   v5.5.1 added:
+    //     is_manual, is_post_close, source_system     (audit / ETL provenance)
+    //     account_description                         (joined from CoA)
+    //     financial_statement_category                (asset/liability/...)
+    //     assignment, value_date, tax_code            (already-populated line fields)
+    //     transaction_id                              (stable per-line id)
+    //   v5.6.0 added (ISO 21378 Audit Data Collection classification):
+    //     account_class, account_class_name           (Level-2 e.g. "A.B" / "Trade Receivables")
+    //     account_sub_class, account_sub_class_name   (Level-3 e.g. "A.B.A" / "Trade Accounts Receivable")
     writeln!(
         w,
         "document_id,company_code,fiscal_year,fiscal_period,posting_date,document_date,\
@@ -108,17 +112,30 @@ fn write_journal_entries_csv(
          auxiliary_account_number,auxiliary_account_label,lettrage,lettrage_date,\
          is_manual,is_post_close,source_system,\
          account_description,financial_statement_category,\
-         assignment,value_date,tax_code,transaction_id"
+         assignment,value_date,tax_code,transaction_id,\
+         account_class,account_class_name,account_sub_class,account_sub_class_name"
     )?;
 
-    // Build a CoA → short_description lookup for account_description. Empty
-    // when no CoA was generated (e.g. some smoke tests); resolution falls
-    // back to the line's already-populated `account_description`.
-    let coa_descriptions: std::collections::HashMap<&str, &str> = result
+    // Build a CoA → (short_description, ISO class, ISO sub-class) lookup.
+    // Empty when no CoA was generated (e.g. some smoke tests); resolution
+    // falls back to the line's already-populated `account_description`
+    // and to empty ISO codes.
+    let coa_index: std::collections::HashMap<&str, (&str, &str, &str, &str, &str)> = result
         .chart_of_accounts
         .accounts
         .iter()
-        .map(|a| (a.account_number.as_str(), a.short_description.as_str()))
+        .map(|a| {
+            (
+                a.account_number.as_str(),
+                (
+                    a.short_description.as_str(),
+                    a.account_class.as_str(),
+                    a.account_class_name.as_str(),
+                    a.account_sub_class.as_str(),
+                    a.account_sub_class_name.as_str(),
+                ),
+            )
+        })
         .collect();
 
     for je in &result.journal_entries {
@@ -129,14 +146,21 @@ fn write_journal_entries_csv(
                 .map(|d| d.to_string())
                 .unwrap_or_default();
             let value_date_str = line.value_date.map(|d| d.to_string()).unwrap_or_default();
+            // Look up CoA-joined fields in one shot.
+            let coa_hit = coa_index.get(line.gl_account.as_str()).copied();
+            let coa_short_desc = coa_hit.map(|t| t.0).unwrap_or("");
+            let coa_class = coa_hit.map(|t| t.1).unwrap_or("");
+            let coa_class_name = coa_hit.map(|t| t.2).unwrap_or("");
+            let coa_sub_class = coa_hit.map(|t| t.3).unwrap_or("");
+            let coa_sub_class_name = coa_hit.map(|t| t.4).unwrap_or("");
             // Prefer the line's own account_description; fall back to the CoA
             // lookup so consumers always get a name even when the generator
             // forgot to populate the field.
             let account_description: &str = line
                 .account_description
                 .as_deref()
-                .or_else(|| coa_descriptions.get(line.gl_account.as_str()).copied())
-                .unwrap_or("");
+                .filter(|s| !s.is_empty())
+                .unwrap_or(coa_short_desc);
             // Derive the FSA category from the gl_account prefix (1xxx=asset,
             // 2xxx=liability, ...). Cheap, deterministic, no CoA dependency.
             let fsa_category =
@@ -151,7 +175,7 @@ fn write_journal_entries_csv(
             });
             writeln!(
                 w,
-                "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}",
+                "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}",
                 h.document_id,
                 csv_escape(&h.company_code),
                 h.fiscal_year,
@@ -192,6 +216,10 @@ fn write_journal_entries_csv(
                 value_date_str,
                 csv_opt_str(&line.tax_code),
                 csv_escape(&transaction_id),
+                csv_escape(coa_class),
+                csv_escape(coa_class_name),
+                csv_escape(coa_sub_class),
+                csv_escape(coa_sub_class_name),
             )?;
         }
     }

@@ -5,6 +5,91 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.6.0] - 2026-05-07
+
+### Added — ISO 21378 (Audit Data Collection) account classification
+
+Generated charts of accounts now carry the descriptive ISO 21378
+3-level classification hierarchy in addition to the existing
+`account_type` / `sub_type` enums. This is the standard surface for
+audit-data exchange (SAF-T, FEC, GoBD, and Big-4 audit-software
+imports all map to ADC concepts) and gives ML / analytics consumers
+a meaningful Level-2 / Level-3 feature without parsing account
+numbers.
+
+New module `datasynth_core::iso21378` exposes:
+
+- `AdcType` — Level 1 (5 categories, codes `A` / `L` / `E` / `R` / `X`)
+- `AdcClass` — Level 2 (28 classes, codes like `A.B` Trade
+  Receivables, `X.A` Cost of Goods Sold)
+- `AdcSubClass` — Level 3 (45 sub-classes, codes like `A.B.A` Trade
+  Accounts Receivable)
+- `from_account_sub_type(AccountSubType) -> AdcSubClass` — total
+  exhaustive mapping; new `AccountSubType` variants must be added to
+  the match arm or the crate fails to compile
+
+`GLAccount` gains four populated fields:
+
+| Field | Example value | Source |
+|---|---|---|
+| `account_class` *(repurposed)* | `"A.B"` | ADC Level-2 code (was: first digit of `account_number`, e.g. `"1"`) |
+| `account_class_name` *(new)* | `"Trade Receivables"` | ADC Level-2 descriptive name |
+| `account_sub_class` *(new)* | `"A.B.A"` | ADC Level-3 code |
+| `account_sub_class_name` *(new)* | `"Trade Accounts Receivable"` | ADC Level-3 descriptive name |
+
+`GLAccount::new` derives all four automatically from `sub_type`, so
+every existing call-site (chart-of-accounts generator, all framework
+loaders, business-combination generator, etc.) gets ISO codes for
+free.
+
+### Added — `journal_entries.csv` ISO columns
+
+Four new columns appended at the end so column-positional consumers
+keep working:
+
+`account_class`, `account_class_name`, `account_sub_class`,
+`account_sub_class_name` — joined from the chart of accounts at
+write time. Combined with the v5.5.1 `financial_statement_category`
+column, downstream notebooks now have:
+
+- ADC Level 1 (`financial_statement_category` — `asset` /
+  `liability` / `equity` / `revenue` / `cogs` / …)
+- ADC Level 2 (`account_class` ISO code + `account_class_name`)
+- ADC Level 3 (`account_sub_class` ISO code +
+  `account_sub_class_name`)
+
+— all derivable without any manual ETL, all stable across regenerations.
+
+### Breaking — `account_class` semantics changed
+
+`GLAccount::account_class` previously held the first character of the
+account number (`"1"`, `"2"`, …) as a placeholder. It now holds the
+ISO 21378 Level-2 code (`"A.B"`). This is also reflected in the
+`journal_entries.csv` column of the same name. Consumers that parsed
+`account_class` as a single digit need to migrate to
+`financial_statement_category` (the v5.5.1 single-letter prefix
+projection) or to ADC codes.
+
+The `chart_of_accounts.json` schema now contains three new fields
+(`account_class_name`, `account_sub_class`, `account_sub_class_name`).
+The two `*_name` fields and `account_sub_class` use `#[serde(default)]`
+so deserialising a v5.5.1 fixture into a v5.6.0 reader works without
+errors.
+
+### Verification
+
+- `cargo test -p datasynth-core --lib` → 1 334 passed (3 new ISO tests
+  plus the existing 1 331)
+- `cargo test -p datasynth-runtime --test coa_coverage_invariant` →
+  2 passed (base + with-anomalies, both still 100% coverage)
+- `cargo test -p datasynth-group --test manifest_golden` → 1 passed
+  (golden regenerated for the new ISO fields on every COA account)
+- `cargo test -p datasynth-generators --lib` → 1 142 passed
+- `cargo test -p datasynth-runtime --lib` → 126 passed
+- `cargo test -p datasynth-output --lib` → 119 passed
+- `cargo test -p datasynth-group --lib` → 106 passed
+- `cargo fmt`, `cargo clippy` clean
+
 ## [5.5.1] - 2026-05-07
 
 ### Fixed — Chart-of-accounts coverage

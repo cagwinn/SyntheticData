@@ -29,7 +29,7 @@
 \usetikzlibrary{arrows.meta, positioning, calc, shapes.geometric, backgrounds, fit}
 
 % ── Single-source-of-truth version macros ────────────────────────────────────
-\newcommand{\dsversion}{5.5.1}
+\newcommand{\dsversion}{5.6.0}
 \newcommand{\dsdate}{May 2026}
 \newcommand{\dsrepourl}{https://github.com/mivertowski/SyntheticData}
 \newcommand{\dsssrnurl}{https://ssrn.com/abstract=6538639}
@@ -437,6 +437,7 @@ Pensions                      & IAS 19 / ASC 715: defined-benefit obligation, pl
 Stock Compensation            & ASC 718: grant-date fair value, vesting, APIC stock-comp \\
 Internal Controls (SOX)       & SOX 302 certifications, SOX 404 assessments, deficiency matrix, material-weakness classification \\
 ISA Audit Lifecycle           & 34 ISA standards mapped, analytical procedures (ISA 520), confirmations (ISA 505), opinions (ISA 700/705/706/701) \\
+Audit Data Exchange           & ISO 21378:2019 (Audit Data Collection): 3-level account classification (Type / Class / Sub-Class) populated on every CoA account and every JE row, with descriptive names alongside the ISO codes \\
 \bottomrule
 \end{tabularx}
 
@@ -827,13 +828,15 @@ on the first violation.
 
 v5.5.1 widened the default analytics surface based on production-data column
 profiles reported by external users (notably a graph-neural-network
-anomaly-detection thesis). The aim is for downstream Pandas / Polars / Spark
-notebooks to need zero ETL.
+anomaly-detection thesis); v5.6.0 extends it with the ISO 21378 (ADC)
+account-classification hierarchy. The aim is for downstream Pandas /
+Polars / Spark notebooks to need zero ETL.
 
-\subsection{The 38-Column \texttt{journal\_entries.csv}}
+\subsection{The 42-Column \texttt{journal\_entries.csv}}
 
-The flat CSV writer emits 38 columns covering identifiers, dates, currency,
-audit / ETL provenance, and analytics-ready derivations:
+The flat CSV writer emits 42 columns covering identifiers, dates, currency,
+audit / ETL provenance, ISO-21378 account classification, and analytics-ready
+derivations:
 
 \renewcommand{\arraystretch}{1.2}
 \begin{tabularx}{\textwidth}{@{}>{\bfseries\color{brand}}l X@{}}
@@ -856,6 +859,11 @@ GL                & \texttt{gl\_account}, \texttt{account\_description}
                     (asset / liability / equity / revenue / cogs /
                     operating\_expense / other\_income\_expense / tax /
                     suspense; derived from gl\_account prefix) \\
+ISO 21378 (ADC)   & \texttt{account\_class} (Level-2 code, e.g.\ \texttt{A.B}
+                    for Trade Receivables), \texttt{account\_class\_name}
+                    (descriptive), \texttt{account\_sub\_class} (Level-3
+                    code, e.g.\ \texttt{A.B.A}), \texttt{account\_sub\_class\_name}
+                    (descriptive). Joined from the CoA at write time. \\
 Cost / profit     & \texttt{cost\_center}, \texttt{profit\_center},
                     \texttt{assignment} \\
 Provenance        & \texttt{created\_by}, \texttt{source} (enum),
