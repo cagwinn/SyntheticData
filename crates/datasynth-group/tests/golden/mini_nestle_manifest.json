@@ -15010,6 +15010,162 @@
             "accounting_framework": "us_gaap"
           },
           {
+            "account_number": "199999",
+            "short_description": "Legacy Suspense (migrated)",
+            "long_description": "Legacy Suspense (migrated)",
+            "account_type": "asset",
+            "sub_type": "suspense_clearing",
+            "account_class": "1",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": true,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": false,
+            "is_blocked": true,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "299999",
+            "short_description": "Legacy Clearing (predecessor system)",
+            "long_description": "Legacy Clearing (predecessor system)",
+            "account_type": "liability",
+            "sub_type": "other_liabilities",
+            "account_class": "2",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": false,
+            "is_postable": false,
+            "is_blocked": true,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "399999",
+            "short_description": "Obsolete Account",
+            "long_description": "Obsolete Account",
+            "account_type": "equity",
+            "sub_type": "other_comprehensive_income",
+            "account_class": "3",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": false,
+            "is_postable": false,
+            "is_blocked": true,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "999999",
+            "short_description": "Test Account (QA residue)",
+            "long_description": "Test Account (QA residue)",
+            "account_type": "asset",
+            "sub_type": "suspense_clearing",
+            "account_class": "9",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": true,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": false,
+            "is_blocked": true,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
             "account_number": "9000",
             "short_description": "General Suspense",
             "long_description": "General Suspense",
@@ -34457,6 +34613,162 @@
             "normal_debit_balance": false,
             "is_postable": true,
             "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "199999",
+            "short_description": "Legacy Suspense (migrated)",
+            "long_description": "Legacy Suspense (migrated)",
+            "account_type": "asset",
+            "sub_type": "suspense_clearing",
+            "account_class": "1",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": true,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": false,
+            "is_blocked": true,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "299999",
+            "short_description": "Legacy Clearing (predecessor system)",
+            "long_description": "Legacy Clearing (predecessor system)",
+            "account_type": "liability",
+            "sub_type": "other_liabilities",
+            "account_class": "2",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": false,
+            "is_postable": false,
+            "is_blocked": true,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "399999",
+            "short_description": "Obsolete Account",
+            "long_description": "Obsolete Account",
+            "account_type": "equity",
+            "sub_type": "other_comprehensive_income",
+            "account_class": "3",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": false,
+            "is_postable": false,
+            "is_blocked": true,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "999999",
+            "short_description": "Test Account (QA residue)",
+            "long_description": "Test Account (QA residue)",
+            "account_type": "asset",
+            "sub_type": "suspense_clearing",
+            "account_class": "9",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": true,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": false,
+            "is_blocked": true,
             "allowed_doc_types": [
               "SA"
             ],

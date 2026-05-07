@@ -3,8 +3,8 @@
 use tracing::debug;
 
 use datasynth_core::accounts::{
-    asset_class_accounts, cash_accounts, control_accounts, dividend_accounts, equity_accounts,
-    expense_accounts, intangible_accounts, inventory_accounts, liability_accounts,
+    asset_class_accounts, cash_accounts, control_accounts, dividend_accounts, dormant_accounts,
+    equity_accounts, expense_accounts, intangible_accounts, inventory_accounts, liability_accounts,
     manufacturing_accounts, provision_accounts, revenue_accounts, suspense_accounts, tax_accounts,
     treasury_accounts,
 };
@@ -947,6 +947,9 @@ impl ChartOfAccountsGenerator {
         // --- Equity accounts not seeded above (income summary, dividends paid) ---
         Self::seed_additional_equity_accounts(coa);
 
+        // --- Dormant / blocked legacy accounts (anomaly-strategy targets) ---
+        Self::seed_dormant_accounts(coa);
+
         // --- Suspense / Clearing accounts (9000-series) ---
         {
             let mut acct = GLAccount::new(
@@ -1413,6 +1416,53 @@ impl ChartOfAccountsGenerator {
             AccountType::Asset,
             AccountSubType::OtherReceivables,
         ));
+    }
+
+    /// Seed dormant / blocked legacy accounts.
+    ///
+    /// These mirror the targets of the `DormantAccountActivity` anomaly
+    /// strategy in `datasynth_generators::anomaly::strategies`. Real
+    /// COAs retain such accounts (legacy suspense, predecessor-system
+    /// clearing, obsolete migration accounts, retained QA / test
+    /// accounts) as `is_blocked = true` so audit trails remain
+    /// resolvable; we follow the same pattern. With `is_postable =
+    /// false`, normal generators won't pick them up — only the anomaly
+    /// strategy does, which is exactly the fraud-signature behaviour
+    /// being modelled.
+    fn seed_dormant_accounts(coa: &mut ChartOfAccounts) {
+        let entries = [
+            (
+                dormant_accounts::LEGACY_SUSPENSE,
+                "Legacy Suspense (migrated)",
+                AccountType::Asset,
+                AccountSubType::SuspenseClearing,
+            ),
+            (
+                dormant_accounts::LEGACY_CLEARING,
+                "Legacy Clearing (predecessor system)",
+                AccountType::Liability,
+                AccountSubType::OtherLiabilities,
+            ),
+            (
+                dormant_accounts::OBSOLETE,
+                "Obsolete Account",
+                AccountType::Equity,
+                AccountSubType::OtherComprehensiveIncome,
+            ),
+            (
+                dormant_accounts::TEST_ACCOUNT,
+                "Test Account (QA residue)",
+                AccountType::Asset,
+                AccountSubType::SuspenseClearing,
+            ),
+        ];
+        for (number, name, ty, sub) in entries {
+            let mut acct = GLAccount::new(number.to_string(), name.to_string(), ty, sub);
+            acct.is_blocked = true;
+            acct.is_postable = false;
+            acct.is_suspense_account = matches!(sub, AccountSubType::SuspenseClearing);
+            coa.add_account(acct);
+        }
     }
 
     /// Seed equity accounts not already covered by `seed_canonical_accounts`.

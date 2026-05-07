@@ -433,6 +433,25 @@ pub mod suspense_accounts {
     pub const IC_ELIMINATION_SUSPENSE: &str = "9300";
 }
 
+/// Dormant / blocked / legacy accounts used by the
+/// `DormantAccountActivity` anomaly strategy.
+///
+/// Real-world COAs retain old / migrated / test accounts as
+/// `is_blocked = true` entries so audit trails remain resolvable; these
+/// constants follow the same pattern. The anomaly strategy targets them
+/// to simulate a classic fraud signature: posting to a long-dormant
+/// account so the entry hides among genuine activity.
+pub mod dormant_accounts {
+    /// Legacy suspense (migrated-out, retained for trail).
+    pub const LEGACY_SUSPENSE: &str = "199999";
+    /// Legacy clearing (predecessor system).
+    pub const LEGACY_CLEARING: &str = "299999";
+    /// Obsolete account flagged for retirement.
+    pub const OBSOLETE: &str = "399999";
+    /// Test account (production residue from QA).
+    pub const TEST_ACCOUNT: &str = "999999";
+}
+
 /// Account type by prefix.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AccountCategory {
