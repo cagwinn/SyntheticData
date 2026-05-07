@@ -1,0 +1,85 @@
+# Industry pack: manufacturing
+#
+# Sub-account expansions for a manufacturing-sector COA. Sub-account
+# numbers are formed by concatenating the parent's 4-digit canonical
+# account_number with a 2-digit suffix → 6-digit (e.g. parent "4000"
+# + suffix "10" → "400010"). Real-world ERP charts (especially SAP-FI)
+# routinely mix 4- and 6-digit accounts in this fashion.
+#
+# Suffixes are not consecutive: gaps simulate retired / migrated /
+# reserved accounts that real COAs accumulate over the years.
+#
+# `weight` drives the deterministic-by-document picker — higher weight
+# = more likely to be selected when a generator routes a JE through
+# the parent canonical account.
+
+industry: manufacturing
+description: |
+  Sub-account expansions tuned for discrete-manufacturing operations
+  (multi-product, multi-material, multi-channel sales). Reasonable
+  defaults for a mid-market industrial-products company.
+version: 1
+
+expansions:
+  # ── Revenue ────────────────────────────────────────────────────────
+  - parent_account: "4000"   # PRODUCT_REVENUE
+    parent_name: "Product Revenue"
+    sub_accounts:
+      - { suffix: "10", name: "Steel Products",          weight: 1.00 }
+      - { suffix: "20", name: "Aluminum Components",     weight: 0.75 }
+      - { suffix: "30", name: "Composites",              weight: 0.45 }
+      - { suffix: "50", name: "Plastics & Polymers",     weight: 0.30 }
+      - { suffix: "70", name: "Service Parts",           weight: 0.40 }
+      - { suffix: "85", name: "Spare Parts (Aftermarket)", weight: 0.35 }
+
+  - parent_account: "4100"   # SERVICE_REVENUE
+    parent_name: "Service Revenue"
+    sub_accounts:
+      - { suffix: "10", name: "Maintenance Contracts",   weight: 1.00 }
+      - { suffix: "20", name: "Installation",            weight: 0.55 }
+      - { suffix: "40", name: "Training",                weight: 0.25 }
+      - { suffix: "70", name: "Repair Services",         weight: 0.50 }
+
+  # ── COGS / inventory ───────────────────────────────────────────────
+  - parent_account: "5000"   # COGS
+    parent_name: "Cost of Goods Sold"
+    sub_accounts:
+      - { suffix: "10", name: "Direct Materials",        weight: 1.00 }
+      - { suffix: "20", name: "Direct Labor",            weight: 0.80 }
+      - { suffix: "30", name: "Manufacturing Overhead",  weight: 0.65 }
+      - { suffix: "60", name: "Subcontracted Production", weight: 0.30 }
+      - { suffix: "80", name: "Inbound Freight",         weight: 0.25 }
+
+  - parent_account: "5100"   # RAW_MATERIALS
+    parent_name: "Raw Materials"
+    sub_accounts:
+      - { suffix: "10", name: "Steel",                   weight: 1.00 }
+      - { suffix: "20", name: "Aluminum",                weight: 0.70 }
+      - { suffix: "30", name: "Composites",              weight: 0.40 }
+      - { suffix: "50", name: "Resins & Polymers",       weight: 0.30 }
+      - { suffix: "75", name: "Hardware (Fasteners etc)", weight: 0.45 }
+
+  - parent_account: "5200"   # DIRECT_LABOR
+    parent_name: "Direct Labor"
+    sub_accounts:
+      - { suffix: "10", name: "Skilled Production",      weight: 1.00 }
+      - { suffix: "20", name: "General Production",      weight: 0.85 }
+      - { suffix: "40", name: "Setup & Changeover",      weight: 0.30 }
+      - { suffix: "60", name: "Quality Control",         weight: 0.40 }
+
+  # ── Inventory positions ────────────────────────────────────────────
+  - parent_account: "1200"   # INVENTORY (control)
+    parent_name: "Inventory"
+    sub_accounts:
+      - { suffix: "10", name: "Raw Materials",           weight: 1.00 }
+      - { suffix: "30", name: "Work in Process",         weight: 0.65 }
+      - { suffix: "50", name: "Finished Goods",          weight: 0.85 }
+      - { suffix: "80", name: "Spare Parts Inventory",   weight: 0.25 }
+
+  # ── Operating expense detail ──────────────────────────────────────
+  - parent_account: "6500"   # OFFICE_SUPPLIES
+    parent_name: "Office Supplies"
+    sub_accounts:
+      - { suffix: "10", name: "General Office",          weight: 1.00 }
+      - { suffix: "30", name: "Plant Consumables",       weight: 0.70 }
+      - { suffix: "50", name: "Lab & QA Supplies",       weight: 0.35 }

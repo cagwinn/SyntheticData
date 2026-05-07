@@ -5035,6 +5035,7 @@ fn create_safe_demo_preset() -> GeneratorConfig {
             custom_accounts: None,
             min_hierarchy_depth: 2,
             max_hierarchy_depth: 3,
+            expand_industry_subaccounts: false,
         },
         transactions: TransactionConfig::default(),
         output: OutputConfig::default(),

@@ -5,6 +5,101 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.7.0] - 2026-05-07
+
+### Added — Industry account-pack sub-account expansion (opt-in)
+
+Real-world ERPs decompose canonical control accounts (e.g. `4000`
+Product Revenue) into many product-line / channel / cost-centre
+sub-accounts (`400010` Steel Products, `400020` Aluminum Components,
+…). Synthetic data without that decomposition stands out as obviously
+synthetic — flat consecutive numbering with one record per canonical
+category. v5.7.0 adds an opt-in expansion layer.
+
+Five embedded **industry packs** ship in
+`crates/datasynth-core/src/industry_packs/`:
+
+- `manufacturing.yaml` — Product Revenue × {Steel, Aluminum,
+  Composites, Plastics, Service Parts}; COGS × {Direct Materials,
+  Direct Labor, Manufacturing Overhead, Subcontract, Inbound Freight};
+  Direct Labor × {Skilled, General, Setup, QC}; Inventory × {Raw,
+  WIP, Finished, Spares}; Office Supplies × {Office, Plant, Lab/QA}.
+- `retail.yaml` — Apparel-Men/Women/Children, Footwear, Accessories,
+  Home & Lifestyle; Sales Discounts × {Promotional, Loyalty,
+  Markdown}; Rent × {Store, Warehouse, Office}.
+- `financial_services.yaml` — Net Interest Income, Loan-Origination
+  Fees, Trading, Asset-Management Fees, Brokerage, Card & Merchant;
+  Salaries × {Front-Office, Risk & Compliance, Operations, Tech};
+  Bad Debt × {Commercial Loan, Retail Loan, Card Provisions}.
+- `healthcare.yaml` — Pharma / Devices / Diagnostics product splits;
+  Inpatient / Outpatient / Surgical / Imaging / Lab / Telehealth
+  service splits; Salaries × {Physicians, Nursing, Allied Health,
+  Admin, Research}; Insurance × {Malpractice, P&C, Cyber & D&O}.
+- `technology.yaml` — SaaS Enterprise / SMB, Perpetual Licenses,
+  Hardware, Marketplace; Service × {Implementation, Custom Dev,
+  Training, Support, Managed}; Cloud Hosting / Bandwidth / Hardware /
+  Pass-Through COGS; Salaries × {Engineering, PM, S&M, G&A, Support}.
+
+### Added — `chart_of_accounts.expand_industry_subaccounts` config flag
+
+New schema field on `ChartOfAccountsConfig`. Default `false` keeps
+v5.6.0 behaviour byte-identical. When `true`:
+
+- Each canonical 4-digit parent account that has an entry in the
+  active industry pack becomes a non-postable control account
+  (`is_postable = false`, `is_control_account = true`); fields and
+  ISO 21378 codes are preserved.
+- 2–6 6-digit sub-accounts are added per parent. Sub-accounts inherit
+  the parent's `account_type`, `sub_type`, ISO codes, accounting
+  framework, cost-center / profit-center requirements, and accounting
+  group. Names render as `"<parent_name> — <sub_name>"`.
+- Pack suffixes deliberately leave gaps (≈30% of the 0-99 suffix
+  range) to simulate retired / migrated / reserved accounts that real
+  COAs accumulate.
+- The procedural per-type generators
+  (`generate_revenue_accounts`, etc.) are **skipped** when expansion
+  is on — pack sub-accounts replace their generic-named output rather
+  than coexisting (would otherwise collide on `400010` etc.).
+
+### Added — `ChartOfAccounts::pick_subaccount_for_document`
+
+Deterministic-by-document sub-account picker: hashes
+`(document_id, parent_account)` via FNV-1a to a stable index into the
+parent's sub-account list. Same `(document_id, parent)` always
+returns the same sub-account — across regenerations, across platforms,
+across releases. Returns the canonical parent unchanged when
+expansion is off or no sub-accounts exist for the parent.
+
+This is the API generators can opt in to: a generator that today
+posts to `expense_accounts::COGS = "5000"` can call
+`coa.pick_subaccount_for_document("5000", document_id)` to pick a
+specific 6-digit sub-account when expansion is enabled, while keeping
+v5.6.0 behaviour exactly when it isn't.
+
+### Compatibility
+
+- Default-off: every v5.6.0 dataset / fixture / golden remains
+  byte-identical.
+- v5.6.0 ISO 21378 invariants preserved: every COA account (canonical
+  parent or pack sub-account) carries ISO L2 + L3 codes.
+- COA-coverage invariants preserved: parents stay in the COA (just
+  flipped to non-postable), sub-accounts are added; nothing removed.
+
+### Verification
+
+- `cargo test -p datasynth-core --lib industry_packs` → 5 passed
+  (parse + suffix-padding + completeness for all 5 packs)
+- `cargo test -p datasynth-runtime --test industry_pack_expansion`
+  → 7 passed (off path, on path, ISO inheritance, picker determinism,
+  picker distribution, unsupported-industry no-op)
+- `cargo test -p datasynth-runtime --test coa_coverage_invariant`
+  → 2 passed (base + with-anomalies)
+- `cargo test -p datasynth-group --test manifest_golden` → 1 passed
+  (no regen needed: default config doesn't enable expansion)
+- `cargo test -p datasynth-core --lib` → 1 339 passed (was 1 334)
+- `cargo test -p datasynth-generators --lib` → 1 142 passed
+- `cargo test -p datasynth-runtime --lib` → 126 passed
+
 ## [5.6.0] - 2026-05-07
 
 ### Added — ISO 21378 (Audit Data Collection) account classification

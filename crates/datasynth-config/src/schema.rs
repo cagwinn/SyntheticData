@@ -1543,6 +1543,25 @@ pub struct ChartOfAccountsConfig {
     /// Maximum hierarchy depth
     #[serde(default = "default_max_depth")]
     pub max_hierarchy_depth: u8,
+    /// **v5.7.0** — expand canonical accounts into industry-specific
+    /// 6-digit sub-accounts using the embedded
+    /// [`datasynth_core::industry_packs`] (manufacturing, retail,
+    /// financial_services, healthcare, technology). When `true`:
+    ///
+    /// - Each canonical 4-digit account that has an expansion in the
+    ///   pack becomes a non-postable control account (`is_postable =
+    ///   false`).
+    /// - 2–6 6-digit sub-accounts are added per parent, with
+    ///   suffix-driven names (`"Product Revenue — Steel Products"`),
+    ///   industry-realistic gaps, and inherited ISO 21378 codes.
+    /// - Generators that currently target canonical accounts via
+    ///   constants will pick a sub-account deterministically per
+    ///   `document_id` (preserving seed-based reproducibility).
+    ///
+    /// Default: `false` (preserves v5.6.0 behaviour exactly — same
+    /// account count, same numbering, same goldens).
+    #[serde(default, alias = "expandIndustrySubaccounts")]
+    pub expand_industry_subaccounts: bool,
 }
 
 fn default_min_depth() -> u8 {
@@ -1560,6 +1579,7 @@ impl Default for ChartOfAccountsConfig {
             custom_accounts: None,
             min_hierarchy_depth: default_min_depth(),
             max_hierarchy_depth: default_max_depth(),
+            expand_industry_subaccounts: false,
         }
     }
 }
