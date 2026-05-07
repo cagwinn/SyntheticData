@@ -1,5 +1,8 @@
 % DataSynth Executive Overview
-% Compile with: pdflatex datasynth-executive-overview.tex (run twice for TOC)
+% Compile with: pdflatex datasynth-executive-overview.tex (run twice for TOC + bibliography)
+%               bibtex   datasynth-executive-overview
+%               pdflatex datasynth-executive-overview.tex
+%               pdflatex datasynth-executive-overview.tex
 \documentclass[11pt,a4paper]{article}
 
 % ── Packages ──────────────────────────────────────────────────────────────────
@@ -16,14 +19,20 @@
 \usepackage{multirow}
 \usepackage{fancyhdr}
 \usepackage{hyperref}
-% fontawesome5 removed — using text symbols instead
 \usepackage{tcolorbox}
 \usepackage{needspace}
 \usepackage{tikz}
 \usepackage{pgfplots}
 \usepackage{amssymb}
+\usepackage[numbers]{natbib}
 \pgfplotsset{compat=1.18}
 \usetikzlibrary{arrows.meta, positioning, calc, shapes.geometric, backgrounds, fit}
+
+% ── Single-source-of-truth version macros ────────────────────────────────────
+\newcommand{\dsversion}{5.5.1}
+\newcommand{\dsdate}{May 2026}
+\newcommand{\dsrepourl}{https://github.com/mivertowski/SyntheticData}
+\newcommand{\dsssrnurl}{https://ssrn.com/abstract=6538639}
 
 % ── Colours ───────────────────────────────────────────────────────────────────
 \definecolor{brand}{HTML}{1A2744}      % Deep navy
@@ -51,7 +60,7 @@
 \fancyhf{}
 \renewcommand{\headrulewidth}{0.4pt}
 \fancyhead[L]{\small\textcolor{midgray}{DataSynth --- Executive Overview}}
-\fancyhead[R]{\small\textcolor{midgray}{v2.2.0}}
+\fancyhead[R]{\small\textcolor{midgray}{v\dsversion}}
 \fancyfoot[C]{\small\textcolor{midgray}{\thepage}}
 
 % ── Custom boxes ──────────────────────────────────────────────────────────────
@@ -65,6 +74,11 @@
     colback=white, colframe=brand, boxrule=0.8pt,
     arc=4pt, left=6pt, right=6pt, top=4pt, bottom=4pt,
     width=0.30\textwidth
+  },
+  notebox/.style={
+    colback=lightbg!60, colframe=midgray, boxrule=0.4pt,
+    arc=2pt, left=8pt, right=8pt, top=4pt, bottom=4pt,
+    fonttitle=\bfseries\small\color{brand}, title=#1
   }
 }
 
@@ -73,10 +87,10 @@
   colorlinks=true,
   linkcolor=brand,
   urlcolor=accent,
-  citecolor=brand,
+  citecolor=accent,
   pdftitle={DataSynth -- Enterprise Synthetic Data Platform},
-  pdfauthor={DataSynth},
-  pdfsubject={Executive Overview},
+  pdfauthor={Michael Ivertowski},
+  pdfsubject={Executive Overview, v\dsversion},
 }
 
 % ══════════════════════════════════════════════════════════════════════════════
@@ -85,13 +99,10 @@
 % ── Title page ────────────────────────────────────────────────────────────────
 \begin{titlepage}
 \begin{tikzpicture}[remember picture, overlay]
-  % Background gradient bar
   \fill[brand] (current page.north west) rectangle
     ([yshift=-9cm]current page.north east);
-  % Accent stripe
   \fill[accent] ([yshift=-9cm]current page.north west) rectangle
     ([yshift=-9.4cm]current page.north east);
-  % Decorative dots
   \foreach \x in {0.5,1.0,...,5.0} {
     \foreach \y in {0.5,1.0,...,3.0} {
       \fill[white, opacity=0.04] ([xshift=\x cm, yshift=-\y cm]current page.north west)
@@ -104,27 +115,35 @@
 \begin{flushleft}
   {\fontsize{38}{44}\selectfont\bfseries\textcolor{white}{DataSynth}}\\[0.5em]
   {\fontsize{16}{20}\selectfont\textcolor{white!85}{Enterprise Synthetic Data Platform}}\\[0.3em]
-  {\large\textcolor{white!65}{High-Performance Generation for Accounting, Audit \& ML}}\\[0.3em]
-  {\normalsize\textcolor{white!50}{Rust core \textbullet{} Python 1.10 \textbullet{} REST/gRPC API \textbullet{} Audit FSM Engine}}
+  {\large\textcolor{white!65}{Reference Knowledge Graphs for Audit Analytics \& ML}}\\[0.3em]
+  {\normalsize\textcolor{white!50}{Rust core \textbullet{} 17 modular crates \textbullet{}
+    Group Audit Engine \textbullet{} Audit-Methodology Layer}}
 \end{flushleft}
 
 \vspace{5.5cm}
 
 \begin{flushleft}
   \textcolor{midgray}{\large Executive Overview}\\[0.8em]
-  {\Large\textcolor{brand}{\textbf{Version 2.2.0}}}\\[1.5em]
+  {\Large\textcolor{brand}{\textbf{Version \dsversion}}}\\[1.5em]
   \textcolor{midgray}{%
     Deterministic, privacy-preserving synthetic data generation\\
-    for enterprise finance, compliance testing, and machine learning.%
+    for enterprise finance, group audit, compliance testing,\\
+    and machine learning.%
   }
 \end{flushleft}
 
 \vfill
 \begin{flushleft}
   \textcolor{midgray}{\small
-    Built with Rust \& Python \textbullet{} 20 modular crates \textbullet{} 200\,K+ entries/sec\\[4pt]
-    Open-source (Apache-2.0) \textbullet{} Commercial license available\\[4pt]
-    \textbf{GitHub:} \url{https://github.com/mivertowski/SyntheticData}
+    \textbf{Companion paper:} Ivertowski, M. (2026).
+    \textit{DataSynth: Reference Knowledge Graphs for Enterprise Audit Analytics
+    through Synthetic Data Generation with Provable Statistical Properties.}\\
+    SSRN: \href{\dsssrnurl}{ssrn.com/abstract=6538639}
+    \textbullet{} In-repo: \texttt{paper/main.tex}\\[6pt]
+    Built with Rust \textbullet{} 17 active crates \textbullet{} 200\,K+ entries/sec\\[4pt]
+    Open-source (Apache-2.0) \textbullet{} Commercial SDKs at
+    \href{https://vynfi.com}{vynfi.com}\\[4pt]
+    \textbf{GitHub:} \url{\dsrepourl}
   }
 \end{flushleft}
 \end{titlepage}
@@ -137,33 +156,51 @@
 \section{Executive Summary}
 
 DataSynth is a high-performance synthetic data platform purpose-built for
-enterprise accounting, audit analytics, and machine learning. Written in Rust
-for maximum throughput and memory safety --- with a full Python wrapper for
-data-science workflows --- it generates realistic, internally coherent
-financial data that satisfies the statistical and structural properties of
-real-world enterprise resource planning (ERP) systems.
+enterprise accounting, group audit, audit analytics, and machine learning.
+Written in Rust for maximum throughput and memory safety, it generates
+realistic, internally coherent financial data that satisfies the statistical
+and structural properties of real-world enterprise resource planning (ERP)
+systems --- and, since v5.0, an entire \emph{multi-entity group consolidation}
+on top, IFRS / IAS 21 / IAS 28 / IFRS 10 compliant by construction.
+
+\begin{tcolorbox}[keybox={Three pillars}]
+\begin{itemize}[leftmargin=1.2em, itemsep=4pt]
+  \item \textbf{Enterprise simulation depth} --- 14 process families (GL, P2P,
+        O2C, S2C, H2R, manufacturing, financial reporting, tax, treasury,
+        ESG, banking/AML, audit, intercompany, period close), 100+ output
+        tables, generation-time invariants (debits = credits,
+        Assets = Liabilities + Equity, Benford compliance).
+  \item \textbf{Multi-entity group audit} --- a three-phase manifest /
+        shard / aggregate engine produces standalone single-entity archives
+        \emph{plus} consolidated FS, IC matching, eliminations, IAS 21
+        translation, NCI / equity-method rollforwards, CGU goodwill
+        impairment testing, and chained multi-period continuity.
+  \item \textbf{Methodology-driven audit trail} --- the
+        \texttt{datasynth-audit-fsm} crate ships a typed audit-methodology
+        layer: Big-4 ISA spine (4 phases, 17 procedures), 4 firm overlays,
+        7 jurisdictional overlays, 6 KYC/AML workflows, banking-form
+        ontologies, Bayesian RMM scoring, an L4 typed property-graph
+        schema, and SHA-256 Merkle tamper-evidence for working-paper
+        bundles.
+\end{itemize}
+\end{tcolorbox}
 
 \begin{tcolorbox}[keybox={Why DataSynth?}]
 \begin{itemize}[leftmargin=1.2em, itemsep=3pt]
   \item \textbf{No real data required} --- eliminates privacy, regulatory, and
         procurement barriers to analytics development.
-  \item \textbf{Full auditability} --- deterministic, seeded generation means
-        every dataset is perfectly reproducible.
+  \item \textbf{Full auditability} --- deterministic, seeded generation;
+        every dataset is bit-for-bit reproducible.
   \item \textbf{ML-ready from day one} --- ground-truth labels for fraud,
-        anomalies, and data quality ship alongside every record.
-  \item \textbf{Domain depth} --- covers the full accounting lifecycle:
-        journal entries, document flows, subledgers, FX, intercompany,
-        period close, and banking/AML.
-  \item \textbf{Empirically grounded} --- statistical distributions for
-        journal entry line items, amount patterns, and temporal volumes are
-        calibrated against empirical research conducted on real-world
-        enterprise datasets, ensuring synthetic output mirrors the
-        structural properties of production ERP data.
-  \item \textbf{Methodology-driven audit simulation} --- 12 audit methodology
-        blueprints (ISA, IIA-GIAS, PCAOB, AICPA SOC~2, Big~4 firm-style)
-        encoded as YAML-defined finite state machines, producing
-        event-sourced audit trails with judgment-level classification
-        and cross-firm benchmark comparison.
+        anomalies, data quality issues, and ISA-240 audit flags ship
+        alongside every record.
+  \item \textbf{Domain depth} --- the full accounting lifecycle, multi-entity
+        consolidation, and complete audit methodology.
+  \item \textbf{Empirically grounded} --- statistical distributions calibrated
+        against real enterprise data; formal proofs in the companion paper
+        \citep{ivertowski2026datasynth}.
+  \item \textbf{Provenance you can verify} --- per-file SHA-256, W3C PROV-JSON
+        lineage graphs, and Merkle-rooted working-paper bundles.
 \end{itemize}
 \end{tcolorbox}
 
@@ -172,7 +209,6 @@ real-world enterprise resource planning (ERP) systems.
 \vspace{0.6em}
 \begin{center}
 \begin{tabular}{@{}c@{\hspace{1.8em}}c@{\hspace{1.8em}}c@{}}
-% Row 1
 \begin{tcolorbox}[statbox, width=4.8cm]
   \centering
   {\fontsize{26}{30}\selectfont\bfseries\textcolor{accent}{200\,K+}}\\[3pt]
@@ -180,822 +216,743 @@ real-world enterprise resource planning (ERP) systems.
 \end{tcolorbox} &
 \begin{tcolorbox}[statbox, width=4.8cm]
   \centering
-  {\fontsize{26}{30}\selectfont\bfseries\textcolor{accent}{60+}}\\[3pt]
-  {\small ACFE-aligned fraud schemes}
-\end{tcolorbox} &
-\begin{tcolorbox}[statbox, width=4.8cm]
-  \centering
-  {\fontsize{26}{30}\selectfont\bfseries\textcolor{accent}{10}}\\[3pt]
-  {\small industry presets}
-\end{tcolorbox} \\[0.8em]
-% Row 2
-\begin{tcolorbox}[statbox, width=4.8cm]
-  \centering
-  {\fontsize{26}{30}\selectfont\bfseries\textcolor{accent}{20}}\\[3pt]
+  {\fontsize{26}{30}\selectfont\bfseries\textcolor{accent}{17}}\\[3pt]
   {\small modular Rust crates}
 \end{tcolorbox} &
 \begin{tcolorbox}[statbox, width=4.8cm]
   \centering
-  {\fontsize{26}{30}\selectfont\bfseries\textcolor{accent}{50+}}\\[3pt]
-  {\small red flag patterns}
+  {\fontsize{26}{30}\selectfont\bfseries\textcolor{accent}{14}}\\[3pt]
+  {\small enterprise process families}
+\end{tcolorbox} \\[0.8em]
+\begin{tcolorbox}[statbox, width=4.8cm]
+  \centering
+  {\fontsize{26}{30}\selectfont\bfseries\textcolor{accent}{12+7}}\\[3pt]
+  {\small Big-4 + jurisdictional audit overlays}
+\end{tcolorbox} &
+\begin{tcolorbox}[statbox, width=4.8cm]
+  \centering
+  {\fontsize{26}{30}\selectfont\bfseries\textcolor{accent}{8}}\\[3pt]
+  {\small IFRS / IAS standards modelled}
+\end{tcolorbox} &
+\begin{tcolorbox}[statbox, width=4.8cm]
+  \centering
+  {\fontsize{26}{30}\selectfont\bfseries\textcolor{accent}{60+}}\\[3pt]
+  {\small ACFE-aligned fraud schemes}
+\end{tcolorbox} \\[0.8em]
+\begin{tcolorbox}[statbox, width=4.8cm]
+  \centering
+  {\fontsize{26}{30}\selectfont\bfseries\textcolor{accent}{6}}\\[3pt]
+  {\small KYC / AML workflows}
 \end{tcolorbox} &
 \begin{tcolorbox}[statbox, width=4.8cm]
   \centering
   {\fontsize{26}{30}\selectfont\bfseries\textcolor{accent}{4}}\\[3pt]
-  {\small privacy levels}
-\end{tcolorbox} \\[0.8em]
-% Row 3
+  {\small differential-privacy levels}
+\end{tcolorbox} &
 \begin{tcolorbox}[statbox, width=4.8cm]
   \centering
-  {\fontsize{26}{30}\selectfont\bfseries\textcolor{accent}{12}}\\[3pt]
-  {\small audit methodology blueprints}
-\end{tcolorbox} &
+  {\fontsize{26}{30}\selectfont\bfseries\textcolor{accent}{100+}}\\[3pt]
+  {\small output tables (CSV / JSON / Parquet / XBRL)}
+\end{tcolorbox} \\[0.8em]
 \begin{tcolorbox}[statbox, width=4.8cm]
   \centering
   {\fontsize{26}{30}\selectfont\bfseries\textcolor{accent}{5}}\\[3pt]
-  {\small audit frameworks (ISA/PCAOB/\ldots)}
+  {\small industry presets}
 \end{tcolorbox} &
 \begin{tcolorbox}[statbox, width=4.8cm]
   \centering
-  {\fontsize{26}{30}\selectfont\bfseries\textcolor{accent}{3}}\\[3pt]
-  {\small judgment levels per step}
-\end{tcolorbox} \\[0.8em]
-% Row 4
-\begin{tcolorbox}[statbox, width=4.8cm]
-  \centering
-  {\fontsize{26}{30}\selectfont\bfseries\textcolor{accent}{30+}}\\[3pt]
-  {\small GL account modules}
-\end{tcolorbox} &
-\begin{tcolorbox}[statbox, width=4.8cm]
-  \centering
-  {\fontsize{26}{30}\selectfont\bfseries\textcolor{accent}{6}}\\[3pt]
-  {\small coherence validators}
+  {\fontsize{26}{30}\selectfont\bfseries\textcolor{accent}{15}}\\[3pt]
+  {\small holiday calendar regions}
 \end{tcolorbox} &
 \begin{tcolorbox}[statbox, width=4.8cm]
   \centering
   {\fontsize{26}{30}\selectfont\bfseries\textcolor{accent}{XBRL}}\\[3pt]
-  {\small 2.1 instance export}
+  {\small 2.1 instance export (US GAAP \& IFRS)}
 \end{tcolorbox}
 \end{tabular}
 \end{center}
 
+\begin{tcolorbox}[notebox={Companion paper}]
+Formal statements of the distributional, copula, and DP-composition
+properties summarised in this overview --- together with proofs and
+ablation studies --- appear in the companion paper
+\citep{ivertowski2026datasynth}. Readers building academic benchmarks or
+formal evaluations should consult \S\S 5--9 of the paper directly. The
+LaTeX source is available in-repo at \texttt{paper/main.tex}.
+\end{tcolorbox}
+
 % ══════════════════════════════════════════════════════════════════════════════
 \newpage
-\section{Platform Capabilities}
+\section{Reference Knowledge Graphs}
 
-\subsection{Enterprise Accounting Simulation}
+DataSynth builds what the companion paper calls a \emph{reference knowledge
+graph}: a deterministic, content-addressable graph whose nodes encode every
+domain entity (companies, vendors, customers, accounts, journal entries,
+controls, procedures, evidence) and whose edges encode every business
+relationship (transactions, references, ownership, control coverage,
+assertion linkage, evidence support). Generation is reproducible byte-for-byte
+from a seed, so the same graph can be regenerated, hashed, signed, and
+audited.
 
-DataSynth generates a complete, internally consistent accounting universe:
+\subsection{The L4 Audit-Graph Schema}
 
-\vspace{0.4em}
-\noindent
-\renewcommand{\arraystretch}{1.25}
-\begin{tabularx}{\textwidth}{>{\bfseries\color{brand}}l X}
-\toprule
-\textbf{Domain} & \textbf{Capabilities} \\
-\midrule
-Journal Entries &
-  Balanced debits/credits, Benford-compliant amounts, configurable line-item
-  distributions, SAP ACDOCA format export. \\
-Master Data &
-  Vendors, customers, materials, fixed assets, employees with hierarchies,
-  payment terms, credit ratings, and intercompany flags. \\
-Document Flows &
-  Full Procure-to-Pay (PO\,$\to$\,GR\,$\to$\,Invoice\,$\to$\,Payment) and
-  Order-to-Cash (SO\,$\to$\,Delivery\,$\to$\,Invoice\,$\to$\,Receipt) with
-  three-way match validation, contract price enforcement, and credit memo
-  generation (configurable \texttt{returns\_rate} with ARCreditMemo). \\
-Intercompany &
-  Matched IC journal entry pairs, transfer pricing (Cost-Plus, Resale-Minus,
-  CUP), and consolidation elimination entries. \\
-Subledgers &
-  AR/AP open items and aging, fixed asset register with IRS MACRS depreciation
-  tables (3--20\,yr recovery periods), inventory positions and movements,
-  GL-to-subledger reconciliation. \\
-FX \& Translation &
-  Ornstein--Uhlenbeck exchange rate process, multi-currency trial balance
-  translation (current-rate, temporal, monetary/non-monetary methods with
-  account-type classification), currency translation adjustment entries. \\
-Period Close &
-  Month-end accruals, depreciation runs, year-end closing entries, fiscal
-  period status tracking. \\
-\bottomrule
-\end{tabularx}
-\renewcommand{\arraystretch}{1.0}
-
-\needspace{12\baselineskip}
-\subsection{Financial Coherence Engine}
-
-\textit{New in v2.2.0} --- a cross-module coherence layer that connects
-manufacturing, treasury, tax, HR, and reporting generators into a unified
-financial data fabric. Every journal entry traces back to an originating
-business event, and every financial statement line item reconciles to the
-underlying GL.
-
-\subsubsection{Manufacturing Cost Flow}
-
-\begin{itemize}[leftmargin=1.2em, itemsep=3pt]
-  \item \textbf{WIP\,$\to$\,FG\,$\to$\,COGS cycle} --- multi-stage cost
-        accumulation with standard cost variance journal entries for material
-        price, labor rate, and overhead volume variances.
-  \item \textbf{Warranty provisions} --- IAS\,37/ASC\,450 provisions derived
-        from quality inspection failure rates, with automated accrual and
-        release entries.
-  \item \textbf{COGS on delivery} --- cost of goods sold recognized at shipment,
-        linked to production unit costs for full cost traceability.
-\end{itemize}
-
-\subsubsection{Treasury \& Debt Accounting}
-
-\begin{itemize}[leftmargin=1.2em, itemsep=3pt]
-  \item \textbf{Effective interest method} --- debt interest accrual journal
-        entries computed from amortized cost and contractual terms.
-  \item \textbf{Hedge mark-to-market} --- ASC\,815/IFRS\,9 routing with cash
-        flow hedge gains/losses posted to OCI and fair value hedge adjustments
-        posted to P\&L.
-  \item \textbf{Covenant compliance} --- real-time evaluation against trial
-        balance ratios (debt/equity, interest coverage, current ratio).
-  \item \textbf{Cash pool sweeps} --- physical sweep intercompany entries with
-        proper elimination on consolidation.
-\end{itemize}
-
-\subsubsection{Tax Integration}
-
-\begin{itemize}[leftmargin=1.2em, itemsep=3pt]
-  \item \textbf{Income tax provisions} --- derived from actual pre-tax income
-        by netting revenue and expense GL accounts, ensuring provision-to-GL
-        reconciliation.
-  \item \textbf{Transaction-level VAT/GST} --- input and output tax journal
-        entries generated from source documents (vendor invoices, customer
-        invoices, payments).
-  \item \textbf{Document-date-aware posting} --- tax entries posted on the
-        source document date, avoiding artificial period-end clustering.
-\end{itemize}
-
-\subsubsection{Payroll $\leftarrow$ HR Events}
-
-\begin{itemize}[leftmargin=1.2em, itemsep=3pt]
-  \item \textbf{Change-history-driven payroll} --- salary adjustments consume
-        \texttt{EmployeeChangeHistory} records with mid-period proration for
-        hires, promotions, and terminations.
-  \item \textbf{Variance traceability} --- payroll period-over-period variances
-        are traceable to specific HR events, supporting audit walkthroughs of
-        compensation changes.
-\end{itemize}
-
-\subsubsection{Full Financial Statement Package}
-
-\begin{itemize}[leftmargin=1.2em, itemsep=3pt]
-  \item \textbf{Enhanced cash flow statement} --- operating, investing, and
-        financing items sourced from all active modules (treasury, tax,
-        payroll, manufacturing, project accounting).
-  \item \textbf{IFRS vs US GAAP classification} --- interest paid/received
-        classified per framework requirements (operating vs.\ financing).
-  \item \textbf{Segment reporting} --- operating segments derived from actual
-        entity-level GL data with segment-to-consolidated reconciliation.
-  \item \textbf{Data-backed notes} --- financial statement notes for inventory,
-        debt maturities, hedge positions, and provisions with traceable source
-        references to underlying records.
-  \item \textbf{Dividend lifecycle} --- declaration, accrual, and payment
-        journal entries with proper equity and cash flow classification.
-  \item \textbf{XBRL 2.1 export} --- instance document generation with
-        US GAAP and IFRS taxonomy mapping for regulatory filing.
-\end{itemize}
-
-\subsubsection{Capstone Coherence Validators}
-
-\begin{itemize}[leftmargin=1.2em, itemsep=3pt]
-  \item \textbf{Cash flow reconciliation} --- validates that opening cash plus
-        net operating/investing/financing flows equals the closing GL cash balance.
-  \item \textbf{Equity rollforward} --- confirms opening equity plus net income
-        plus OCI minus dividends equals closing equity.
-  \item \textbf{Segment reconciliation} --- verifies that segment totals
-        reconcile to consolidated financial statement figures.
-  \item \textbf{Trial balance master proof} --- asserts that the sum of all
-        posted journal entries equals the closing trial balance for every account.
-\end{itemize}
-
-\subsection{Enterprise Process Chains}
-
-\textit{Updated in v0.7.0} --- eleven end-to-end process chains with full
-referential integrity, temporal coherence, anomaly injection, and
-OCEL~2.0 process mining integration:
-
-\vspace{0.4em}
-\noindent
-\renewcommand{\arraystretch}{1.25}
-\begin{tabularx}{\textwidth}{>{\bfseries\color{brand}}l X}
-\toprule
-\textbf{Chain} & \textbf{Capabilities} \\
-\midrule
-Source-to-Pay &
-  Spend analysis, sourcing projects, supplier qualification, RFx/bid
-  evaluation, procurement contracts, catalog management, supplier
-  scorecards --- with contract-governed PO generation and maverick spend
-  detection. \\
-Hire-to-Retire &
-  Payroll runs with progressive tax bracket computation (country-pack-aware),
-  time entries with overtime modeling, expense reports with policy violation
-  detection, and payroll journal entry generation. \\
-Manufacturing &
-  Production orders with BOM explosion, routing operations, component
-  issues, finished goods receipts, WIP costing (material/labor/overhead),
-  and variance settlement. \\
-Bank Reconciliation &
-  Statement line matching against cleared payments, outstanding checks,
-  deposits in transit, bank fees, and zero-net-difference enforcement. \\
-Financial Reporting &
-  Balance sheet, income statement, cash flow statement (indirect method),
-  and changes in equity --- derived from trial balance with prior-period
-  comparatives, management KPIs, and budget variance analysis. \\
-Banking Operations &
-  Customer onboarding, KYC reviews, account management, transaction
-  lifecycle (authorize/complete/reverse), suspicious activity flagging,
-  and account freezing --- with full OCEL~2.0 event coverage. \\
-Audit Lifecycle &
-  Engagement planning, risk assessment, workpaper creation and review,
-  evidence collection, finding management, remediation tracking, and
-  professional judgment documentation --- ISA-aligned OCPM events. \\
-Tax Accounting &
-  Tax jurisdictions (Federal/State/Local/Supranational), tax code master data,
-  tax line decoration on source documents (VI/CI/JE/Payment/Payroll),
-  VAT/GST/income/withholding tax returns, ASC\,740/IAS\,12 provision
-  computation with deferred tax, FIN\,48/IFRIC\,23 uncertain positions,
-  cross-border withholding with treaty benefits. \\
-Treasury \& Cash Mgmt &
-  Daily cash positions, probability-weighted forecasts, cash pooling
-  (physical/notional/zero-balance sweeps), FX forwards, IR swaps, and
-  options with ASC\,815/IFRS\,9 hedge effectiveness testing, debt instruments
-  with covenants \& amortization, bank guarantees, multilateral netting. \\
-Project Accounting &
-  WBS hierarchies, cost lines (labor/material/subcontractor/overhead/equipment/travel),
-  percentage-of-completion revenue recognition (ASC\,606), earned value
-  management (BCWS/BCWP/ACWP/SPI/CPI/EAC/ETC/TCPI), milestones with
-  payment tracking, change orders, retainage holds and releases. \\
-ESG / Sustainability &
-  GHG Protocol Scope\,1/2/3 emissions (activity-based \& spend-based),
-  energy consumption with renewable targets, water/waste management,
-  workforce diversity \& pay equity, safety incidents (TRIR/LTIR/DART),
-  governance metrics, GRI/SASB/TCFD disclosure frameworks, supplier ESG
-  assessments, climate scenario analysis. \\
-\bottomrule
-\end{tabularx}
-\renewcommand{\arraystretch}{1.0}
-
-\vspace{0.4em}
-\noindent
-Each chain defaults to \texttt{enabled: false} and integrates with the
-existing generation pipeline via new orchestrator phases. All new fields
-on existing structs use \texttt{Option<>} for backward compatibility.
-
-\subsection{Country Pack Architecture}
-
-\textit{New in v0.8.0, expanded in v0.11.0} --- pluggable JSON-based country configuration replacing
-$\sim$7\,500 lines of hardcoded country-specific data:
-
-\begin{itemize}[leftmargin=1.4em, itemsep=2pt]
-  \item \textbf{10 built-in packs}: US, DE, GB, FR, JP, CN, IN, IT, ES, CA with
-        16-section JSON schema covering locale, names, holidays, tax rates,
-        addresses, phone formats, banking, payroll rules, legal entity formats,
-        and document texts.
-  \item \textbf{Layered merge}: \texttt{\_default.json} $\to$ country pack $\to$
-        user overrides --- objects merge recursively, arrays/scalars replace,
-        enabling surgical per-country customization.
-  \item \textbf{5 holiday types, 15 regions}: Fixed dates, Easter-relative,
-        nth-weekday (with offset), last-weekday, and lunar calendar algorithms
-        (Chinese New Year, Diwali, Eid al-Fitr, Chuseok). Holiday calendars
-        for US, DE, GB, FR, IT, ES, CA, CN, JP, IN, BR, MX, AU, SG, KR.
-  \item \textbf{Generator integration}: \texttt{HolidayCalendar},
-        \texttt{MultiCultureNameGenerator}, tax code, payroll, emission, and
-        customer generators all consume country pack data --- wired through
-        \texttt{EnhancedOrchestrator} per company.
-  \item \textbf{Extensibility}: \texttt{country\_packs.external\_dir} config
-        loads custom or commercial packs from disk; no code changes required
-        to add a new country.
-\end{itemize}
-
-\subsection{Banking, KYC \& AML}
-
-A dedicated banking module generates realistic transaction data for
-anti-money-laundering testing:
-
-\begin{itemize}[leftmargin=1.4em, itemsep=2pt]
-  \item \textbf{Customer personas}: Retail, Business, Trust profiles with
-        full KYC envelopes (declared turnover, source of funds, geographic
-        exposure, cash intensity).
-  \item \textbf{AML typologies}: Structuring, funnel accounts, layering
-        schemes, money mule networks, round-tripping, and adversarial
-        spoofing for robustness testing.
-  \item \textbf{Ground-truth labels}: Entity-level risk classifications,
-        transaction-level labels, and investigation narratives.
-\end{itemize}
-
-\subsection{Audit Simulation}
-
-Generates ISA-compliant audit artifacts:
-
-\begin{itemize}[leftmargin=1.4em, itemsep=2pt]
-  \item Engagement metadata with materiality thresholds (ISA 320).
-  \item Workpapers per ISA 230, evidence per ISA 500.
-  \item Risk assessments (ISA 315/330), findings (ISA 265), and
-        professional judgment documentation (ISA 200).
-  \item \textit{New in v0.11.0}: External confirmations per ISA 505 --- AR (40\%),
-        AP (30\%), Bank (20\%), Legal (10\%) with positive/negative response
-        modeling, reconciliation for disagreements, and alternative procedures
-        for non-responses.
-\end{itemize}
-
-\subsection{YAML-Driven Audit FSM Engine}
-
-\textit{New in v2.0.0} --- DataSynth introduces a methodology-driven approach to audit data
-generation through the \texttt{datasynth-audit-fsm} crate. Rather than
-generating audit artifacts through independent, stateless generators, the
-engine loads audit methodology blueprints---encoded as YAML-defined finite
-state machines---and walks each procedure's aggregate state machine in
-topological order, respecting precondition dependencies.
-
-\subsubsection{Two-Layer Architecture}
-
-The engine separates \emph{what happens} (methodology blueprint) from
-\emph{how it generates} (generation overlay):
-
-\begin{itemize}[leftmargin=1.2em, itemsep=3pt]
-  \item \textbf{Blueprints} define procedures, phases, state transitions,
-        evidence requirements, actors, and standards references. Twelve
-        built-in blueprints ship with v2.0.0, spanning ISA, IIA-GIAS,
-        PCAOB, AICPA SOC~2, and Big~4 firm-style methodologies.
-  \item \textbf{Overlays} control revision probability, timing distributions,
-        artifact volumes, anomaly injection rates, and actor behavior profiles.
-        Three presets are provided: \texttt{default}, \texttt{thorough}, and
-        \texttt{rushed}.
-  \item \textbf{Judgment levels} --- each step carries a
-        \texttt{judgment\_level} classification (\texttt{data\_only},
-        \texttt{ai\_assistable}, or \texttt{human\_required}), supporting
-        analysis of automation potential across methodologies.
-\end{itemize}
+The audit-methodology layer ships a \textbf{typed property-graph schema} ---
+11 node types crossed with 10 edge types --- that mirrors the assertion-
+and risk-driven structure of an ISA / PCAOB engagement.
 
 \begin{center}
-\small
-\begin{tabular}{@{}llrrr@{}}
-\toprule
-\textbf{Blueprint} & \textbf{Framework} & \textbf{Procedures} & \textbf{Steps} & \textbf{Standards} \\
-\midrule
-Generic FSA        & ISA        &  9 &  24 & 14 \\
-Generic IA         & IIA-GIAS   & 34 &  82 & 52 \\
-Deloitte / PwC / KPMG FSA & ISA & 10 &  28 & 16 \\
-Deloitte / PwC / KPMG ISA (full) & ISA & 48 & 180 & 34 \\
-EY GAM Lite        & ISA        & 12 &  36 & 18 \\
-PCAOB Integrated   & PCAOB      & 42 & 156 & 28 \\
-SOC 2 Type II      & AICPA TSC  & 20 &  60 & 15 \\
-Regulatory Exam    & Regulatory & 16 &  48 & 12 \\
-\bottomrule
-\end{tabular}
+\begin{tikzpicture}[
+  >=Stealth,
+  node distance=1.6cm and 2.6cm,
+  every node/.style={font=\small\sffamily},
+  ent/.style={draw=brand, fill=lightbg, rounded corners=3pt,
+              minimum width=2.0cm, minimum height=0.7cm, align=center},
+  risk/.style={draw=highlight, fill=highlight!10, rounded corners=3pt,
+               minimum width=2.0cm, minimum height=0.7cm, align=center},
+  proc/.style={draw=accent, fill=accent!10, rounded corners=3pt,
+               minimum width=2.0cm, minimum height=0.7cm, align=center},
+  evid/.style={draw=success, fill=success!10, rounded corners=3pt,
+               minimum width=2.0cm, minimum height=0.7cm, align=center},
+  edge/.style={->, thick, color=accent!70}
+]
+  \node[ent] (entity)    {Entity};
+  \node[ent, right=of entity] (component) {Component};
+  \node[ent, right=of component] (account)  {Account};
+  \node[risk, below=1.2cm of account] (assertion) {Assertion};
+  \node[risk, left=2.6cm of assertion] (risk) {Risk (RMM)};
+  \node[proc, below=1.2cm of risk] (control) {Control};
+  \node[proc, right=of control] (procedure) {Procedure};
+  \node[evid, below=1.2cm of procedure] (evidence) {Evidence};
+  \node[evid, right=of evidence] (wp) {Working Paper};
+  \node[evid, below=1.2cm of evidence] (finding) {Finding};
+
+  \draw[edge] (entity)    -- node[above,midway,scale=0.78]{has\_component} (component);
+  \draw[edge] (component) -- node[above,midway,scale=0.78]{has\_account}   (account);
+  \draw[edge] (account)   -- node[right,midway,scale=0.78]{is\_subject\_to} (assertion);
+  \draw[edge] (assertion) -- node[above,midway,scale=0.78]{associated\_with} (risk);
+  \draw[edge] (risk)      -- node[left,midway,scale=0.78]{mitigated\_by}    (control);
+  \draw[edge] (control)   -- node[above,midway,scale=0.78]{tested\_by}     (procedure);
+  \draw[edge] (procedure) -- node[right,midway,scale=0.78]{produces}       (evidence);
+  \draw[edge] (procedure) -- node[above,midway,scale=0.78]{documented\_in} (wp);
+  \draw[edge] (evidence)  -- node[right,midway,scale=0.78]{supports/contra} (finding);
+\end{tikzpicture}
 \end{center}
 
-\subsubsection{Key Capabilities}
+This schema is the same one a Big-4 firm carries in its proprietary
+audit-management software --- only here it is open, content-addressable, and
+generated end-to-end alongside the underlying ledger. The companion paper
+formalises it as a typed property graph and proves the soundness of the
+acceptance-gate predicates that consume it.
+
+\subsection{Why Knowledge Graphs}
+
+A reference graph turns the audit dataset from a collection of CSVs into a
+\textbf{queryable, verifiable, and benchmarkable artefact}:
 
 \begin{itemize}[leftmargin=1.2em, itemsep=3pt]
-  \item \textbf{Event-sourced audit trail} --- every state transition and
-        procedure step emits a deterministic audit event with actor, timestamp,
-        command, evidence references, and standards citations.
-  \item \textbf{Concrete artifact generation} --- a step dispatcher maps 135
-        blueprint commands to 14 pre-initialized generators, producing typed
-        artifacts: materiality calculations, risk assessments, workpapers,
-        evidence, sampling plans, analytical procedures, audit opinions, and more.
-  \item \textbf{8-state C2CE lifecycle} --- the Condition--Criteria--Cause--Effect
-        finding development workflow models realistic audit finding progression.
-  \item \textbf{Self-loop handling} --- follow-up procedures with re-verification
-        cycles are bounded by configurable iteration limits.
-  \item \textbf{Continuous phases} --- governance, ethics, and quality phases
-        execute in parallel with sequential audit phases.
-  \item \textbf{Discriminator filtering} --- scope engagements by category
-        (financial, operational, compliance, IT), risk rating, or engagement type.
-  \item \textbf{OCEL 2.0 projection} --- audit events map to the Object-Centric
-        Event Log standard for integration with process mining tools.
-  \item \textbf{Streaming execution} --- callback-based API emits each
-        audit event in real time during FSM traversal, enabling downstream
-        consumption without buffering the full engagement result.
-  \item \textbf{ISA 600 group audit} --- component auditor instructions,
-        reports, and multi-entity coordination for group audit simulation.
-  \item \textbf{Year-over-year engagement chains} --- multi-period audit
-        simulation with prior-year comparative procedures and opening
-        balance reliance.
+  \item Cross-process queries (vendor $\to$ PO $\to$ GR $\to$ invoice $\to$
+        payment $\to$ JE $\to$ control $\to$ procedure $\to$ working paper)
+        are graph traversals, not multi-table SQL joins.
+  \item Provenance is intrinsic --- every node carries its generator type,
+        seed, and generation timestamp; every edge carries its derivation
+        rule.
+  \item Anomalies travel through the graph: when a fraudulent vendor
+        invoice is injected, the propagation path through document flows,
+        JE postings, and control failures is observable.
+  \item ML benchmarks become reproducible --- the same seed yields the
+        same graph, so model A and model B can be compared on the
+        \emph{exact} same data without re-randomisation.
 \end{itemize}
 
-\subsubsection{Audit Path Optimizer}
+% ══════════════════════════════════════════════════════════════════════════════
+\newpage
+\section{Enterprise Process Simulation}
 
-The companion \texttt{datasynth-audit-optimizer} crate converts methodology
-blueprints into directed graphs for analytical queries:
+Every process chain produces cross-referenced master data, documents, and
+journal entries that respect double-entry bookkeeping, document chain
+integrity, and balance sheet equation invariants \emph{at generation time}.
 
-\begin{itemize}[leftmargin=1.2em, itemsep=3pt]
-  \item \textbf{Shortest path analysis} --- minimum transitions to completion
-        (FSA: 27, IA: 101).
-  \item \textbf{Constrained path} --- must-visit procedures with transitive
-        precondition expansion.
-  \item \textbf{Monte Carlo simulation} --- stochastic outcome distributions
-        across $N$ engagement simulations, identifying bottleneck procedures,
-        revision hotspots, and the statistically most common completion path.
-\end{itemize}
+\subsection{Process Families}
 
-\subsection{COSO 2013 Internal Control Framework}
-
-Full integration with the COSO Internal Control-Integrated Framework:
-
-\begin{itemize}[leftmargin=1.4em, itemsep=2pt]
-  \item \textbf{5 Components}: Control Environment, Risk Assessment,
-        Control Activities, Information \& Communication, Monitoring Activities.
-  \item \textbf{17 Principles}: Complete principle coverage with control mappings.
-  \item \textbf{Control Scopes}: Entity-level, transaction-level, IT general,
-        and IT application controls.
-  \item \textbf{Maturity Levels}: 6-level model (Non-Existent through Optimized).
-  \item \textbf{Export}: \texttt{coso\_control\_mapping.csv} with principle-level granularity.
-\end{itemize}
-
-\subsection{Accounting \& Audit Standards}
-
-Comprehensive standards support via the \texttt{datasynth-standards} crate:
-
-\vspace{0.4em}
-\noindent
-\renewcommand{\arraystretch}{1.2}
-\begin{tabularx}{\textwidth}{>{\bfseries\color{brand}}l X}
+\renewcommand{\arraystretch}{1.25}
+\begin{tabularx}{\textwidth}{@{}>{\bfseries\color{brand}}l X@{}}
 \toprule
-\textbf{Category} & \textbf{Standards Supported} \\
+\textbf{Process family} & \textbf{Scope} \\
 \midrule
-Accounting (US GAAP) &
-  ASC 606 (Revenue), ASC 842 (Leases --- 5 bright-line classification tests),
-  ASC 820 (Fair Value), ASC 360 (Impairment) \\
-Accounting (IFRS) &
-  IFRS 15 (Revenue), IFRS 16 (Leases --- enhanced ROU measurement),
-  IFRS 13 (Fair Value), IAS 36 (Impairment) \\
-Accounting (French GAAP) &
-  Plan Comptable G\'{e}n\'{e}ral 2024 (PCG) chart of accounts,
-  FEC export (Article A47 A-1, 18 columns),
-  auxiliary GL sub-accounts (401/411 series) \\
-Accounting (German GAAP) &
-  HGB \S\S{}238--263, SKR04 chart of accounts (classes 0--9),
-  GoBD audit export (13-column journal + XML index),
-  Degressiv depreciation (EStG \S{}7(2)),
-  GWG low-value asset expensing (\S{}6(2), $\leq$800\,EUR) \\
-Audit Standards &
-  34 ISA standards (ISA 200--720), 19+ PCAOB standards with ISA mapping \\
-Regulatory &
-  SOX Section 302 (Certifications), SOX Section 404 (ICFR Assessment),
-  Deficiency Matrix (MW/SD classification) \\
+General Ledger      & Journal entries, chart of accounts (small / medium / large), ACDOCA, balanced postings, FX revaluation \\
+Procure-to-Pay      & POs, goods receipts, vendor invoices, payments, three-way match with configurable tolerances \\
+Order-to-Cash       & Sales orders, deliveries, customer invoices, receipts, dunning, AR aging \\
+Source-to-Contract  & Spend analysis, sourcing projects, supplier qualification, RFx, bids, contracts, scorecards \\
+Hire-to-Retire      & Payroll, time \& attendance, expenses, benefits, defined-benefit pensions, stock-based compensation \\
+Manufacturing       & Production orders, BOMs, WIP costing, quality inspections, cycle counts, inventory movements \\
+Financial Reporting & BS / IS / CF, statement of changes in equity, KPIs, budgets, segment reporting, notes, XBRL \\
+Tax                 & Multi-jurisdiction VAT / GST, ASC 740 / IAS 12 provisions, deferred tax rollforward, withholding tax, uncertain tax positions \\
+Treasury            & Cash positioning, forecasts, pooling, hedging (ASC 815 / IFRS 9), debt covenants, derivatives \\
+ESG                 & GHG Scope 1/2/3, energy / water / waste, workforce diversity, pay equity, GRI / SASB / TCFD disclosures \\
+Banking / AML       & 20 AML typologies, criminal networks, velocity features, KYC tiers, SAR narratives \\
+Audit               & ISA lifecycle, ISA 600 group audit, SOX 302/404, methodology blueprints \\
+Intercompany        & IC matching (multi-strategy), transfer pricing methods, eliminations, currency translation, NCI \\
+Period Close        & Depreciation runs, accruals, year-end closing, tax provisions, FX revaluation \\
 \bottomrule
 \end{tabularx}
-\renewcommand{\arraystretch}{1.0}
 
-\vspace{0.3em}
-\noindent
-Supports dual reporting mode (US GAAP + IFRS) with automatic framework
-difference reconciliation. A generalized \texttt{FrameworkAccounts} struct maps
-${\sim}45$ semantic account purposes to framework-specific GL codes, enabling
-consistent multi-GAAP data generation with a single code path per framework.
+\subsection{Coherence Engine}
 
-\subsection{Process Mining (OCEL 2.0 \& XES 2.0)}
+A cross-module coherence layer connects every record to every other record:
 
-\textit{Major expansion in v0.7.0} --- Object-Centric Event Logs now cover
-all 12 enterprise process families with 101+ activity types and 65+ object types,
-enabling cross-process conformance checking and end-to-end variant analysis.
-
-\begin{itemize}[leftmargin=1.4em, itemsep=2pt]
-  \item \textbf{OCEL 2.0}: JSON and XML export with objects, events, and object relationships.
-  \item \textbf{XES 2.0}: IEEE standard format for ProM, Celonis, Disco, and pm4py.
-  \item \textbf{12 Process Families}: P2P~(9), O2C~(10), R2R/A2R~(17), S2C~(8), H2R~(8), MFG~(10), BANK~(8), AUDIT~(10), Tax~(8), Treasury~(4), ProjectAccounting~(5), ESG~(3) --- 101+ activities total.
-  \item \textbf{65+ Object Types}: Lifecycle states and relationships across all families --- from purchase orders through ESG disclosures.
-  \item \textbf{3 Variant Types}: HappyPath (75\%), ExceptionPath (20\%), ErrorPath (5\%) per generator for realistic process deviation.
-  \item \textbf{Deterministic UUIDs}: FNV-1a hash-based IDs with type discriminators for reproducible event logs.
+\begin{itemize}[leftmargin=1.2em, itemsep=3pt]
+  \item \textbf{Document chains} --- PO\,$\to$\,GR\,$\to$\,Invoice\,$\to$\,Payment
+        with proper reference fields and audit-trail flags.
+  \item \textbf{Vendor/customer networks} --- 3-tier supply chain (Tier1 / 2 / 3),
+        4 cluster types (reliable strategic / standard / transactional / problematic),
+        configurable concentration risk, and bilateral relationships.
+  \item \textbf{Customer segmentation} --- 4 value segments with prescribed
+        revenue/customer share, lifecycle stages, referral networks, corporate
+        hierarchies.
+  \item \textbf{Relationship strength} --- weighted composite of transaction
+        volume (log scale), count (sqrt scale), duration, recency
+        (90-day exponential decay), and mutual connections (Jaccard index).
+  \item \textbf{Cross-process links} --- inventory $\leftrightarrow$ P2P/O2C,
+        payment $\leftrightarrow$ bank reconciliation, intercompany bilateral
+        matching.
 \end{itemize}
+
+\subsection{Standards Coverage (Single Entity)}
+
+Single-entity output adheres to the following standards by construction:
+
+\renewcommand{\arraystretch}{1.2}
+\begin{tabularx}{\textwidth}{@{}>{\bfseries\color{brand}}l X@{}}
+\toprule
+\textbf{Domain} & \textbf{Standard \& artefacts} \\
+\midrule
+Revenue                       & ASC 606 / IFRS 15: customer contracts, performance obligations, revenue allocation, contract modifications \\
+Leases                        & ASC 842 / IFRS 16: ROU assets, lease liabilities, finance / operating split \\
+Fair Value                    & ASC 820 / IFRS 13: Level 1/2/3 hierarchy, valuation methodology disclosures \\
+Impairment                    & ASC 360 / IAS 36: triggering events, recoverable-amount tests, no-reversal rule \\
+Business Combinations         & IFRS 3 / ASC 805: PPA, goodwill, fair-value adjustments, contingent consideration, bargain purchase \\
+ECL Provisions                & IFRS 9: 12-month / lifetime ECL stages, provision matrix, ECL movements \\
+Provisions                    & IAS 37 / ASC 450: provision liabilities, contingent liabilities, unwind of discount \\
+Pensions                      & IAS 19 / ASC 715: defined-benefit obligation, plan assets, OCI remeasurements \\
+Stock Compensation            & ASC 718: grant-date fair value, vesting, APIC stock-comp \\
+Internal Controls (SOX)       & SOX 302 certifications, SOX 404 assessments, deficiency matrix, material-weakness classification \\
+ISA Audit Lifecycle           & 34 ISA standards mapped, analytical procedures (ISA 520), confirmations (ISA 505), opinions (ISA 700/705/706/701) \\
+\bottomrule
+\end{tabularx}
+
+% ══════════════════════════════════════════════════════════════════════════════
+\newpage
+\section{Group Audit Engine}
+
+Since v5.0, DataSynth ships a \textbf{multi-entity group audit engine}
+layered above the single-entity pipeline. Per-entity generation stays
+byte-identical to the standalone flow; the consolidation logic lives entirely
+in the \texttt{datasynth-group} crate. The pipeline is a deterministic
+\textbf{three-phase model}.
+
+\subsection{Three-Phase Architecture}
+
+\vspace{0.4em}
+\begin{center}
+\begin{tikzpicture}[
+  >=Stealth,
+  every node/.style={font=\small\sffamily},
+  phase/.style={draw=brand, fill=lightbg, rounded corners=4pt,
+                minimum width=4.0cm, minimum height=1.6cm, align=center,
+                text=brand},
+  artefact/.style={draw=midgray, fill=white, rounded corners=2pt,
+                   minimum width=3.6cm, minimum height=0.7cm, align=center,
+                   text=midgray, font=\scriptsize\sffamily},
+  edge/.style={->, thick, color=accent}
+]
+  \node[phase] (config) {GroupConfig\\{\scriptsize (YAML)}};
+  \node[phase, right=2.0cm of config, fill=accent!10, draw=accent] (manifest)
+    {\textbf{manifest}\\{\scriptsize deterministic +}\\{\scriptsize content-addressable}};
+  \node[phase, right=2.0cm of manifest, fill=accent!10, draw=accent] (shard)
+    {\textbf{shard}\\{\scriptsize per-entity}\\{\scriptsize orchestrator}};
+  \node[phase, below=1.6cm of shard, fill=accent!10, draw=accent] (aggregate)
+    {\textbf{aggregate}\\{\scriptsize IC match + elim +}\\{\scriptsize IAS 21 + NCI + CGU}};
+  \node[phase, left=2.0cm of aggregate, fill=success!10, draw=success] (output)
+    {Group\\Archive};
+
+  \draw[edge] (config)   -- node[above,midway,scale=0.85]{resolve} (manifest);
+  \draw[edge] (manifest) -- node[above,midway,scale=0.85]{plan}    (shard);
+  \draw[edge] (shard)    -- node[right,midway,scale=0.85]{entity TBs} (aggregate);
+  \draw[edge] (aggregate) -- node[above,midway,scale=0.85]{write} (output);
+
+  % Per-entity archives note
+  \node[artefact, below=0.3cm of shard, xshift=0cm] (sharddetail)
+    {\texttt{entities/\{code\}/}\\(full single-entity archive)};
+
+  % Aggregate outputs note
+  \node[artefact, below=0.3cm of aggregate] (aggdetail)
+    {consolidated FS + schedule +\\notes + NCI + CTA + EM rollforwards};
+\end{tikzpicture}
+\end{center}
+
+\begin{enumerate}[leftmargin=1.4em, itemsep=4pt]
+  \item \textbf{\texttt{manifest}} resolves a \texttt{GroupConfig} into a
+        deterministic, content-addressable \texttt{GroupManifest} ---
+        entities, periods, ownership graph, IC pair plan, shard plan,
+        FX / chart-of-accounts masters, audit engagement plan, tax group plan.
+  \item \textbf{\texttt{shard}} drives the orchestrator for one shard of
+        entities and writes a full single-entity archive per entity under
+        \texttt{entities/\{code\}/}.
+  \item \textbf{\texttt{aggregate}} reads shard outputs and runs IC matching,
+        eliminations, IAS 21 currency translation, NCI rollforward,
+        equity-method investments (with suppressed-loss tracking), CGU
+        goodwill-impairment testing, and writes consolidated FS, schedule,
+        notes, and rollforwards.
+\end{enumerate}
+
+The CLI auto-detects whether an input config is a \texttt{GroupConfig} (top-
+level \texttt{presentation\_currency} + \texttt{ownership} keys) and dispatches
+to the group pipeline transparently --- existing single-entity configs continue
+to work unchanged.
+
+\subsection{Standards Coverage (Group)}
+
+\renewcommand{\arraystretch}{1.2}
+\begin{tabularx}{\textwidth}{@{}>{\bfseries\color{brand}}l X@{}}
+\toprule
+\textbf{Standard} & \textbf{What is modelled} \\
+\midrule
+IAS 21 \S{}39 / \S{}42(b) & Closing-rate translation, CTA rollforward; closing-rate-for-all-items in hyperinflationary economies \\
+IAS 28 \S{}22 / \S{}38    & Equity-method investments; suppressed-loss tracking with recovery-against-future-profits \\
+IAS 29 \S{}12             & Indexed restatement before IAS 21 closing-rate translation \\
+IAS 36 \S{}10 / 80 / 104 / 124 & CGU definition, acquisition-date goodwill allocation, impairment-loss allocation, no-reversal rule \\
+IFRS 3 \S{}19 / \S{}42    & Acquisition-date NCI measurement (full vs partial goodwill); mid-period ControlGained re-measurement at fair value \\
+IFRS 5 / ASC 810          & NCI presented separately from controlling-interest equity \\
+IFRS 8.13 / ASC 280-10-50-41 & Operating-segment disclosures derived from the ownership graph \\
+IFRS 10.23 / IFRS 10.B97  & Equity-transaction adjustment for within-control ownership changes; deconsolidation on control loss \\
+\bottomrule
+\end{tabularx}
+
+\subsection{Multi-Period Continuity}
+
+The \texttt{group generate-chain} subcommand stitches engagements together
+across periods. Opening balances, NCI, CTA, and equity-method carryforwards
+flow forward without caller plumbing; the chain helpers handle
+emergent-fuzzy IC matching tolerances, mid-period acquisitions and
+disposals, and step-acquisition mid-period control-gained transitions
+(IFRS 3 \S{}42 P\&L re-measurement and time-weighted profit attribution).
+
+\subsection{Output Layout}
+
+\begin{tcolorbox}[notebox={Per-engagement archive}]
+\small
+\begin{verbatim}
+./group_archive/
+  manifest.json                          # canonical group manifest
+  entities/
+    NESTLE_SA/      (full single-entity archive per shard)
+    NESTLE_USA/     ...
+  consolidated/
+    consolidated_financial_statements.json
+    consolidation_schedule.json
+    notes_to_consolidated_fs.json
+    nci_rollforward.json
+    cta_rollforward.json
+    translation_worksheet.json
+    equity_method_investments.json
+    equity_method_suppressed_losses.json
+    cgu_impairment_tests.json
+  ic_eliminations/ic_matching_coverage.json
+  shard_summary.json
+\end{verbatim}
+\end{tcolorbox}
+
+% ══════════════════════════════════════════════════════════════════════════════
+\newpage
+\section{Audit-Methodology Layer}
+
+The \texttt{datasynth-audit-fsm} crate (v5.5.0) ships a typed
+audit-methodology layer derived from the
+\href{https://github.com/mivertowski/AuditMethodology}{AuditMethodology}
+companion repository. All blueprints, overlays, ontologies, and form
+schemas are embedded via \texttt{include\_str!} so loaders are zero-I/O at
+runtime. The L4 graph schema introduced in \S{}2 is the integration surface.
+
+\subsection{What Ships in the Layer}
+
+\renewcommand{\arraystretch}{1.25}
+\begin{tabularx}{\textwidth}{@{}>{\bfseries\color{brand}}l X@{}}
+\toprule
+\textbf{Module} & \textbf{What it carries} \\
+\midrule
+\texttt{big4\_methodology} &
+  ISA-derived common spine (4 phases, 17 procedures) plus 4 firm overlays
+  inheriting from the spine (EY GAM, PwC Aura, KPMG Clara, Deloitte Omnia)
+  with per-procedure firm tools and signoff chains, plus a cross-firm
+  equivalence map for harmonisation reporting. \\
+\texttt{jurisdictional\_overlay} &
+  7 overlays --- PCAOB, EU CSRD, UK FRC, ASIC (Australia), JFSA (Japan),
+  ACRA (Singapore), HKICPA (Hong Kong) --- 39 procedures total, AND-logic
+  resolution on \texttt{(jurisdiction $\times$ registrant\_type)}. \\
+\texttt{methodology\_blueprint} &
+  ISA 600 (Revised, December 2022) and CSRD limited-assurance methodology
+  blueprints. \\
+\texttt{kyc\_blueprint} &
+  6 KYC / AML workflows --- private banking, correspondent banking,
+  crypto-CASP, periodic KYC, SAR escalation, sanctions-hit remediation. \\
+\texttt{banking\_forms} &
+  7 banking form ontologies (MROS SAR, 4 UBS forms, Wolfsberg CBDDQ, FCCQ)
+  and a 228-entry cross-form evidence index unifying fields under canonical
+  terms. \\
+\texttt{scenario\_library} &
+  15 deterministic engagement scenarios with expected outcomes (opinion
+  type, going-concern conclusion, EOM paragraph, acceptance gate) for
+  FSM verification. \\
+\texttt{rmm\_scoring} &
+  Bayesian Risk-of-Material-Misstatement scoring --- 12-factor taxonomy
+  (7 inherent + 5 control), conjugate Beta-Bernoulli updates,
+  RMM = IR $\times$ CR aggregation. \\
+\texttt{l4\_graph} &
+  Typed property-graph schema, 11 node types $\times$ 10 edge types
+  (see \S{}2). \\
+\texttt{working\_paper\_merkle} &
+  SHA-256 Merkle tree with replay-protected inclusion proofs;
+  ISA 230 working-paper / engagement-bundle types; canonical
+  \texttt{bundle\_root} ordered by \texttt{wp\_id}. \\
+\bottomrule
+\end{tabularx}
+
+\subsection{Legacy YAML-Driven FSM (Still Available)}
+
+The earlier YAML-driven FSM engine (10 built-in blueprints --- FSA, IA, KPMG,
+PwC, Deloitte, EY GAM, SOC 2, PCAOB, Regulatory) remains available alongside
+the new modules. Existing integrations continue to work unchanged; new work
+is recommended on the typed audit-methodology layer for type safety,
+zero-I/O startup, and Merkle tamper-evidence.
+
+\subsection{Output Artefacts}
+
+For each engagement the audit generators produce: engagement letters,
+combined risk assessments (ISA 315), materiality calculations (ISA 320),
+sampling plans + sampled items (ISA 530), accounting estimates (ISA 540),
+analytical procedures (ISA 520), confirmations (ISA 505), going-concern
+assessments (ISA 570), subsequent events (ISA 560), service-organization
+SOC reports (ISA 402), component-auditor reports (ISA 600),
+audit opinions + key audit matters (ISA 700/705/706/701),
+SOX 302 / 404 documentation, ISA / PCAOB cross-reference mappings, and
+SHA-256 Merkle bundle roots.
+
+% ══════════════════════════════════════════════════════════════════════════════
+\newpage
+\section{Statistical Foundations}
+
+DataSynth amounts, frequencies, correlations, and temporal patterns follow
+empirical distributions calibrated against real enterprise data. This section
+sketches the model; \textbf{formal statements and proofs appear in the
+companion paper, \S\S{}5--9} \citep{ivertowski2026datasynth}.
+
+\subsection{Distributions in the Pipeline}
+
+\renewcommand{\arraystretch}{1.2}
+\begin{tabularx}{\textwidth}{@{}>{\bfseries\color{brand}}l X@{}}
+\toprule
+\textbf{Family} & \textbf{Use} \\
+\midrule
+Log-normal mixtures      & Amount sampling --- routine / significant / major components with weighted mixing \\
+Benford's Law            & First-digit law compliance with measurable MAD; supports first-digit, first-two-digit, and deviation-injection variants \\
+Gaussian copulas         & Cross-field dependency modelling (amount $\times$ line items $\times$ approval level) with rank-preserving inverse-CDF sampling \\
+Clayton / Gumbel / Frank / Student-t & Tail-asymmetric dependence; lower-tail (Clayton) for fraud co-incidence, upper-tail (Gumbel) for shared peak loads \\
+Pareto                   & Heavy-tailed amounts (vendor concentration, customer revenue) \\
+Weibull                  & Time-to-event modelling (payment delays, dunning escalation) \\
+Beta                     & Proportions and percentages (tax rates, allocation ratios) \\
+Zero-inflated            & Cost centres, line items where many records carry no value \\
+Conditional              & Breakpoint-based generation: amount conditional on document type, vendor tier, etc. \\
+Drift / regime change    & Economic cycles, recession depth, growth phases over multi-year horizons \\
+Temporal                 & Seasonality, holiday calendars (15 regions), business-day conventions, T+N settlement, period-end clustering \\
+\bottomrule
+\end{tabularx}
+
+\subsection{Validation Tests (Always-On)}
+
+\begin{itemize}[leftmargin=1.2em, itemsep=3pt]
+  \item \textbf{Benford first-digit MAD} --- threshold 0.015 (significant
+        deviation by Nigrini's classification).
+  \item \textbf{Distribution fit} --- Anderson-Darling and chi-squared
+        against the configured target, $\alpha = 0.05$.
+  \item \textbf{Correlation check} --- Spearman rank correlation against
+        the configured copula, $\alpha = 0.05$.
+  \item \textbf{Balance equation} --- assets $=$ liabilities $+$ equity,
+        every JE balanced, every period.
+\end{itemize}
+
+\subsection{Industry Profiles}
+
+Five built-in industry profiles --- Retail, Manufacturing, Financial Services,
+Healthcare, Technology --- pre-configure distributions, vendor counts,
+customer segmentation, fraud rates, and process emphasis. Three complexity
+tiers (Small / Medium / Large) drive chart-of-accounts sizing and
+transaction volume.
 
 % ══════════════════════════════════════════════════════════════════════════════
 \newpage
 \section{AI-Augmented Generation}
 
-\textit{New in v0.5.0} --- three opt-in AI backends that enhance the rule-based
-core without sacrificing determinism or reproducibility.
+\subsection{Neural Diffusion}
 
-\subsection{LLM-Augmented Metadata Enrichment}
+A Candle-powered score network (DDPM) trained end-to-end on tabular feature
+slices, with deterministic sampling. GPU acceleration via the
+\texttt{neural-cuda} feature flag with a graceful CPU fallback. Use cases:
+high-fidelity replication of correlated continuous attributes where copulas
+are too parametric.
 
-An \texttt{LlmProvider} trait integrates external language models for
-contextual metadata enrichment while preserving deterministic fallback:
+\subsection{Statistical Diffusion Backend}
 
-\begin{itemize}[leftmargin=1.4em, itemsep=2pt]
-  \item \textbf{Provider trait}: \texttt{MockProvider} (deterministic, default) and
-        \texttt{HttpProvider} (OpenAI, Anthropic, or custom API) implementations.
-  \item \textbf{Enrichment targets}: Vendor names, transaction descriptions,
-        anomaly explanations, and memo fields.
-  \item \textbf{Natural language config}: Generate YAML configurations from
-        plain English descriptions.
-  \item \textbf{Response caching}: LRU cache with deterministic fallback ensures
-        reproducibility even with stochastic providers.
+Always-on \texttt{DiffusionBackend} for denoising and enhancement of
+sampled-then-perturbed records --- improves long-tail recall on rare
+combinations without invoking neural training.
+
+\subsection{LLM-Driven Workflows}
+
+Three layers, each gated by the \texttt{llm} feature flag:
+
+\begin{itemize}[leftmargin=1.2em, itemsep=3pt]
+  \item \textbf{Config generation from natural language} ---
+        \texttt{datasynth init --from-description "12 months of mid-market
+        retail data with fraud and SOX controls"} produces a complete YAML
+        config. Supports OpenAI, Anthropic, OpenRouter.
+  \item \textbf{Template enrichment} --- offline deterministic CLI expands
+        vendor / customer / material / employee pools via any
+        OpenAI-compatible endpoint; cached YAML, byte-identical reruns.
+  \item \textbf{Audit-finding enrichment} --- \texttt{FindingLlmEnricher}
+        adds prose recommendations, severity narratives, and remediation
+        steps to generated findings.
 \end{itemize}
 
-\subsection{Diffusion Model Integration}
+\subsection{Auto-Tune Loop}
 
-A statistical diffusion backend learns distribution shapes from fingerprints
-and blends them with rule-based outputs:
+\texttt{generate} $\to$ \texttt{evaluate} $\to$ AI patch $\to$
+\texttt{regenerate}. The auto-tuner inspects evaluation gaps (Benford
+deviation, correlation drift, distribution fit failure) and emits a
+\texttt{ConfigPatch} that the orchestrator merges into the config for the
+next iteration. Bounded by \texttt{--max-iterations} (default 3).
 
-\begin{itemize}[leftmargin=1.4em, itemsep=2pt]
-  \item \textbf{Noise schedules}: Cosine, linear, and sigmoid with configurable
-        step count.
-  \item \textbf{Hybrid mode}: Weighted blend of rule-based and diffusion-generated
-        values (\texttt{diffusion\_weight} 0.0--1.0).
-  \item \textbf{Training pipeline}: \texttt{DiffusionTrainer} with epoch count,
-        batch size, and learning rate configuration.
-\end{itemize}
+\subsection{Adversarial Testing}
 
-\subsection{Causal \& Counterfactual Generation}
-
-Structural causal models enable ``what-if'' scenario generation grounded in
-do-calculus:
-
-\begin{itemize}[leftmargin=1.4em, itemsep=2pt]
-  \item \textbf{CausalGraph}: DAG specification of causal relationships between
-        entities (e.g., vendor risk $\to$ invoice amount $\to$ approval level).
-  \item \textbf{StructuralCausalModel}: Functional causal model with noise terms
-        and topological evaluation.
-  \item \textbf{Interventions}: Do-calculus interventions for hypothetical scenarios
-        (``what if vendor risk doubled?'').
-  \item \textbf{Counterfactuals}: Generate alternative versions of existing records
-        under modified assumptions.
-  \item \textbf{Templates}: Pre-built causal graphs for fraud detection, revenue
-        impact analysis, and supply chain modeling.
-\end{itemize}
-
-\noindent
-\textit{Major expansion in v0.10.0} --- a full \textbf{Counterfactual Simulation Engine}
-for paired baseline/counterfactual dataset generation:
-
-\begin{itemize}[leftmargin=1.4em, itemsep=2pt]
-  \item \textbf{CausalDAG}: 16-node default financial process DAG with 8 transfer
-        function types (Linear, Exponential, Logistic, Step, Threshold, Decay,
-        Piecewise, InverseLogistic) and forward propagation with lag support.
-  \item \textbf{8 InterventionTypes}: ParameterShift, MacroShock, ControlFailure,
-        EntityEvent, ProcessChange, RegulatoryChange, Composite, and Custom ---
-        each with timing, onset interpolation, and priority-based conflict resolution.
-  \item \textbf{ConfigMutator}: Dot-path config mutation for applying causal
-        propagation results to generation parameters.
-  \item \textbf{DiffEngine}: Baseline vs. counterfactual comparison with summary,
-        record-level, and aggregate diff formats including KPI impact analysis.
-  \item \textbf{CLI}: \texttt{scenario \{list, validate, generate, diff\}} subcommands
-        for end-to-end scenario management.
-\end{itemize}
-
-\subsection{Unified Generation Pipeline}
-
-\textit{New in v0.11.0} --- stateful multi-period generation with fraud scenario
-packs, phase-aware streaming, and enriched OCEL~2.0 event logs:
-
-\begin{itemize}[leftmargin=1.4em, itemsep=2pt]
-  \item \textbf{GenerationSession}: Stateful multi-period generation that splits
-        output into fiscal-year-aligned periods, carrying forward balances, entity
-        state, and document IDs between periods via \texttt{.dss} checkpoint files.
-        Supports incremental generation (\texttt{--append --months~N}).
-  \item \textbf{5 Fraud Scenario Packs}: Pre-built YAML configurations
-        (\texttt{revenue\_fraud}, \texttt{payroll\_ghost}, \texttt{vendor\_kickback},
-        \texttt{management\_override}, \texttt{comprehensive}) applied via deep-merge
-        with \texttt{--fraud-scenario} and \texttt{--fraud-rate} CLI flags.
-  \item \textbf{StreamPipeline}: Phase-aware streaming with file, HTTP, and no-op
-        targets. JSONL envelope format with generation phase metadata for feeding
-        downstream pipelines during generation.
-  \item \textbf{OCEL 2.0 Enrichment}: Lifecycle state machines (PO, SO, VI with
-        typed state transitions), multi-object correlation events (three-way match,
-        payment allocation, bank reconciliation), and resource pool workload modeling
-        with round-robin, least-busy, and skill-based assignment strategies.
-\end{itemize}
-
-% ══════════════════════════════════════════════════════════════════════════════
-\newpage
-\section{Machine Learning \& Analytics}
+ONNX-loaded fraud-detection or anomaly-detection models can be probed at the
+boundary via the \texttt{adversarial} feature flag (\texttt{ort} runtime).
+The framework generates targeted perturbations to surface decision-boundary
+weaknesses --- useful for hardening models trained on synthetic data before
+real-data deployment.
 
 \subsection{ACFE-Aligned Fraud Taxonomy}
 
-DataSynth implements the ACFE (Association of Certified Fraud Examiners)
-``Report to the Nations'' taxonomy with calibrated statistics:
+60+ fraud schemes mapped to the ACFE Fraud Tree:
 
-\vspace{0.4em}
-\noindent
-\renewcommand{\arraystretch}{1.2}
-\begin{tabularx}{\textwidth}{>{\bfseries\color{brand}}l c X}
-\toprule
-\textbf{ACFE Category} & \textbf{Prevalence} & \textbf{Scheme Types} \\
-\midrule
-Asset Misappropriation & 86\% & 20+ cash schemes: skimming, larceny, shell company, ghost employee, billing fraud, expense reimbursement \\
-Corruption            & 33\% & Conflicts of interest, bribery, kickbacks, bid rigging, economic extortion \\
-Financial Statement   & 10\% & Revenue manipulation, expense timing, concealed liabilities, improper disclosures \\
-\bottomrule
-\end{tabularx}
-\renewcommand{\arraystretch}{1.0}
-
-\noindent
-\textbf{Calibration}: \$117k median loss, 12-month median duration, detection method distribution (42\% tips, 16\% internal audit, 12\% management review).
-
-\subsection{Advanced Fraud Modeling}
-
-\begin{itemize}[leftmargin=1.4em, itemsep=2pt]
-  \item \textbf{Collusion \& Conspiracy}: 9 ring types (EmployeePair, DepartmentRing, EmployeeVendor, VendorRing), 6 conspirator roles, defection modeling based on detection risk.
-  \item \textbf{Management Override}: Executive-level fraud with override techniques, Fraud Triangle modeling (Pressure, Opportunity, Rationalization), concealment strategies.
-  \item \textbf{Red Flag Patterns}: 40+ patterns with Bayesian probabilities, 6 categories (Vendor, Transaction, Timing, Approval, Document, Behavioral), realistic false positive rates.
-  \item \textbf{Industry-Specific}: Manufacturing (yield manipulation, phantom production), Retail (sweethearting, refund fraud), Healthcare (upcoding, unbundling, phantom billing).
-  \item \textbf{Procurement Fraud}: Bid rigging, phantom vendor contracts, split-to-avoid-threshold, conflict of interest, maverick spend, expired contract purchases, qualification bypass.
-  \item \textbf{HR/Payroll Fraud}: Ghost employee payroll, payroll inflation, duplicate expense reports, fictitious expenses, split expense to avoid approval.
+\begin{itemize}[leftmargin=1.2em, itemsep=3pt]
+  \item \textbf{Fraud}: FictitiousTransaction, RevenueManipulation,
+        SplitTransaction, RoundTripping, GhostEmployee, DuplicatePayment,
+        BillAndHold, ChannelStuffing, RelatedPartyDiversion.
+  \item \textbf{Error}: DuplicateEntry, ReversedAmount, WrongPeriod,
+        WrongAccount, MissingReference.
+  \item \textbf{Process}: LatePosting, SkippedApproval,
+        ThresholdManipulation.
+  \item \textbf{Statistical}: UnusualAmount, TrendBreak, BenfordViolation.
+  \item \textbf{Relational}: CircularTransaction, DormantAccountActivity.
 \end{itemize}
 
-Anomaly injection is \textbf{entity-aware}: injection rates are adjusted per
-vendor, employee, and account based on contextual risk factors (e.g., new
-vendors, high-value accounts, employees with recent access changes). Every
-injected anomaly carries a \texttt{LabeledAnomaly} record with full metadata,
-enabling supervised and semi-supervised learning pipelines without manual
-labeling effort.
-
-\subsection{Data Quality Variations}
-
-Realistic data imperfections for training data-quality ML models:
-
-\begin{itemize}[leftmargin=1.4em, itemsep=2pt]
-  \item \textbf{Missing values}: MCAR, MAR, MNAR, and systematic patterns.
-  \item \textbf{Format variations}: Date, amount, and identifier format
-        diversity across regional conventions.
-  \item \textbf{Duplicates}: Exact, near, and fuzzy duplicates.
-  \item \textbf{Typos}: Keyboard-aware substitution, OCR errors, homophones.
-  \item \textbf{Encoding issues}: Mojibake, BOM artifacts, HTML entity corruption.
-\end{itemize}
-
-\subsection{Enterprise Interconnectivity}
-
-Realistic enterprise network modeling with configurable relationships:
-
-\begin{itemize}[leftmargin=1.4em, itemsep=2pt]
-  \item \textbf{Multi-Tier Vendor Networks}: 3-tier supply chain (Tier1/Tier2/Tier3), vendor clusters (ReliableStrategic 20\%, StandardOperational 50\%, Transactional 25\%, Problematic 5\%), lifecycle stages, quality scores, dependency analysis.
-  \item \textbf{Customer Value Segmentation}: Enterprise (40\% revenue/5\% customers), MidMarket (35\%/20\%), SMB (20\%/50\%), Consumer (5\%/25\%), lifecycle stages, referral networks, corporate hierarchies.
-  \item \textbf{Entity Relationship Graph}: 51+ entity types across 10 process families, 28+ relationship types with typed edge constraints, composite strength calculation from volume, count, duration, recency, and mutual connections.
-  \item \textbf{Cross-Process Links}: P2P$\leftrightarrow$O2C linkage via inventory (GoodsReceipt$\to$Delivery), intercompany bilateral links.
-\end{itemize}
-
-\subsection{Pattern \& Process Drift}
-
-\textit{Expanded in v0.11.0} --- comprehensive drift modeling with dedicated generators
-for realistic temporal evolution:
-
-\begin{itemize}[leftmargin=1.4em, itemsep=2pt]
-  \item \textbf{Organizational Events}: \texttt{OrganizationalEventGenerator} produces Acquisition (1.35x volume, 5\% integration errors), Divestiture, Reorganization, LeadershipChange, WorkforceReduction, and Merger events with multi-phase integration timelines and volume/error-rate multipliers.
-  \item \textbf{Process Evolution}: \texttt{ProcessEvolutionGenerator} with S-curve automation rollout, approval workflow transitions between \texttt{WorkflowType} variants, policy changes, and control enhancements.
-  \item \textbf{Drift Event Meta-Generator}: \texttt{DriftEventGenerator} observes organizational and process events to produce ML ground-truth \texttt{LabeledDriftEvent} records with drift type (Statistical, Temporal, Behavioral, Market, Organizational, Process), magnitude, affected fields, and detection difficulty.
-  \item \textbf{Technology Transitions}: ERP migration phases with error rate and processing time multipliers, duplicate/missing/format issues.
-  \item \textbf{Behavioral Drift}: Vendor payment term extensions, customer delays during downturns, employee learning curves, year-end intensity.
-  \item \textbf{Market Drift}: Economic cycles (sinusoidal, asymmetric, mean-reverting), industry-specific cycles, commodity drift, price shocks.
-\end{itemize}
-
-\subsection{Graph \& Network Export}
-
-\begin{tcolorbox}[keybox={Supported Graph Formats}]
-\begin{tabularx}{\textwidth}{>{\bfseries}l X}
-  PyTorch Geometric & \texttt{.pt} files with node features, edge index,
-                      edge attributes, labels, and train/val/test masks. \\[4pt]
-  Neo4j             & CSV node/edge files with Cypher import scripts. \\[4pt]
-  DGL               & Deep Graph Library format for GNN training. \\[4pt]
-  RustGraph         & Native Rust graph format with adjacency lists. \\[4pt]
-  RustGraph Hyper   & Multi-layer hypergraph export (governance, process event,
-                      and accounting network layers with cross-layer edges).
-\end{tabularx}
-\end{tcolorbox}
-
-\noindent
-\textit{Expanded in v0.7.0} --- the multi-layer hypergraph now spans all 8
-process families with 24 entity type codes (100--400), per-family document
-nodes (S2C, H2R, MFG, BANK, AUDIT, Bank Recon), and OCPM events as
-hyperedges connecting all participating objects when
-\texttt{events\_as\_hyperedges} is enabled.
-
-\noindent
-All five exporters share a unified \texttt{CommonExportConfig} for consistent
-feature engineering, label selection, and train/val/test mask settings.
-Computed features include temporal signals (weekday, period-end flags),
-amount signals (log-amount, Benford probability, round-number flag),
-structural signals (line count, unique accounts), and one-hot categorical
-encodings.
+Every fraud-flagged record passes through a behavioural-bias filter:
+weekend posting, round-dollar bias, off-hours timestamps, post-close
+posting --- all configurable, all measured by smoke tests on every CI run.
 
 % ══════════════════════════════════════════════════════════════════════════════
 \newpage
 \section{Privacy \& Fingerprinting}
 
-\subsection{Privacy-Preserving Fingerprint Extraction}
+The fingerprint subsystem extracts statistical structure from real data
+without retaining record-level information, then synthesises new data that
+matches the captured structure. This is the recommended bridge from a
+real production dataset to a defensible synthetic benchmark.
 
-DataSynth can extract a statistical \emph{fingerprint} from real data and
-synthesize new data that matches its properties --- without ever copying
-individual records.
+\subsection{Workflow}
 
-\begin{center}
-\begin{tikzpicture}[
-  node distance=1.0cm,
-  box/.style={draw=brand, fill=lightbg, rounded corners=4pt,
-              minimum width=2.4cm, minimum height=0.9cm,
-              font=\small\bfseries, text=brand, align=center},
-  arr/.style={-{Stealth[length=6pt]}, thick, color=accent}
-]
-  \node[box] (real) {Real Data};
-  \node[box, right=of real] (extract) {Extract\\Fingerprint};
-  \node[box, right=of extract] (dsf) {\texttt{.dsf} File};
-  \node[box, right=of dsf] (generate) {Generate\\Synthetic};
-  \node[box, right=of generate] (output) {Synthetic\\Data};
-
-  \draw[arr] (real) -- (extract);
-  \draw[arr] (extract) -- (dsf);
-  \draw[arr] (dsf) -- (generate);
-  \draw[arr] (generate) -- (output);
-
-  \node[below=0.4cm of extract, font=\scriptsize\color{midgray}, align=center]
-    {Privacy engine\\applied here};
-  \node[below=0.4cm of generate, font=\scriptsize\color{midgray}, align=center]
-    {Fidelity evaluated\\against fingerprint};
-\end{tikzpicture}
-\end{center}
+\begin{enumerate}[leftmargin=1.4em, itemsep=3pt]
+  \item \textbf{Extract} --- \texttt{datasynth fingerprint extract} reads
+        CSV / Parquet / JSON / a directory and writes a \texttt{.dsf} file
+        carrying: column distributions, copula parameters, conditional
+        breakpoints, temporal patterns, cardinalities, NULL rates.
+        Original rows never leave the host.
+  \item \textbf{Validate} --- \texttt{fingerprint validate} checks the
+        \texttt{.dsf} for internal consistency.
+  \item \textbf{Synthesise} --- \texttt{generate --fingerprint thesis.dsf
+        --scale 1.0} draws a synthetic dataset matching the captured
+        distribution.
+  \item \textbf{Evaluate} --- \texttt{fingerprint evaluate} computes
+        fidelity metrics (per-column KS / chi-squared, copula recovery,
+        ML utility on a downstream task).
+\end{enumerate}
 
 \subsection{Privacy Levels}
 
-\vspace{0.4em}
-\noindent
+Four progressive privacy levels selectable via \texttt{--privacy-level}:
+
 \renewcommand{\arraystretch}{1.2}
-\begin{tabularx}{\textwidth}{l c c c X}
+\begin{tabularx}{\textwidth}{@{}>{\bfseries\color{brand}}l X@{}}
 \toprule
-\textbf{Level} & \textbf{Epsilon ($\varepsilon$)} & \textbf{k-Anon} &
-\textbf{Outlier \%} & \textbf{Use Case} \\
+\textbf{Level} & \textbf{Guarantees} \\
 \midrule
-Minimal  & 5.0  & 3  & 99\% & Low privacy, high utility \\
-Standard & 1.0  & 5  & 95\% & Balanced (default) \\
-High     & 0.5  & 10 & 90\% & Sensitive environments \\
-Maximum  & 0.1  & 20 & 85\% & Maximum privacy guarantees \\
+\texttt{minimal}    & Aggregate-only statistics; no per-record information retained. \\
+\texttt{standard}   & $k$-anonymity ($k = 5$ default) on quasi-identifier groups; suppression of singleton records. \\
+\texttt{strong}     & $(\varepsilon, \delta)$-differential privacy with $\varepsilon = 1.0$, $\delta = 10^{-5}$; calibrated Laplace / Gaussian noise. \\
+\texttt{paranoid}   & $\varepsilon = 0.1$ DP; per-column suppression of low-density tails; randomised response on categorical attributes. \\
 \bottomrule
 \end{tabularx}
-\renewcommand{\arraystretch}{1.0}
-
-The privacy engine combines differential privacy (Laplace and Gaussian
-mechanisms), k-anonymity with rare-value suppression, and outlier
-winsorization. A full privacy audit trail records every decision and the
-cumulative epsilon budget spent.
 
 \subsection{Federated Fingerprinting \& Certificates}
 
-\textit{New in v0.5.0} --- distributed fingerprint extraction and
-cryptographic provenance:
-
-\begin{itemize}[leftmargin=1.4em, itemsep=2pt]
-  \item \textbf{Federated Coordinator}: Aggregate fingerprints from
-        distributed data sources without centralizing raw data.
-  \item \textbf{Synthetic Data Certificates}: \texttt{SyntheticDataCertificate}
-        with cryptographic proof of differential privacy guarantees,
-        generation metadata, and validation workflow.
-  \item \textbf{Pareto Frontier}: Automated exploration of optimal
-        privacy--utility trade-offs across epsilon values.
-\end{itemize}
-
-\subsection{Formal DP Composition}
-
-\textit{New in v0.5.0} --- advanced privacy accounting beyond naive
-$\varepsilon$-summation:
-
-\begin{itemize}[leftmargin=1.4em, itemsep=2pt]
-  \item \textbf{R\'{e}nyi DP}: RDP curve tracking at $\alpha$ values 2--128
-        with conversion to ($\varepsilon$,$\delta$)-DP.
-  \item \textbf{zCDP}: Zero-Concentrated DP with additive $\rho$ composition
-        and tighter bounds.
-  \item \textbf{Budget Manager}: Global budget tracking across extraction
-        runs with composition-aware enforcement.
-  \item \textbf{Privacy Evaluation}: Post-generation membership inference
-        attack (MIA) testing, linkage attack assessment, and
-        NIST SP 800-226 alignment.
-\end{itemize}
+Multiple parties can each extract fingerprints locally, sign them, and
+exchange only the \texttt{.dsf} files. The central aggregator merges
+distributions under a privacy budget and emits a tamper-evident
+\textbf{certificate} that records the contributing parties, their
+$\varepsilon$ allocations, and the SHA-256 root of the merged fingerprint.
+Formal DP composition (sequential and parallel) is proved in the companion
+paper \citep{ivertowski2026datasynth}.
 
 \subsection{Fidelity Evaluation}
 
-Per-column statistical distance metrics quantify how well synthetic data
-matches the source fingerprint:
-
-\vspace{0.4em}
-\noindent
-\renewcommand{\arraystretch}{1.2}
-\begin{tabularx}{\textwidth}{>{\bfseries\color{brand}}l X}
-\toprule
-\textbf{Metric} & \textbf{Description} \\
-\midrule
-KS Statistic &
-  Kolmogorov-Smirnov two-sample test statistic (sup of CDF difference). \\
-Wasserstein-1 &
-  Earth Mover's Distance via piecewise-linear inverse CDF integration over
-  9 percentile knots. \\
-JS Divergence &
-  Jensen-Shannon divergence from percentile-bin PMFs, bounded by $\ln 2$. \\
-\bottomrule
-\end{tabularx}
-\renewcommand{\arraystretch}{1.0}
-
-\noindent
-Distribution CDFs are computed analytically for Normal, LogNormal, Gamma
-(regularized incomplete gamma via Lanczos + Lentz continued fraction),
-Pareto, PointMass, and Mixture distributions.
+The evaluator returns per-column KS / chi-squared, copula recovery
+(Frobenius distance on the rank correlation matrix), Benford MAD,
+balance-equation pass rate, and downstream-task utility (train on synthetic,
+score on real --- TRTS / TSTR). Quality gates can be configured at lenient,
+default, or strict thresholds; \texttt{--quality-gate strict} fails the run
+on the first violation.
 
 % ══════════════════════════════════════════════════════════════════════════════
+\newpage
+\section{Analytics-Ready Output}
+
+v5.5.1 widened the default analytics surface based on production-data column
+profiles reported by external users (notably a graph-neural-network
+anomaly-detection thesis). The aim is for downstream Pandas / Polars / Spark
+notebooks to need zero ETL.
+
+\subsection{The 38-Column \texttt{journal\_entries.csv}}
+
+The flat CSV writer emits 38 columns covering identifiers, dates, currency,
+audit / ETL provenance, and analytics-ready derivations:
+
+\renewcommand{\arraystretch}{1.2}
+\begin{tabularx}{\textwidth}{@{}>{\bfseries\color{brand}}l X@{}}
+\toprule
+\textbf{Group} & \textbf{Columns} \\
+\midrule
+Identifiers       & \texttt{document\_id}, \texttt{line\_number},
+                    \texttt{transaction\_id} (UUID v5 of \texttt{(document\_id,
+                    line\_number)}, deterministic across regenerations) \\
+Period            & \texttt{fiscal\_year}, \texttt{fiscal\_period},
+                    \texttt{posting\_date}, \texttt{document\_date},
+                    \texttt{value\_date} \\
+Document          & \texttt{company\_code}, \texttt{document\_type},
+                    \texttt{currency}, \texttt{exchange\_rate},
+                    \texttt{reference}, \texttt{header\_text} \\
+Amounts           & \texttt{debit\_amount}, \texttt{credit\_amount},
+                    \texttt{local\_amount} \\
+GL                & \texttt{gl\_account}, \texttt{account\_description}
+                    (joined from CoA), \texttt{financial\_statement\_category}
+                    (asset / liability / equity / revenue / cogs /
+                    operating\_expense / other\_income\_expense / tax /
+                    suspense; derived from gl\_account prefix) \\
+Cost / profit     & \texttt{cost\_center}, \texttt{profit\_center},
+                    \texttt{assignment} \\
+Provenance        & \texttt{created\_by}, \texttt{source} (enum),
+                    \texttt{source\_system} (28-value ERP-realistic
+                    taxonomy: \texttt{SAP-FI/AP}, \texttt{SAP-MM/IV},
+                    \texttt{SAP-SD/ORD}, \texttt{Treasury/CM},
+                    \texttt{Interface/EDI}, \texttt{manual/adjustment},
+                    \texttt{spreadsheet/upload}, \ldots),
+                    \texttt{business\_process}, \texttt{ledger} \\
+Audit flags       & \texttt{is\_fraud}, \texttt{is\_anomaly},
+                    \texttt{is\_manual} (ISA 240),
+                    \texttt{is\_post\_close} (ISA 240) \\
+Tax               & \texttt{tax\_code} \\
+French GAAP (FEC) & \texttt{auxiliary\_account\_number},
+                    \texttt{auxiliary\_account\_label}, \texttt{lettrage},
+                    \texttt{lettrage\_date} \\
+Line text         & \texttt{line\_text} \\
+\bottomrule
+\end{tabularx}
+
+\subsection{Configurable NULL Profiles}
+
+\texttt{data\_quality.missing\_values.field\_rates} accepts a per-field
+NULL rate (MCAR / MAR / MNAR / Systematic) so users can match a real
+production column profile (e.g.\ \texttt{cost\_center} 96.5\% NULL,
+\texttt{invoice\_reference} 100\% NULL). Audit-critical identifiers ---
+\texttt{document\_id}, \texttt{gl\_account}, \texttt{transaction\_id},
+\texttt{posting\_date} --- are force-protected regardless of user
+configuration.
+
+\subsection{Strict COA-Coverage Validation}
+
+The \texttt{--validate-coa-coverage} CLI flag (and
+\texttt{PhaseConfig::validate\_coa\_coverage\_strict}) hard-fails the run
+when any generated JE references a \texttt{gl\_account} that is not in the
+chart of accounts. Off by default --- a soft warning is logged. Pairs
+naturally with the always-on COA invariant test.
+
+\subsection{Output Layout (Per Run)}
+
+Generated files are organised by domain directory under
+\texttt{output/}:
+\texttt{master\_data/}, \texttt{document\_flows/}, \texttt{sourcing/},
+\texttt{hr/}, \texttt{manufacturing/}, \texttt{subledger/},
+\texttt{balance/}, \texttt{financial\_reporting/}, \texttt{period\_close/},
+\texttt{intercompany/}, \texttt{fx/}, \texttt{tax/}, \texttt{treasury/},
+\texttt{project\_accounting/}, \texttt{esg/},
+\texttt{accounting\_standards/}, \texttt{internal\_controls/},
+\texttt{banking/}, \texttt{process\_mining/}, \texttt{audit/},
+\texttt{labels/}, \texttt{graphs/}, \texttt{events/},
+\texttt{standards/}.
+
+% ══════════════════════════════════════════════════════════════════════════════
+\newpage
+\section{Reference Datasets}
+
+Pre-generated reference datasets are published at
+\href{https://huggingface.co/VynFi}{huggingface.co/VynFi} under Apache 2.0,
+fully synthetic, zero PII. All datasets are reproducible from the
+\texttt{config.yaml} files shipped in \texttt{configs/examples/}.
+
+\renewcommand{\arraystretch}{1.25}
+\begin{tabularx}{\textwidth}{@{}>{\bfseries\color{brand}}l r X@{}}
+\toprule
+\textbf{Dataset} & \textbf{Scale} & \textbf{Description} \\
+\midrule
+\texttt{vynfi-group-audit-enterprise-2000} & 2\,000 entities &
+  Multinational ACME holding, 4 functional currencies, 4\,759 IC pairs
+  (91.6\% matched), full IFRS-compliant consolidated FS + schedule + notes
+  + CTA + NCI + equity-method rollforwards. \\
+\texttt{vynfi-journal-entries-1m} & 2.1\,M lines &
+  Manufacturing-sector denormalised JE table with 6.92\% fraud rate, ISA 240
+  manual flag, GL chart of accounts. \\
+\texttt{vynfi-aml-100k} & 749\,K rows &
+  Banking transactions with AML labels, 14 velocity features, 59 columns. \\
+\texttt{vynfi-audit-p2p} & 234 docs &
+  P2P document chain (PO / GR / VI / Payment) with fraud labels. \\
+\texttt{vynfi-ocel-manufacturing} & 344 events &
+  OCEL 2.0 event log for process mining (pm4py, Celonis). \\
+\texttt{vynfi-supply-chain-ocel} & --- &
+  Supply-chain OCEL event log for cross-process mining. \\
+\texttt{vynfi-sar-narratives} & --- &
+  Suspicious-activity-report narratives for AML training. \\
+\bottomrule
+\end{tabularx}
+
+\begin{tcolorbox}[notebox={Loading from Python}]
+\small
+\begin{verbatim}
+from datasets import load_dataset
+ds = load_dataset("VynFi/vynfi-aml-100k", split="train")
+df = ds.to_pandas()
+\end{verbatim}
+\end{tcolorbox}
+
+% ══════════════════════════════════════════════════════════════════════════════
+\newpage
 \section{Architecture}
 
 \subsection{Layered Crate Architecture}
@@ -1007,15 +964,15 @@ Pareto, PointMass, and Mixture distributions.
                 minimum height=0.9cm, font=\small, text=brand, align=center},
   arr/.style={-{Stealth[length=5pt]}, color=accent!60}
 ]
-  % Top layer
-  \node[layer, minimum width=3.5cm] (cli) {datasynth-cli};
-  \node[layer, minimum width=3.5cm, right=0.6cm of cli] (server) {datasynth-server};
-  \node[layer, minimum width=3.5cm, right=0.6cm of server, draw=midgray, text=midgray, fill=white] (ui) {datasynth-ui\,\scriptsize(deprecated)};
+  % Top: entry-points
+  \node[layer, minimum width=4.5cm] (cli) {datasynth-cli};
+  \node[layer, minimum width=4.5cm, right=0.6cm of cli] (server) {datasynth-server};
 
-  % Runtime
-  \node[layer, minimum width=11.6cm, below=0.8cm of server] (runtime) {datasynth-runtime};
+  % Runtime + group
+  \node[layer, minimum width=5.0cm, below=0.8cm of cli] (runtime) {datasynth-runtime};
+  \node[layer, minimum width=4.0cm, right=0.6cm of runtime] (group) {datasynth-group};
 
-  % Generator layer (row 1)
+  % Generators row 1
   \node[layer, minimum width=2.1cm, below=0.8cm of runtime.south west,
         anchor=north west, xshift=-0.1cm] (gen) {generators};
   \node[layer, minimum width=2.1cm, right=0.2cm of gen] (bank) {banking};
@@ -1023,10 +980,11 @@ Pareto, PointMass, and Mixture distributions.
   \node[layer, minimum width=2.1cm, right=0.2cm of ocpm] (fp) {fingerprint};
   \node[layer, minimum width=2.1cm, right=0.2cm of fp] (std) {standards};
 
-  % Generator layer (row 2) — audit crates
+  % Generators row 2 — audit crates
   \node[layer, minimum width=3.5cm, below=0.4cm of gen.south west,
         anchor=north west] (fsm) {audit-fsm};
   \node[layer, minimum width=3.5cm, right=0.2cm of fsm] (opt) {audit-optimizer};
+  \node[layer, minimum width=3.5cm, right=0.2cm of opt] (tu) {test-utils};
 
   % Analytics layer
   \node[layer, minimum width=5.4cm, below=0.8cm of fsm.south west,
@@ -1044,21 +1002,20 @@ Pareto, PointMass, and Mixture distributions.
   % Output
   \node[layer, minimum width=11.6cm, below=0.6cm of core] (output) {datasynth-output};
 
-  % Arrows -- top to runtime (straight down from each)
-  \draw[arr] (cli.south) -- (cli.south |- runtime.north);
-  \draw[arr] (server.south) -- (runtime.north);
-  \draw[arr] (ui.south) -- (ui.south |- runtime.north);
+  % Arrows -- top to runtime
+  \draw[arr] (cli.south) -- (runtime.north);
+  \draw[arr] (server.south) -- (server.south |- runtime.north);
+  \draw[arr] (cli.south -| group.north) -- (group.north);
 
-  % Runtime to generators (individual vertical drops)
+  % Runtime to generators
   \draw[arr] (runtime.south -| gen) -- (gen.north);
   \draw[arr] (runtime.south -| bank) -- (bank.north);
   \draw[arr] (runtime.south -| ocpm) -- (ocpm.north);
   \draw[arr] (runtime.south -| fp) -- (fp.north);
   \draw[arr] (runtime.south -| std) -- (std.north);
-
-  % Runtime to audit crates
   \draw[arr] (runtime.south -| fsm) -- (fsm.north);
   \draw[arr] (runtime.south -| opt) -- (opt.north);
+  \draw[arr] (group.south) -- (group.south |- tu.north);
 
   % Generators to analytics
   \draw[arr] (gen.south) -- (gen.south |- graph.north);
@@ -1073,425 +1030,227 @@ Pareto, PointMass, and Mixture distributions.
 \end{tikzpicture}
 \end{center}
 
+\subsection{Crate Roles}
+
+\renewcommand{\arraystretch}{1.2}
+\begin{tabularx}{\textwidth}{@{}>{\bfseries\color{brand}}l X@{}}
+\toprule
+\textbf{Crate} & \textbf{Role} \\
+\midrule
+\texttt{datasynth-cli}             & Binary --- generate, validate, init, info, fingerprint, templates, group, scenario, optimizer \\
+\texttt{datasynth-server}          & REST + gRPC + WebSocket server with API-key + JWT auth, RBAC, rate limiting \\
+\texttt{datasynth-runtime}         & EnhancedOrchestrator coordinating $\sim$30 generation phases \\
+\texttt{datasynth-group}           & Multi-entity manifest / shard / aggregate engine (v5.0+) \\
+\texttt{datasynth-generators}      & Domain generators (JE, document flows, subledgers, anomalies, audit) \\
+\texttt{datasynth-banking}         & KYC / AML banking with fraud typologies \\
+\texttt{datasynth-ocpm}            & OCEL 2.0 process mining \\
+\texttt{datasynth-fingerprint}     & Privacy-preserving fingerprint extract / synthesis \\
+\texttt{datasynth-standards}       & Accounting / audit standards (IFRS, US GAAP, French GAAP, German GAAP, ISA, SOX, PCAOB) \\
+\texttt{datasynth-graph}           & Graph export (PyTorch Geometric, Neo4j, DGL, RustGraph) \\
+\texttt{datasynth-eval}            & Evaluation framework with auto-tuning \\
+\texttt{datasynth-config}          & Configuration schema, validation, presets \\
+\texttt{datasynth-core}            & Domain models, traits, distributions, resource guards, templates \\
+\texttt{datasynth-output}          & Output sinks (CSV, JSON, NDJSON, Parquet, XBRL, FEC, GoBD, SAP, Oracle, NetSuite) \\
+\texttt{datasynth-test-utils}      & Test fixtures \\
+\texttt{datasynth-audit-fsm}       & Typed audit-methodology layer (v5.5.0): Big-4 spine, jurisdictional overlays, KYC, banking forms, RMM, L4 graph, Merkle \\
+\texttt{datasynth-audit-optimizer} & Risk-scoping / portfolio / Monte-Carlo / conformance analytics \\
+\bottomrule
+\end{tabularx}
+
 \subsection{Production-Grade Infrastructure}
 
-\vspace{0.4em}
-\noindent
 \renewcommand{\arraystretch}{1.2}
-\begin{tabularx}{\textwidth}{>{\bfseries\color{brand}}l X}
+\begin{tabularx}{\textwidth}{@{}>{\bfseries\color{brand}}l X@{}}
 \toprule
 \textbf{Capability} & \textbf{Details} \\
 \midrule
-Deterministic Output &
-  ChaCha8 PRNG with configurable seed; identical seed $\Rightarrow$ identical
-  dataset. \\
-Financial Precision &
-  \texttt{rust\_decimal} throughout; no IEEE\,754 floating-point artifacts.
-  Decimals serialized as strings. \\
-Resource Guards &
-  Unified CPU, memory, and disk monitoring with automatic throttling and
-  graceful degradation (Normal\,$\to$\,Reduced\,$\to$\,Minimal\,$\to$\,Emergency). \\
-Collision-Free IDs &
-  FNV-1a hash-based UUID factory with generator-type discriminators prevents
-  document ID collisions across parallel generators. \\
-Streaming Output &
-  CSV, JSON, NDJSON, Apache Parquet (15-column Arrow schema, Zstd
-  compression), and XBRL\,2.1 instance documents (US GAAP \& IFRS taxonomies).
-  Streaming sinks with backpressure strategies
-  (Block, DropOldest, DropNewest, Buffer). \\
-API Layer &
-  REST + gRPC + WebSocket with Argon2id API-key auth, JWT/OIDC bearer tokens
-  (RS256, Keycloak/Auth0/Entra ID), RBAC (Admin/Operator/Viewer),
-  sliding-window rate limiting (in-memory or Redis), TLS (rustls),
-  async job queue, security headers, and structured audit logging. \\
-Desktop UI &
-  \textit{Deprecated in v2.2.0.} Previously a Tauri + SvelteKit application;
-  superseded by REST/gRPC API and Python wrapper workflows. \\
-Plugin SDK &
-  \texttt{GeneratorPlugin}, \texttt{SinkPlugin}, and \texttt{TransformPlugin}
-  traits with thread-safe registry for custom extensions. \\
-Webhooks &
-  Fire-and-forget event dispatch (RunStarted, RunCompleted, RunFailed,
-  GateViolation) with HMAC signing and configurable retry. \\
-Data Lineage &
-  Per-file SHA-256 checksums, \texttt{LineageGraph} tracking
-  config$\to$generator$\to$output relationships, W3C PROV-JSON export,
-  CLI \texttt{verify} command. \\
-Python Wrapper &
-  \texttt{datasynth-py} 1.10 with blueprints (sourcing, HR, manufacturing,
-  financial reporting, tax, treasury, project accounting, ESG),
-  pandas/polars integration, async client, and WebSocket streaming support. \\
+Deterministic Output & ChaCha8 PRNG with configurable seed; identical seed $\Rightarrow$ identical dataset. \\
+Financial Precision  & \texttt{rust\_decimal} throughout; no IEEE 754 floating-point artefacts; decimals serialised as strings. \\
+Resource Guards      & Unified CPU, memory, and disk monitoring with automatic throttling and graceful degradation (Normal\,$\to$\,Reduced\,$\to$\,Minimal\,$\to$\,Emergency). \\
+Collision-Free IDs   & FNV-1a hash-based UUID factory with generator-type discriminators prevents document-ID collisions across parallel generators. UUID v5 for stable per-line transaction IDs. \\
+Streaming Output     & CSV, JSON, NDJSON, Apache Parquet (Zstd compression), and XBRL 2.1 instances (US GAAP \& IFRS taxonomies). Streaming sinks with backpressure (Block, DropOldest, DropNewest, Buffer). \\
+API Layer            & REST + gRPC + WebSocket with Argon2id API-key auth, JWT/OIDC bearer tokens (RS256, Keycloak / Auth0 / Entra ID), RBAC (Admin / Operator / Viewer), sliding-window rate limiting (in-memory or Redis), TLS via rustls. \\
+Plugin SDK           & \texttt{GeneratorPlugin}, \texttt{SinkPlugin}, \texttt{TransformPlugin} traits with thread-safe registry. \\
+Webhooks             & Fire-and-forget event dispatch (RunStarted / Completed / Failed / GateViolation) with HMAC signing and configurable retry. \\
+Data Lineage         & Per-file SHA-256 checksums, \texttt{LineageGraph} tracking config $\to$ generator $\to$ output relationships, W3C PROV-JSON export, CLI \texttt{verify}. \\
+COA Coverage Invariant & Always-on test asserting every generated JE \texttt{gl\_account} exists in the chart of accounts; strict-mode CLI flag fails the run on orphans. \\
 \bottomrule
 \end{tabularx}
-\renewcommand{\arraystretch}{1.0}
 
 % ══════════════════════════════════════════════════════════════════════════════
 \newpage
-\section{Industry Presets}
-
-DataSynth ships with ten industry-specific configuration presets, each tuned
-for realistic business process weightings, chart-of-accounts structures, and
-regional multi-company setups.
-
-\vspace{0.4em}
-\noindent
-\renewcommand{\arraystretch}{1.25}
-\begin{tabularx}{\textwidth}{>{\bfseries}l l X}
-\toprule
-\textbf{Industry} & \textbf{Key Weight} & \textbf{Characteristics} \\
-\midrule
-Manufacturing       & 40\% P2P & 14 transaction types, multi-level BOM, production routings,
-                                  work centers, JIT, quality framework. \\
-Retail              & 50\% O2C & 12 transaction types, 7 store types, shrinkage modeling,
-                                  loss prevention, markdown patterns. \\
-Healthcare          & 15\% H2R & 15 transaction types, payer mix (Medicare/Medicaid/Commercial),
-                                  ICD-10/CPT/DRG coding, HIPAA/Stark compliance. \\
-Financial Services  & 40\% R2R & Report-heavy, regulatory compliance,
-                                  intercompany structures, loan loss provisions. \\
-Technology          & 15\% H2R & SaaS revenue recognition, R\&D capitalization,
-                                  deferred revenue. \\
-Professional Svcs.  & --- & Time-based billing, project accounting, trust accounting. \\
-Energy              & --- & Capital-intensive, long-lived assets. \\
-Transportation      & --- & Fleet management, route-based costing. \\
-Real Estate         & --- & Property portfolios, lease accounting. \\
-Telecommunications  & --- & Subscription revenue, network assets. \\
-\bottomrule
-\end{tabularx}
-\renewcommand{\arraystretch}{1.0}
-
-\vspace{0.3em}
-\noindent
-Each preset supports three complexity tiers:
-\textbf{Small} ($\sim$100 GL accounts),
-\textbf{Medium} ($\sim$400 accounts), and
-\textbf{Large} ($\sim$2\,500 accounts).
-
-% ══════════════════════════════════════════════════════════════════════════════
-\section{Statistical Distribution Framework}
-
-DataSynth includes an advanced statistical distribution framework for generating
-empirically grounded synthetic data:
-
-\vspace{0.4em}
-\noindent
-\renewcommand{\arraystretch}{1.2}
-\begin{tabularx}{\textwidth}{>{\bfseries\color{brand}}l X}
-\toprule
-\textbf{Capability} & \textbf{Details} \\
-\midrule
-Mixture Models &
-  Gaussian and Log-Normal mixtures with weighted components (``routine'', ``significant'', ``major'' transactions). \\
-Copula Correlation &
-  Gaussian, Clayton, Gumbel, Frank, Student-t copulas for cross-field dependencies. \\
-Distribution Types &
-  Pareto (heavy-tailed), Weibull (time-to-event), Beta (proportions), Zero-inflated (excess zeros). \\
-Benford's Law &
-  First and second-digit compliance, round number bias, threshold clustering. \\
-Regime Changes &
-  Economic cycles, acquisition/divestiture effects, recession modeling. \\
-Industry Profiles &
-  Pre-configured profiles for Retail, Manufacturing, Financial Services. \\
-\bottomrule
-\end{tabularx}
-\renewcommand{\arraystretch}{1.0}
-
-\vspace{0.3em}
-\noindent
-All distributions include validation tests: Benford's Law MAD, Anderson-Darling
-goodness-of-fit, chi-squared, and correlation matrix verification.
-
-% ══════════════════════════════════════════════════════════════════════════════
-\section{Use Cases}
-
-\begin{tcolorbox}[keybox={Primary Use Cases}]
-\begin{description}[leftmargin=1em, labelwidth=1em, font=\color{brand}\bfseries]
-  \item[$\blacktriangleright$] \textbf{Fraud Detection ML} ---
-    Train and validate models on labeled fraud typologies with realistic
-    base-rate imbalance.
-
-  \item[$\blacktriangleright$] \textbf{Graph Neural Networks} ---
-    Export transaction graphs in PyTorch Geometric, Neo4j, DGL, or RustGraph
-    format --- including multi-layer hypergraphs --- with pre-computed features
-    and train/val/test splits.
-
-  \item[$\blacktriangleright$] \textbf{AML \& KYC Testing} ---
-    Generate banking transaction data with structuring, layering, and mule
-    patterns for compliance system validation.
-
-  \item[$\blacktriangleright$] \textbf{Audit Analytics} ---
-    Produce ISA-compliant audit artifacts and anomaly-injected financial
-    data for analytics tool development.
-
-  \item[$\blacktriangleright$] \textbf{ERP Integration Testing} ---
-    Generate SAP ACDOCA-format data with full document chains for system
-    migration and integration testing.
-
-  \item[$\blacktriangleright$] \textbf{Process Mining} ---
-    OCEL\,2.0 event logs for process discovery, conformance checking, and
-    variant analysis.
-
-  \item[$\blacktriangleright$] \textbf{SOX \& COSO Compliance Testing} ---
-    Internal control definitions with COSO 2013 mappings, SOX 302/404
-    certifications, deficiency classification, and SoD conflict detection.
-
-  \item[$\blacktriangleright$] \textbf{Accounting Standards Testing} ---
-    Generate revenue contracts (ASC 606/IFRS 15), lease portfolios
-    (ASC 842/IFRS 16), fair value measurements, and impairment tests
-    with dual-framework reconciliation.
-
-  \item[$\blacktriangleright$] \textbf{Data Quality ML} ---
-    Labeled missing values, typos, duplicates, and format variations for
-    training data-cleansing models.
-
-  \item[$\blacktriangleright$] \textbf{Drift Detection ML} ---
-    Labeled drift events (organizational, process, technology, market, regulatory)
-    with magnitude and detection difficulty for drift detection model training.
-
-  \item[$\blacktriangleright$] \textbf{Network Analytics} ---
-    Multi-tier vendor networks and customer segmentation graphs with
-    relationship strength metrics for supply chain and customer analytics.
-
-  \item[$\blacktriangleright$] \textbf{Causal Inference Testing} ---
-    Structural causal models with do-calculus interventions for
-    counterfactual scenario generation and what-if analysis.
-
-  \item[$\blacktriangleright$] \textbf{Pipeline Orchestration} ---
-    Apache Airflow operators, dbt source generation, MLflow experiment
-    tracking, and Spark DataFrame readers for end-to-end ML pipelines.
-
-  \item[$\blacktriangleright$] \textbf{Tax Compliance Testing} ---
-    Tax return filing simulation, ASC\,740/IAS\,12 provision computation,
-    uncertain tax position modeling, withholding tax treaty benefits.
-
-  \item[$\blacktriangleright$] \textbf{Treasury Operations} ---
-    Cash positioning, probability-weighted forecasting, hedge effectiveness
-    testing (ASC\,815/IFRS\,9), debt covenant monitoring, and multilateral netting.
-
-  \item[$\blacktriangleright$] \textbf{Project Cost Control} ---
-    WBS-based project costing, earned value management (EVM), change order
-    tracking, percentage-of-completion revenue recognition, retainage.
-
-  \item[$\blacktriangleright$] \textbf{ESG \& Sustainability Reporting} ---
-    GHG Protocol Scope\,1/2/3 emissions, diversity \& pay equity metrics,
-    GRI/SASB/TCFD disclosure preparation, supplier ESG assessments.
-
-  \item[$\blacktriangleright$] \textbf{EU AI Act Compliance} ---
-    Article 50 synthetic content marking with content credentials and
-    Article 10 data governance reports with bias assessments.
-\end{description}
-\end{tcolorbox}
-
-% ══════════════════════════════════════════════════════════════════════════════
-\section{Evaluation \& Auto-Tuning}
-
-DataSynth includes a built-in evaluation framework that measures synthetic
-data quality across four dimensions:
-
-\begin{enumerate}[leftmargin=1.4em, itemsep=3pt]
-  \item \textbf{Statistical Fidelity} --- KS statistic, Wasserstein-1 (Earth
-        Mover's Distance), Jensen-Shannon divergence, Benford's Law MAD,
-        Anderson-Darling goodness-of-fit.
-  \item \textbf{Coherence} --- Balance-sheet validation, intercompany matching,
-        document chain integrity, standards compliance.
-  \item \textbf{Data Quality} --- Completeness, consistency, duplicate rates,
-        format correctness, uniqueness.
-  \item \textbf{ML Readiness} --- Feature distributions, label quality, graph
-        structure, train/val/test split balance.
-  \item \textbf{Drift Detection} --- Hellinger distance, Population Stability Index (PSI),
-        rolling window analysis, detection delay metrics.
-\end{enumerate}
-
-\subsection{ML Benchmarks}
-
-Pre-configured benchmarks aligned with ACFE statistics and industry verticals:
-
-\begin{itemize}[leftmargin=1.4em, itemsep=2pt]
-  \item \textbf{ACFE-Calibrated}: General fraud (1k), collusion-focused (5k), management override (2k).
-  \item \textbf{Industry-Specific}: Manufacturing fraud (5k), retail fraud (10k), healthcare fraud (5k), technology fraud (3k), financial services fraud (5k).
-  \item \textbf{Cost-Sensitive}: Asymmetric cost matrices for realistic fraud detection evaluation.
-\end{itemize}
-
-\noindent
-An \textbf{auto-tuning engine} analyses evaluation results and produces
-prioritized configuration patches with expected improvement estimates ---
-closing the loop between generation and validation.
-
-\subsection{Quality Gate Engine}
-
-\textit{New in v0.5.0} --- configurable pass/fail thresholds that can block
-releases of low-quality synthetic data:
-
-\begin{itemize}[leftmargin=1.4em, itemsep=2pt]
-  \item \textbf{8 metrics}: Benford MAD, balance coherence, document chain
-        completeness, duplicate rate, missing rate, distribution fit,
-        correlation accuracy, anomaly precision.
-  \item \textbf{Built-in profiles}: \texttt{strict}, \texttt{default},
-        \texttt{lenient} --- or define custom per-metric thresholds.
-  \item \textbf{CLI integration}: \texttt{--quality-gate <profile>} with
-        exit code 2 on failure for CI/CD pipelines.
-\end{itemize}
-
-% ══════════════════════════════════════════════════════════════════════════════
 \section{Compliance \& Governance}
 
-\subsection{EU AI Act}
+\subsection{EU AI Act Posture}
 
-DataSynth implements Article 50 (synthetic content marking) and Article 10
-(data governance) requirements:
+DataSynth is a synthetic-data generator, not a high-risk AI system: outputs
+are synthesised data points, not decisions about natural persons. The
+platform nonetheless ships features useful for compliant downstream use:
 
-\begin{itemize}[leftmargin=1.4em, itemsep=2pt]
-  \item \textbf{Content Credentials}: \texttt{SyntheticContentMarker} creates
-        machine-readable credentials (generator name, version, timestamp,
-        config hash) in embedded, sidecar, or both formats.
-  \item \textbf{Data Governance Report}: \texttt{DataGovernanceReport} with
-        \texttt{BiasAssessment} documenting data provenance, quality metrics,
-        and bias evaluation for regulatory submission.
+\begin{itemize}[leftmargin=1.2em, itemsep=3pt]
+  \item Generator name, version, timestamp, seed, and config hash
+        machine-readable in every output run.
+  \item Per-file SHA-256 checksums and W3C PROV-JSON lineage for
+        reproducibility audits.
+  \item Differential-privacy budgets emitted as machine-readable
+        certificates when fingerprinting is used.
+  \item Ground-truth labels (fraud, anomaly, data-quality issue,
+        ISA 240 manual flag) for fairness and bias evaluation of
+        downstream models.
 \end{itemize}
 
 \subsection{Regulatory Compliance Documentation}
 
-Pre-built compliance guides with self-assessment templates:
+Generated audit artefacts include the metadata required by the relevant
+standard frameworks (ISA / PCAOB / SOX / SOC 2 / CSRD), with cross-reference
+tables and jurisdiction profiles for cross-border engagements. Working-paper
+bundles are SHA-256 Merkle-rooted with replay-protected inclusion proofs
+(ISA 230 working-paper management).
 
-\vspace{0.4em}
-\noindent
-\renewcommand{\arraystretch}{1.2}
-\begin{tabularx}{\textwidth}{>{\bfseries\color{brand}}l X}
-\toprule
-\textbf{Framework} & \textbf{Coverage} \\
-\midrule
-EU AI Act & Article 50 content marking, Article 10 governance \\
-NIST AI RMF & Self-assessment across MAP, MEASURE, MANAGE, GOVERN \\
-GDPR & Article 30 records, DPIA guidance, data minimization \\
-SOC 2 Type II & Readiness across 5 Trust Service Criteria \\
-ISO 27001:2022 & Annex A alignment (11 implemented, 6 partial) \\
-\bottomrule
-\end{tabularx}
-\renewcommand{\arraystretch}{1.0}
+\subsection{Quality Gates}
 
-% ══════════════════════════════════════════════════════════════════════════════
-\section{DevOps \& Deployment}
-
-\subsection{CI/CD Pipeline}
-
-An 8-job GitHub Actions pipeline ensures release quality:
-
-\begin{enumerate}[leftmargin=1.4em, itemsep=2pt]
-  \item \textbf{fmt}: \texttt{cargo fmt --check}
-  \item \textbf{clippy}: Lint with \texttt{-D warnings}
-  \item \textbf{test}: Cross-platform matrix (Ubuntu, macOS, Windows)
-  \item \textbf{eval}: Comprehensive evaluation (23 evaluators, all process families --- main branch only)
-  \item \textbf{msrv}: Minimum Supported Rust Version validation (1.88)
-  \item \textbf{security}: \texttt{cargo deny} + \texttt{cargo audit}
-  \item \textbf{coverage}: \texttt{cargo-llvm-cov} with Codecov
-  \item \textbf{benchmarks}: Criterion regression checks on PRs
-\end{enumerate}
-
-\subsection{Deployment Options}
-
-\vspace{0.4em}
-\noindent
-\renewcommand{\arraystretch}{1.2}
-\begin{tabularx}{\textwidth}{>{\bfseries\color{brand}}l X}
-\toprule
-\textbf{Target} & \textbf{Details} \\
-\midrule
-Docker &
-  Multi-stage builds with cargo-chef caching; distroless runtime images
-  for server and CLI. \\
-Docker Compose &
-  Server + Prometheus + Grafana stack with auto-provisioned datasources. \\
-Kubernetes &
-  Helm chart with HPA (2--10 replicas), PDB, rolling updates, optional
-  Redis subchart, Prometheus ServiceMonitor, and ConfigMap/Secret templates. \\
-Bare Metal &
-  SystemD service with security hardening (NoNewPrivileges, ProtectSystem,
-  MemoryMax=4G, CPUQuota=200\%). \\
-Release Pipeline &
-  Pre-built binaries for 5 platforms, Docker image to GHCR (amd64 + arm64),
-  Trivy container scanning. \\
-\bottomrule
-\end{tabularx}
-\renewcommand{\arraystretch}{1.0}
-
-\subsection{Ecosystem Integrations}
-
-Python-native integrations for popular data engineering tools:
-
-\begin{itemize}[leftmargin=1.4em, itemsep=2pt]
-  \item \textbf{Apache Airflow}: \texttt{DataSynthOperator}, \texttt{DataSynthSensor},
-        and \texttt{DataSynthValidateOperator} for orchestrated generation.
-  \item \textbf{dbt}: \texttt{DbtSourceGenerator} for source YAML and seed files.
-  \item \textbf{MLflow}: \texttt{DataSynthMlflowTracker} for experiment tracking
-        with quality metrics.
-  \item \textbf{Apache Spark}: \texttt{DataSynthSparkReader} for direct DataFrame
-        loading from DataSynth output.
-\end{itemize}
+Three quality-gate profiles --- \texttt{lenient}, \texttt{default},
+\texttt{strict} --- combine balance-equation, distribution-fit, copula-recovery,
+Benford-MAD, completeness, and coherence checks. The auto-tune loop and the
+CI pipeline both consume the same gate definitions.
 
 % ══════════════════════════════════════════════════════════════════════════════
 \newpage
 \section{Getting Started}
 
-\subsection{Quick Start (CLI)}
+\subsection{Quick Start (Single Entity)}
 
-\begin{tcolorbox}[colback=brand!3, colframe=brand!40, boxrule=0.5pt, arc=3pt,
-                   left=8pt, right=8pt, top=6pt, bottom=6pt]
-\ttfamily\small
-\# Generate with demo preset\\
-datasynth-data generate --demo --output ./output\\[6pt]
-\# Create an industry-specific config\\
-datasynth-data init --industry manufacturing --complexity medium -o config.yaml\\[6pt]
-\# Generate from config\\
-datasynth-data generate --config config.yaml --output ./output
+\begin{tcolorbox}[notebox={CLI}]
+\small
+\begin{verbatim}
+git clone https://github.com/mivertowski/SyntheticData.git && cd SyntheticData
+cargo build --release
+
+# Demo --- generates a complete dataset with defaults
+./target/release/datasynth-data generate --demo --output ./output
+
+# Initialise + generate from a config
+./target/release/datasynth-data init --industry manufacturing \
+                                     --complexity medium \
+                                     -o config.yaml
+./target/release/datasynth-data validate --config config.yaml
+./target/release/datasynth-data generate --config config.yaml \
+                                         --output ./output \
+                                         --validate-coa-coverage
+\end{verbatim}
 \end{tcolorbox}
 
-\subsection{Quick Start (Python)}
+\subsection{Group Audit Pipeline}
 
-\begin{tcolorbox}[colback=brand!3, colframe=brand!40, boxrule=0.5pt, arc=3pt,
-                   left=8pt, right=8pt, top=6pt, bottom=6pt]
-\ttfamily\small
-from datasynth\_py import DataSynth\\
-from datasynth\_py.config import blueprints\\[6pt]
-config = blueprints.retail\_small(companies=4, transactions=10000)\\
-synth = DataSynth()\\
-result = synth.generate(config=config)
+\begin{tcolorbox}[notebox={Multi-entity consolidation}]
+\small
+\begin{verbatim}
+# Single-period
+datasynth-data group generate \
+  --config configs/examples/group/mini_nestle.yaml \
+  --out ./group_archive
+
+# Multi-period (chained continuity)
+datasynth-data group generate-chain \
+  --config configs/examples/group/mini_nestle.yaml \
+  --periods 4 \
+  --out ./group_archive_q1_q4
+
+# Or use the explicit three-phase pipeline
+datasynth-data group manifest    --config group.yaml --out manifest.json
+datasynth-data group shard       --manifest manifest.json --shard-id S_SIG_0001 \
+                                 --out ./shards/S_SIG_0001/
+datasynth-data group aggregate   --manifest manifest.json --shards-dir ./shards \
+                                 --out ./group_archive
+\end{verbatim}
+\end{tcolorbox}
+
+\subsection{Fingerprint-Driven Synthesis}
+
+\begin{tcolorbox}[notebox={From real data to defensible synthetic}]
+\small
+\begin{verbatim}
+# 1. Extract a privacy-preserving fingerprint from real data
+datasynth-data fingerprint extract \
+  --input  ./real_journals.csv \
+  --output ./real.dsf \
+  --privacy-level standard
+
+# 2. Validate the .dsf file
+datasynth-data fingerprint validate ./real.dsf
+
+# 3. Generate matched synthetic data
+datasynth-data generate --fingerprint ./real.dsf \
+                        --scale 1.0 \
+                        --output ./synthetic
+
+# 4. Evaluate fidelity
+datasynth-data fingerprint evaluate \
+  --fingerprint ./real.dsf \
+  --synthetic   ./synthetic/
+\end{verbatim}
 \end{tcolorbox}
 
 \subsection{Server Mode}
 
-\begin{tcolorbox}[colback=brand!3, colframe=brand!40, boxrule=0.5pt, arc=3pt,
-                   left=8pt, right=8pt, top=6pt, bottom=6pt]
-\ttfamily\small
-\# Start REST/gRPC server with 4 worker threads\\
+\begin{tcolorbox}[notebox={REST / gRPC / WebSocket}]
+\small
+\begin{verbatim}
 cargo run -p datasynth-server -- --port 3000 --worker-threads 4
+
+# REST: /api/config, /api/stream/{start|stop|pause|resume},
+#       /api/stream/trigger/{pattern}
+# WebSocket: /ws/events
+# Auth: X-API-Key header (Argon2id) or Bearer JWT
+\end{verbatim}
+\end{tcolorbox}
+
+\subsection{Python Integration}
+
+The open-source \texttt{datasynth-py} wrapper has been retired (v4.4.3).
+Recommended paths:
+
+\begin{itemize}[leftmargin=1.2em, itemsep=3pt]
+  \item \textbf{Commercial SDKs} --- official typed Python and TypeScript
+        SDKs at \href{https://vynfi.com}{vynfi.com}.
+  \item \textbf{Subprocess + dataframes} --- invoke the \texttt{datasynth-data}
+        CLI from Python via \texttt{subprocess} and read the generated
+        CSV / JSON / Parquet outputs with \texttt{pandas} / \texttt{polars}
+        / \texttt{pyarrow}.
+  \item \textbf{HuggingFace} --- skip generation and pull a pre-built
+        reference dataset from \href{https://huggingface.co/VynFi}{huggingface.co/VynFi}.
+\end{itemize}
+
+\subsection{Companion Academic Paper}
+
+The formal treatment of distributional properties, copula construction,
+DP composition, and the reference-knowledge-graph framework appears in:
+
+\begin{tcolorbox}[notebox={Citation}]
+\small
+Ivertowski, M.\ (2026).
+\textit{DataSynth: Reference Knowledge Graphs for Enterprise Audit Analytics
+through Synthetic Data Generation with Provable Statistical Properties.}
+SSRN Working Paper. \url{\dsssrnurl}
+\\[2pt]
+In-repo source: \texttt{paper/main.tex}.
 \end{tcolorbox}
 
 % ══════════════════════════════════════════════════════════════════════════════
-\vspace{1.5em}
-\begin{tcolorbox}[keybox={Links \& Resources}]
-\renewcommand{\arraystretch}{1.4}
-\begin{tabularx}{\textwidth}{>{\bfseries\color{brand}}l X}
-  Repository &
-    \url{https://github.com/mivertowski/SyntheticData} \\
-  Documentation &
-    \url{https://mivertowski.github.io/SyntheticData/} \\
-  Crates.io &
-    \url{https://crates.io/crates/datasynth-core} \\
-  PyPI &
-    \url{https://pypi.org/project/datasynth-py/} \\
-\end{tabularx}
-\end{tcolorbox}
+\bibliographystyle{plainnat}
+\bibliography{references}
 
-\vfill
+% ══════════════════════════════════════════════════════════════════════════════
+\vspace*{\fill}
 \begin{center}
-\textcolor{midgray}{\rule{0.5\textwidth}{0.4pt}}\\[0.8em]
-{\small\textcolor{midgray}{%
-  DataSynth v2.2.0 \textbullet{}
-  Open-source (Apache-2.0) \textbullet{}
-  Commercial license available%
-}}\\[4pt]
-{\small\textcolor{midgray}{%
-  \textbf{GitHub:} \url{https://github.com/mivertowski/SyntheticData}%
-}}
+\rule{0.5\textwidth}{0.4pt}\\[0.6em]
+\textcolor{midgray}{\small
+  DataSynth v\dsversion{} \textbullet{}
+  \dsdate{} \textbullet{}
+  \href{\dsrepourl}{GitHub}
+  \textbullet{}
+  Apache-2.0
+}
 \end{center}
 
 \end{document}
