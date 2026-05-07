@@ -37,7 +37,7 @@ mod entity_registry;
 mod fixed_asset;
 mod fx;
 pub mod graph_properties;
-mod hyperinflation;
+pub mod hyperinflation;
 pub mod internal_control;
 pub mod journal_entry;
 mod master_data;

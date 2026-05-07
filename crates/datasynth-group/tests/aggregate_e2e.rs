@@ -394,6 +394,7 @@ fn run_aggregate_strict_mode_errors_on_missing_shard() {
         prior_period_aggregate: None,
         tolerate_missing_shards: false,
         cgu_test_inputs: Vec::new(),
+        cpi_series_by_currency: std::collections::BTreeMap::new(),
     };
     let err = run_aggregate(&manifest, root, root, &opts).expect_err("strict mode must reject");
     match err {
@@ -432,6 +433,7 @@ fn run_aggregate_tolerate_missing_shards_continues_on_partial_archive() {
         prior_period_aggregate: None,
         tolerate_missing_shards: true,
         cgu_test_inputs: Vec::new(),
+        cpi_series_by_currency: std::collections::BTreeMap::new(),
     };
     let summary =
         run_aggregate(&manifest, root, root, &opts).expect("tolerate-missing must succeed");
@@ -465,6 +467,7 @@ fn run_aggregate_empty_archive_with_tolerate_missing_produces_zero_summary() {
         prior_period_aggregate: None,
         tolerate_missing_shards: true,
         cgu_test_inputs: Vec::new(),
+        cpi_series_by_currency: std::collections::BTreeMap::new(),
     };
     let summary = run_aggregate(&manifest, root, root, &opts).expect("must succeed");
 

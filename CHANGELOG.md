@@ -5,6 +5,230 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.6.0] - 2026-05-07
+
+### Added — ISO 21378 (Audit Data Collection) account classification
+
+Generated charts of accounts now carry the descriptive ISO 21378
+3-level classification hierarchy in addition to the existing
+`account_type` / `sub_type` enums. This is the standard surface for
+audit-data exchange (SAF-T, FEC, GoBD, and Big-4 audit-software
+imports all map to ADC concepts) and gives ML / analytics consumers
+a meaningful Level-2 / Level-3 feature without parsing account
+numbers.
+
+New module `datasynth_core::iso21378` exposes:
+
+- `AdcType` — Level 1 (5 categories, codes `A` / `L` / `E` / `R` / `X`)
+- `AdcClass` — Level 2 (28 classes, codes like `A.B` Trade
+  Receivables, `X.A` Cost of Goods Sold)
+- `AdcSubClass` — Level 3 (45 sub-classes, codes like `A.B.A` Trade
+  Accounts Receivable)
+- `from_account_sub_type(AccountSubType) -> AdcSubClass` — total
+  exhaustive mapping; new `AccountSubType` variants must be added to
+  the match arm or the crate fails to compile
+
+`GLAccount` gains four populated fields:
+
+| Field | Example value | Source |
+|---|---|---|
+| `account_class` *(repurposed)* | `"A.B"` | ADC Level-2 code (was: first digit of `account_number`, e.g. `"1"`) |
+| `account_class_name` *(new)* | `"Trade Receivables"` | ADC Level-2 descriptive name |
+| `account_sub_class` *(new)* | `"A.B.A"` | ADC Level-3 code |
+| `account_sub_class_name` *(new)* | `"Trade Accounts Receivable"` | ADC Level-3 descriptive name |
+
+`GLAccount::new` derives all four automatically from `sub_type`, so
+every existing call-site (chart-of-accounts generator, all framework
+loaders, business-combination generator, etc.) gets ISO codes for
+free.
+
+### Added — `journal_entries.csv` ISO columns
+
+Four new columns appended at the end so column-positional consumers
+keep working:
+
+`account_class`, `account_class_name`, `account_sub_class`,
+`account_sub_class_name` — joined from the chart of accounts at
+write time. Combined with the v5.5.1 `financial_statement_category`
+column, downstream notebooks now have:
+
+- ADC Level 1 (`financial_statement_category` — `asset` /
+  `liability` / `equity` / `revenue` / `cogs` / …)
+- ADC Level 2 (`account_class` ISO code + `account_class_name`)
+- ADC Level 3 (`account_sub_class` ISO code +
+  `account_sub_class_name`)
+
+— all derivable without any manual ETL, all stable across regenerations.
+
+### Breaking — `account_class` semantics changed
+
+`GLAccount::account_class` previously held the first character of the
+account number (`"1"`, `"2"`, …) as a placeholder. It now holds the
+ISO 21378 Level-2 code (`"A.B"`). This is also reflected in the
+`journal_entries.csv` column of the same name. Consumers that parsed
+`account_class` as a single digit need to migrate to
+`financial_statement_category` (the v5.5.1 single-letter prefix
+projection) or to ADC codes.
+
+The `chart_of_accounts.json` schema now contains three new fields
+(`account_class_name`, `account_sub_class`, `account_sub_class_name`).
+The two `*_name` fields and `account_sub_class` use `#[serde(default)]`
+so deserialising a v5.5.1 fixture into a v5.6.0 reader works without
+errors.
+
+### Verification
+
+- `cargo test -p datasynth-core --lib` → 1 334 passed (3 new ISO tests
+  plus the existing 1 331)
+- `cargo test -p datasynth-runtime --test coa_coverage_invariant` →
+  2 passed (base + with-anomalies, both still 100% coverage)
+- `cargo test -p datasynth-group --test manifest_golden` → 1 passed
+  (golden regenerated for the new ISO fields on every COA account)
+- `cargo test -p datasynth-generators --lib` → 1 142 passed
+- `cargo test -p datasynth-runtime --lib` → 126 passed
+- `cargo test -p datasynth-output --lib` → 119 passed
+- `cargo test -p datasynth-group --lib` → 106 passed
+- `cargo fmt`, `cargo clippy` clean
+
+## [5.5.1] - 2026-05-07
+
+### Fixed — Chart-of-accounts coverage
+
+Generated journal entries occasionally referenced GL accounts that were
+never seeded into `chart_of_accounts.json`, leaving downstream consumers
+unable to resolve account names (reported by an academic user training a
+GNN-based anomaly-detection model). Three independent root causes:
+
+- Several JE-emitting generators used raw GL strings instead of the
+  canonical `datasynth_core::accounts` constants — sometimes off by one
+  digit (e.g. `inventory_generator` used `"1300"` while
+  `control_accounts::INVENTORY = "1200"`).
+- `seed_canonical_accounts` only seeded a subset of constant modules, so
+  perfectly-typed accounts (intangible, treasury, provision, dividend,
+  manufacturing, pension, stock-comp, plus a handful of tax/equity
+  constants) never reached the COA.
+- Account-description lookup in `enrich_line_items` silently swallowed
+  misses, so the inconsistency had no warning surface.
+
+This release closes all three: every JE-emitting generator now
+references constants, every constant module is seeded, and a new
+invariant test (`coa_coverage_invariant`) asserts zero orphan accounts
+across the JE pipeline.
+
+### Added — CSV widening for analytics workflows
+
+`journal_entries.csv` now exports nine additional columns that were
+already populated on the model but dropped at write time. New columns
+are appended at the end so position-based consumers keep working:
+
+- `is_manual`, `is_post_close`, `source_system` — audit / ETL provenance
+  flags from the header
+- `account_description` — joined from the chart of accounts, with a
+  line-level fallback
+- `financial_statement_category` — `asset` / `liability` / `equity` /
+  `revenue` / `cogs` / `operating_expense` / `other_income_expense` /
+  `tax` / `suspense`, derived from the account-number prefix
+- `assignment`, `value_date`, `tax_code` — already-populated line fields
+- `transaction_id` — stable per-line UUID v5 of
+  `(document_id, line_number)`, deterministic across regenerations
+
+### Added — Realistic ERP `source_system` taxonomy
+
+Replaced the 7-value taxonomy (`SAP-FI`, `SAP-MM`, …) with a 28-value
+process-aware taxonomy (`SAP-FI/AP`, `SAP-MM/IV`, `SAP-SD/ORD`,
+`Treasury/CM`, `Interface/EDI`, `manual/adjustment`,
+`spreadsheet/upload`, …) so generated data better matches real-ERP
+column cardinality. The manual-prefix contract is preserved: every
+`is_manual=true` entry still has a `source_system` starting with
+`manual` or `spreadsheet`.
+
+### Added — Per-field NULL injection
+
+`data_quality.missing_values.field_rates` and `protected_fields` now
+propagate from the schema to the runtime injector, and the injector is
+wired across every `Option<String>` line field (`profit_center`,
+`assignment`, `tax_code`, `account_description`, `auxiliary_account_*`,
+`lettrage`). Audit-critical identifiers (`document_id`, `gl_account`,
+`transaction_id`, …) are force-protected regardless of user config.
+
+### Added — Strict COA-coverage validation flag
+
+New CLI flag `--validate-coa-coverage` (and
+`PhaseConfig::validate_coa_coverage_strict`) hard-fails the run when any
+generated JE references a `gl_account` that is not in the chart of
+accounts. Off by default — a soft warning is logged instead.
+
+### Fixed — `datasynth-group` build
+
+- Made `datasynth_core::models::hyperinflation` a public module so
+  `aggregate::driver`, `aggregate::translation::restatement`, and the
+  group `standalone` entry point can reference
+  `hyperinflation::GeneralPriceIndex` by path.
+- Updated the CLI auto-detect dispatch into `handle_group_generate` for
+  its v5.5.2 signature (`cgu_test_inputs_path: Option<&Path>`).
+
+### Fixed — Manifest golden fixture
+
+`crates/datasynth-group/tests/golden/mini_nestle_manifest.json` pins
+the JSON serialisation of the built `GroupManifest` against a committed
+fixture. The COA expansion above adds ~50 new accounts to the
+`ChartOfAccountsMaster` snapshot, so the golden was regenerated via
+`cargo test -p datasynth-group --test manifest_golden regenerate_golden
+-- --ignored`. Diff is +8 151 / −2 769 lines (new accounts inserted,
+existing accounts shifted in JSON-array order). No semantic change to
+the non-COA portions of the manifest.
+
+### Fixed — Decimal-overflow in amount-distribution analytics
+
+`AmountDistributionAnalyzer::analyze` previously built variance in
+`Decimal` with `(*a - mean) * (*a - mean)`. On heavy-tailed amount
+distributions a single product can overflow rust\_decimal
+(`Multiplication overflowed` at `arithmetic_impls.rs:232`), aborting
+the post-write analytics phase on million-row datasets. Variance and
+std\_dev are now computed in `f64` (which already powers the skewness /
+kurtosis computation ten lines later) and converted back to `Decimal`
+for the public field. The `decimal_sqrt` helper is retained
+(`#[allow(dead_code)]`) for any future Decimal-only path.
+
+### Fixed — Dormant-account anomaly targets now seeded in the COA
+
+`DormantAccountStrategy` (the `DormantAccountActivity` anomaly
+implementation) historically posted to four hardcoded 6-digit accounts
+(`199999` / `299999` / `399999` / `999999`) that were never seeded
+into the COA — when anomaly injection was enabled, four orphan
+`gl_account` values appeared in every JE table. Real-world COAs retain
+legacy / blocked / test accounts so audit trails resolve; we now
+follow the same pattern:
+
+- New `dormant_accounts` constant module in
+  `datasynth_core::accounts` with `LEGACY_SUSPENSE`,
+  `LEGACY_CLEARING`, `OBSOLETE`, `TEST_ACCOUNT`.
+- `seed_canonical_accounts` seeds them with `is_blocked = true` /
+  `is_postable = false` so normal generators won't reach them but
+  the COA snapshot resolves them.
+- `DormantAccountStrategy::default()` now references the constants
+  instead of raw strings.
+- `coa_coverage_invariant` gained a second test variant
+  (`every_je_gl_account_exists_in_coa_with_anomalies`) that enables
+  anomaly injection and asserts COA coverage still holds.
+
+### Added — HuggingFace dataset configs in-tree
+
+The `VynFi/vynfi-journal-entries-1m` reference dataset on HuggingFace
+was refreshed to the v5.5.1 schema (38-column JE parquet plus matched
+chart-of-accounts and trial-balance parquet files). The generation
+config and conversion script that produced it are now in-repo so any
+maintainer can regenerate the dataset bit-for-bit:
+
+- [`configs/examples/hf/journal_entries_1m.yaml`](configs/examples/hf/journal_entries_1m.yaml)
+  — 10 manufacturing companies × 12 monthly periods, multi-currency,
+  seed `20260507`.
+- [`configs/examples/hf/README.md`](configs/examples/hf/README.md) —
+  one-shot recipe (generate → convert → `hf upload`).
+- [`scripts/hf_to_parquet.py`](scripts/hf_to_parquet.py) — dataset-
+  agnostic CSV/JSON → parquet converter; sharded JE output, COA, and
+  flattened TB lines (one row per period × account).
+
 ## [5.5.0] - 2026-05-05
 
 ### Added — Audit-methodology layer (`datasynth-audit-fsm`)

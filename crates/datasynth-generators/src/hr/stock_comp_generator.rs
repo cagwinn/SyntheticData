@@ -49,17 +49,13 @@ use rust_decimal_macros::dec;
 use tracing::debug;
 
 // ---------------------------------------------------------------------------
-// GL account codes
+// GL account codes — canonical constants from `datasynth_core::accounts` so
+// every account referenced here also lives in the generated chart of
+// accounts (see `seed_canonical_accounts`).
 // ---------------------------------------------------------------------------
 
-/// Share-based compensation expense — sub-account of operating expenses.
-/// Uses 7200 as specified (labour / comp expense range above BENEFITS 6200).
-const COMP_EXPENSE: &str = "7200";
-
-/// Additional Paid-In Capital — Stock Compensation sub-account.
-/// 3150 is a sub-account of the standard APIC (3100) reserved for
-/// equity-settled share-based payments.
-const APIC_STOCK_COMP: &str = "3150";
+use datasynth_core::accounts::equity_accounts::APIC_STOCK_COMP;
+use datasynth_core::accounts::expense_accounts::STOCK_COMP_EXPENSE as COMP_EXPENSE;
 
 // ---------------------------------------------------------------------------
 // Configuration

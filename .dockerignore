@@ -21,3 +21,10 @@ RustGraph
 .serena/
 docs-*.png
 *.png
+
+# Hidden dirs that can balloon the build context
+.worktrees/
+.claude/
+.venv/
+.cargo/
+**/target/

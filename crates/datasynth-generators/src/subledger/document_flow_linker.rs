@@ -9,6 +9,7 @@ use std::collections::HashMap;
 
 use rust_decimal::Decimal;
 
+use datasynth_core::accounts::{expense_accounts, revenue_accounts};
 use datasynth_core::models::documents::{CustomerInvoice, Payment, PaymentType, VendorInvoice};
 use datasynth_core::models::subledger::ap::{APInvoice, APInvoiceLine, MatchStatus};
 use datasynth_core::models::subledger::ar::{ARInvoice, ARInvoiceLine};
@@ -118,7 +119,7 @@ impl DocumentFlowLinker {
                 item.base
                     .gl_account
                     .clone()
-                    .unwrap_or_else(|| "5000".to_string()),
+                    .unwrap_or_else(|| expense_accounts::COGS.to_string()),
             )
             .with_tax(
                 item.tax_code.clone().unwrap_or_else(|| "VAT".to_string()),
@@ -170,7 +171,7 @@ impl DocumentFlowLinker {
                 item.base.unit_price,
                 item.revenue_account
                     .clone()
-                    .unwrap_or_else(|| "4000".to_string()),
+                    .unwrap_or_else(|| revenue_accounts::PRODUCT_REVENUE.to_string()),
             )
             .with_tax("VAT".to_string(), item.base.tax_amount);
 

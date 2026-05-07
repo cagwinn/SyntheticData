@@ -42,15 +42,14 @@ use rust_decimal_macros::dec;
 use tracing::debug;
 
 // ---------------------------------------------------------------------------
-// GL accounts (no existing constant for pension — use local strings)
+// GL accounts — use canonical constants from `datasynth_core::accounts` so
+// every account referenced here also appears in the generated chart of
+// accounts (see `seed_canonical_accounts`).
 // ---------------------------------------------------------------------------
 
-/// Pension / post-retirement benefit expense (sub-account of Benefits 6200).
-const PENSION_EXPENSE: &str = "6205";
-/// Net pension liability / asset (balance-sheet line).
-const NET_PENSION_LIABILITY: &str = "2800";
-/// OCI — remeasurements of defined benefit plans.
-const OCI_REMEASUREMENTS: &str = "3800";
+use datasynth_core::accounts::equity_accounts::OCI_REMEASUREMENTS;
+use datasynth_core::accounts::expense_accounts::PENSION_EXPENSE;
+use datasynth_core::accounts::liability_accounts::NET_PENSION_LIABILITY;
 
 // ---------------------------------------------------------------------------
 // Snapshot

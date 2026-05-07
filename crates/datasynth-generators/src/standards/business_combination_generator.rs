@@ -456,11 +456,16 @@ impl BusinessCombinationGenerator {
             }
         }
 
-        // CR Contingent consideration liability (if any) – account "2800"
+        // CR Contingent consideration liability (if any).
+        // Reuses the pension-liability slot (2800) per the canonical account map.
         if let Some(contingent) = bc.consideration.contingent_consideration {
             if contingent > Decimal::ZERO {
-                let mut line =
-                    JournalEntryLine::credit(doc_id, line_num, "2800".to_string(), contingent);
+                let mut line = JournalEntryLine::credit(
+                    doc_id,
+                    line_num,
+                    datasynth_core::accounts::liability_accounts::NET_PENSION_LIABILITY.to_string(),
+                    contingent,
+                );
                 line.line_text = Some("Contingent consideration liability".to_string());
                 je.add_line(line);
                 line_num += 1;

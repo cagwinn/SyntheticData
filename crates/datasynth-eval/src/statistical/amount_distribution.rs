@@ -112,15 +112,16 @@ impl AmountDistributionAnalyzer {
         let percentile_1 = sorted[(n as f64 * 0.01) as usize];
         let percentile_99 = sorted[((n as f64 * 0.99) as usize).min(n - 1)];
 
-        // Variance and standard deviation
-        let variance: Decimal = amounts
-            .iter()
-            .map(|a| (*a - mean) * (*a - mean))
-            .sum::<Decimal>()
-            / Decimal::from(n - 1);
-        let std_dev = decimal_sqrt(variance);
-
-        // Convert to f64 for higher moments
+        // Convert to f64 first, then compute variance / std_dev there.
+        //
+        // Doing variance in `Decimal` overflows on heavy-tailed amount
+        // distributions: a single outlier squared (e.g. a fraud-injected
+        // $5M entry → 2.5e13) summed across 1M+ entries can push close to
+        // the Decimal range, and even individual `(a - mean) * (a - mean)`
+        // products can overflow when `a` itself is near the high end of
+        // the log-normal tail. f64 has plenty of headroom for variance
+        // computation; we convert the final std_dev back to Decimal for
+        // the public field.
         let amounts_f64: Vec<f64> = amounts
             .iter()
             .filter_map(rust_decimal::prelude::ToPrimitive::to_f64)
@@ -132,6 +133,7 @@ impl AmountDistributionAnalyzer {
             .sum::<f64>()
             / (amounts_f64.len() - 1) as f64)
             .sqrt();
+        let std_dev = rust_decimal::Decimal::from_f64_retain(std_f64).unwrap_or(Decimal::ZERO);
 
         // Skewness
         let skewness = if std_f64 > 0.0 {
@@ -319,6 +321,11 @@ fn kolmogorov_pvalue(lambda: f64) -> f64 {
 }
 
 /// Approximate square root for Decimal.
+///
+/// Retained for compatibility — `analyze` now computes std_dev in f64 to
+/// avoid Decimal-multiplication overflow on heavy-tailed inputs. Other
+/// modules in the crate may still call this helper.
+#[allow(dead_code)]
 fn decimal_sqrt(value: Decimal) -> Decimal {
     if value <= Decimal::ZERO {
         return Decimal::ZERO;

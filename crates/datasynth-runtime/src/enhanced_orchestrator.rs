@@ -287,6 +287,10 @@ pub struct PhaseConfig {
     pub inject_data_quality: bool,
     /// Validate balance sheet equation after generation.
     pub validate_balances: bool,
+    /// Validate that every `gl_account` referenced in generated JEs exists
+    /// in the chart of accounts. Off by default (a soft warning is emitted
+    /// instead). Set true to fail the run on any orphan account.
+    pub validate_coa_coverage_strict: bool,
     /// Show progress bars.
     pub show_progress: bool,
     /// Number of vendors to generate per company.
@@ -378,6 +382,7 @@ impl Default for PhaseConfig {
             inject_anomalies: false,
             inject_data_quality: false, // Off by default (to preserve clean test data)
             validate_balances: true,
+            validate_coa_coverage_strict: false,
             show_progress: true,
             vendors_per_company: 50,
             customers_per_company: 100,
@@ -430,6 +435,7 @@ impl PhaseConfig {
             generate_document_flows: true,
             generate_journal_entries: true,
             validate_balances: true,
+            validate_coa_coverage_strict: false,
             generate_period_close: true,
             generate_evolution_events: true,
             show_progress: true,
@@ -2927,6 +2933,11 @@ impl EnhancedOrchestrator {
         // Phase 9: Balance Validation (after all JEs including payroll, manufacturing, IC)
         let balance_validation = self.phase_balance_validation(&entries)?;
 
+        // Phase 9a: COA coverage — every gl_account in JEs must exist in the
+        // chart of accounts. Soft warning by default; hard fail when the
+        // user passes --validate-coa-coverage / sets the strict flag.
+        self.validate_coa_coverage(&entries, coa.as_ref())?;
+
         // Phase 9b: GL-to-Subledger Reconciliation
         let subledger_reconciliation =
             self.phase_subledger_reconciliation(&subledger, &entries, &mut stats)?;
@@ -4363,6 +4374,50 @@ impl EnhancedOrchestrator {
             Ok(balance_validation)
         } else {
             Ok(BalanceValidationResult::default())
+        }
+    }
+
+    /// Validate that every `gl_account` referenced in `entries` exists in the
+    /// chart of accounts.
+    ///
+    /// Always emits a warn-level log when the COA is missing accounts; in
+    /// strict mode (`phase_config.validate_coa_coverage_strict`) returns
+    /// `SynthError::generation` so the caller can fail fast.
+    fn validate_coa_coverage(
+        &self,
+        entries: &[JournalEntry],
+        coa: &ChartOfAccounts,
+    ) -> SynthResult<()> {
+        if entries.is_empty() {
+            return Ok(());
+        }
+        let coa_set: std::collections::HashSet<&str> = coa
+            .accounts
+            .iter()
+            .map(|a| a.account_number.as_str())
+            .collect();
+        let mut missing: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+        for je in entries {
+            for line in je.lines.iter() {
+                if !coa_set.contains(line.gl_account.as_str()) {
+                    missing.insert(line.gl_account.clone());
+                }
+            }
+        }
+        if missing.is_empty() {
+            debug!("COA coverage validation passed");
+            return Ok(());
+        }
+        let msg = format!(
+            "JEs reference {} gl_account values not in the chart of accounts (sample: {:?})",
+            missing.len(),
+            missing.iter().take(10).collect::<Vec<_>>()
+        );
+        if self.phase_config.validate_coa_coverage_strict {
+            Err(SynthError::generation(msg))
+        } else {
+            warn!("{} — pass --validate-coa-coverage to fail on this", msg);
+            Ok(())
         }
     }
 
@@ -11855,10 +11910,32 @@ impl EnhancedOrchestrator {
         // otherwise fall back to the low-rate minimal() preset.
         let config = if self.config.data_quality.enabled {
             let dq = &self.config.data_quality;
+            // Propagate per-field rates and protected fields from the schema
+            // so users can dial in real-production NULL profiles per field
+            // (e.g. CostCenter 96.5% NULL, Invoice_Reference 100% NULL).
+            let field_rates = dq.missing_values.field_rates.clone();
+            let mut required_fields: std::collections::HashSet<String> =
+                dq.missing_values.protected_fields.iter().cloned().collect();
+            // Always preserve audit-critical identifiers regardless of
+            // user config — losing these breaks downstream joins.
+            for f in [
+                "document_id",
+                "company_code",
+                "posting_date",
+                "fiscal_year",
+                "fiscal_period",
+                "gl_account",
+                "line_number",
+                "transaction_id",
+            ] {
+                required_fields.insert(f.to_string());
+            }
             DataQualityConfig {
                 enable_missing_values: dq.missing_values.enabled,
                 missing_values: datasynth_generators::MissingValueConfig {
                     global_rate: dq.effective_missing_rate(),
+                    field_rates,
+                    required_fields,
                     ..Default::default()
                 },
                 enable_format_variations: dq.format_variations.enabled,
@@ -11985,6 +12062,45 @@ impl EnhancedOrchestrator {
                         _ => {}
                     }
                 }
+
+                // Extended field coverage (v5.6+): apply NULL injection to
+                // every Option<String> on the line so users can match
+                // arbitrary real-production NULL profiles via
+                // `data_quality.missing_values.field_rates`.
+                //
+                // Macro-free helper: process_field returns the new value
+                // ({Some, None, unchanged}) and we apply it back.
+                macro_rules! process_opt_field {
+                    ($field_name:expr, $opt:expr) => {
+                        if let Some(val) = $opt.as_ref() {
+                            match injector.process_text_field(
+                                $field_name,
+                                val,
+                                &entry.header.document_id.to_string(),
+                                &context,
+                            ) {
+                                Some(new_val) if new_val != *val => {
+                                    *$opt = Some(new_val);
+                                }
+                                None => {
+                                    *$opt = None;
+                                }
+                                _ => {}
+                            }
+                        }
+                    };
+                }
+
+                process_opt_field!("profit_center", &mut line.profit_center);
+                process_opt_field!("assignment", &mut line.assignment);
+                process_opt_field!("tax_code", &mut line.tax_code);
+                process_opt_field!("account_description", &mut line.account_description);
+                process_opt_field!(
+                    "auxiliary_account_number",
+                    &mut line.auxiliary_account_number
+                );
+                process_opt_field!("auxiliary_account_label", &mut line.auxiliary_account_label);
+                process_opt_field!("lettrage", &mut line.lettrage);
             }
 
             if let Some(pb) = &pb {
@@ -15565,6 +15681,7 @@ mod tests {
             inject_anomalies: false,
             inject_data_quality: false,
             validate_balances: false,
+            validate_coa_coverage_strict: false,
             generate_ocpm_events: false,
             show_progress: false,
             vendors_per_company: 5,
@@ -15622,6 +15739,7 @@ mod tests {
             inject_anomalies: false,
             inject_data_quality: false,
             validate_balances: true,
+            validate_coa_coverage_strict: false,
             generate_ocpm_events: false,
             show_progress: false,
             vendors_per_company: 3,
@@ -15664,6 +15782,7 @@ mod tests {
             inject_anomalies: false,
             inject_data_quality: false,
             validate_balances: false,
+            validate_coa_coverage_strict: false,
             generate_ocpm_events: false,
             show_progress: false,
             vendors_per_company: 5,
@@ -15719,6 +15838,7 @@ mod tests {
             generate_journal_entries: true,
             inject_anomalies: false,
             validate_balances: true,
+            validate_coa_coverage_strict: false,
             show_progress: false,
             ..Default::default()
         };

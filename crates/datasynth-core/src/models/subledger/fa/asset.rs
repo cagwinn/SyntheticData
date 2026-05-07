@@ -536,36 +536,43 @@ pub struct AssetAccountDetermination {
 
 impl AssetAccountDetermination {
     /// Creates default account determination for asset class.
+    ///
+    /// Account numbers come from
+    /// [`crate::accounts::asset_class_accounts`] so they stay in sync with
+    /// what `seed_canonical_accounts` writes into the chart of accounts.
     pub fn default_for_class(class: AssetClass) -> Self {
-        let prefix = match class {
-            AssetClass::Land => "1510",
-            AssetClass::Buildings => "1520",
-            AssetClass::BuildingImprovements => "1525",
-            AssetClass::MachineryEquipment | AssetClass::Machinery => "1530",
-            AssetClass::Vehicles => "1540",
-            AssetClass::OfficeEquipment => "1550",
+        use crate::accounts::asset_class_accounts as ac;
+
+        let acquisition_account = match class {
+            AssetClass::Land => ac::LAND,
+            AssetClass::Buildings => ac::BUILDINGS,
+            AssetClass::BuildingImprovements => ac::BUILDING_IMPROVEMENTS,
+            AssetClass::MachineryEquipment | AssetClass::Machinery => ac::MACHINERY_EQUIPMENT,
+            AssetClass::Vehicles => ac::VEHICLES,
+            AssetClass::OfficeEquipment => ac::OFFICE_EQUIPMENT,
             AssetClass::ComputerEquipment
             | AssetClass::ItEquipment
-            | AssetClass::ComputerHardware => "1555",
-            AssetClass::Software | AssetClass::Intangibles => "1560",
-            AssetClass::FurnitureFixtures | AssetClass::Furniture => "1570",
-            AssetClass::LeaseholdImprovements => "1580",
-            AssetClass::ConstructionInProgress => "1600",
-            AssetClass::LowValueAssets => "1595",
-            AssetClass::Other => "1590",
+            | AssetClass::ComputerHardware => ac::COMPUTER_HARDWARE,
+            AssetClass::Software | AssetClass::Intangibles => ac::SOFTWARE_INTANGIBLES,
+            AssetClass::FurnitureFixtures | AssetClass::Furniture => ac::FURNITURE_FIXTURES,
+            AssetClass::LeaseholdImprovements => ac::LEASEHOLD_IMPROVEMENTS,
+            AssetClass::ConstructionInProgress => ac::CONSTRUCTION_IN_PROGRESS,
+            AssetClass::LowValueAssets => ac::LOW_VALUE_ASSETS,
+            AssetClass::Other => ac::OTHER_ASSETS,
         };
 
-        let depreciation_account = format!("{}9", &prefix[..3]);
+        // Convention: accumulated depreciation = acquisition account with last digit '9'.
+        let depreciation_account = format!("{}9", &acquisition_account[..3]);
 
         Self {
-            acquisition_account: prefix.to_string(),
+            acquisition_account: acquisition_account.to_string(),
             accumulated_depreciation_account: depreciation_account.clone(),
-            depreciation_expense_account: "7100".to_string(),
+            depreciation_expense_account: ac::DEPRECIATION_EXPENSE.to_string(),
             depreciation_account,
-            gain_on_disposal_account: "4900".to_string(),
-            loss_on_disposal_account: "7900".to_string(),
-            gain_loss_account: "4900".to_string(),
-            clearing_account: "1599".to_string(),
+            gain_on_disposal_account: ac::GAIN_ON_DISPOSAL.to_string(),
+            loss_on_disposal_account: ac::LOSS_ON_DISPOSAL.to_string(),
+            gain_loss_account: ac::GAIN_ON_DISPOSAL.to_string(),
+            clearing_account: ac::ACQUISITION_CLEARING.to_string(),
         }
     }
 }

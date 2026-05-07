@@ -1,6 +1,9 @@
 //! Inventory generator.
 
 use chrono::NaiveDate;
+use datasynth_core::accounts::{
+    control_accounts, expense_accounts, inventory_accounts, manufacturing_accounts, tax_accounts,
+};
 use datasynth_core::utils::seeded_rng;
 use rand::RngExt;
 use rand_chacha::ChaCha8Rng;
@@ -353,7 +356,7 @@ impl InventoryGenerator {
         // Debit Inventory
         je.add_line(JournalEntryLine {
             line_number: 1,
-            gl_account: "1300".to_string(),
+            gl_account: control_accounts::INVENTORY.to_string(),
             debit_amount: movement.value,
             cost_center: movement.cost_center.clone(),
             profit_center: None,
@@ -368,7 +371,7 @@ impl InventoryGenerator {
         // Credit GR/IR Clearing
         je.add_line(JournalEntryLine {
             line_number: 2,
-            gl_account: "2100".to_string(),
+            gl_account: tax_accounts::SALES_TAX_PAYABLE.to_string(),
             credit_amount: movement.value,
             reference: movement.reference_doc_number.clone(),
             ..Default::default()
@@ -388,9 +391,9 @@ impl InventoryGenerator {
         // Debit Cost of Goods Sold or WIP
         let debit_account =
             if movement.reference_doc_type == Some(ReferenceDocType::ProductionOrder) {
-                "1350".to_string() // WIP
+                manufacturing_accounts::WIP.to_string()
             } else {
-                "5100".to_string() // COGS
+                expense_accounts::RAW_MATERIALS.to_string()
             };
 
         je.add_line(JournalEntryLine {
@@ -410,7 +413,7 @@ impl InventoryGenerator {
         // Credit Inventory
         je.add_line(JournalEntryLine {
             line_number: 2,
-            gl_account: "1300".to_string(),
+            gl_account: control_accounts::INVENTORY.to_string(),
             credit_amount: movement.value,
             reference: Some(movement.document_number.clone()),
             assignment: Some(movement.material_id.clone()),
@@ -439,7 +442,7 @@ impl InventoryGenerator {
         // Debit Inventory at destination (using same account for simplicity)
         je.add_line(JournalEntryLine {
             line_number: 1,
-            gl_account: "1300".to_string(),
+            gl_account: control_accounts::INVENTORY.to_string(),
             debit_amount: issue.value,
             reference: Some(issue.document_number.clone()),
             assignment: Some(issue.material_id.clone()),
@@ -451,7 +454,7 @@ impl InventoryGenerator {
         // Credit Inventory at source
         je.add_line(JournalEntryLine {
             line_number: 2,
-            gl_account: "1300".to_string(),
+            gl_account: control_accounts::INVENTORY.to_string(),
             credit_amount: issue.value,
             reference: Some(issue.document_number.clone()),
             assignment: Some(issue.material_id.clone()),
@@ -479,7 +482,7 @@ impl InventoryGenerator {
             // Debit Inventory
             je.add_line(JournalEntryLine {
                 line_number: 1,
-                gl_account: "1300".to_string(),
+                gl_account: control_accounts::INVENTORY.to_string(),
                 debit_amount: movement.value,
                 reference: Some(movement.document_number.clone()),
                 assignment: Some(movement.material_id.clone()),
@@ -492,7 +495,7 @@ impl InventoryGenerator {
             // Credit Inventory Adjustment Account
             je.add_line(JournalEntryLine {
                 line_number: 2,
-                gl_account: "4950".to_string(),
+                gl_account: inventory_accounts::WRITEUP_INCOME.to_string(),
                 credit_amount: movement.value,
                 cost_center: movement.cost_center.clone(),
                 reference: Some(movement.document_number.clone()),
@@ -502,7 +505,7 @@ impl InventoryGenerator {
             // Debit Inventory Adjustment Account (expense)
             je.add_line(JournalEntryLine {
                 line_number: 1,
-                gl_account: "6950".to_string(),
+                gl_account: inventory_accounts::WRITEDOWN_EXPENSE.to_string(),
                 debit_amount: movement.value,
                 cost_center: movement.cost_center.clone(),
                 reference: Some(movement.document_number.clone()),
@@ -513,7 +516,7 @@ impl InventoryGenerator {
             // Credit Inventory
             je.add_line(JournalEntryLine {
                 line_number: 2,
-                gl_account: "1300".to_string(),
+                gl_account: control_accounts::INVENTORY.to_string(),
                 credit_amount: movement.value,
                 reference: Some(movement.document_number.clone()),
                 assignment: Some(movement.material_id.clone()),

@@ -381,6 +381,79 @@ companies:
     );
 }
 
+/// v5.3+ — `group generate-chain` rejects an empty periods array
+/// before any orchestrator run.  Cheap: hits the validation path only.
+#[test]
+fn group_generate_chain_rejects_empty_periods() {
+    let tmp = TempDir::new().expect("tempdir");
+    let cfg_path = tmp.path().join("group.yaml");
+    let periods_path = tmp.path().join("periods.json");
+    let out_dir = tmp.path().join("chain_out");
+    write_minimal_group_config(&cfg_path);
+    fs::write(&periods_path, "[]").expect("write empty periods");
+
+    let output = synth_data_bin()
+        .args([
+            "group",
+            "generate-chain",
+            "--config",
+            cfg_path.to_str().unwrap(),
+            "--periods",
+            periods_path.to_str().unwrap(),
+            "--out",
+            out_dir.to_str().unwrap(),
+        ])
+        .output()
+        .expect("run datasynth-data");
+
+    assert!(
+        !output.status.success(),
+        "empty periods array must produce a non-zero exit"
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("at least one entry") || stderr.contains("must be non-empty"),
+        "stderr should mention empty periods; got: {stderr}"
+    );
+}
+
+/// v5.3+ — `group generate-chain` rejects a malformed periods JSON
+/// payload (wrong shape).  Cheap: hits the JSON parse path only.
+#[test]
+fn group_generate_chain_rejects_malformed_periods() {
+    let tmp = TempDir::new().expect("tempdir");
+    let cfg_path = tmp.path().join("group.yaml");
+    let periods_path = tmp.path().join("periods.json");
+    let out_dir = tmp.path().join("chain_out");
+    write_minimal_group_config(&cfg_path);
+    // Wrong shape — array of strings instead of array of PeriodChainSpec.
+    fs::write(&periods_path, r#"["not", "a", "spec"]"#).expect("write bad periods");
+
+    let output = synth_data_bin()
+        .args([
+            "group",
+            "generate-chain",
+            "--config",
+            cfg_path.to_str().unwrap(),
+            "--periods",
+            periods_path.to_str().unwrap(),
+            "--out",
+            out_dir.to_str().unwrap(),
+        ])
+        .output()
+        .expect("run datasynth-data");
+
+    assert!(
+        !output.status.success(),
+        "malformed periods JSON must produce a non-zero exit"
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("PeriodChainSpec") || stderr.contains("parse"),
+        "stderr should mention parse failure; got: {stderr}"
+    );
+}
+
 // ── Heavy tests (orchestrator-driven, #[ignore]d) ───────────────────────────
 //
 // These exercise the full v5.0 pipeline and each peaks at ~17 GiB RSS

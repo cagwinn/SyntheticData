@@ -307,8 +307,29 @@ pub struct GLAccount {
     /// Detailed sub-type classification
     pub sub_type: AccountSubType,
 
-    /// Account class code (first digit typically)
+    /// ISO 21378 (Audit Data Collection) Level-2 account class code
+    /// (e.g. `"A.B"` for Trade Receivables, `"X.A"` for Cost of Goods
+    /// Sold). Derived from `sub_type` via
+    /// [`crate::iso21378::from_account_sub_type`]. **v5.6.0 schema
+    /// change**: prior versions populated this with the first digit of
+    /// `account_number` (e.g. `"1"`); the new value is the descriptive
+    /// ISO code consumers can filter / group by directly.
     pub account_class: String,
+
+    /// ISO 21378 Level-2 account class name (e.g. `"Trade
+    /// Receivables"`, `"Cost of Goods Sold"`). Added in v5.6.0.
+    #[serde(default)]
+    pub account_class_name: String,
+
+    /// ISO 21378 Level-3 account sub-class code (e.g. `"A.B.A"` for
+    /// Trade Accounts Receivable). Added in v5.6.0.
+    #[serde(default)]
+    pub account_sub_class: String,
+
+    /// ISO 21378 Level-3 account sub-class name (e.g. `"Trade Accounts
+    /// Receivable"`). Added in v5.6.0.
+    #[serde(default)]
+    pub account_sub_class_name: String,
 
     /// Account group for reporting
     pub account_group: String,
@@ -363,19 +384,28 @@ pub struct GLAccount {
 
 impl GLAccount {
     /// Create a new GL account with minimal required fields.
+    ///
+    /// `account_class`, `account_class_name`, `account_sub_class`,
+    /// `account_sub_class_name` are auto-derived from `sub_type` via
+    /// the ISO 21378 mapping in [`crate::iso21378`].
     pub fn new(
         account_number: String,
         description: String,
         account_type: AccountType,
         sub_type: AccountSubType,
     ) -> Self {
+        let adc_sub = crate::iso21378::from_account_sub_type(sub_type);
+        let adc_class = adc_sub.adc_class();
         Self {
-            account_number: account_number.clone(),
+            account_number,
             short_description: description.clone(),
             long_description: description,
             account_type,
             sub_type,
-            account_class: account_number.chars().next().unwrap_or('0').to_string(),
+            account_class: adc_class.code().to_string(),
+            account_class_name: adc_class.name().to_string(),
+            account_sub_class: adc_sub.code().to_string(),
+            account_sub_class_name: adc_sub.name().to_string(),
             account_group: "DEFAULT".to_string(),
             is_control_account: false,
             is_suspense_account: sub_type.is_suspense(),

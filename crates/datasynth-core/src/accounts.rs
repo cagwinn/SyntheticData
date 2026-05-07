@@ -138,8 +138,14 @@ pub mod expense_accounts {
     /// Bad debt expense account
     pub const BAD_DEBT: &str = "6900";
 
+    /// Pension expense (service cost + interest cost + amortization, IAS 19 / ASC 715)
+    pub const PENSION_EXPENSE: &str = "6205";
+
     /// Interest expense account
     pub const INTEREST_EXPENSE: &str = "7100";
+
+    /// Stock-based compensation expense (ASC 718)
+    pub const STOCK_COMP_EXPENSE: &str = "7200";
 
     /// Purchase discounts account
     pub const PURCHASE_DISCOUNTS: &str = "7400";
@@ -278,6 +284,97 @@ pub mod liability_accounts {
 
     /// Intercompany payable account
     pub const IC_PAYABLE: &str = "2700";
+
+    /// Net pension liability account (IAS 19 / ASC 715).
+    /// Also used as the contingent consideration liability under ASC 805 / IFRS 3.
+    pub const NET_PENSION_LIABILITY: &str = "2800";
+}
+
+/// Fixed-asset class accounts (one acquisition account per `AssetClass`,
+/// with corresponding accumulated-depreciation contras).
+///
+/// These mirror the accounts emitted by
+/// [`crate::models::subledger::fa::AssetAccountDetermination::default_for_class`]
+/// and must be seeded into the chart of accounts so generated JEs can be
+/// resolved back to GL accounts.
+pub mod asset_class_accounts {
+    // --- Acquisition accounts ---
+    /// Land
+    pub const LAND: &str = "1510";
+    /// Buildings
+    pub const BUILDINGS: &str = "1520";
+    /// Building improvements
+    pub const BUILDING_IMPROVEMENTS: &str = "1525";
+    /// Machinery / equipment
+    pub const MACHINERY_EQUIPMENT: &str = "1530";
+    /// Vehicles
+    pub const VEHICLES: &str = "1540";
+    /// Office equipment
+    pub const OFFICE_EQUIPMENT: &str = "1550";
+    /// Computer / IT hardware
+    pub const COMPUTER_HARDWARE: &str = "1555";
+    /// Software / intangibles (subledger-asset side)
+    pub const SOFTWARE_INTANGIBLES: &str = "1560";
+    /// Furniture and fixtures
+    pub const FURNITURE_FIXTURES: &str = "1570";
+    /// Leasehold improvements
+    pub const LEASEHOLD_IMPROVEMENTS: &str = "1580";
+    /// Other / misc assets
+    pub const OTHER_ASSETS: &str = "1590";
+    /// Low-value assets
+    pub const LOW_VALUE_ASSETS: &str = "1595";
+    /// Construction in progress
+    pub const CONSTRUCTION_IN_PROGRESS: &str = "1600";
+
+    // --- Accumulated depreciation contras (acquisition account with last digit '9') ---
+    /// Accumulated depreciation — Land (rare; usually no depreciation)
+    pub const ACC_DEP_LAND: &str = "1519";
+    /// Accumulated depreciation — Buildings
+    pub const ACC_DEP_BUILDINGS: &str = "1529";
+    /// Accumulated depreciation — Machinery / equipment
+    pub const ACC_DEP_MACHINERY: &str = "1539";
+    /// Accumulated depreciation — Vehicles
+    pub const ACC_DEP_VEHICLES: &str = "1549";
+    /// Accumulated depreciation — Office equipment
+    pub const ACC_DEP_OFFICE_EQUIPMENT: &str = "1559";
+    /// Accumulated depreciation — Software / intangibles
+    pub const ACC_DEP_SOFTWARE: &str = "1569";
+    /// Accumulated depreciation — Furniture & fixtures
+    pub const ACC_DEP_FURNITURE: &str = "1579";
+    /// Accumulated depreciation — Leasehold improvements
+    pub const ACC_DEP_LEASEHOLD: &str = "1589";
+    /// Accumulated depreciation — Other assets
+    pub const ACC_DEP_OTHER: &str = "1599";
+    /// Accumulated depreciation — CIP (rare)
+    pub const ACC_DEP_CIP: &str = "1609";
+
+    /// Acquisition clearing account
+    pub const ACQUISITION_CLEARING: &str = "1599";
+
+    /// FA-subledger depreciation expense account.
+    ///
+    /// Distinct from the GL-level [`super::expense_accounts::DEPRECIATION`]
+    /// (6000); the FA subledger has historically posted depreciation to
+    /// 7100. We expose both so neither becomes an orphan.
+    pub const DEPRECIATION_EXPENSE: &str = "7100";
+
+    /// Gain on disposal of fixed assets.
+    pub const GAIN_ON_DISPOSAL: &str = "4900";
+
+    /// Loss on disposal of fixed assets.
+    pub const LOSS_ON_DISPOSAL: &str = "7900";
+}
+
+/// Inventory subledger accounts beyond the canonical INVENTORY (1200).
+///
+/// Distinct from [`control_accounts::INVENTORY`] which is the GL-level
+/// control. These are sub-classifications used by the inventory
+/// subledger generator.
+pub mod inventory_accounts {
+    /// Inventory write-up income (rare; for fair-value markups)
+    pub const WRITEUP_INCOME: &str = "4950";
+    /// Inventory write-down expense (LCM/NRV adjustments)
+    pub const WRITEDOWN_EXPENSE: &str = "6950";
 }
 
 /// Equity accounts.
@@ -287,6 +384,9 @@ pub mod equity_accounts {
 
     /// Additional paid-in capital account
     pub const APIC: &str = "3100";
+
+    /// Additional paid-in capital — stock-based compensation (ASC 718).
+    pub const APIC_STOCK_COMP: &str = "3150";
 
     /// Retained earnings account
     pub const RETAINED_EARNINGS: &str = "3200";
@@ -305,6 +405,9 @@ pub mod equity_accounts {
 
     /// Dividends paid account
     pub const DIVIDENDS_PAID: &str = "3700";
+
+    /// OCI — Pension remeasurements (IAS 19 / ASC 715)
+    pub const OCI_REMEASUREMENTS: &str = "3800";
 }
 
 /// Dividend accounts.
@@ -328,6 +431,25 @@ pub mod suspense_accounts {
 
     /// IC elimination suspense account
     pub const IC_ELIMINATION_SUSPENSE: &str = "9300";
+}
+
+/// Dormant / blocked / legacy accounts used by the
+/// `DormantAccountActivity` anomaly strategy.
+///
+/// Real-world COAs retain old / migrated / test accounts as
+/// `is_blocked = true` entries so audit trails remain resolvable; these
+/// constants follow the same pattern. The anomaly strategy targets them
+/// to simulate a classic fraud signature: posting to a long-dormant
+/// account so the entry hides among genuine activity.
+pub mod dormant_accounts {
+    /// Legacy suspense (migrated-out, retained for trail).
+    pub const LEGACY_SUSPENSE: &str = "199999";
+    /// Legacy clearing (predecessor system).
+    pub const LEGACY_CLEARING: &str = "299999";
+    /// Obsolete account flagged for retirement.
+    pub const OBSOLETE: &str = "399999";
+    /// Test account (production residue from QA).
+    pub const TEST_ACCOUNT: &str = "999999";
 }
 
 /// Account type by prefix.
@@ -356,6 +478,23 @@ pub enum AccountCategory {
 }
 
 impl AccountCategory {
+    /// Snake-case label used in serialized output (CSV / JSON
+    /// `financial_statement_category` column).
+    pub fn as_label(&self) -> &'static str {
+        match self {
+            Self::Asset => "asset",
+            Self::Liability => "liability",
+            Self::Equity => "equity",
+            Self::Revenue => "revenue",
+            Self::Cogs => "cogs",
+            Self::OperatingExpense => "operating_expense",
+            Self::OtherIncomeExpense => "other_income_expense",
+            Self::Tax => "tax",
+            Self::Suspense => "suspense",
+            Self::Unknown => "unknown",
+        }
+    }
+
     /// Determine account category from account number.
     pub fn from_account(account: &str) -> Self {
         if account.is_empty() {

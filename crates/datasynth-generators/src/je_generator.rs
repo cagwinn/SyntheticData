@@ -871,6 +871,89 @@ impl JournalEntryGenerator {
     }
 
     /// Determine if this transaction should be fraudulent.
+    /// Pick a realistic ERP `source_system` provenance code.
+    ///
+    /// Returns a string like `"SAP-FI/AP"`, `"manual/adjustment"`,
+    /// `"Interface/EDI"`. Uses the business process to bias toward
+    /// process-appropriate sub-modules (e.g. P2P → SAP-MM/IV, O2C →
+    /// SAP-SD/IV, H2R → SAP-HR/PR). The legacy 7-code shape
+    /// (`SAP-FI`, `SAP-MM`, etc.) is preserved as a prefix so existing
+    /// `starts_with` filters keep working.
+    ///
+    /// **Manual contract**: when `is_manual` is true the returned value
+    /// always starts with `"manual"` or `"spreadsheet"`. This is asserted
+    /// in `test_isa240_audit_flags_populated`.
+    fn pick_source_system(rng: &mut ChaCha8Rng, is_manual: bool, bp: BusinessProcess) -> String {
+        if is_manual {
+            // 8 manual provenance codes — all share a `manual/` or
+            // `spreadsheet/` prefix.
+            const MANUAL: &[&str] = &[
+                "manual/standard",
+                "manual/adjustment",
+                "manual/reclassification",
+                "manual/accrual",
+                "manual/reversal",
+                "manual/correction",
+                "spreadsheet/upload",
+                "spreadsheet/journal",
+            ];
+            let idx = (rng.random::<u32>() as usize) % MANUAL.len();
+            return MANUAL[idx].to_string();
+        }
+
+        // Process-aware automated provenance. Each process has a small
+        // primary set; we also mix in cross-process codes ~20% of the
+        // time so the taxonomy stays diverse without losing coherence.
+        let primary: &[&str] = match bp {
+            BusinessProcess::P2P => &[
+                "SAP-MM/PO",
+                "SAP-MM/IV",
+                "SAP-MM/IM",
+                "SAP-FI/AP",
+                "Interface/EDI",
+            ],
+            BusinessProcess::O2C => &[
+                "SAP-SD/ORD",
+                "SAP-SD/DEL",
+                "SAP-SD/IV",
+                "SAP-FI/AR",
+                "Interface/Lockbox",
+            ],
+            BusinessProcess::H2R => &["SAP-HR/PR", "SAP-HR/TIME", "Interface/PayRun"],
+            BusinessProcess::A2R => &["SAP-FI/AA", "SAP-FI/GL"],
+            BusinessProcess::Treasury => &["Treasury/CM", "Treasury/HD", "Interface/Bank"],
+            BusinessProcess::Tax => &["Tax/RPT", "SAP-FI/GL"],
+            BusinessProcess::Mfg => &["SAP-MM/IM", "SAP-FI/GL"],
+            // R2R, S2C, Bank, Audit, Intercompany, ProjectAccounting, Esg
+            // → fall through to a generic mix.
+            _ => &[
+                "SAP-FI/GL",
+                "SAP-FI/AP",
+                "SAP-FI/AR",
+                "SAP-FI/AA",
+                "External/SubL",
+            ],
+        };
+
+        // 80% process-appropriate, 20% cross-process (pulled from a
+        // generic pool) so the categorical distribution has long tails.
+        const CROSS: &[&str] = &[
+            "SAP-FI/GL",
+            "SAP-FI/AP",
+            "SAP-FI/AR",
+            "Interface/EDI",
+            "Interface/Bank",
+            "External/SubL",
+        ];
+        let pool = if rng.random::<f64>() < 0.80 {
+            primary
+        } else {
+            CROSS
+        };
+        let idx = (rng.random::<u32>() as usize) % pool.len();
+        pool[idx].to_string()
+    }
+
     fn determine_fraud(&mut self) -> Option<FraudType> {
         if !self.fraud_config.enabled {
             return None;
@@ -1214,27 +1297,20 @@ impl JournalEntryGenerator {
         let is_manual = matches!(source, TransactionSource::Manual);
         header.is_manual = is_manual;
 
-        // Determine source_system based on manual vs automated
-        header.source_system = if is_manual {
-            if self.rng.random::<f64>() < 0.70 {
-                "manual".to_string()
-            } else {
-                "spreadsheet".to_string()
-            }
-        } else {
-            let roll: f64 = self.rng.random();
-            if roll < 0.40 {
-                "SAP-FI".to_string()
-            } else if roll < 0.60 {
-                "SAP-MM".to_string()
-            } else if roll < 0.80 {
-                "SAP-SD".to_string()
-            } else if roll < 0.95 {
-                "interface".to_string()
-            } else {
-                "SAP-HR".to_string()
-            }
-        };
+        // Determine source_system based on manual vs automated.
+        //
+        // Real ERPs typically expose 20+ distinct provenance codes per
+        // company (one per module + sub-module + interface). The taxonomy
+        // below is a strict superset of the legacy {manual, spreadsheet,
+        // SAP-FI, SAP-MM, SAP-SD, interface, SAP-HR} codes so downstream
+        // consumers that filter by prefix (e.g. `starts_with("SAP-")`)
+        // continue to work.
+        //
+        // Contract preserved by the generator-level audit assertion in
+        // `test_isa240_audit_flags_populated`:
+        //   - manual entries → starts_with("manual") || starts_with("spreadsheet")
+        //   - automated entries → does NOT start with "manual"/"spreadsheet"
+        header.source_system = Self::pick_source_system(&mut self.rng, is_manual, business_process);
 
         // is_post_close: entry is in the last month of the configured period
         // and the posting date falls after the 25th (simulating close cutoff)
@@ -3242,20 +3318,27 @@ mod tests {
             let entry = je_gen.generate();
 
             if entry.header.is_manual {
-                // Manual entries must have source_system "manual" or "spreadsheet"
+                // Manual entries must have a source_system in the
+                // `manual/...` or `spreadsheet/...` family (the bare
+                // legacy `manual` and `spreadsheet` values are also
+                // accepted to keep older fixtures working).
+                let s = entry.header.source_system.as_str();
                 assert!(
-                    entry.header.source_system == "manual"
-                        || entry.header.source_system == "spreadsheet",
-                    "Manual entry should have source_system 'manual' or 'spreadsheet', got '{}'",
-                    entry.header.source_system,
+                    s == "manual"
+                        || s == "spreadsheet"
+                        || s.starts_with("manual/")
+                        || s.starts_with("spreadsheet/"),
+                    "Manual entry should have source_system in `manual` / `spreadsheet` family, got '{s}'",
                 );
             } else {
-                // Non-manual entries must NOT have source_system "manual" or "spreadsheet"
+                // Non-manual entries must NOT be in the manual/spreadsheet family.
+                let s = entry.header.source_system.as_str();
                 assert!(
-                    entry.header.source_system != "manual"
-                        && entry.header.source_system != "spreadsheet",
-                    "Non-manual entry should not have source_system 'manual' or 'spreadsheet', got '{}'",
-                    entry.header.source_system,
+                    !(s == "manual"
+                        || s == "spreadsheet"
+                        || s.starts_with("manual/")
+                        || s.starts_with("spreadsheet/")),
+                    "Non-manual entry should not be in `manual` / `spreadsheet` family, got '{s}'",
                 );
             }
         }

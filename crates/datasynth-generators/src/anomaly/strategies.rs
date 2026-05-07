@@ -6,6 +6,7 @@ use chrono::Datelike;
 use rand::{Rng, RngExt};
 use rust_decimal::Decimal;
 
+use datasynth_core::accounts::dormant_accounts;
 use datasynth_core::models::{
     AnomalyType, ControlStatus, ErrorType, FraudType, JournalEntry, ProcessIssueType,
     RelationalAnomalyType, StatisticalAnomalyType,
@@ -946,12 +947,18 @@ pub struct DormantAccountStrategy {
 
 impl Default for DormantAccountStrategy {
     fn default() -> Self {
+        // Sourced from `datasynth_core::accounts::dormant_accounts` so the
+        // anomaly target list stays in sync with the COA's blocked-account
+        // seeds — every account this strategy can post to is also seeded
+        // (with `is_blocked = true`) by `seed_canonical_accounts`, which
+        // preserves the v5.5.1 COA-coverage invariant even when anomaly
+        // injection is enabled.
         Self {
             dormant_accounts: vec![
-                "199999".to_string(), // Suspense
-                "299999".to_string(), // Legacy clearing
-                "399999".to_string(), // Obsolete account
-                "999999".to_string(), // Test account
+                dormant_accounts::LEGACY_SUSPENSE.to_string(),
+                dormant_accounts::LEGACY_CLEARING.to_string(),
+                dormant_accounts::OBSOLETE.to_string(),
+                dormant_accounts::TEST_ACCOUNT.to_string(),
             ],
         }
     }
