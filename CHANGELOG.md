@@ -82,6 +82,68 @@ accounts. Off by default — a soft warning is logged instead.
 - Updated the CLI auto-detect dispatch into `handle_group_generate` for
   its v5.5.2 signature (`cgu_test_inputs_path: Option<&Path>`).
 
+### Fixed — Manifest golden fixture
+
+`crates/datasynth-group/tests/golden/mini_nestle_manifest.json` pins
+the JSON serialisation of the built `GroupManifest` against a committed
+fixture. The COA expansion above adds ~50 new accounts to the
+`ChartOfAccountsMaster` snapshot, so the golden was regenerated via
+`cargo test -p datasynth-group --test manifest_golden regenerate_golden
+-- --ignored`. Diff is +8 151 / −2 769 lines (new accounts inserted,
+existing accounts shifted in JSON-array order). No semantic change to
+the non-COA portions of the manifest.
+
+### Fixed — Decimal-overflow in amount-distribution analytics
+
+`AmountDistributionAnalyzer::analyze` previously built variance in
+`Decimal` with `(*a - mean) * (*a - mean)`. On heavy-tailed amount
+distributions a single product can overflow rust\_decimal
+(`Multiplication overflowed` at `arithmetic_impls.rs:232`), aborting
+the post-write analytics phase on million-row datasets. Variance and
+std\_dev are now computed in `f64` (which already powers the skewness /
+kurtosis computation ten lines later) and converted back to `Decimal`
+for the public field. The `decimal_sqrt` helper is retained
+(`#[allow(dead_code)]`) for any future Decimal-only path.
+
+### Fixed — Dormant-account anomaly targets now seeded in the COA
+
+`DormantAccountStrategy` (the `DormantAccountActivity` anomaly
+implementation) historically posted to four hardcoded 6-digit accounts
+(`199999` / `299999` / `399999` / `999999`) that were never seeded
+into the COA — when anomaly injection was enabled, four orphan
+`gl_account` values appeared in every JE table. Real-world COAs retain
+legacy / blocked / test accounts so audit trails resolve; we now
+follow the same pattern:
+
+- New `dormant_accounts` constant module in
+  `datasynth_core::accounts` with `LEGACY_SUSPENSE`,
+  `LEGACY_CLEARING`, `OBSOLETE`, `TEST_ACCOUNT`.
+- `seed_canonical_accounts` seeds them with `is_blocked = true` /
+  `is_postable = false` so normal generators won't reach them but
+  the COA snapshot resolves them.
+- `DormantAccountStrategy::default()` now references the constants
+  instead of raw strings.
+- `coa_coverage_invariant` gained a second test variant
+  (`every_je_gl_account_exists_in_coa_with_anomalies`) that enables
+  anomaly injection and asserts COA coverage still holds.
+
+### Added — HuggingFace dataset configs in-tree
+
+The `VynFi/vynfi-journal-entries-1m` reference dataset on HuggingFace
+was refreshed to the v5.5.1 schema (38-column JE parquet plus matched
+chart-of-accounts and trial-balance parquet files). The generation
+config and conversion script that produced it are now in-repo so any
+maintainer can regenerate the dataset bit-for-bit:
+
+- [`configs/examples/hf/journal_entries_1m.yaml`](configs/examples/hf/journal_entries_1m.yaml)
+  — 10 manufacturing companies × 12 monthly periods, multi-currency,
+  seed `20260507`.
+- [`configs/examples/hf/README.md`](configs/examples/hf/README.md) —
+  one-shot recipe (generate → convert → `hf upload`).
+- [`scripts/hf_to_parquet.py`](scripts/hf_to_parquet.py) — dataset-
+  agnostic CSV/JSON → parquet converter; sharded JE output, COA, and
+  flattened TB lines (one row per period × account).
+
 ## [5.5.0] - 2026-05-05
 
 ### Added — Audit-methodology layer (`datasynth-audit-fsm`)
