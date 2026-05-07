@@ -12319,6 +12319,2697 @@
             "accounting_framework": "us_gaap"
           },
           {
+            "account_number": "1510",
+            "short_description": "Land",
+            "long_description": "Land",
+            "account_type": "asset",
+            "sub_type": "fixed_assets",
+            "account_class": "1",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "1520",
+            "short_description": "Buildings",
+            "long_description": "Buildings",
+            "account_type": "asset",
+            "sub_type": "fixed_assets",
+            "account_class": "1",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "1525",
+            "short_description": "Building Improvements",
+            "long_description": "Building Improvements",
+            "account_type": "asset",
+            "sub_type": "fixed_assets",
+            "account_class": "1",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "1530",
+            "short_description": "Machinery & Equipment",
+            "long_description": "Machinery & Equipment",
+            "account_type": "asset",
+            "sub_type": "fixed_assets",
+            "account_class": "1",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "1540",
+            "short_description": "Vehicles",
+            "long_description": "Vehicles",
+            "account_type": "asset",
+            "sub_type": "fixed_assets",
+            "account_class": "1",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "1550",
+            "short_description": "Office Equipment",
+            "long_description": "Office Equipment",
+            "account_type": "asset",
+            "sub_type": "fixed_assets",
+            "account_class": "1",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "1555",
+            "short_description": "Computer Hardware",
+            "long_description": "Computer Hardware",
+            "account_type": "asset",
+            "sub_type": "fixed_assets",
+            "account_class": "1",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "1560",
+            "short_description": "Software / Intangibles",
+            "long_description": "Software / Intangibles",
+            "account_type": "asset",
+            "sub_type": "fixed_assets",
+            "account_class": "1",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "1570",
+            "short_description": "Furniture & Fixtures",
+            "long_description": "Furniture & Fixtures",
+            "account_type": "asset",
+            "sub_type": "fixed_assets",
+            "account_class": "1",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "1580",
+            "short_description": "Leasehold Improvements",
+            "long_description": "Leasehold Improvements",
+            "account_type": "asset",
+            "sub_type": "fixed_assets",
+            "account_class": "1",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "1590",
+            "short_description": "Other Fixed Assets",
+            "long_description": "Other Fixed Assets",
+            "account_type": "asset",
+            "sub_type": "fixed_assets",
+            "account_class": "1",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "1595",
+            "short_description": "Low-Value Assets",
+            "long_description": "Low-Value Assets",
+            "account_type": "asset",
+            "sub_type": "fixed_assets",
+            "account_class": "1",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "1600",
+            "short_description": "Construction in Progress",
+            "long_description": "Construction in Progress",
+            "account_type": "asset",
+            "sub_type": "fixed_assets",
+            "account_class": "1",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "1519",
+            "short_description": "Acc. Dep. — Land",
+            "long_description": "Acc. Dep. — Land",
+            "account_type": "asset",
+            "sub_type": "accumulated_depreciation",
+            "account_class": "1",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "1529",
+            "short_description": "Acc. Dep. — Buildings",
+            "long_description": "Acc. Dep. — Buildings",
+            "account_type": "asset",
+            "sub_type": "accumulated_depreciation",
+            "account_class": "1",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "1539",
+            "short_description": "Acc. Dep. — Machinery",
+            "long_description": "Acc. Dep. — Machinery",
+            "account_type": "asset",
+            "sub_type": "accumulated_depreciation",
+            "account_class": "1",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "1549",
+            "short_description": "Acc. Dep. — Vehicles",
+            "long_description": "Acc. Dep. — Vehicles",
+            "account_type": "asset",
+            "sub_type": "accumulated_depreciation",
+            "account_class": "1",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "1559",
+            "short_description": "Acc. Dep. — Office Equipment",
+            "long_description": "Acc. Dep. — Office Equipment",
+            "account_type": "asset",
+            "sub_type": "accumulated_depreciation",
+            "account_class": "1",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "1569",
+            "short_description": "Acc. Dep. — Software / Intangibles",
+            "long_description": "Acc. Dep. — Software / Intangibles",
+            "account_type": "asset",
+            "sub_type": "accumulated_depreciation",
+            "account_class": "1",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "1579",
+            "short_description": "Acc. Dep. — Furniture",
+            "long_description": "Acc. Dep. — Furniture",
+            "account_type": "asset",
+            "sub_type": "accumulated_depreciation",
+            "account_class": "1",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "1589",
+            "short_description": "Acc. Dep. — Leasehold Improvements",
+            "long_description": "Acc. Dep. — Leasehold Improvements",
+            "account_type": "asset",
+            "sub_type": "accumulated_depreciation",
+            "account_class": "1",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "1599",
+            "short_description": "Acc. Dep. — Other",
+            "long_description": "Acc. Dep. — Other",
+            "account_type": "asset",
+            "sub_type": "accumulated_depreciation",
+            "account_class": "1",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "1609",
+            "short_description": "Acc. Dep. — CIP",
+            "long_description": "Acc. Dep. — CIP",
+            "account_type": "asset",
+            "sub_type": "accumulated_depreciation",
+            "account_class": "1",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "7100",
+            "short_description": "FA Depreciation Expense",
+            "long_description": "FA Depreciation Expense",
+            "account_type": "expense",
+            "sub_type": "depreciation_expense",
+            "account_class": "7",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": true,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "4900",
+            "short_description": "Gain on Disposal of Fixed Assets",
+            "long_description": "Gain on Disposal of Fixed Assets",
+            "account_type": "revenue",
+            "sub_type": "gain_on_sale",
+            "account_class": "4",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": false,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "7900",
+            "short_description": "Loss on Disposal of Fixed Assets",
+            "long_description": "Loss on Disposal of Fixed Assets",
+            "account_type": "expense",
+            "sub_type": "loss_on_sale",
+            "account_class": "7",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": true,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "1410",
+            "short_description": "Finished Goods",
+            "long_description": "Finished Goods",
+            "account_type": "asset",
+            "sub_type": "inventory",
+            "account_class": "1",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "1420",
+            "short_description": "Work in Process",
+            "long_description": "Work in Process",
+            "account_type": "asset",
+            "sub_type": "inventory",
+            "account_class": "1",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "2150",
+            "short_description": "Labor Accrual",
+            "long_description": "Labor Accrual",
+            "account_type": "liability",
+            "sub_type": "accrued_liabilities",
+            "account_class": "2",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": false,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "2410",
+            "short_description": "Warranty Provision",
+            "long_description": "Warranty Provision",
+            "account_type": "liability",
+            "sub_type": "other_liabilities",
+            "account_class": "2",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": false,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "5210",
+            "short_description": "Scrap Expense",
+            "long_description": "Scrap Expense",
+            "account_type": "expense",
+            "sub_type": "cost_of_goods_sold",
+            "account_class": "5",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": true,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "5310",
+            "short_description": "Overhead Applied",
+            "long_description": "Overhead Applied",
+            "account_type": "expense",
+            "sub_type": "cost_of_goods_sold",
+            "account_class": "5",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": true,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "5110",
+            "short_description": "Material Price Variance",
+            "long_description": "Material Price Variance",
+            "account_type": "expense",
+            "sub_type": "cost_of_goods_sold",
+            "account_class": "5",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": true,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "5120",
+            "short_description": "Material Usage Variance",
+            "long_description": "Material Usage Variance",
+            "account_type": "expense",
+            "sub_type": "cost_of_goods_sold",
+            "account_class": "5",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": true,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "5130",
+            "short_description": "Labor Rate Variance",
+            "long_description": "Labor Rate Variance",
+            "account_type": "expense",
+            "sub_type": "cost_of_goods_sold",
+            "account_class": "5",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": true,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "5140",
+            "short_description": "Labor Efficiency Variance",
+            "long_description": "Labor Efficiency Variance",
+            "account_type": "expense",
+            "sub_type": "cost_of_goods_sold",
+            "account_class": "5",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": true,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "5150",
+            "short_description": "Overhead Volume Variance",
+            "long_description": "Overhead Volume Variance",
+            "account_type": "expense",
+            "sub_type": "cost_of_goods_sold",
+            "account_class": "5",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": true,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "5400",
+            "short_description": "Warranty Expense",
+            "long_description": "Warranty Expense",
+            "account_type": "expense",
+            "sub_type": "operating_expenses",
+            "account_class": "5",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": true,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "1900",
+            "short_description": "Goodwill",
+            "long_description": "Goodwill",
+            "account_type": "asset",
+            "sub_type": "intangible_assets",
+            "account_class": "1",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "1910",
+            "short_description": "Customer Relationships",
+            "long_description": "Customer Relationships",
+            "account_type": "asset",
+            "sub_type": "intangible_assets",
+            "account_class": "1",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "1920",
+            "short_description": "Trade Name / Brand",
+            "long_description": "Trade Name / Brand",
+            "account_type": "asset",
+            "sub_type": "intangible_assets",
+            "account_class": "1",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "1930",
+            "short_description": "Technology / Developed Software",
+            "long_description": "Technology / Developed Software",
+            "account_type": "asset",
+            "sub_type": "intangible_assets",
+            "account_class": "1",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "1950",
+            "short_description": "Accumulated Amortization",
+            "long_description": "Accumulated Amortization",
+            "account_type": "asset",
+            "sub_type": "accumulated_depreciation",
+            "account_class": "1",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "6010",
+            "short_description": "Amortization Expense — Intangibles",
+            "long_description": "Amortization Expense — Intangibles",
+            "account_type": "expense",
+            "sub_type": "amortization_expense",
+            "account_class": "6",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": true,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "4850",
+            "short_description": "Bargain Purchase Gain",
+            "long_description": "Bargain Purchase Gain",
+            "account_type": "revenue",
+            "sub_type": "other_income",
+            "account_class": "4",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": false,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "2160",
+            "short_description": "Interest Payable",
+            "long_description": "Interest Payable",
+            "account_type": "liability",
+            "sub_type": "accrued_liabilities",
+            "account_class": "2",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": false,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "2610",
+            "short_description": "Debt Premium",
+            "long_description": "Debt Premium",
+            "account_type": "liability",
+            "sub_type": "long_term_debt",
+            "account_class": "2",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": false,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "2620",
+            "short_description": "Debt Discount",
+            "long_description": "Debt Discount",
+            "account_type": "liability",
+            "sub_type": "long_term_debt",
+            "account_class": "2",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": false,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "1450",
+            "short_description": "Derivative Asset",
+            "long_description": "Derivative Asset",
+            "account_type": "asset",
+            "sub_type": "other_assets",
+            "account_class": "1",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "2460",
+            "short_description": "Derivative Liability",
+            "long_description": "Derivative Liability",
+            "account_type": "liability",
+            "sub_type": "other_liabilities",
+            "account_class": "2",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": false,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "3510",
+            "short_description": "OCI — Cash Flow Hedge Reserve",
+            "long_description": "OCI — Cash Flow Hedge Reserve",
+            "account_type": "equity",
+            "sub_type": "other_comprehensive_income",
+            "account_class": "3",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": false,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "7510",
+            "short_description": "Hedge Ineffectiveness",
+            "long_description": "Hedge Ineffectiveness",
+            "account_type": "expense",
+            "sub_type": "other_expenses",
+            "account_class": "7",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": true,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "1155",
+            "short_description": "IC Receivable — Cash Pool",
+            "long_description": "IC Receivable — Cash Pool",
+            "account_type": "asset",
+            "sub_type": "accounts_receivable",
+            "account_class": "1",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "2055",
+            "short_description": "IC Payable — Cash Pool",
+            "long_description": "IC Payable — Cash Pool",
+            "account_type": "liability",
+            "sub_type": "accounts_payable",
+            "account_class": "2",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": false,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "2450",
+            "short_description": "Provision Liability",
+            "long_description": "Provision Liability",
+            "account_type": "liability",
+            "sub_type": "other_liabilities",
+            "account_class": "2",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": false,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "6850",
+            "short_description": "Provision Expense",
+            "long_description": "Provision Expense",
+            "account_type": "expense",
+            "sub_type": "operating_expenses",
+            "account_class": "6",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": true,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "2170",
+            "short_description": "Dividends Payable",
+            "long_description": "Dividends Payable",
+            "account_type": "liability",
+            "sub_type": "other_liabilities",
+            "account_class": "2",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": false,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "3710",
+            "short_description": "Dividends Declared",
+            "long_description": "Dividends Declared",
+            "account_type": "equity",
+            "sub_type": "retained_earnings",
+            "account_class": "3",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": false,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "2800",
+            "short_description": "Net Pension Liability",
+            "long_description": "Net Pension Liability",
+            "account_type": "liability",
+            "sub_type": "pension_liabilities",
+            "account_class": "2",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": false,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "3800",
+            "short_description": "OCI — Pension Remeasurements",
+            "long_description": "OCI — Pension Remeasurements",
+            "account_type": "equity",
+            "sub_type": "other_comprehensive_income",
+            "account_class": "3",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": false,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "3150",
+            "short_description": "APIC — Stock Compensation",
+            "long_description": "APIC — Stock Compensation",
+            "account_type": "equity",
+            "sub_type": "additional_paid_in_capital",
+            "account_class": "3",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": false,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "6205",
+            "short_description": "Pension Expense",
+            "long_description": "Pension Expense",
+            "account_type": "expense",
+            "sub_type": "operating_expenses",
+            "account_class": "6",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": true,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "7200",
+            "short_description": "Stock-Based Compensation Expense",
+            "long_description": "Stock-Based Compensation Expense",
+            "account_type": "expense",
+            "sub_type": "operating_expenses",
+            "account_class": "7",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": true,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "4950",
+            "short_description": "Inventory Write-up Income",
+            "long_description": "Inventory Write-up Income",
+            "account_type": "revenue",
+            "sub_type": "other_income",
+            "account_class": "4",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": false,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "6950",
+            "short_description": "Inventory Write-down Expense",
+            "long_description": "Inventory Write-down Expense",
+            "account_type": "expense",
+            "sub_type": "cost_of_goods_sold",
+            "account_class": "6",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": true,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "2130",
+            "short_description": "Income Tax Payable",
+            "long_description": "Income Tax Payable",
+            "account_type": "liability",
+            "sub_type": "tax_liabilities",
+            "account_class": "2",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": false,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "1460",
+            "short_description": "Tax Receivable",
+            "long_description": "Tax Receivable",
+            "account_type": "asset",
+            "sub_type": "other_receivables",
+            "account_class": "1",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "3600",
+            "short_description": "Income Summary",
+            "long_description": "Income Summary",
+            "account_type": "equity",
+            "sub_type": "net_income",
+            "account_class": "3",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": false,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "3700",
+            "short_description": "Dividends Paid",
+            "long_description": "Dividends Paid",
+            "account_type": "equity",
+            "sub_type": "retained_earnings",
+            "account_class": "3",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": false,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
             "account_number": "9000",
             "short_description": "General Suspense",
             "long_description": "General Suspense",
@@ -29079,6 +31770,2697 @@
               "SA"
             ],
             "requires_cost_center": true,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "1510",
+            "short_description": "Land",
+            "long_description": "Land",
+            "account_type": "asset",
+            "sub_type": "fixed_assets",
+            "account_class": "1",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "1520",
+            "short_description": "Buildings",
+            "long_description": "Buildings",
+            "account_type": "asset",
+            "sub_type": "fixed_assets",
+            "account_class": "1",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "1525",
+            "short_description": "Building Improvements",
+            "long_description": "Building Improvements",
+            "account_type": "asset",
+            "sub_type": "fixed_assets",
+            "account_class": "1",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "1530",
+            "short_description": "Machinery & Equipment",
+            "long_description": "Machinery & Equipment",
+            "account_type": "asset",
+            "sub_type": "fixed_assets",
+            "account_class": "1",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "1540",
+            "short_description": "Vehicles",
+            "long_description": "Vehicles",
+            "account_type": "asset",
+            "sub_type": "fixed_assets",
+            "account_class": "1",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "1550",
+            "short_description": "Office Equipment",
+            "long_description": "Office Equipment",
+            "account_type": "asset",
+            "sub_type": "fixed_assets",
+            "account_class": "1",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "1555",
+            "short_description": "Computer Hardware",
+            "long_description": "Computer Hardware",
+            "account_type": "asset",
+            "sub_type": "fixed_assets",
+            "account_class": "1",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "1560",
+            "short_description": "Software / Intangibles",
+            "long_description": "Software / Intangibles",
+            "account_type": "asset",
+            "sub_type": "fixed_assets",
+            "account_class": "1",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "1570",
+            "short_description": "Furniture & Fixtures",
+            "long_description": "Furniture & Fixtures",
+            "account_type": "asset",
+            "sub_type": "fixed_assets",
+            "account_class": "1",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "1580",
+            "short_description": "Leasehold Improvements",
+            "long_description": "Leasehold Improvements",
+            "account_type": "asset",
+            "sub_type": "fixed_assets",
+            "account_class": "1",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "1590",
+            "short_description": "Other Fixed Assets",
+            "long_description": "Other Fixed Assets",
+            "account_type": "asset",
+            "sub_type": "fixed_assets",
+            "account_class": "1",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "1595",
+            "short_description": "Low-Value Assets",
+            "long_description": "Low-Value Assets",
+            "account_type": "asset",
+            "sub_type": "fixed_assets",
+            "account_class": "1",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "1600",
+            "short_description": "Construction in Progress",
+            "long_description": "Construction in Progress",
+            "account_type": "asset",
+            "sub_type": "fixed_assets",
+            "account_class": "1",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "1519",
+            "short_description": "Acc. Dep. — Land",
+            "long_description": "Acc. Dep. — Land",
+            "account_type": "asset",
+            "sub_type": "accumulated_depreciation",
+            "account_class": "1",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "1529",
+            "short_description": "Acc. Dep. — Buildings",
+            "long_description": "Acc. Dep. — Buildings",
+            "account_type": "asset",
+            "sub_type": "accumulated_depreciation",
+            "account_class": "1",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "1539",
+            "short_description": "Acc. Dep. — Machinery",
+            "long_description": "Acc. Dep. — Machinery",
+            "account_type": "asset",
+            "sub_type": "accumulated_depreciation",
+            "account_class": "1",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "1549",
+            "short_description": "Acc. Dep. — Vehicles",
+            "long_description": "Acc. Dep. — Vehicles",
+            "account_type": "asset",
+            "sub_type": "accumulated_depreciation",
+            "account_class": "1",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "1559",
+            "short_description": "Acc. Dep. — Office Equipment",
+            "long_description": "Acc. Dep. — Office Equipment",
+            "account_type": "asset",
+            "sub_type": "accumulated_depreciation",
+            "account_class": "1",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "1569",
+            "short_description": "Acc. Dep. — Software / Intangibles",
+            "long_description": "Acc. Dep. — Software / Intangibles",
+            "account_type": "asset",
+            "sub_type": "accumulated_depreciation",
+            "account_class": "1",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "1579",
+            "short_description": "Acc. Dep. — Furniture",
+            "long_description": "Acc. Dep. — Furniture",
+            "account_type": "asset",
+            "sub_type": "accumulated_depreciation",
+            "account_class": "1",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "1589",
+            "short_description": "Acc. Dep. — Leasehold Improvements",
+            "long_description": "Acc. Dep. — Leasehold Improvements",
+            "account_type": "asset",
+            "sub_type": "accumulated_depreciation",
+            "account_class": "1",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "1599",
+            "short_description": "Acc. Dep. — Other",
+            "long_description": "Acc. Dep. — Other",
+            "account_type": "asset",
+            "sub_type": "accumulated_depreciation",
+            "account_class": "1",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "1609",
+            "short_description": "Acc. Dep. — CIP",
+            "long_description": "Acc. Dep. — CIP",
+            "account_type": "asset",
+            "sub_type": "accumulated_depreciation",
+            "account_class": "1",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "7100",
+            "short_description": "FA Depreciation Expense",
+            "long_description": "FA Depreciation Expense",
+            "account_type": "expense",
+            "sub_type": "depreciation_expense",
+            "account_class": "7",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": true,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "4900",
+            "short_description": "Gain on Disposal of Fixed Assets",
+            "long_description": "Gain on Disposal of Fixed Assets",
+            "account_type": "revenue",
+            "sub_type": "gain_on_sale",
+            "account_class": "4",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": false,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "7900",
+            "short_description": "Loss on Disposal of Fixed Assets",
+            "long_description": "Loss on Disposal of Fixed Assets",
+            "account_type": "expense",
+            "sub_type": "loss_on_sale",
+            "account_class": "7",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": true,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "1410",
+            "short_description": "Finished Goods",
+            "long_description": "Finished Goods",
+            "account_type": "asset",
+            "sub_type": "inventory",
+            "account_class": "1",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "1420",
+            "short_description": "Work in Process",
+            "long_description": "Work in Process",
+            "account_type": "asset",
+            "sub_type": "inventory",
+            "account_class": "1",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "2150",
+            "short_description": "Labor Accrual",
+            "long_description": "Labor Accrual",
+            "account_type": "liability",
+            "sub_type": "accrued_liabilities",
+            "account_class": "2",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": false,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "2410",
+            "short_description": "Warranty Provision",
+            "long_description": "Warranty Provision",
+            "account_type": "liability",
+            "sub_type": "other_liabilities",
+            "account_class": "2",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": false,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "5210",
+            "short_description": "Scrap Expense",
+            "long_description": "Scrap Expense",
+            "account_type": "expense",
+            "sub_type": "cost_of_goods_sold",
+            "account_class": "5",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": true,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "5310",
+            "short_description": "Overhead Applied",
+            "long_description": "Overhead Applied",
+            "account_type": "expense",
+            "sub_type": "cost_of_goods_sold",
+            "account_class": "5",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": true,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "5110",
+            "short_description": "Material Price Variance",
+            "long_description": "Material Price Variance",
+            "account_type": "expense",
+            "sub_type": "cost_of_goods_sold",
+            "account_class": "5",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": true,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "5120",
+            "short_description": "Material Usage Variance",
+            "long_description": "Material Usage Variance",
+            "account_type": "expense",
+            "sub_type": "cost_of_goods_sold",
+            "account_class": "5",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": true,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "5130",
+            "short_description": "Labor Rate Variance",
+            "long_description": "Labor Rate Variance",
+            "account_type": "expense",
+            "sub_type": "cost_of_goods_sold",
+            "account_class": "5",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": true,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "5140",
+            "short_description": "Labor Efficiency Variance",
+            "long_description": "Labor Efficiency Variance",
+            "account_type": "expense",
+            "sub_type": "cost_of_goods_sold",
+            "account_class": "5",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": true,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "5150",
+            "short_description": "Overhead Volume Variance",
+            "long_description": "Overhead Volume Variance",
+            "account_type": "expense",
+            "sub_type": "cost_of_goods_sold",
+            "account_class": "5",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": true,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "5400",
+            "short_description": "Warranty Expense",
+            "long_description": "Warranty Expense",
+            "account_type": "expense",
+            "sub_type": "operating_expenses",
+            "account_class": "5",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": true,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "1900",
+            "short_description": "Goodwill",
+            "long_description": "Goodwill",
+            "account_type": "asset",
+            "sub_type": "intangible_assets",
+            "account_class": "1",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "1910",
+            "short_description": "Customer Relationships",
+            "long_description": "Customer Relationships",
+            "account_type": "asset",
+            "sub_type": "intangible_assets",
+            "account_class": "1",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "1920",
+            "short_description": "Trade Name / Brand",
+            "long_description": "Trade Name / Brand",
+            "account_type": "asset",
+            "sub_type": "intangible_assets",
+            "account_class": "1",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "1930",
+            "short_description": "Technology / Developed Software",
+            "long_description": "Technology / Developed Software",
+            "account_type": "asset",
+            "sub_type": "intangible_assets",
+            "account_class": "1",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "1950",
+            "short_description": "Accumulated Amortization",
+            "long_description": "Accumulated Amortization",
+            "account_type": "asset",
+            "sub_type": "accumulated_depreciation",
+            "account_class": "1",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "6010",
+            "short_description": "Amortization Expense — Intangibles",
+            "long_description": "Amortization Expense — Intangibles",
+            "account_type": "expense",
+            "sub_type": "amortization_expense",
+            "account_class": "6",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": true,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "4850",
+            "short_description": "Bargain Purchase Gain",
+            "long_description": "Bargain Purchase Gain",
+            "account_type": "revenue",
+            "sub_type": "other_income",
+            "account_class": "4",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": false,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "2160",
+            "short_description": "Interest Payable",
+            "long_description": "Interest Payable",
+            "account_type": "liability",
+            "sub_type": "accrued_liabilities",
+            "account_class": "2",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": false,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "2610",
+            "short_description": "Debt Premium",
+            "long_description": "Debt Premium",
+            "account_type": "liability",
+            "sub_type": "long_term_debt",
+            "account_class": "2",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": false,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "2620",
+            "short_description": "Debt Discount",
+            "long_description": "Debt Discount",
+            "account_type": "liability",
+            "sub_type": "long_term_debt",
+            "account_class": "2",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": false,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "1450",
+            "short_description": "Derivative Asset",
+            "long_description": "Derivative Asset",
+            "account_type": "asset",
+            "sub_type": "other_assets",
+            "account_class": "1",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "2460",
+            "short_description": "Derivative Liability",
+            "long_description": "Derivative Liability",
+            "account_type": "liability",
+            "sub_type": "other_liabilities",
+            "account_class": "2",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": false,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "3510",
+            "short_description": "OCI — Cash Flow Hedge Reserve",
+            "long_description": "OCI — Cash Flow Hedge Reserve",
+            "account_type": "equity",
+            "sub_type": "other_comprehensive_income",
+            "account_class": "3",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": false,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "7510",
+            "short_description": "Hedge Ineffectiveness",
+            "long_description": "Hedge Ineffectiveness",
+            "account_type": "expense",
+            "sub_type": "other_expenses",
+            "account_class": "7",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": true,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "1155",
+            "short_description": "IC Receivable — Cash Pool",
+            "long_description": "IC Receivable — Cash Pool",
+            "account_type": "asset",
+            "sub_type": "accounts_receivable",
+            "account_class": "1",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "2055",
+            "short_description": "IC Payable — Cash Pool",
+            "long_description": "IC Payable — Cash Pool",
+            "account_type": "liability",
+            "sub_type": "accounts_payable",
+            "account_class": "2",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": false,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "2450",
+            "short_description": "Provision Liability",
+            "long_description": "Provision Liability",
+            "account_type": "liability",
+            "sub_type": "other_liabilities",
+            "account_class": "2",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": false,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "6850",
+            "short_description": "Provision Expense",
+            "long_description": "Provision Expense",
+            "account_type": "expense",
+            "sub_type": "operating_expenses",
+            "account_class": "6",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": true,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "2170",
+            "short_description": "Dividends Payable",
+            "long_description": "Dividends Payable",
+            "account_type": "liability",
+            "sub_type": "other_liabilities",
+            "account_class": "2",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": false,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "3710",
+            "short_description": "Dividends Declared",
+            "long_description": "Dividends Declared",
+            "account_type": "equity",
+            "sub_type": "retained_earnings",
+            "account_class": "3",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": false,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "2800",
+            "short_description": "Net Pension Liability",
+            "long_description": "Net Pension Liability",
+            "account_type": "liability",
+            "sub_type": "pension_liabilities",
+            "account_class": "2",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": false,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "3800",
+            "short_description": "OCI — Pension Remeasurements",
+            "long_description": "OCI — Pension Remeasurements",
+            "account_type": "equity",
+            "sub_type": "other_comprehensive_income",
+            "account_class": "3",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": false,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "3150",
+            "short_description": "APIC — Stock Compensation",
+            "long_description": "APIC — Stock Compensation",
+            "account_type": "equity",
+            "sub_type": "additional_paid_in_capital",
+            "account_class": "3",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": false,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "6205",
+            "short_description": "Pension Expense",
+            "long_description": "Pension Expense",
+            "account_type": "expense",
+            "sub_type": "operating_expenses",
+            "account_class": "6",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": true,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "7200",
+            "short_description": "Stock-Based Compensation Expense",
+            "long_description": "Stock-Based Compensation Expense",
+            "account_type": "expense",
+            "sub_type": "operating_expenses",
+            "account_class": "7",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": true,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "4950",
+            "short_description": "Inventory Write-up Income",
+            "long_description": "Inventory Write-up Income",
+            "account_type": "revenue",
+            "sub_type": "other_income",
+            "account_class": "4",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": false,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "6950",
+            "short_description": "Inventory Write-down Expense",
+            "long_description": "Inventory Write-down Expense",
+            "account_type": "expense",
+            "sub_type": "cost_of_goods_sold",
+            "account_class": "6",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": true,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "2130",
+            "short_description": "Income Tax Payable",
+            "long_description": "Income Tax Payable",
+            "account_type": "liability",
+            "sub_type": "tax_liabilities",
+            "account_class": "2",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": false,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "1460",
+            "short_description": "Tax Receivable",
+            "long_description": "Tax Receivable",
+            "account_type": "asset",
+            "sub_type": "other_receivables",
+            "account_class": "1",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": true,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "3600",
+            "short_description": "Income Summary",
+            "long_description": "Income Summary",
+            "account_type": "equity",
+            "sub_type": "net_income",
+            "account_class": "3",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": false,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
+            "requires_profit_center": false,
+            "industry_weights": {
+              "manufacturing": 1.0,
+              "retail": 1.0,
+              "financial_services": 1.0,
+              "healthcare": 1.0,
+              "technology": 1.0,
+              "professional_services": 1.0,
+              "energy": 1.0,
+              "transportation": 1.0,
+              "real_estate": 1.0,
+              "telecommunications": 1.0
+            },
+            "typical_frequency": 100.0,
+            "typical_amount_range": [
+              100.0,
+              100000.0
+            ],
+            "accounting_framework": "us_gaap"
+          },
+          {
+            "account_number": "3700",
+            "short_description": "Dividends Paid",
+            "long_description": "Dividends Paid",
+            "account_type": "equity",
+            "sub_type": "retained_earnings",
+            "account_class": "3",
+            "account_group": "DEFAULT",
+            "is_control_account": false,
+            "is_suspense_account": false,
+            "parent_account": null,
+            "hierarchy_level": 1,
+            "normal_debit_balance": false,
+            "is_postable": true,
+            "is_blocked": false,
+            "allowed_doc_types": [
+              "SA"
+            ],
+            "requires_cost_center": false,
             "requires_profit_center": false,
             "industry_weights": {
               "manufacturing": 1.0,
