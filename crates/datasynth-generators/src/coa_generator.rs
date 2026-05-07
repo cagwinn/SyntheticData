@@ -36,6 +36,10 @@ pub struct ChartOfAccountsGenerator {
     count: u64,
     /// Accounting framework for CoA generation.
     coa_framework: CoAFramework,
+    /// **v5.7.0** — when true, expand canonical accounts into industry-
+    /// specific 6-digit sub-accounts using the embedded packs in
+    /// [`datasynth_core::industry_packs`]. Default: `false`.
+    expand_industry_subaccounts: bool,
 }
 
 impl ChartOfAccountsGenerator {
@@ -48,6 +52,7 @@ impl ChartOfAccountsGenerator {
             industry,
             count: 0,
             coa_framework: CoAFramework::UsGaap,
+            expand_industry_subaccounts: false,
         }
     }
 
@@ -58,6 +63,17 @@ impl ChartOfAccountsGenerator {
         if use_pcg {
             self.coa_framework = CoAFramework::FrenchPcg;
         }
+        self
+    }
+
+    /// **v5.7.0** — toggle industry-pack sub-account expansion.
+    ///
+    /// When enabled, canonical accounts that have an entry in the
+    /// industry's pack (e.g. `4000` Product Revenue for manufacturing)
+    /// become non-postable control accounts and 2–6 6-digit
+    /// sub-accounts are added per parent.  Default: off.
+    pub fn with_expand_industry_subaccounts(mut self, expand: bool) -> Self {
+        self.expand_industry_subaccounts = expand;
         self
     }
 
@@ -113,14 +129,118 @@ impl ChartOfAccountsGenerator {
         // Seed canonical accounts first so other generators can find them
         Self::seed_canonical_accounts(&mut coa);
 
-        // Generate additional accounts by type
-        self.generate_asset_accounts(&mut coa, target_count / 5);
-        self.generate_liability_accounts(&mut coa, target_count / 6);
-        self.generate_equity_accounts(&mut coa, target_count / 10);
-        self.generate_revenue_accounts(&mut coa, target_count / 5);
-        self.generate_expense_accounts(&mut coa, target_count / 4);
-        self.generate_suspense_accounts(&mut coa);
+        if self.expand_industry_subaccounts {
+            // v5.7.0 — opt-in industry-pack expansion replaces the
+            // procedural per-type fill.  The pack provides named
+            // sub-accounts (`"Product Revenue — Steel Products"`)
+            // which would otherwise collide with the procedural
+            // generator's `400000`/`400010` slots.  Suspense / clearing
+            // accounts are still seeded since they aren't expanded by
+            // packs and other generators reference them.
+            self.generate_suspense_accounts(&mut coa);
+            Self::expand_with_industry_pack(&mut coa, self.industry);
+        } else {
+            // Generate additional accounts by type
+            self.generate_asset_accounts(&mut coa, target_count / 5);
+            self.generate_liability_accounts(&mut coa, target_count / 6);
+            self.generate_equity_accounts(&mut coa, target_count / 10);
+            self.generate_revenue_accounts(&mut coa, target_count / 5);
+            self.generate_expense_accounts(&mut coa, target_count / 4);
+            self.generate_suspense_accounts(&mut coa);
+        }
+
         coa
+    }
+
+    /// Expand canonical accounts into sector-specific 6-digit
+    /// sub-accounts using the embedded industry pack for `industry`.
+    ///
+    /// For each canonical parent account that has an expansion entry
+    /// in the pack:
+    ///   1. The parent is flipped to `is_postable = false` (a control
+    ///      / GL-summary account); its existing fields (ISO codes,
+    ///      account_type, sub_type, descriptions) are preserved.
+    ///   2. One new postable `GLAccount` is added per sub-account in
+    ///      the pack.  Sub-account inherits the parent's `account_type`,
+    ///      `sub_type`, ISO codes, `accounting_framework`, and
+    ///      `requires_cost_center` flag.  Number is `parent + suffix`
+    ///      (e.g. `"4000"` + `"10"` → `"400010"`).  Name is
+    ///      `"<parent_name> — <sub_name>"`.
+    ///
+    /// Industries without a shipped pack are a no-op.  Parents not
+    /// found in the seeded COA are silently skipped (defensive — keeps
+    /// expansion forward-compatible if the pack lists an account not
+    /// in a particular `complexity` / `framework` slice).
+    fn expand_with_industry_pack(coa: &mut ChartOfAccounts, industry: IndustrySector) {
+        let pack = match datasynth_core::industry_packs::load_pack(industry) {
+            Ok(Some(p)) => p,
+            Ok(None) => return,
+            Err(e) => {
+                tracing::warn!(
+                    "industry pack for {:?} failed to load: {} — skipping expansion",
+                    industry,
+                    e
+                );
+                return;
+            }
+        };
+
+        for expansion in &pack.expansions {
+            // Snapshot the parent before mutating it (so its fields can
+            // be cloned onto each sub-account).
+            let parent_snapshot = match coa.get_account(&expansion.parent_account) {
+                Some(p) => p.clone(),
+                None => continue,
+            };
+
+            // Flip parent to non-postable control.
+            if let Some(parent_mut) = coa
+                .accounts
+                .iter_mut()
+                .find(|a| a.account_number == expansion.parent_account)
+            {
+                parent_mut.is_postable = false;
+                parent_mut.is_control_account = true;
+            }
+
+            // Add sub-accounts.
+            for sub in &expansion.sub_accounts {
+                let sub_number = datasynth_core::industry_packs::render_sub_account_number(
+                    &expansion.parent_account,
+                    &sub.suffix,
+                );
+                // Skip if a canonical or earlier-pack sub-account already
+                // owns this number — preserves the v5.6.0 COA-coverage
+                // invariant.
+                if coa.get_account(&sub_number).is_some() {
+                    continue;
+                }
+                let sub_name = datasynth_core::industry_packs::render_sub_account_name(
+                    &expansion.parent_name,
+                    &sub.name,
+                );
+                let mut sub_acct = GLAccount::new(
+                    sub_number,
+                    sub_name,
+                    parent_snapshot.account_type,
+                    parent_snapshot.sub_type,
+                );
+                // Inherit fields that should propagate from parent.
+                sub_acct.account_class = parent_snapshot.account_class.clone();
+                sub_acct.account_class_name = parent_snapshot.account_class_name.clone();
+                sub_acct.account_sub_class = parent_snapshot.account_sub_class.clone();
+                sub_acct.account_sub_class_name = parent_snapshot.account_sub_class_name.clone();
+                sub_acct.account_group = parent_snapshot.account_group.clone();
+                sub_acct.parent_account = Some(parent_snapshot.account_number.clone());
+                sub_acct.hierarchy_level = parent_snapshot.hierarchy_level.saturating_add(1);
+                sub_acct.requires_cost_center = parent_snapshot.requires_cost_center;
+                sub_acct.requires_profit_center = parent_snapshot.requires_profit_center;
+                sub_acct.accounting_framework = parent_snapshot.accounting_framework.clone();
+                sub_acct.is_postable = true;
+                sub_acct.is_control_account = false;
+                coa.add_account(sub_acct);
+            }
+        }
     }
 
     /// Generate Plan Comptable Général (French GAAP) chart of accounts.

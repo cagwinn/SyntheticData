@@ -10461,7 +10461,11 @@ impl EnhancedOrchestrator {
             self.config.global.industry,
             self.seed,
         )
-        .with_coa_framework(coa_framework);
+        .with_coa_framework(coa_framework)
+        // v5.7.0 — honour the opt-in industry-pack expansion flag.
+        .with_expand_industry_subaccounts(
+            self.config.chart_of_accounts.expand_industry_subaccounts,
+        );
 
         let mut built = gen.generate();
         // v4.4.1: propagate the accounting framework label from config
@@ -15556,6 +15560,7 @@ mod tests {
                 custom_accounts: None,
                 min_hierarchy_depth: 2,
                 max_hierarchy_depth: 4,
+                expand_industry_subaccounts: false,
             },
             transactions: TransactionConfig::default(),
             output: OutputConfig::default(),

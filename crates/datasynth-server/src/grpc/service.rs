@@ -284,6 +284,7 @@ impl SynthService {
                         custom_accounts: None,
                         min_hierarchy_depth: 2,
                         max_hierarchy_depth: 5,
+                        expand_industry_subaccounts: false,
                     },
                     ..default_generator_config()
                 };
@@ -859,6 +860,7 @@ pub fn default_generator_config() -> GeneratorConfig {
             custom_accounts: None,
             min_hierarchy_depth: 2,
             max_hierarchy_depth: 5,
+            expand_industry_subaccounts: false,
         },
         transactions: Default::default(),
         output: OutputConfig::default(),

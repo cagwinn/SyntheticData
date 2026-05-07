@@ -1,0 +1,58 @@
+# Industry pack: technology
+#
+# Sub-account expansions for software / SaaS / hardware tech companies.
+# SaaS-heavy revenue mix with cloud-infrastructure-driven COGS.
+
+industry: technology
+description: |
+  Sub-account expansions for technology companies — SaaS, on-premises
+  software, cloud services, and hardware integrators.
+version: 1
+
+expansions:
+  # ── Revenue ────────────────────────────────────────────────────────
+  - parent_account: "4000"   # PRODUCT_REVENUE (treat as software / hardware)
+    parent_name: "Product Revenue"
+    sub_accounts:
+      - { suffix: "10", name: "SaaS — Enterprise",         weight: 1.00 }
+      - { suffix: "20", name: "SaaS — SMB",                weight: 0.70 }
+      - { suffix: "35", name: "Perpetual Licenses",        weight: 0.30 }
+      - { suffix: "55", name: "Hardware Sales",            weight: 0.45 }
+      - { suffix: "75", name: "Marketplace App Revenue",   weight: 0.25 }
+
+  - parent_account: "4100"   # SERVICE_REVENUE
+    parent_name: "Service Revenue"
+    sub_accounts:
+      - { suffix: "10", name: "Implementation Services",   weight: 1.00 }
+      - { suffix: "20", name: "Custom Development",        weight: 0.55 }
+      - { suffix: "40", name: "Training",                  weight: 0.35 }
+      - { suffix: "60", name: "Support / Premium SLA",     weight: 0.85 }
+      - { suffix: "80", name: "Managed Services",          weight: 0.50 }
+
+  # ── COGS ───────────────────────────────────────────────────────────
+  - parent_account: "5000"   # COGS
+    parent_name: "Cost of Revenue"
+    sub_accounts:
+      - { suffix: "10", name: "Cloud Hosting",             weight: 1.00 }
+      - { suffix: "20", name: "Bandwidth & CDN",           weight: 0.65 }
+      - { suffix: "40", name: "Hardware COGS",             weight: 0.45 }
+      - { suffix: "60", name: "Third-Party SaaS Pass-Through", weight: 0.40 }
+      - { suffix: "80", name: "Customer Success Headcount", weight: 0.55 }
+
+  # ── Operating expense ─────────────────────────────────────────────
+  - parent_account: "6100"   # SALARIES_WAGES
+    parent_name: "Salaries and Wages"
+    sub_accounts:
+      - { suffix: "10", name: "Engineering",               weight: 1.00 }
+      - { suffix: "20", name: "Product Management",        weight: 0.50 }
+      - { suffix: "40", name: "Sales & Marketing",         weight: 0.85 }
+      - { suffix: "60", name: "G&A",                       weight: 0.55 }
+      - { suffix: "80", name: "Customer Support",          weight: 0.65 }
+
+  - parent_account: "6700"   # PROFESSIONAL_FEES
+    parent_name: "Professional Fees"
+    sub_accounts:
+      - { suffix: "10", name: "Engineering Contractors",   weight: 1.00 }
+      - { suffix: "30", name: "Legal & IP",                weight: 0.55 }
+      - { suffix: "60", name: "Audit & Tax",               weight: 0.40 }
+      - { suffix: "80", name: "Marketing Agencies",        weight: 0.65 }

@@ -1,0 +1,70 @@
+# Industry pack: retail
+#
+# Sub-account expansions for retail / merchandising COAs. Channel and
+# category-driven splits (men / women / accessories / e-commerce).
+
+industry: retail
+description: |
+  Sub-account expansions for multi-category retail / merchandising
+  operations.  Mixes physical-store and e-commerce channel splits.
+version: 1
+
+expansions:
+  # ── Revenue ────────────────────────────────────────────────────────
+  - parent_account: "4000"   # PRODUCT_REVENUE
+    parent_name: "Product Revenue"
+    sub_accounts:
+      - { suffix: "10", name: "Apparel — Men",            weight: 0.95 }
+      - { suffix: "20", name: "Apparel — Women",          weight: 1.00 }
+      - { suffix: "30", name: "Apparel — Children",       weight: 0.45 }
+      - { suffix: "50", name: "Footwear",                 weight: 0.70 }
+      - { suffix: "70", name: "Accessories",              weight: 0.55 }
+      - { suffix: "85", name: "Home & Lifestyle",         weight: 0.35 }
+
+  - parent_account: "4100"   # SERVICE_REVENUE
+    parent_name: "Service Revenue"
+    sub_accounts:
+      - { suffix: "10", name: "Alterations & Tailoring",  weight: 0.55 }
+      - { suffix: "30", name: "Membership / Loyalty",     weight: 0.80 }
+      - { suffix: "60", name: "Subscriptions",            weight: 0.40 }
+
+  - parent_account: "4010"   # SALES_DISCOUNTS (already canonical, expand)
+    parent_name: "Sales Discounts"
+    sub_accounts:
+      - { suffix: "10", name: "Promotional Discounts",    weight: 1.00 }
+      - { suffix: "30", name: "Loyalty Discounts",        weight: 0.55 }
+      - { suffix: "60", name: "Markdown Allowances",      weight: 0.70 }
+
+  # ── COGS ───────────────────────────────────────────────────────────
+  - parent_account: "5000"   # COGS
+    parent_name: "Cost of Goods Sold"
+    sub_accounts:
+      - { suffix: "10", name: "Cost of Apparel",          weight: 1.00 }
+      - { suffix: "30", name: "Cost of Footwear",         weight: 0.70 }
+      - { suffix: "50", name: "Cost of Accessories",      weight: 0.55 }
+      - { suffix: "70", name: "Cost of Home & Lifestyle", weight: 0.30 }
+      - { suffix: "90", name: "Inbound Freight & Duties", weight: 0.40 }
+
+  - parent_account: "1200"   # INVENTORY
+    parent_name: "Inventory"
+    sub_accounts:
+      - { suffix: "10", name: "Apparel Inventory",        weight: 1.00 }
+      - { suffix: "30", name: "Footwear Inventory",       weight: 0.65 }
+      - { suffix: "50", name: "Accessories Inventory",    weight: 0.45 }
+      - { suffix: "80", name: "In-Transit Inventory",     weight: 0.35 }
+
+  # ── Operating expense ─────────────────────────────────────────────
+  - parent_account: "6500"   # OFFICE_SUPPLIES
+    parent_name: "Office Supplies"
+    sub_accounts:
+      - { suffix: "10", name: "Store Supplies",           weight: 1.00 }
+      - { suffix: "30", name: "Packaging Materials",      weight: 0.65 }
+      - { suffix: "50", name: "POS & IT Supplies",        weight: 0.45 }
+      - { suffix: "70", name: "Cleaning & Maintenance",   weight: 0.55 }
+
+  - parent_account: "6300"   # RENT
+    parent_name: "Rent Expense"
+    sub_accounts:
+      - { suffix: "10", name: "Store Rent",               weight: 1.00 }
+      - { suffix: "30", name: "Warehouse / DC Rent",      weight: 0.50 }
+      - { suffix: "60", name: "Office Rent",              weight: 0.30 }

@@ -27,6 +27,7 @@ pub mod error;
 pub mod framework_accounts;
 pub mod fraud_bias;
 pub mod fraud_propagation;
+pub mod industry_packs;
 pub mod iso21378;
 pub mod llm;
 pub mod memory_guard;

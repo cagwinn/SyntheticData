@@ -1,0 +1,57 @@
+# Industry pack: healthcare
+#
+# Sub-account expansions for integrated healthcare providers / payers /
+# pharma. Strong split between procedure / patient-care revenue and
+# product (pharma / device) revenue.
+
+industry: healthcare
+description: |
+  Sub-account expansions for diversified healthcare operations
+  (hospital + pharmacy + medical-device elements).
+version: 1
+
+expansions:
+  # ── Revenue ────────────────────────────────────────────────────────
+  - parent_account: "4000"   # PRODUCT_REVENUE
+    parent_name: "Product Revenue"
+    sub_accounts:
+      - { suffix: "10", name: "Pharmaceutical Sales",      weight: 1.00 }
+      - { suffix: "30", name: "Medical Devices",           weight: 0.65 }
+      - { suffix: "50", name: "Diagnostic Reagents",       weight: 0.40 }
+      - { suffix: "75", name: "Consumables & Disposables", weight: 0.30 }
+
+  - parent_account: "4100"   # SERVICE_REVENUE
+    parent_name: "Service Revenue"
+    sub_accounts:
+      - { suffix: "10", name: "Inpatient Care",            weight: 1.00 }
+      - { suffix: "20", name: "Outpatient Care",           weight: 0.85 }
+      - { suffix: "35", name: "Surgical Procedures",       weight: 0.70 }
+      - { suffix: "55", name: "Diagnostic Imaging",        weight: 0.55 }
+      - { suffix: "70", name: "Laboratory Services",       weight: 0.50 }
+      - { suffix: "90", name: "Telehealth",                weight: 0.30 }
+
+  # ── COGS ───────────────────────────────────────────────────────────
+  - parent_account: "5000"   # COGS
+    parent_name: "Cost of Goods Sold"
+    sub_accounts:
+      - { suffix: "10", name: "Pharmaceutical COGS",       weight: 1.00 }
+      - { suffix: "30", name: "Device COGS",               weight: 0.60 }
+      - { suffix: "50", name: "Reagent COGS",              weight: 0.40 }
+      - { suffix: "70", name: "Medical Supplies",          weight: 0.55 }
+
+  # ── Operating expense ─────────────────────────────────────────────
+  - parent_account: "6100"   # SALARIES_WAGES
+    parent_name: "Salaries and Wages"
+    sub_accounts:
+      - { suffix: "10", name: "Physicians",                weight: 1.00 }
+      - { suffix: "20", name: "Nursing Staff",             weight: 0.95 }
+      - { suffix: "40", name: "Allied Health Professionals", weight: 0.65 }
+      - { suffix: "60", name: "Administrative Staff",      weight: 0.55 }
+      - { suffix: "80", name: "Research Staff",            weight: 0.30 }
+
+  - parent_account: "6800"   # INSURANCE
+    parent_name: "Insurance Expense"
+    sub_accounts:
+      - { suffix: "10", name: "Medical Malpractice",       weight: 1.00 }
+      - { suffix: "30", name: "Property & Casualty",       weight: 0.45 }
+      - { suffix: "60", name: "Cyber & D&O",               weight: 0.30 }

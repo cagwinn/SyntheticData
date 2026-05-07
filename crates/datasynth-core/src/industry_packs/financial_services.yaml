@@ -1,0 +1,60 @@
+# Industry pack: financial_services
+#
+# Sub-account expansions for banks / asset managers / brokerages.
+# Strong split between interest, fee-based, and trading revenue.
+
+industry: financial_services
+description: |
+  Sub-account expansions for diversified financial-services
+  institutions (commercial bank + asset management + brokerage).
+version: 1
+
+expansions:
+  # ── Revenue ────────────────────────────────────────────────────────
+  - parent_account: "4000"   # PRODUCT_REVENUE → here interpreted as "operating revenue"
+    parent_name: "Operating Revenue"
+    sub_accounts:
+      - { suffix: "10", name: "Net Interest Income",       weight: 1.00 }
+      - { suffix: "20", name: "Loan-Origination Fees",     weight: 0.65 }
+      - { suffix: "30", name: "Trading Revenue",           weight: 0.55 }
+      - { suffix: "45", name: "Asset-Management Fees",     weight: 0.80 }
+      - { suffix: "60", name: "Brokerage Commissions",     weight: 0.50 }
+      - { suffix: "80", name: "Card & Merchant Fees",      weight: 0.40 }
+
+  - parent_account: "4100"   # SERVICE_REVENUE
+    parent_name: "Service Revenue"
+    sub_accounts:
+      - { suffix: "10", name: "Advisory Fees",             weight: 1.00 }
+      - { suffix: "30", name: "Underwriting Fees",         weight: 0.60 }
+      - { suffix: "55", name: "Custody Fees",              weight: 0.45 }
+      - { suffix: "75", name: "Cash-Management Services",  weight: 0.35 }
+
+  - parent_account: "4500"   # IC_REVENUE
+    parent_name: "Intercompany Revenue"
+    sub_accounts:
+      - { suffix: "10", name: "Treasury Centre Recharges", weight: 1.00 }
+      - { suffix: "40", name: "Shared-Services Recharges", weight: 0.55 }
+
+  # ── Expenses ───────────────────────────────────────────────────────
+  - parent_account: "6700"   # PROFESSIONAL_FEES
+    parent_name: "Professional Fees"
+    sub_accounts:
+      - { suffix: "10", name: "Legal Fees",                weight: 0.85 }
+      - { suffix: "20", name: "External Audit",            weight: 0.50 }
+      - { suffix: "30", name: "Compliance & AFC",          weight: 0.95 }
+      - { suffix: "55", name: "Consulting Fees",           weight: 0.65 }
+
+  - parent_account: "6100"   # SALARIES_WAGES
+    parent_name: "Salaries and Wages"
+    sub_accounts:
+      - { suffix: "10", name: "Front-Office Staff",        weight: 1.00 }
+      - { suffix: "30", name: "Risk & Compliance Staff",   weight: 0.55 }
+      - { suffix: "50", name: "Operations Staff",          weight: 0.75 }
+      - { suffix: "70", name: "Technology Staff",          weight: 0.65 }
+
+  - parent_account: "6900"   # BAD_DEBT
+    parent_name: "Bad Debt / Loan Loss"
+    sub_accounts:
+      - { suffix: "10", name: "Commercial Loan Provisions", weight: 1.00 }
+      - { suffix: "30", name: "Retail Loan Provisions",     weight: 0.65 }
+      - { suffix: "50", name: "Card Provisions",            weight: 0.45 }
