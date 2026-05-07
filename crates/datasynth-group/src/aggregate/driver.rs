@@ -114,8 +114,10 @@ use crate::aggregate::translation::cta::{
     cta_rollforward, write_cta_rollforward, CtaRollforward, CONSOLIDATED_SUBDIR,
     CTA_ROLLFORWARD_FILENAME,
 };
+use crate::aggregate::translation::restatement::{select_restatement_path, RestatementPath};
 use crate::aggregate::translation::translate::{
-    translate_entity_tb_with_hyperinflation, DrCr, TranslatedTb,
+    translate_entity_tb_with_hyperinflation, translate_entity_tb_with_indexed_restatement, DrCr,
+    TranslatedTb,
 };
 use crate::aggregate::translation::worksheet::write_translation_worksheet;
 use crate::config::ConsolidationMethod;
@@ -153,6 +155,20 @@ pub struct AggregateOptions {
     /// preserves backwards compatibility byte-for-byte for engagements
     /// without CGU configuration.
     pub cgu_test_inputs: Vec<crate::aggregate::cgu_impairment::CguTestInputs>,
+    /// **v5.5.2 IAS 29 § 12** — per-currency general price index (CPI)
+    /// series, keyed by ISO 4217 currency code.  When supplied, the
+    /// aggregate driver matches each entity in
+    /// [`datasynth_core::models::HyperinflationStatus::Hyperinflationary`]
+    /// against this map by its functional currency.  Matched entities
+    /// are translated via [`translate_entity_tb_with_indexed_restatement`]
+    /// (composing IAS 29 § 12 indexed restatement with IAS 21 § 42(b)
+    /// closing-rate translation).  Hyperinflationary entities without a
+    /// matching currency entry log a warning and fall back to the
+    /// closing-rate-only path (the v5.5.0 behaviour).  Non-hyperinflationary
+    /// entities ignore this map.  Empty (default) preserves
+    /// backwards-compatible behaviour byte-for-byte.
+    pub cpi_series_by_currency:
+        BTreeMap<String, datasynth_core::models::hyperinflation::GeneralPriceIndex>,
 }
 
 /// Top-level result returned by [`run_aggregate`].
@@ -287,6 +303,7 @@ pub fn run_aggregate(
         manifest,
         framework,
         &entity_lookup(manifest),
+        &opts.cpi_series_by_currency,
     )?;
 
     // ── 10. CTA rollforward (Task 6.3) ─────────────────────────────────
@@ -614,33 +631,85 @@ fn load_entity_journal_entries(
 /// Translate every contributing entity's TB to the presentation
 /// currency.  Returns one [`TranslatedTb`] per `(entity_code, tb)` in
 /// the contributing slice.
+///
+/// **v5.5.2 routing:** when `cpi_series_by_currency` is non-empty,
+/// hyperinflationary entities whose functional currency matches an
+/// entry in the map are translated via the indexed-restatement path
+/// (IAS 29 § 12 + IAS 21 § 42(b)); hyperinflationary entities without a
+/// matching series log a warning and fall back to the closing-rate-only
+/// path. Non-hyperinflationary entities always use the standard IAS 21
+/// multi-rate path regardless of the map.
 fn translate_all_contributing(
     contributing_tbs: &[(String, TrialBalance)],
     manifest: &GroupManifest,
     framework: AccountingFramework,
     entity_lookup: &BTreeMap<String, ManifestEntity>,
+    cpi_series_by_currency: &BTreeMap<
+        String,
+        datasynth_core::models::hyperinflation::GeneralPriceIndex,
+    >,
 ) -> GroupResult<Vec<TranslatedTb>> {
     let mut out: Vec<TranslatedTb> = Vec::with_capacity(contributing_tbs.len());
+    let cpi_opt = if cpi_series_by_currency.is_empty() {
+        None
+    } else {
+        Some(cpi_series_by_currency)
+    };
     for (code, tb) in contributing_tbs {
         let entity = entity_lookup.get(code).ok_or_else(|| {
             GroupError::Aggregate(format!(
                 "run_aggregate: entity `{code}` not in manifest's ownership graph",
             ))
         })?;
-        // v5.2: pull the entity's hyperinflation status from the
-        // manifest so the translator can switch to the IAS 21 §
-        // 42(b) closing-rate-for-all-items path.  Non-hyperinflationary
-        // entities (the default) keep the v5.0–v5.1 spot/average
-        // split byte-identically.
-        let translated = translate_entity_tb_with_hyperinflation(
-            tb,
-            entity.functional_currency.as_str(),
-            &manifest.fx_rate_master,
-            manifest.period.end,
-            &manifest.presentation_currency,
-            framework,
+        // v5.2 / v5.5.2: pick the IAS 21 / IAS 29 translation path per
+        // entity based on its hyperinflation status + the optional CPI
+        // series map.  See [`select_restatement_path`] for the routing
+        // logic.
+        let path = select_restatement_path(
             entity.hyperinflation_status,
-        )?;
+            entity.functional_currency.as_str(),
+            cpi_opt,
+            manifest.period.start,
+            manifest.period.end,
+        );
+        let translated = match &path {
+            RestatementPath::Indexed(ir) => translate_entity_tb_with_indexed_restatement(
+                tb,
+                entity.functional_currency.as_str(),
+                &manifest.fx_rate_master,
+                manifest.period.end,
+                &manifest.presentation_currency,
+                framework,
+                entity.hyperinflation_status,
+                Some(ir),
+            )?,
+            RestatementPath::Standard | RestatementPath::ClosingRate => {
+                if matches!(path, RestatementPath::ClosingRate) && cpi_opt.is_some() {
+                    // Hyperinflationary entity but the CPI map missed
+                    // (no entry for currency, or lookup outside the
+                    // observation range).  Warn so the operator can
+                    // notice the data gap, but continue with the
+                    // closing-rate fallback rather than failing the
+                    // aggregate run.
+                    tracing::warn!(
+                        entity = %code,
+                        functional_currency = %entity.functional_currency,
+                        period_start = %manifest.period.start,
+                        period_end = %manifest.period.end,
+                        "hyperinflationary entity has no matching CPI series — falling back to IAS 21 § 42(b) closing-rate translation only (no IAS 29 § 12 indexed restatement)",
+                    );
+                }
+                translate_entity_tb_with_hyperinflation(
+                    tb,
+                    entity.functional_currency.as_str(),
+                    &manifest.fx_rate_master,
+                    manifest.period.end,
+                    &manifest.presentation_currency,
+                    framework,
+                    entity.hyperinflation_status,
+                )?
+            }
+        };
         out.push(translated);
     }
     Ok(out)
@@ -1195,6 +1264,7 @@ mod tests {
             prior_period_aggregate: Some(PathBuf::from("/tmp/seed-from-engagement")),
             tolerate_missing_shards: false,
             cgu_test_inputs: Vec::new(),
+            cpi_series_by_currency: std::collections::BTreeMap::new(),
         };
         assert!(opts.prior_period_aggregate.is_some());
         // PeriodSpec stays unconstructed in a runnable form because

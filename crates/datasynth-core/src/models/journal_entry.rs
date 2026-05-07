@@ -699,6 +699,15 @@ pub struct JournalEntryLine {
     /// Date when the matching was performed (typically the payment posting date).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub lettrage_date: Option<NaiveDate>,
+
+    /// Stable per-line transaction identifier.
+    ///
+    /// Deterministically derived from `(document_id, line_number)` so it stays
+    /// consistent across regenerations of the same dataset. Populated lazily
+    /// at write time from [`JournalEntryLine::derive_transaction_id`] when
+    /// not already set.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub transaction_id: Option<String>,
 }
 
 impl JournalEntryLine {
@@ -737,6 +746,7 @@ impl JournalEntryLine {
             auxiliary_account_label: None,
             lettrage: None,
             lettrage_date: None,
+            transaction_id: None,
         }
     }
 
@@ -780,6 +790,7 @@ impl JournalEntryLine {
             auxiliary_account_label: None,
             lettrage: None,
             lettrage_date: None,
+            transaction_id: None,
         }
     }
 
@@ -799,6 +810,28 @@ impl JournalEntryLine {
     #[inline]
     pub fn signed_amount(&self) -> Decimal {
         self.debit_amount - self.credit_amount
+    }
+
+    /// Derive a stable per-line transaction id from `(document_id, line_number)`.
+    ///
+    /// Deterministic: the same input always returns the same id, so the
+    /// value is stable across regenerations of the same dataset and across
+    /// crate versions. Uses UUID v5 (SHA-1) under `Uuid::NAMESPACE_OID`.
+    pub fn derive_transaction_id(document_id: Uuid, line_number: u32) -> String {
+        let mut input = Vec::with_capacity(20);
+        input.extend_from_slice(document_id.as_bytes());
+        input.extend_from_slice(&line_number.to_le_bytes());
+        Uuid::new_v5(&Uuid::NAMESPACE_OID, &input).to_string()
+    }
+
+    /// Populate `transaction_id` from `(document_id, line_number)` if unset.
+    pub fn ensure_transaction_id(&mut self) {
+        if self.transaction_id.is_none() {
+            self.transaction_id = Some(Self::derive_transaction_id(
+                self.document_id,
+                self.line_number,
+            ));
+        }
     }
 
     // Convenience accessors for compatibility
@@ -850,6 +883,7 @@ impl Default for JournalEntryLine {
             auxiliary_account_label: None,
             lettrage: None,
             lettrage_date: None,
+            transaction_id: None,
         }
     }
 }

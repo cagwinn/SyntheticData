@@ -159,6 +159,12 @@ enum Commands {
         /// Maximum iterations for auto-tuning (default: 3)
         #[arg(long, default_value = "3")]
         max_iterations: usize,
+
+        /// Strict COA coverage validation: fail the run if any generated JE
+        /// references a gl_account that does not exist in the chart of
+        /// accounts. Default is a soft warning.
+        #[arg(long = "validate-coa-coverage")]
+        validate_coa_coverage: bool,
     },
 
     /// Validate a configuration file
@@ -380,6 +386,44 @@ enum GroupCommands {
         /// pushed to `entities_missing` in the summary.
         #[arg(long)]
         tolerate_missing_shards: bool,
+
+        /// **v5.5.2** — Optional path to a JSON file supplying
+        /// IAS 36 § 10 per-CGU goodwill impairment-test inputs for
+        /// this period. Shape: `Vec<CguTestInputs>` — an array of
+        /// objects with `cgu_id`, `other_carrying`,
+        /// `fair_value_less_costs`, `value_in_use` (all decimal
+        /// strings or numbers). Each `cgu_id` must reference a CGU
+        /// declared in the manifest's `cgu_plan`. When omitted, no
+        /// impairment tests run and `consolidated/cgu_impairment_tests.json`
+        /// is not emitted (preserves v5.0/5.1 byte-identical output).
+        ///
+        /// Example file content:
+        /// ```json
+        /// [
+        ///   { "cgu_id": "CGU-EMEA",
+        ///     "other_carrying": "5000000",
+        ///     "fair_value_less_costs": "5500000",
+        ///     "value_in_use": "5800000" }
+        /// ]
+        /// ```
+        #[arg(long)]
+        cgu_test_inputs: Option<PathBuf>,
+
+        /// **v5.5.2** — Optional path to a JSON file supplying
+        /// IAS 29 § 12 general price index (CPI) series for
+        /// hyperinflationary entities. Shape: `Vec<GeneralPriceIndex>`
+        /// — an array of `{ "currency": "ARS", "source": "INDEC IPC",
+        /// "observations": [["2024-01-01", "100.0"], ...] }`
+        /// objects. The aggregate driver matches each entity in
+        /// `HyperinflationStatus::Hyperinflationary` against the
+        /// supplied series by its functional currency; matched
+        /// entities are translated via the indexed-restatement path
+        /// (IAS 29 § 12 + IAS 21 § 42(b)). Hyperinflationary entities
+        /// without a matching series fall back to closing-rate
+        /// translation with a warning. When omitted entirely, every
+        /// entity uses the existing closing-rate path.
+        #[arg(long)]
+        cpi_series: Option<PathBuf>,
     },
 
     /// Run manifest + shards + aggregate in one in-process call (the
@@ -403,6 +447,12 @@ enum GroupCommands {
         /// when running on a workstation with limited RAM.
         #[arg(long)]
         no_parallel_shards: bool,
+
+        /// **v5.5.2** — Optional path to a JSON file supplying
+        /// IAS 36 § 10 per-CGU goodwill impairment-test inputs.
+        /// See `group aggregate --help` for the JSON shape.
+        #[arg(long)]
+        cgu_test_inputs: Option<PathBuf>,
     },
 
     /// Run manifest + shards + aggregate for N consecutive periods,
@@ -438,6 +488,25 @@ enum GroupCommands {
         /// balances; periods 1..N always carry forward from period N-1.
         #[arg(long)]
         prior_period_aggregate: Option<PathBuf>,
+
+        /// **v5.5.2** — Optional path to a JSON file supplying
+        /// IAS 36 § 10 per-CGU goodwill impairment-test inputs that
+        /// apply uniformly to **every** period in the chain. Shape:
+        /// `Vec<CguTestInputs>` — see `group aggregate --help` for
+        /// the per-element shape. To vary the inputs across periods,
+        /// drive the chain at the library level.
+        #[arg(long)]
+        cgu_test_inputs: Option<PathBuf>,
+
+        /// **v5.5.2** — Optional path to a JSON file supplying
+        /// IAS 29 § 12 general price index (CPI) series for
+        /// hyperinflationary entities. Applies to every period in
+        /// the chain — the `observations` vector inside each
+        /// `GeneralPriceIndex` is expected to span every period's
+        /// reporting date. See `group aggregate --help` for the
+        /// per-element shape.
+        #[arg(long)]
+        cpi_series: Option<PathBuf>,
     },
 }
 
@@ -958,6 +1027,7 @@ fn run_main() -> Result<()> {
             export_format,
             auto_tune,
             max_iterations,
+            validate_coa_coverage,
         } => {
             // ========================================
             // GROUP CONFIG AUTO-DETECTION (v5.0+)
@@ -978,7 +1048,7 @@ fn run_main() -> Result<()> {
                             tracing::info!(
                                 "auto-detected group config; dispatching to `group generate`"
                             );
-                            return handle_group_generate(cfg_path, &output, true);
+                            return handle_group_generate(cfg_path, &output, true, None);
                         }
                     }
                 }
@@ -1057,6 +1127,7 @@ fn run_main() -> Result<()> {
                     show_progress: true,
                     inject_anomalies: true, // Let fingerprint control this
                     inject_data_quality: true,
+                    validate_coa_coverage_strict: validate_coa_coverage,
                     ..PhaseConfig::default()
                 };
 
@@ -1327,6 +1398,9 @@ fn run_main() -> Result<()> {
                     }
                     if graph_export {
                         phase_config.generate_graph_export = true;
+                    }
+                    if validate_coa_coverage {
+                        phase_config.validate_coa_coverage_strict = true;
                     }
 
                     phase_config.show_progress = true;
@@ -3414,30 +3488,44 @@ fn handle_group(command: GroupCommands) -> Result<()> {
             out,
             prior_period_aggregate,
             tolerate_missing_shards,
+            cgu_test_inputs,
+            cpi_series,
         } => handle_group_aggregate(
             &manifest,
             &shards_dir,
             &out,
             prior_period_aggregate.as_deref(),
             tolerate_missing_shards,
+            cgu_test_inputs.as_deref(),
+            cpi_series.as_deref(),
         ),
         GroupCommands::Generate {
             config,
             out,
             no_parallel_shards,
-        } => handle_group_generate(&config, &out, !no_parallel_shards),
+            cgu_test_inputs,
+        } => handle_group_generate(
+            &config,
+            &out,
+            !no_parallel_shards,
+            cgu_test_inputs.as_deref(),
+        ),
         GroupCommands::GenerateChain {
             config,
             periods,
             out,
             no_parallel_shards,
             prior_period_aggregate,
+            cgu_test_inputs,
+            cpi_series,
         } => handle_group_generate_chain(
             &config,
             &periods,
             &out,
             !no_parallel_shards,
             prior_period_aggregate.as_deref(),
+            cgu_test_inputs.as_deref(),
+            cpi_series.as_deref(),
         ),
     }
 }
@@ -3596,18 +3684,116 @@ fn handle_group_shard(
     Ok(())
 }
 
+/// **v5.5.2** — Read `--cgu-test-inputs <path>` if supplied and parse
+/// it as `Vec<CguTestInputs>`.  Returns an empty vector when `path` is
+/// `None` so the caller can pass the result straight into
+/// `AggregateOptions::cgu_test_inputs`.
+///
+/// JSON shape (the type's serde derive does the heavy lifting):
+///
+/// ```json
+/// [
+///   { "cgu_id": "CGU-EMEA",
+///     "other_carrying": "5000000",
+///     "fair_value_less_costs": "5500000",
+///     "value_in_use": "5800000" }
+/// ]
+/// ```
+fn load_cgu_test_inputs(
+    path: Option<&std::path::Path>,
+) -> Result<Vec<datasynth_group::CguTestInputs>> {
+    use anyhow::Context;
+    let Some(path) = path else {
+        return Ok(Vec::new());
+    };
+    let bytes = std::fs::read_to_string(path)
+        .with_context(|| format!("--cgu-test-inputs: read {}", path.display()))?;
+    let inputs: Vec<datasynth_group::CguTestInputs> =
+        serde_json::from_str(&bytes).with_context(|| {
+            format!(
+                "--cgu-test-inputs: parse {} as Vec<CguTestInputs>",
+                path.display()
+            )
+        })?;
+    Ok(inputs)
+}
+
+/// **v5.5.2** — Read `--cpi-series <path>` if supplied and parse
+/// it as `Vec<GeneralPriceIndex>`, returning a `BTreeMap` keyed by
+/// each entry's `currency` field for fast lookup in the aggregate
+/// driver.  Returns an empty map when `path` is `None`.
+///
+/// Returns an error if two entries share the same currency (the
+/// driver wouldn't know which to use).
+///
+/// JSON shape:
+///
+/// ```json
+/// [
+///   { "currency": "ARS",
+///     "source": "INDEC IPC General",
+///     "observations": [
+///       ["2024-01-01", "100.0"],
+///       ["2024-03-31", "180.0"]
+///     ]
+///   }
+/// ]
+/// ```
+fn load_cpi_series_by_currency(
+    path: Option<&std::path::Path>,
+) -> Result<
+    std::collections::BTreeMap<String, datasynth_core::models::hyperinflation::GeneralPriceIndex>,
+> {
+    use anyhow::Context;
+    let Some(path) = path else {
+        return Ok(std::collections::BTreeMap::new());
+    };
+    let bytes = std::fs::read_to_string(path)
+        .with_context(|| format!("--cpi-series: read {}", path.display()))?;
+    let series: Vec<datasynth_core::models::hyperinflation::GeneralPriceIndex> =
+        serde_json::from_str(&bytes).with_context(|| {
+            format!(
+                "--cpi-series: parse {} as Vec<GeneralPriceIndex>",
+                path.display()
+            )
+        })?;
+    let mut map: std::collections::BTreeMap<
+        String,
+        datasynth_core::models::hyperinflation::GeneralPriceIndex,
+    > = std::collections::BTreeMap::new();
+    for entry in series {
+        let key = entry.currency.clone();
+        if map.contains_key(&key) {
+            anyhow::bail!(
+                "--cpi-series: duplicate currency `{}` in {} — every entry must have a unique currency code",
+                key,
+                path.display(),
+            );
+        }
+        map.insert(key, entry);
+    }
+    Ok(map)
+}
+
 /// v5.0+: `datasynth-data group aggregate` handler — Task 10.4.
 ///
 /// Drives [`datasynth_group::aggregate::run_aggregate`] against a
 /// directory of pre-computed per-entity shard archives.  Forwards
 /// `--prior-period-aggregate` and `--tolerate-missing-shards` straight
 /// into [`datasynth_group::aggregate::AggregateOptions`].
+///
+/// **v5.5.2** — Optionally also forwards `--cgu-test-inputs` and
+/// `--cpi-series` when supplied; both default to empty (the v5.5.0
+/// behaviour) when their flags are absent.
+#[allow(clippy::too_many_arguments)]
 fn handle_group_aggregate(
     manifest_path: &std::path::Path,
     shards_dir: &std::path::Path,
     out_path: &std::path::Path,
     prior_period_aggregate: Option<&std::path::Path>,
     tolerate_missing_shards: bool,
+    cgu_test_inputs_path: Option<&std::path::Path>,
+    cpi_series_path: Option<&std::path::Path>,
 ) -> Result<()> {
     use anyhow::Context;
     tracing::info!(
@@ -3616,6 +3802,8 @@ fn handle_group_aggregate(
         out = %out_path.display(),
         prior_period_aggregate = ?prior_period_aggregate.map(|p| p.display().to_string()),
         tolerate_missing_shards = tolerate_missing_shards,
+        cgu_test_inputs = ?cgu_test_inputs_path.map(|p| p.display().to_string()),
+        cpi_series = ?cpi_series_path.map(|p| p.display().to_string()),
         "group aggregate: starting",
     );
 
@@ -3632,10 +3820,14 @@ fn handle_group_aggregate(
     std::fs::create_dir_all(out_path)
         .with_context(|| format!("group aggregate: mkdir {}", out_path.display()))?;
 
+    let cgu_test_inputs = load_cgu_test_inputs(cgu_test_inputs_path)?;
+    let cpi_series_by_currency = load_cpi_series_by_currency(cpi_series_path)?;
+
     let opts = datasynth_group::aggregate::AggregateOptions {
         prior_period_aggregate: prior_period_aggregate.map(|p| p.to_path_buf()),
         tolerate_missing_shards,
-        cgu_test_inputs: Vec::new(),
+        cgu_test_inputs,
+        cpi_series_by_currency,
     };
 
     let summary =
@@ -3665,16 +3857,21 @@ fn handle_group_aggregate(
 /// the same code path the existing `generate` command auto-detects
 /// when the YAML config is a [`datasynth_group::GroupConfig`] instead
 /// of a single-entity [`datasynth_config::GeneratorConfig`].
+///
+/// **v5.5.2** — Forwards optional `--cgu-test-inputs` to the aggregate
+/// phase via `StandaloneOptions::cgu_test_inputs`.
 fn handle_group_generate(
     config_path: &std::path::Path,
     out_path: &std::path::Path,
     parallel_shards: bool,
+    cgu_test_inputs_path: Option<&std::path::Path>,
 ) -> Result<()> {
     use anyhow::Context;
     tracing::info!(
         config = %config_path.display(),
         out = %out_path.display(),
         parallel_shards = parallel_shards,
+        cgu_test_inputs = ?cgu_test_inputs_path.map(|p| p.display().to_string()),
         "group generate: starting",
     );
 
@@ -3694,12 +3891,15 @@ fn handle_group_generate(
     std::fs::create_dir_all(out_path)
         .with_context(|| format!("group generate: mkdir {}", out_path.display()))?;
 
+    let cgu_test_inputs = load_cgu_test_inputs(cgu_test_inputs_path)?;
+
     let opts = datasynth_group::StandaloneOptions {
         prior_period_aggregate: None,
         tolerate_missing_shards: false,
-        cgu_test_inputs: Vec::new(),
+        cgu_test_inputs,
         parallel_shards,
         entity_opening_balances: std::collections::BTreeMap::new(),
+        cpi_series_by_currency: std::collections::BTreeMap::new(),
     };
 
     let summary = match datasynth_group::generate_standalone(&cfg, out_path, &opts) {
@@ -3741,12 +3941,15 @@ fn handle_group_generate(
 /// The chain auto-threads closing-TB → opening-TB carryover between
 /// successive periods (loaded via the orchestrator's
 /// `entity_opening_balances` plumbing).
+#[allow(clippy::too_many_arguments)]
 fn handle_group_generate_chain(
     config_path: &std::path::Path,
     periods_path: &std::path::Path,
     out_path: &std::path::Path,
     parallel_shards: bool,
     prior_period_aggregate: Option<&std::path::Path>,
+    cgu_test_inputs_path: Option<&std::path::Path>,
+    cpi_series_path: Option<&std::path::Path>,
 ) -> Result<()> {
     use anyhow::Context;
     tracing::info!(
@@ -3755,6 +3958,8 @@ fn handle_group_generate_chain(
         out = %out_path.display(),
         parallel_shards = parallel_shards,
         prior_period_aggregate = ?prior_period_aggregate.map(|p| p.display().to_string()),
+        cgu_test_inputs = ?cgu_test_inputs_path.map(|p| p.display().to_string()),
+        cpi_series = ?cpi_series_path.map(|p| p.display().to_string()),
         "group generate-chain: starting",
     );
 
@@ -3772,7 +3977,10 @@ fn handle_group_generate_chain(
     }
 
     let periods_json = std::fs::read_to_string(periods_path).with_context(|| {
-        format!("group generate-chain: read periods {}", periods_path.display())
+        format!(
+            "group generate-chain: read periods {}",
+            periods_path.display()
+        )
     })?;
     let periods: Vec<datasynth_group::PeriodChainSpec> = serde_json::from_str(&periods_json)
         .with_context(|| {
@@ -3789,12 +3997,16 @@ fn handle_group_generate_chain(
     std::fs::create_dir_all(out_path)
         .with_context(|| format!("group generate-chain: mkdir {}", out_path.display()))?;
 
+    let cgu_test_inputs = load_cgu_test_inputs(cgu_test_inputs_path)?;
+    let cpi_series_by_currency = load_cpi_series_by_currency(cpi_series_path)?;
+
     let opts = datasynth_group::StandaloneOptions {
         prior_period_aggregate: prior_period_aggregate.map(std::path::PathBuf::from),
         tolerate_missing_shards: false,
-        cgu_test_inputs: Vec::new(),
+        cgu_test_inputs,
         parallel_shards,
         entity_opening_balances: std::collections::BTreeMap::new(),
+        cpi_series_by_currency,
     };
 
     let summaries = match datasynth_group::generate_standalone_chain(&cfg, periods, out_path, &opts)
@@ -3804,7 +4016,10 @@ fn handle_group_generate_chain(
     };
 
     let total_shards: usize = summaries.iter().map(|s| s.shard_summaries.len()).sum();
-    let total_artifacts: usize = summaries.iter().map(|s| s.aggregate.artifacts_written.len()).sum();
+    let total_artifacts: usize = summaries
+        .iter()
+        .map(|s| s.aggregate.artifacts_written.len())
+        .sum();
     let avg_coverage: f64 = if summaries.is_empty() {
         0.0
     } else {

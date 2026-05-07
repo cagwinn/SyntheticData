@@ -88,7 +88,16 @@ fn write_journal_entries_csv(
     let file = std::fs::File::create(&path)?;
     let mut w = std::io::BufWriter::with_capacity(256 * 1024, file);
 
-    // Write header
+    // Write header.
+    //
+    // Schema note: the v5.6+ writer appends a block of audit/coverage
+    // columns after the historical FEC columns. New columns are added at
+    // the end so existing column-positional consumers keep working:
+    //   - is_manual, is_post_close, source_system   (audit / ETL provenance)
+    //   - account_description                       (joined from CoA)
+    //   - financial_statement_category              (asset/liability/...)
+    //   - assignment, value_date, tax_code          (already-populated line fields)
+    //   - transaction_id                            (stable per-line id)
     writeln!(
         w,
         "document_id,company_code,fiscal_year,fiscal_period,posting_date,document_date,\
@@ -96,8 +105,21 @@ fn write_journal_entries_csv(
          business_process,ledger,is_fraud,is_anomaly,\
          line_number,gl_account,debit_amount,credit_amount,local_amount,\
          cost_center,profit_center,line_text,\
-         auxiliary_account_number,auxiliary_account_label,lettrage,lettrage_date"
+         auxiliary_account_number,auxiliary_account_label,lettrage,lettrage_date,\
+         is_manual,is_post_close,source_system,\
+         account_description,financial_statement_category,\
+         assignment,value_date,tax_code,transaction_id"
     )?;
+
+    // Build a CoA → short_description lookup for account_description. Empty
+    // when no CoA was generated (e.g. some smoke tests); resolution falls
+    // back to the line's already-populated `account_description`.
+    let coa_descriptions: std::collections::HashMap<&str, &str> = result
+        .chart_of_accounts
+        .accounts
+        .iter()
+        .map(|a| (a.account_number.as_str(), a.short_description.as_str()))
+        .collect();
 
     for je in &result.journal_entries {
         let h = &je.header;
@@ -106,9 +128,30 @@ fn write_journal_entries_csv(
                 .lettrage_date
                 .map(|d| d.to_string())
                 .unwrap_or_default();
+            let value_date_str = line.value_date.map(|d| d.to_string()).unwrap_or_default();
+            // Prefer the line's own account_description; fall back to the CoA
+            // lookup so consumers always get a name even when the generator
+            // forgot to populate the field.
+            let account_description: &str = line
+                .account_description
+                .as_deref()
+                .or_else(|| coa_descriptions.get(line.gl_account.as_str()).copied())
+                .unwrap_or("");
+            // Derive the FSA category from the gl_account prefix (1xxx=asset,
+            // 2xxx=liability, ...). Cheap, deterministic, no CoA dependency.
+            let fsa_category =
+                datasynth_core::accounts::AccountCategory::from_account(line.gl_account.as_str())
+                    .as_label();
+            // Stable per-line identifier (UUID v5 of document_id+line_number).
+            let transaction_id = line.transaction_id.clone().unwrap_or_else(|| {
+                datasynth_core::models::JournalEntryLine::derive_transaction_id(
+                    line.document_id,
+                    line.line_number,
+                )
+            });
             writeln!(
                 w,
-                "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}",
+                "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}",
                 h.document_id,
                 csv_escape(&h.company_code),
                 h.fiscal_year,
@@ -140,6 +183,15 @@ fn write_journal_entries_csv(
                 csv_opt_str(&line.auxiliary_account_label),
                 csv_opt_str(&line.lettrage),
                 lettrage_date_str,
+                h.is_manual,
+                h.is_post_close,
+                csv_escape(&h.source_system),
+                csv_escape(account_description),
+                fsa_category,
+                csv_opt_str(&line.assignment),
+                value_date_str,
+                csv_opt_str(&line.tax_code),
+                csv_escape(&transaction_id),
             )?;
         }
     }

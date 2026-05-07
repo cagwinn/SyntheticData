@@ -1,6 +1,7 @@
 //! Fixed Assets (FA) generator.
 
 use chrono::NaiveDate;
+use datasynth_core::accounts::cash_accounts;
 use datasynth_core::utils::seeded_rng;
 use rand::RngExt;
 use rand_chacha::ChaCha8Rng;
@@ -335,7 +336,7 @@ impl FAGenerator {
         if disposal.sale_proceeds > Decimal::ZERO {
             je.add_line(JournalEntryLine {
                 line_number: line_num,
-                gl_account: "1000".to_string(),
+                gl_account: cash_accounts::OPERATING_CASH.to_string(),
                 debit_amount: disposal.sale_proceeds,
                 reference: Some(disposal.disposal_id.clone()),
                 ..Default::default()

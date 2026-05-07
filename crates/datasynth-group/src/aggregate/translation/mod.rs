@@ -43,7 +43,7 @@ pub use cta::{
     compute_cta, cta_rollforward, write_cta_rollforward, CtaRollforward, CONSOLIDATED_SUBDIR,
     CTA_ROLLFORWARD_FILENAME,
 };
-pub use restatement::IndexedRestatement;
+pub use restatement::{select_restatement_path, IndexedRestatement, RestatementPath};
 pub use translate::{
     translate_entity_tb, translate_entity_tb_with_hyperinflation,
     translate_entity_tb_with_indexed_restatement, DrCr, RateBasis, TranslatedLine, TranslatedTb,

@@ -5,6 +5,83 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.5.1] - 2026-05-07
+
+### Fixed — Chart-of-accounts coverage
+
+Generated journal entries occasionally referenced GL accounts that were
+never seeded into `chart_of_accounts.json`, leaving downstream consumers
+unable to resolve account names (reported by an academic user training a
+GNN-based anomaly-detection model). Three independent root causes:
+
+- Several JE-emitting generators used raw GL strings instead of the
+  canonical `datasynth_core::accounts` constants — sometimes off by one
+  digit (e.g. `inventory_generator` used `"1300"` while
+  `control_accounts::INVENTORY = "1200"`).
+- `seed_canonical_accounts` only seeded a subset of constant modules, so
+  perfectly-typed accounts (intangible, treasury, provision, dividend,
+  manufacturing, pension, stock-comp, plus a handful of tax/equity
+  constants) never reached the COA.
+- Account-description lookup in `enrich_line_items` silently swallowed
+  misses, so the inconsistency had no warning surface.
+
+This release closes all three: every JE-emitting generator now
+references constants, every constant module is seeded, and a new
+invariant test (`coa_coverage_invariant`) asserts zero orphan accounts
+across the JE pipeline.
+
+### Added — CSV widening for analytics workflows
+
+`journal_entries.csv` now exports nine additional columns that were
+already populated on the model but dropped at write time. New columns
+are appended at the end so position-based consumers keep working:
+
+- `is_manual`, `is_post_close`, `source_system` — audit / ETL provenance
+  flags from the header
+- `account_description` — joined from the chart of accounts, with a
+  line-level fallback
+- `financial_statement_category` — `asset` / `liability` / `equity` /
+  `revenue` / `cogs` / `operating_expense` / `other_income_expense` /
+  `tax` / `suspense`, derived from the account-number prefix
+- `assignment`, `value_date`, `tax_code` — already-populated line fields
+- `transaction_id` — stable per-line UUID v5 of
+  `(document_id, line_number)`, deterministic across regenerations
+
+### Added — Realistic ERP `source_system` taxonomy
+
+Replaced the 7-value taxonomy (`SAP-FI`, `SAP-MM`, …) with a 28-value
+process-aware taxonomy (`SAP-FI/AP`, `SAP-MM/IV`, `SAP-SD/ORD`,
+`Treasury/CM`, `Interface/EDI`, `manual/adjustment`,
+`spreadsheet/upload`, …) so generated data better matches real-ERP
+column cardinality. The manual-prefix contract is preserved: every
+`is_manual=true` entry still has a `source_system` starting with
+`manual` or `spreadsheet`.
+
+### Added — Per-field NULL injection
+
+`data_quality.missing_values.field_rates` and `protected_fields` now
+propagate from the schema to the runtime injector, and the injector is
+wired across every `Option<String>` line field (`profit_center`,
+`assignment`, `tax_code`, `account_description`, `auxiliary_account_*`,
+`lettrage`). Audit-critical identifiers (`document_id`, `gl_account`,
+`transaction_id`, …) are force-protected regardless of user config.
+
+### Added — Strict COA-coverage validation flag
+
+New CLI flag `--validate-coa-coverage` (and
+`PhaseConfig::validate_coa_coverage_strict`) hard-fails the run when any
+generated JE references a `gl_account` that is not in the chart of
+accounts. Off by default — a soft warning is logged instead.
+
+### Fixed — `datasynth-group` build
+
+- Made `datasynth_core::models::hyperinflation` a public module so
+  `aggregate::driver`, `aggregate::translation::restatement`, and the
+  group `standalone` entry point can reference
+  `hyperinflation::GeneralPriceIndex` by path.
+- Updated the CLI auto-detect dispatch into `handle_group_generate` for
+  its v5.5.2 signature (`cgu_test_inputs_path: Option<&Path>`).
+
 ## [5.5.0] - 2026-05-05
 
 ### Added — Audit-methodology layer (`datasynth-audit-fsm`)

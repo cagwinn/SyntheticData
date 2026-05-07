@@ -101,6 +101,18 @@ pub struct StandaloneOptions {
     /// by default; an engagement that wants annual IAS 36 § 10
     /// impairment testing supplies one entry per CGU under test.
     pub cgu_test_inputs: Vec<crate::aggregate::cgu_impairment::CguTestInputs>,
+    /// **v5.5.2** — Forwarded verbatim to
+    /// [`crate::aggregate::driver::AggregateOptions::cpi_series_by_currency`].
+    /// Per-currency CPI series for IAS 29 § 12 indexed restatement.
+    /// Empty by default — single-period engagements without
+    /// hyperinflationary subsidiaries see no behaviour change.  When
+    /// the chain runner forwards a non-empty map, every period applies
+    /// the same series; vary by period at the library level if the
+    /// engagement requires per-period CPI overrides.
+    pub cpi_series_by_currency: std::collections::BTreeMap<
+        String,
+        datasynth_core::models::hyperinflation::GeneralPriceIndex,
+    >,
     /// **v5.3** — Per-entity opening-balance carryover from a prior
     /// period.  When non-empty, the shard runner pre-populates each
     /// matching entity's `ShardContext.opening_balances` so the
@@ -129,6 +141,7 @@ impl Default for StandaloneOptions {
             parallel_shards: true,
             cgu_test_inputs: Vec::new(),
             entity_opening_balances: std::collections::BTreeMap::new(),
+            cpi_series_by_currency: std::collections::BTreeMap::new(),
         }
     }
 }
@@ -239,6 +252,7 @@ pub fn generate_standalone(
         prior_period_aggregate: opts.prior_period_aggregate.clone(),
         tolerate_missing_shards: opts.tolerate_missing_shards,
         cgu_test_inputs: opts.cgu_test_inputs.clone(),
+        cpi_series_by_currency: opts.cpi_series_by_currency.clone(),
     };
     let aggregate = run_aggregate(&manifest, out_dir, out_dir, &agg_opts)?;
 

@@ -3,8 +3,10 @@
 use tracing::debug;
 
 use datasynth_core::accounts::{
-    cash_accounts, control_accounts, equity_accounts, expense_accounts, liability_accounts,
-    revenue_accounts, suspense_accounts, tax_accounts,
+    asset_class_accounts, cash_accounts, control_accounts, dividend_accounts, equity_accounts,
+    expense_accounts, intangible_accounts, inventory_accounts, liability_accounts,
+    manufacturing_accounts, provision_accounts, revenue_accounts, suspense_accounts, tax_accounts,
+    treasury_accounts,
 };
 use datasynth_core::models::*;
 use datasynth_core::pcg_loader;
@@ -915,6 +917,36 @@ impl ChartOfAccountsGenerator {
             coa.add_account(acct);
         }
 
+        // --- Asset class accounts (FA subledger acquisition + acc. depreciation) ---
+        Self::seed_asset_class_accounts(coa);
+
+        // --- Manufacturing accounts (WIP, finished goods, variances, warranty) ---
+        Self::seed_manufacturing_accounts(coa);
+
+        // --- Intangible assets (goodwill, customer relationships, etc.) ---
+        Self::seed_intangible_accounts(coa);
+
+        // --- Treasury / hedging / debt accounts ---
+        Self::seed_treasury_accounts(coa);
+
+        // --- Provisions (IAS 37 / ASC 450) ---
+        Self::seed_provision_accounts(coa);
+
+        // --- Dividend accounts (declared / payable) ---
+        Self::seed_dividend_accounts(coa);
+
+        // --- Pension / share-based compensation ---
+        Self::seed_compensation_accounts(coa);
+
+        // --- Inventory subledger sub-accounts (write-up income / write-down expense) ---
+        Self::seed_inventory_subledger_accounts(coa);
+
+        // --- Tax accounts not seeded above (income tax payable, tax receivable) ---
+        Self::seed_additional_tax_accounts(coa);
+
+        // --- Equity accounts not seeded above (income summary, dividends paid) ---
+        Self::seed_additional_equity_accounts(coa);
+
         // --- Suspense / Clearing accounts (9000-series) ---
         {
             let mut acct = GLAccount::new(
@@ -956,6 +988,447 @@ impl ChartOfAccountsGenerator {
             acct.is_suspense_account = true;
             coa.add_account(acct);
         }
+    }
+
+    /// Seed asset-class acquisition + accumulated-depreciation contras +
+    /// FA-subledger expense / disposal accounts so JEs from the fixed-asset
+    /// generator always resolve.
+    fn seed_asset_class_accounts(coa: &mut ChartOfAccounts) {
+        let acquisitions = [
+            (asset_class_accounts::LAND, "Land"),
+            (asset_class_accounts::BUILDINGS, "Buildings"),
+            (
+                asset_class_accounts::BUILDING_IMPROVEMENTS,
+                "Building Improvements",
+            ),
+            (
+                asset_class_accounts::MACHINERY_EQUIPMENT,
+                "Machinery & Equipment",
+            ),
+            (asset_class_accounts::VEHICLES, "Vehicles"),
+            (asset_class_accounts::OFFICE_EQUIPMENT, "Office Equipment"),
+            (asset_class_accounts::COMPUTER_HARDWARE, "Computer Hardware"),
+            (
+                asset_class_accounts::SOFTWARE_INTANGIBLES,
+                "Software / Intangibles",
+            ),
+            (
+                asset_class_accounts::FURNITURE_FIXTURES,
+                "Furniture & Fixtures",
+            ),
+            (
+                asset_class_accounts::LEASEHOLD_IMPROVEMENTS,
+                "Leasehold Improvements",
+            ),
+            (asset_class_accounts::OTHER_ASSETS, "Other Fixed Assets"),
+            (asset_class_accounts::LOW_VALUE_ASSETS, "Low-Value Assets"),
+            (
+                asset_class_accounts::CONSTRUCTION_IN_PROGRESS,
+                "Construction in Progress",
+            ),
+        ];
+        for (number, name) in acquisitions {
+            coa.add_account(GLAccount::new(
+                number.to_string(),
+                name.to_string(),
+                AccountType::Asset,
+                AccountSubType::FixedAssets,
+            ));
+        }
+
+        let depreciation_contras = [
+            (asset_class_accounts::ACC_DEP_LAND, "Acc. Dep. — Land"),
+            (
+                asset_class_accounts::ACC_DEP_BUILDINGS,
+                "Acc. Dep. — Buildings",
+            ),
+            (
+                asset_class_accounts::ACC_DEP_MACHINERY,
+                "Acc. Dep. — Machinery",
+            ),
+            (
+                asset_class_accounts::ACC_DEP_VEHICLES,
+                "Acc. Dep. — Vehicles",
+            ),
+            (
+                asset_class_accounts::ACC_DEP_OFFICE_EQUIPMENT,
+                "Acc. Dep. — Office Equipment",
+            ),
+            (
+                asset_class_accounts::ACC_DEP_SOFTWARE,
+                "Acc. Dep. — Software / Intangibles",
+            ),
+            (
+                asset_class_accounts::ACC_DEP_FURNITURE,
+                "Acc. Dep. — Furniture",
+            ),
+            (
+                asset_class_accounts::ACC_DEP_LEASEHOLD,
+                "Acc. Dep. — Leasehold Improvements",
+            ),
+            (asset_class_accounts::ACC_DEP_OTHER, "Acc. Dep. — Other"),
+            (asset_class_accounts::ACC_DEP_CIP, "Acc. Dep. — CIP"),
+        ];
+        for (number, name) in depreciation_contras {
+            coa.add_account(GLAccount::new(
+                number.to_string(),
+                name.to_string(),
+                AccountType::Asset,
+                AccountSubType::AccumulatedDepreciation,
+            ));
+        }
+
+        // FA-subledger depreciation expense (7100) — distinct from the
+        // GL-level DEPRECIATION (6000) which is also seeded.
+        {
+            let mut acct = GLAccount::new(
+                asset_class_accounts::DEPRECIATION_EXPENSE.to_string(),
+                "FA Depreciation Expense".to_string(),
+                AccountType::Expense,
+                AccountSubType::DepreciationExpense,
+            );
+            acct.requires_cost_center = true;
+            coa.add_account(acct);
+        }
+        coa.add_account(GLAccount::new(
+            asset_class_accounts::GAIN_ON_DISPOSAL.to_string(),
+            "Gain on Disposal of Fixed Assets".to_string(),
+            AccountType::Revenue,
+            AccountSubType::GainOnSale,
+        ));
+        coa.add_account(GLAccount::new(
+            asset_class_accounts::LOSS_ON_DISPOSAL.to_string(),
+            "Loss on Disposal of Fixed Assets".to_string(),
+            AccountType::Expense,
+            AccountSubType::LossOnSale,
+        ));
+    }
+
+    /// Seed manufacturing-cost-flow accounts (WIP, finished goods, variances, warranty).
+    fn seed_manufacturing_accounts(coa: &mut ChartOfAccounts) {
+        coa.add_account(GLAccount::new(
+            manufacturing_accounts::FINISHED_GOODS.to_string(),
+            "Finished Goods".to_string(),
+            AccountType::Asset,
+            AccountSubType::Inventory,
+        ));
+        coa.add_account(GLAccount::new(
+            manufacturing_accounts::WIP.to_string(),
+            "Work in Process".to_string(),
+            AccountType::Asset,
+            AccountSubType::Inventory,
+        ));
+        coa.add_account(GLAccount::new(
+            manufacturing_accounts::LABOR_ACCRUAL.to_string(),
+            "Labor Accrual".to_string(),
+            AccountType::Liability,
+            AccountSubType::AccruedLiabilities,
+        ));
+        coa.add_account(GLAccount::new(
+            manufacturing_accounts::WARRANTY_PROVISION.to_string(),
+            "Warranty Provision".to_string(),
+            AccountType::Liability,
+            AccountSubType::OtherLiabilities,
+        ));
+
+        let variance_accounts = [
+            (
+                manufacturing_accounts::SCRAP_EXPENSE,
+                "Scrap Expense",
+                AccountSubType::CostOfGoodsSold,
+            ),
+            (
+                manufacturing_accounts::OVERHEAD_APPLIED,
+                "Overhead Applied",
+                AccountSubType::CostOfGoodsSold,
+            ),
+            (
+                manufacturing_accounts::MATERIAL_PRICE_VARIANCE,
+                "Material Price Variance",
+                AccountSubType::CostOfGoodsSold,
+            ),
+            (
+                manufacturing_accounts::MATERIAL_USAGE_VARIANCE,
+                "Material Usage Variance",
+                AccountSubType::CostOfGoodsSold,
+            ),
+            (
+                manufacturing_accounts::LABOR_RATE_VARIANCE,
+                "Labor Rate Variance",
+                AccountSubType::CostOfGoodsSold,
+            ),
+            (
+                manufacturing_accounts::LABOR_EFFICIENCY_VARIANCE,
+                "Labor Efficiency Variance",
+                AccountSubType::CostOfGoodsSold,
+            ),
+            (
+                manufacturing_accounts::OVERHEAD_VOLUME_VARIANCE,
+                "Overhead Volume Variance",
+                AccountSubType::CostOfGoodsSold,
+            ),
+            (
+                manufacturing_accounts::WARRANTY_EXPENSE,
+                "Warranty Expense",
+                AccountSubType::OperatingExpenses,
+            ),
+        ];
+        for (number, name, sub) in variance_accounts {
+            let mut acct = GLAccount::new(
+                number.to_string(),
+                name.to_string(),
+                AccountType::Expense,
+                sub,
+            );
+            acct.requires_cost_center = true;
+            coa.add_account(acct);
+        }
+    }
+
+    /// Seed intangible-asset accounts (goodwill, customer relationships, etc.).
+    fn seed_intangible_accounts(coa: &mut ChartOfAccounts) {
+        let intangibles = [
+            (
+                intangible_accounts::GOODWILL,
+                "Goodwill",
+                AccountType::Asset,
+                AccountSubType::IntangibleAssets,
+            ),
+            (
+                intangible_accounts::CUSTOMER_RELATIONSHIPS,
+                "Customer Relationships",
+                AccountType::Asset,
+                AccountSubType::IntangibleAssets,
+            ),
+            (
+                intangible_accounts::TRADE_NAME,
+                "Trade Name / Brand",
+                AccountType::Asset,
+                AccountSubType::IntangibleAssets,
+            ),
+            (
+                intangible_accounts::TECHNOLOGY,
+                "Technology / Developed Software",
+                AccountType::Asset,
+                AccountSubType::IntangibleAssets,
+            ),
+            (
+                intangible_accounts::ACCUMULATED_AMORTIZATION,
+                "Accumulated Amortization",
+                AccountType::Asset,
+                AccountSubType::AccumulatedDepreciation,
+            ),
+            (
+                intangible_accounts::AMORTIZATION_EXPENSE,
+                "Amortization Expense — Intangibles",
+                AccountType::Expense,
+                AccountSubType::AmortizationExpense,
+            ),
+            (
+                intangible_accounts::BARGAIN_PURCHASE_GAIN,
+                "Bargain Purchase Gain",
+                AccountType::Revenue,
+                AccountSubType::OtherIncome,
+            ),
+        ];
+        for (number, name, ty, sub) in intangibles {
+            coa.add_account(GLAccount::new(
+                number.to_string(),
+                name.to_string(),
+                ty,
+                sub,
+            ));
+        }
+    }
+
+    /// Seed treasury / hedging / debt accounts.
+    fn seed_treasury_accounts(coa: &mut ChartOfAccounts) {
+        let entries = [
+            (
+                treasury_accounts::INTEREST_PAYABLE,
+                "Interest Payable",
+                AccountType::Liability,
+                AccountSubType::AccruedLiabilities,
+            ),
+            (
+                treasury_accounts::DEBT_PREMIUM,
+                "Debt Premium",
+                AccountType::Liability,
+                AccountSubType::LongTermDebt,
+            ),
+            (
+                treasury_accounts::DEBT_DISCOUNT,
+                "Debt Discount",
+                AccountType::Liability,
+                AccountSubType::LongTermDebt,
+            ),
+            (
+                treasury_accounts::DERIVATIVE_ASSET,
+                "Derivative Asset",
+                AccountType::Asset,
+                AccountSubType::OtherAssets,
+            ),
+            (
+                treasury_accounts::DERIVATIVE_LIABILITY,
+                "Derivative Liability",
+                AccountType::Liability,
+                AccountSubType::OtherLiabilities,
+            ),
+            (
+                treasury_accounts::OCI_CASH_FLOW_HEDGE,
+                "OCI — Cash Flow Hedge Reserve",
+                AccountType::Equity,
+                AccountSubType::OtherComprehensiveIncome,
+            ),
+            (
+                treasury_accounts::HEDGE_INEFFECTIVENESS,
+                "Hedge Ineffectiveness",
+                AccountType::Expense,
+                AccountSubType::OtherExpenses,
+            ),
+            (
+                treasury_accounts::CASH_POOL_IC_RECEIVABLE,
+                "IC Receivable — Cash Pool",
+                AccountType::Asset,
+                AccountSubType::AccountsReceivable,
+            ),
+            (
+                treasury_accounts::CASH_POOL_IC_PAYABLE,
+                "IC Payable — Cash Pool",
+                AccountType::Liability,
+                AccountSubType::AccountsPayable,
+            ),
+        ];
+        for (number, name, ty, sub) in entries {
+            coa.add_account(GLAccount::new(
+                number.to_string(),
+                name.to_string(),
+                ty,
+                sub,
+            ));
+        }
+    }
+
+    /// Seed provision accounts (IAS 37 / ASC 450).
+    fn seed_provision_accounts(coa: &mut ChartOfAccounts) {
+        coa.add_account(GLAccount::new(
+            provision_accounts::PROVISION_LIABILITY.to_string(),
+            "Provision Liability".to_string(),
+            AccountType::Liability,
+            AccountSubType::OtherLiabilities,
+        ));
+        let mut prov_exp = GLAccount::new(
+            provision_accounts::PROVISION_EXPENSE.to_string(),
+            "Provision Expense".to_string(),
+            AccountType::Expense,
+            AccountSubType::OperatingExpenses,
+        );
+        prov_exp.requires_cost_center = true;
+        coa.add_account(prov_exp);
+    }
+
+    /// Seed dividend accounts.
+    fn seed_dividend_accounts(coa: &mut ChartOfAccounts) {
+        coa.add_account(GLAccount::new(
+            dividend_accounts::DIVIDENDS_PAYABLE.to_string(),
+            "Dividends Payable".to_string(),
+            AccountType::Liability,
+            AccountSubType::OtherLiabilities,
+        ));
+        coa.add_account(GLAccount::new(
+            dividend_accounts::DIVIDENDS_DECLARED.to_string(),
+            "Dividends Declared".to_string(),
+            AccountType::Equity,
+            AccountSubType::RetainedEarnings,
+        ));
+    }
+
+    /// Seed pension and share-based compensation accounts.
+    fn seed_compensation_accounts(coa: &mut ChartOfAccounts) {
+        coa.add_account(GLAccount::new(
+            liability_accounts::NET_PENSION_LIABILITY.to_string(),
+            "Net Pension Liability".to_string(),
+            AccountType::Liability,
+            AccountSubType::PensionLiabilities,
+        ));
+        coa.add_account(GLAccount::new(
+            equity_accounts::OCI_REMEASUREMENTS.to_string(),
+            "OCI — Pension Remeasurements".to_string(),
+            AccountType::Equity,
+            AccountSubType::OtherComprehensiveIncome,
+        ));
+        coa.add_account(GLAccount::new(
+            equity_accounts::APIC_STOCK_COMP.to_string(),
+            "APIC — Stock Compensation".to_string(),
+            AccountType::Equity,
+            AccountSubType::AdditionalPaidInCapital,
+        ));
+        let mut pension_exp = GLAccount::new(
+            expense_accounts::PENSION_EXPENSE.to_string(),
+            "Pension Expense".to_string(),
+            AccountType::Expense,
+            AccountSubType::OperatingExpenses,
+        );
+        pension_exp.requires_cost_center = true;
+        coa.add_account(pension_exp);
+        let mut stock_comp = GLAccount::new(
+            expense_accounts::STOCK_COMP_EXPENSE.to_string(),
+            "Stock-Based Compensation Expense".to_string(),
+            AccountType::Expense,
+            AccountSubType::OperatingExpenses,
+        );
+        stock_comp.requires_cost_center = true;
+        coa.add_account(stock_comp);
+    }
+
+    /// Seed inventory subledger sub-accounts beyond the GL control (1200).
+    fn seed_inventory_subledger_accounts(coa: &mut ChartOfAccounts) {
+        coa.add_account(GLAccount::new(
+            inventory_accounts::WRITEUP_INCOME.to_string(),
+            "Inventory Write-up Income".to_string(),
+            AccountType::Revenue,
+            AccountSubType::OtherIncome,
+        ));
+        let mut writedown = GLAccount::new(
+            inventory_accounts::WRITEDOWN_EXPENSE.to_string(),
+            "Inventory Write-down Expense".to_string(),
+            AccountType::Expense,
+            AccountSubType::CostOfGoodsSold,
+        );
+        writedown.requires_cost_center = true;
+        coa.add_account(writedown);
+    }
+
+    /// Seed tax accounts not already covered by `seed_canonical_accounts`.
+    fn seed_additional_tax_accounts(coa: &mut ChartOfAccounts) {
+        coa.add_account(GLAccount::new(
+            tax_accounts::INCOME_TAX_PAYABLE.to_string(),
+            "Income Tax Payable".to_string(),
+            AccountType::Liability,
+            AccountSubType::TaxLiabilities,
+        ));
+        coa.add_account(GLAccount::new(
+            tax_accounts::TAX_RECEIVABLE.to_string(),
+            "Tax Receivable".to_string(),
+            AccountType::Asset,
+            AccountSubType::OtherReceivables,
+        ));
+    }
+
+    /// Seed equity accounts not already covered by `seed_canonical_accounts`.
+    fn seed_additional_equity_accounts(coa: &mut ChartOfAccounts) {
+        coa.add_account(GLAccount::new(
+            equity_accounts::INCOME_SUMMARY.to_string(),
+            "Income Summary".to_string(),
+            AccountType::Equity,
+            AccountSubType::NetIncome,
+        ));
+        coa.add_account(GLAccount::new(
+            equity_accounts::DIVIDENDS_PAID.to_string(),
+            "Dividends Paid".to_string(),
+            AccountType::Equity,
+            AccountSubType::RetainedEarnings,
+        ));
     }
 
     fn generate_asset_accounts(&mut self, coa: &mut ChartOfAccounts, count: usize) {
