@@ -193,6 +193,31 @@ preset, 12-month, 3 retail companies, 100k volume):
 | Balance-sheet A (entity 1000) | \$3.77 × 10^19 | **\$569 M** |
 | Materiality (entity 1000) | \$3.69 × 10^16 | **\$391 K** |
 
+### Fixed — CI runner sizing (#184)
+
+`Test (ubuntu-latest)` and `Code Coverage` were consistently
+cancelled by the GitHub Actions infrastructure ("hosted runner
+lost communication with the server") on `ubuntu-latest` (2 vCPU /
+7 GB RAM).  The cumulative memory pressure of the `datasynth-cli`
+integration tests — each spawns `synth-data generate` as a
+subprocess and several run in parallel by default — exhausted
+the runner before the suite completed.  `macOS` (14 GB) and
+`windows` (16 GB) runners were unaffected and consistently green.
+
+`.github/workflows/ci.yml` now restricts the Linux test path to
+unit tests only:
+
+- Linux: `cargo test --workspace --exclude datasynth-server --lib --bins`
+- macOS / Windows: `cargo test --workspace --exclude datasynth-server --all-targets` (full integration suite)
+
+Integration tests still get cross-platform coverage on every PR
+via the macOS + Windows matrix runs.  The `Code Coverage` job
+applies the same restriction
+(`cargo llvm-cov --workspace --exclude datasynth-server --lib --bins`).
+
+`timeout-minutes: 60` added to the `Test` job for graceful
+cancellation if anything genuinely hangs in the future.
+
 ### Verification — fixes
 
 - All 149 `datasynth-config` lib tests pass.

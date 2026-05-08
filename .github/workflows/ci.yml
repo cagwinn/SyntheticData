@@ -52,6 +52,7 @@ jobs:
   test:
     name: Test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -82,7 +83,28 @@ jobs:
       # and push the cumulative job past the runner's time budget.
       # Server-specific coverage is exercised by `--lib` runs in the
       # feature-matrix workflow.
-      - run: cargo test --workspace --exclude datasynth-server --all-targets
+      #
+      # On `ubuntu-latest` (2 vCPU / 7 GB RAM) the cumulative memory
+      # pressure of the integration test suite exhausts the runner
+      # before the suite completes — the agent is then cancelled by
+      # the GitHub Actions infrastructure ("hosted runner lost
+      # communication with the server"). The biggest contributors are
+      # `datasynth-cli/tests/*.rs` (each spawns `synth-data generate`
+      # as a subprocess with `--memory-limit 512` and several run in
+      # parallel by default) but also `datasynth-runtime/tests/*.rs`
+      # (in-process orchestrator runs) and a few other crates. macOS
+      # (14 GB) and Windows (16 GB) runners are unaffected.
+      #
+      # Workaround: on Linux, run only `--lib --bins` (unit tests +
+      # binary tests, no integration tests). The integration tests
+      # still get full cross-platform coverage on macOS + Windows
+      # via `--all-targets`. See GitHub issue #184.
+      - name: Workspace tests (Linux — lib + bin only, integration runs on macOS/Windows)
+        if: runner.os == 'Linux'
+        run: cargo test --workspace --exclude datasynth-server --lib --bins
+      - name: Workspace tests (macOS / Windows — full integration suite)
+        if: runner.os != 'Linux'
+        run: cargo test --workspace --exclude datasynth-server --all-targets
 
   msrv:
     name: MSRV (1.88)
@@ -137,12 +159,14 @@ jobs:
       - name: Install cargo-llvm-cov
         run: cargo install cargo-llvm-cov --locked
       - name: Generate coverage
-        # v5.0 added new tests in datasynth-group plus heavier integration suites;
-        # llvm-cov instrumentation slows them several-fold and the cumulative workspace
-        # run now lands around 35-40 min. Bumping to 60 min absorbs that + leaves space
-        # for v5.1 tests. If we hit this limit again, switch to per-crate coverage
-        # runs in parallel.
-        run: cargo llvm-cov --workspace --exclude datasynth-server --lcov --output-path lcov.info
+        # Same rationale as the matrix Test job: ubuntu-latest's
+        # 2 vCPU / 7 GB RAM cannot host the integration test suite
+        # under llvm-cov instrumentation ("hosted runner lost
+        # communication with the server"). Restrict to `--lib --bins`
+        # to keep memory pressure bounded; integration coverage is
+        # exercised on macOS + Windows in the matrix Test job (which
+        # have 14-16 GB RAM). See GitHub issue #184.
+        run: cargo llvm-cov --workspace --exclude datasynth-server --lib --bins --lcov --output-path lcov.info
         timeout-minutes: 60
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v6
