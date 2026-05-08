@@ -21,7 +21,7 @@ use std::fs;
 use std::time::Duration;
 use tempfile::TempDir;
 
-const TEST_TIMEOUT_SECS: u64 = 300;
+const TEST_TIMEOUT_SECS: u64 = 600; // 10 min — covers llvm-cov instrumentation on slow runners
 
 #[allow(deprecated)]
 fn synth_data_bin() -> Command {

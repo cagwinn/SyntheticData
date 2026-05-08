@@ -318,6 +318,65 @@ impl DocumentFlowJeGenerator {
         }
     }
 
+    /// **v5.8.0** — wire line-level `predecessor_line_id` pointers along
+    /// a chain of JEs.
+    ///
+    /// For each adjacent pair `(prev, curr)` in `entries`, scan every
+    /// line in `curr` and look for a line in `prev` with the same
+    /// `gl_account`. When found, set `curr_line.predecessor_line_id =
+    /// derive_transaction_id(prev_line)`.
+    ///
+    /// This corresponds to the natural P2P / O2C booking flow:
+    ///
+    /// - **P2P**: GR (DR Inventory / CR GR/IR) → Invoice (DR GR/IR /
+    ///   CR AP) → Payment (DR AP / CR Cash). The GR/IR-credit line of
+    ///   the GR JE is the predecessor of the GR/IR-debit line of the
+    ///   Invoice JE; the AP-credit line of the Invoice JE is the
+    ///   predecessor of the AP-debit line of the Payment JE.
+    /// - **O2C**: Delivery (DR COGS / CR Inventory) → Invoice (DR AR /
+    ///   CR Revenue) → Receipt (DR Cash / CR AR). AR-credit on Invoice
+    ///   is predecessor of AR-debit on Receipt.
+    ///
+    /// Position-by-`gl_account` matching is intentionally simple and
+    /// unambiguous on the canonical chain shapes; ties (multiple lines
+    /// of the same gl_account in `prev`) match to the first occurrence
+    /// — deterministic but lossy on multi-position chains. Adequate
+    /// for the v5.8.0 MVP edge-list export; a strict 1-to-1 matcher is
+    /// future work.
+    fn wire_predecessor_chain(entries: &mut [JournalEntry]) {
+        if entries.len() < 2 {
+            return;
+        }
+        for i in 1..entries.len() {
+            // Snapshot prev's lines as (gl_account, transaction_id) pairs
+            // so we can mutate `entries[i]` without borrow conflict.
+            let prev_lines: Vec<(String, String)> = entries[i - 1]
+                .lines
+                .iter()
+                .map(|l| {
+                    let tx_id = l.transaction_id.clone().unwrap_or_else(|| {
+                        datasynth_core::models::JournalEntryLine::derive_transaction_id(
+                            l.document_id,
+                            l.line_number,
+                        )
+                    });
+                    (l.gl_account.clone(), tx_id)
+                })
+                .collect();
+
+            for line in entries[i].lines.iter_mut() {
+                if line.predecessor_line_id.is_some() {
+                    continue;
+                }
+                if let Some((_, tx_id)) =
+                    prev_lines.iter().find(|(acct, _)| acct == &line.gl_account)
+                {
+                    line.predecessor_line_id = Some(tx_id.clone());
+                }
+            }
+        }
+    }
+
     /// Generate all JEs from a P2P document chain.
     pub fn generate_from_p2p_chain(&mut self, chain: &P2PDocumentChain) -> Vec<JournalEntry> {
         let mut entries = Vec::new();
@@ -364,6 +423,10 @@ impl DocumentFlowJeGenerator {
                 );
             }
         }
+
+        // v5.8.0 — wire line-level predecessor pointers along the chain so
+        // graphs/je_network.csv can trace booking chains across JEs.
+        Self::wire_predecessor_chain(&mut entries);
 
         entries
     }
@@ -414,6 +477,9 @@ impl DocumentFlowJeGenerator {
                 );
             }
         }
+
+        // v5.8.0 — wire line-level predecessor pointers along the chain.
+        Self::wire_predecessor_chain(&mut entries);
 
         entries
     }

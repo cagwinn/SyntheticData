@@ -29,7 +29,7 @@
 \usetikzlibrary{arrows.meta, positioning, calc, shapes.geometric, backgrounds, fit}
 
 % ── Single-source-of-truth version macros ────────────────────────────────────
-\newcommand{\dsversion}{5.7.0}
+\newcommand{\dsversion}{5.8.0}
 \newcommand{\dsdate}{May 2026}
 \newcommand{\dsrepourl}{https://github.com/mivertowski/SyntheticData}
 \newcommand{\dsssrnurl}{https://ssrn.com/abstract=6538639}
@@ -439,6 +439,7 @@ Internal Controls (SOX)       & SOX 302 certifications, SOX 404 assessments, def
 ISA Audit Lifecycle           & 34 ISA standards mapped, analytical procedures (ISA 520), confirmations (ISA 505), opinions (ISA 700/705/706/701) \\
 Audit Data Exchange           & ISO 21378:2019 (Audit Data Collection): 3-level account classification (Type / Class / Sub-Class) populated on every CoA account and every JE row, with descriptive names alongside the ISO codes \\
 Industry Account Packs        & v5.7.0: opt-in 6-digit sub-account expansion driven by sector-specific YAML packs (manufacturing / retail / financial services / healthcare / technology); deterministic-by-document picker for stable sub-account selection \\
+Accounting Networks           & v5.8.0: \texttt{graphs/je\_network.csv} flat edge-list export (Ivertowski et al., 2024 \cite{ivertowski2024apn}); per-line \texttt{predecessor\_line\_id} traces booking chains across P2P / O2C JEs; line-items-per-JE distribution faithful to Tables II/III of the paper (60.68\% 2-line, 88\% even-count, batch-job tails to 1000+) \\
 \bottomrule
 \end{tabularx}
 

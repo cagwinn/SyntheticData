@@ -14,7 +14,7 @@ use tempfile::TempDir;
 
 /// Hard cap on elapsed time: if flat ever really hangs, the timeout
 /// cuts the process and the test fails with a useful error.
-const TEST_TIMEOUT_SECS: u64 = 300;
+const TEST_TIMEOUT_SECS: u64 = 600; // 10 min — covers llvm-cov instrumentation on slow runners
 const TEST_MEMORY_LIMIT: &str = "512";
 const TEST_MAX_THREADS: &str = "1";
 

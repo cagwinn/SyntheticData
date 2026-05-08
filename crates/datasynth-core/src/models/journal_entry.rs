@@ -708,6 +708,22 @@ pub struct JournalEntryLine {
     /// not already set.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub transaction_id: Option<String>,
+
+    /// **v5.8.0** — predecessor line in a document booking chain.
+    ///
+    /// Set to the `transaction_id` of the line in a prior journal entry
+    /// that this line directly succeeds in a document chain (e.g. a
+    /// payment line's predecessor is the corresponding line in the
+    /// vendor invoice JE; a goods-receipt line's predecessor is the
+    /// matching line in the purchase-order JE). `None` for purely-GL
+    /// adjustments, period-close postings, payroll, or the root
+    /// (first) document in a chain.
+    ///
+    /// Used by the `graphs/je_network.csv` flat edge-list output to
+    /// trace booking chains across JEs without joining against
+    /// `document_references.json`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub predecessor_line_id: Option<String>,
 }
 
 impl JournalEntryLine {
@@ -747,6 +763,7 @@ impl JournalEntryLine {
             lettrage: None,
             lettrage_date: None,
             transaction_id: None,
+            predecessor_line_id: None,
         }
     }
 
@@ -791,6 +808,7 @@ impl JournalEntryLine {
             lettrage: None,
             lettrage_date: None,
             transaction_id: None,
+            predecessor_line_id: None,
         }
     }
 
@@ -884,6 +902,7 @@ impl Default for JournalEntryLine {
             lettrage: None,
             lettrage_date: None,
             transaction_id: None,
+            predecessor_line_id: None,
         }
     }
 }

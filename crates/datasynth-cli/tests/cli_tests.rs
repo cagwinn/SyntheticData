@@ -13,7 +13,7 @@ use tempfile::TempDir;
 /// Safe resource limits for tests
 const TEST_MEMORY_LIMIT: &str = "512";
 const TEST_MAX_THREADS: &str = "1";
-const TEST_TIMEOUT_SECS: u64 = 300; // 5 minutes — CI coverage instrumentation is slow
+const TEST_TIMEOUT_SECS: u64 = 600; // 10 min — covers llvm-cov instrumentation on slow runners
 
 /// Get a Command for our binary with timeout.
 #[allow(deprecated)] // cargo_bin is still functional, just has a new alternative
@@ -318,11 +318,15 @@ fn test_generate_from_config_file() {
     let config_path = temp_dir.path().join("config.yaml");
     let output_dir = temp_dir.path().join("output");
 
-    // Create config
+    // Create config (small complexity to keep this CLI smoke test fast on
+    // resource-constrained CI runners; the medium default takes >5 min on
+    // ubuntu-latest under llvm-cov instrumentation, hitting the 300s cap)
     synth_data()
         .arg("init")
         .arg("-o")
         .arg(config_path.to_str().unwrap())
+        .arg("--complexity")
+        .arg("small")
         .assert()
         .success();
 
