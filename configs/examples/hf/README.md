@@ -55,9 +55,21 @@ chart_of_accounts.parquet
 trial_balances.parquet
 cost_centers.parquet
 profit_centers.parquet
+je_network.parquet                  # Accounting-network edges (v5.8.0+)
 README.md                           # Dataset card (copy from previous publish)
 generation_config.yaml              # Reproducibility receipt (this file)
 ```
+
+`je_network.parquet` is the flat Cartesian-product edge list produced
+by v5.8.0 — one row per `(debit_line, credit_line)` pair within each
+journal entry, joinable back to the `data/train-*.parquet` JE shards
+via `from_line_id` / `to_line_id` (which match the `transaction_id`
+column on the JE side).  Schema: `edge_id`, `document_id`,
+`posting_date`, `from_account`, `to_account`, `from_line_id`,
+`to_line_id`, `amount`, `confidence`, `predecessor_edge_id`,
+`business_process`, `is_fraud`, `is_anomaly`.  See the v5.8.0
+CHANGELOG entry for the design rationale and the Methods A–E
+reference (Ivertowski 2024).
 
 ## Adapting to other HF dataset repos
 

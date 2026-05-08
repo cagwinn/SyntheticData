@@ -1525,6 +1525,7 @@ fn run_main() -> Result<()> {
                 &output,
                 generator_config.output.export_layout,
                 &generator_config.output.formats,
+                generator_config.graph_export.je_network.method,
             ) {
                 tracing::warn!("Some output files may not have been written: {}", e);
             }

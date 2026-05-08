@@ -102,6 +102,11 @@ fn write_journal_entries_csv(
     //   v5.6.0 added (ISO 21378 Audit Data Collection classification):
     //     account_class, account_class_name           (Level-2 e.g. "A.B" / "Trade Receivables")
     //     account_sub_class, account_sub_class_name   (Level-3 e.g. "A.B.A" / "Trade Accounts Receivable")
+    //   v5.8.0 added:
+    //     predecessor_line_id                         (UUID v5 of preceding line in document chain;
+    //                                                  populated by document_flow_je_generator for
+    //                                                  P2P / O2C chains, empty for chain heads and
+    //                                                  for purely-GL adjustments)
     writeln!(
         w,
         "document_id,company_code,fiscal_year,fiscal_period,posting_date,document_date,\
@@ -113,7 +118,8 @@ fn write_journal_entries_csv(
          is_manual,is_post_close,source_system,\
          account_description,financial_statement_category,\
          assignment,value_date,tax_code,transaction_id,\
-         account_class,account_class_name,account_sub_class,account_sub_class_name"
+         account_class,account_class_name,account_sub_class,account_sub_class_name,\
+         predecessor_line_id"
     )?;
 
     // Build a CoA → (short_description, ISO class, ISO sub-class) lookup.
@@ -175,7 +181,7 @@ fn write_journal_entries_csv(
             });
             writeln!(
                 w,
-                "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}",
+                "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}",
                 h.document_id,
                 csv_escape(&h.company_code),
                 h.fiscal_year,
@@ -220,6 +226,7 @@ fn write_journal_entries_csv(
                 csv_escape(coa_class_name),
                 csv_escape(coa_sub_class),
                 csv_escape(coa_sub_class_name),
+                csv_opt_str(&line.predecessor_line_id),
             )?;
         }
     }
@@ -252,6 +259,7 @@ fn write_journal_entries_csv(
 fn write_je_network_csv(
     result: &EnhancedGenerationResult,
     output_dir: &Path,
+    method: datasynth_config::JeNetworkMethod,
 ) -> Result<(), Box<dyn std::error::Error>> {
     use rust_decimal::Decimal;
 
@@ -320,6 +328,19 @@ fn write_je_network_csv(
             .map(|(i, _)| i)
             .collect();
         if debits.is_empty() || credits.is_empty() {
+            continue;
+        }
+
+        // Method A: bijective on 2-line entries only.  Multi-line JEs
+        // are skipped under this method — see Ivertowski (2024)
+        // Methods A through E.  The full Cartesian product of a
+        // multi-line consolidation produces O(n × m) edges per JE,
+        // which dominates total dataset size at scale; users who need
+        // the multi-line edges should set
+        // `graph_export.je_network.method: cartesian` (the default).
+        if method == datasynth_config::JeNetworkMethod::A
+            && !(debits.len() == 1 && credits.len() == 1)
+        {
             continue;
         }
 
@@ -536,6 +557,7 @@ pub fn write_all_output(
             datasynth_config::FileFormat::Csv,
             datasynth_config::FileFormat::Json,
         ],
+        datasynth_config::JeNetworkMethod::default(),
     )
 }
 
@@ -560,7 +582,13 @@ pub fn write_all_output_with_root(
     formats: &[datasynth_config::FileFormat],
 ) -> Result<(), Box<dyn std::error::Error>> {
     let effective = root.effective_dir();
-    write_all_output_with_layout(result, &effective, export_layout, formats)
+    write_all_output_with_layout(
+        result,
+        &effective,
+        export_layout,
+        formats,
+        datasynth_config::JeNetworkMethod::default(),
+    )
 }
 
 /// Write all generated data with a configurable export layout and format set.
@@ -573,6 +601,7 @@ pub fn write_all_output_with_layout(
     output_dir: &Path,
     export_layout: datasynth_config::ExportLayout,
     formats: &[datasynth_config::FileFormat],
+    je_network_method: datasynth_config::JeNetworkMethod,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let csv_enabled = formats.is_empty()
         || formats.contains(&datasynth_config::FileFormat::Csv)
@@ -632,7 +661,7 @@ pub fn write_all_output_with_layout(
                 // Always emit when CSV is requested; cheap relative to the
                 // main JE table.
                 s.spawn(|| {
-                    if let Err(e) = write_je_network_csv(result, output_dir) {
+                    if let Err(e) = write_je_network_csv(result, output_dir, je_network_method) {
                         warn!("Failed to write graphs/je_network.csv: {}", e);
                     }
                 });

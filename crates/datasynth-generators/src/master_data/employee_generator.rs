@@ -265,7 +265,11 @@ impl EmployeeGenerator {
 
         let name = self.name_generator.generate_name(&mut self.rng);
         let employee_id = format!("EMP-{}-{:06}", company_code, self.employee_counter);
-        let user_id = format!("u{:06}", self.employee_counter);
+        // v5.9.0: align Employee.user_id with UserPool's user_id format so a
+        // UserPool built from this employee pool produces user_ids that join
+        // back to `employees.user_id`.  Previously this was `u{:06}` which
+        // was disjoint from the username-style ids JE.created_by used.
+        let user_id = name.to_user_id(self.employee_counter);
         let email = self.name_generator.generate_email(&name);
 
         let job_level = self.select_job_level();
@@ -538,7 +542,8 @@ impl EmployeeGenerator {
 
         let name = self.name_generator.generate_name(&mut self.rng);
         let employee_id = format!("EMP-{}-{:06}", company_code, self.employee_counter);
-        let user_id = format!("exec{:04}", self.employee_counter);
+        // v5.9.0: see `generate_employee` for the format change rationale.
+        let user_id = name.to_user_id(self.employee_counter);
         let email = self.name_generator.generate_email(&name);
 
         let mut employee = Employee::new(

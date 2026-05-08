@@ -55,6 +55,16 @@ pub struct JournalEntryGenerator {
     customer_pool: CustomerPool,
     // Material pool for realistic material references
     material_pool: Option<MaterialPool>,
+    // Cost-center IDs sourced from the generated cost-centers master so
+    // `JE.cost_center` joins back to `cost_centers.id`.  Populated via
+    // [`with_cost_center_pool`] from the orchestrator after master-data
+    // generation; falls back to the hardcoded `COST_CENTER_POOL` const
+    // when empty (configs that skip master-data generation).
+    cost_center_pool: Vec<String>,
+    // Profit-center IDs sourced from the generated profit-centers master
+    // so `JE.profit_center` joins back to `profit_centers.id`.  Same
+    // population semantics as `cost_center_pool`.
+    profit_center_pool: Vec<String>,
     // Flag indicating whether we're using real master data vs defaults
     using_real_master_data: bool,
     // Fraud generation
@@ -355,6 +365,8 @@ impl JournalEntryGenerator {
             vendor_pool: VendorPool::standard(),
             customer_pool: CustomerPool::standard(),
             material_pool: None,
+            cost_center_pool: Vec::new(),
+            profit_center_pool: Vec::new(),
             using_real_master_data: false,
             fraud_config: FraudConfig::default(),
             persona_errors_enabled: true, // Enable by default for realism
@@ -844,6 +856,44 @@ impl JournalEntryGenerator {
             .with_materials(materials)
     }
 
+    /// Set the cost-center pool used by line-item enrichment.
+    ///
+    /// The orchestrator wires this from the generated cost-centers
+    /// master so `JE.cost_center` joins back to `cost_centers.id`.
+    /// When the pool is non-empty `enrich_line_items` picks
+    /// deterministically from it; the hardcoded fallback
+    /// `COST_CENTER_POOL` const is only used when the pool is empty
+    /// (configs that don't generate cost-center master data).
+    pub fn with_cost_center_pool(mut self, ids: Vec<String>) -> Self {
+        self.cost_center_pool = ids;
+        self
+    }
+
+    /// Set the profit-center pool used by line-item enrichment.
+    ///
+    /// Same semantics as [`with_cost_center_pool`] but for the
+    /// profit-centers master.  Without this, the legacy
+    /// `PC-{company_code}-{P2P|O2C|R2R|H2R}` derivation is used —
+    /// which is consistent within a generation run but does not
+    /// match the format the master data generator emits.
+    pub fn with_profit_center_pool(mut self, ids: Vec<String>) -> Self {
+        self.profit_center_pool = ids;
+        self
+    }
+
+    /// Replace the auto-generated user pool with an externally-built one.
+    ///
+    /// The orchestrator builds a [`UserPool`] from the generated
+    /// employee master ([`UserPool::from_employees`]) and passes it
+    /// here, so `JE.created_by` joins back to `employees.user_id`.
+    /// Without this call, [`with_country_pack_names`] generates its
+    /// own user pool whose ids are disjoint from the employee
+    /// master.
+    pub fn with_user_pool(mut self, pool: UserPool) -> Self {
+        self.user_pool = Some(pool);
+        self
+    }
+
     /// Replace the user pool with one generated from a [`CountryPack`].
     ///
     /// This is an alternative to the default name-culture distribution that
@@ -1148,24 +1198,70 @@ impl JournalEntryGenerator {
             }
 
             // 2. cost_center: assign to expense accounts (5xxx/6xxx)
+            //
+            // When the orchestrator has provided a master-data-sourced
+            // pool (`with_cost_center_pool`), pick from it so the value
+            // joins back to `cost_centers.id`.  Otherwise fall back to
+            // the legacy hardcoded `COST_CENTER_POOL` const.
+            //
+            // Selection within the pool is filtered to entries that
+            // mention the entry's `company_code` (master IDs follow
+            // the `CC-{company}-...` convention) so cross-company
+            // contamination is avoided; if no pool entry matches the
+            // company we fall through to the full pool.
             if line.cost_center.is_none() {
                 let first_char = line.gl_account.chars().next().unwrap_or('0');
                 if first_char == '5' || first_char == '6' {
-                    let idx = cc_seed.wrapping_add(i) % Self::COST_CENTER_POOL.len();
-                    line.cost_center = Some(Self::COST_CENTER_POOL[idx].to_string());
+                    if !self.cost_center_pool.is_empty() {
+                        let needle = format!("-{company_code}-");
+                        let candidates: Vec<&String> = self
+                            .cost_center_pool
+                            .iter()
+                            .filter(|id| id.contains(&needle))
+                            .collect();
+                        let pool: Vec<&String> = if candidates.is_empty() {
+                            self.cost_center_pool.iter().collect()
+                        } else {
+                            candidates
+                        };
+                        let idx = cc_seed.wrapping_add(i) % pool.len();
+                        line.cost_center = Some(pool[idx].clone());
+                    } else {
+                        let idx = cc_seed.wrapping_add(i) % Self::COST_CENTER_POOL.len();
+                        line.cost_center = Some(Self::COST_CENTER_POOL[idx].to_string());
+                    }
                 }
             }
 
-            // 3. profit_center: derive from company code + business process
+            // 3. profit_center: assign from master pool when available
+            // (`with_profit_center_pool`); otherwise derive from
+            // company code + business process (legacy behaviour, which
+            // does not match the master-data PC ID format).
             if line.profit_center.is_none() {
-                let suffix = match business_process {
-                    Some(BusinessProcess::P2P) => "-P2P",
-                    Some(BusinessProcess::O2C) => "-O2C",
-                    Some(BusinessProcess::R2R) => "-R2R",
-                    Some(BusinessProcess::H2R) => "-H2R",
-                    _ => "",
-                };
-                line.profit_center = Some(format!("PC-{company_code}{suffix}"));
+                if !self.profit_center_pool.is_empty() {
+                    let needle = format!("-{company_code}-");
+                    let candidates: Vec<&String> = self
+                        .profit_center_pool
+                        .iter()
+                        .filter(|id| id.contains(&needle))
+                        .collect();
+                    let pool: Vec<&String> = if candidates.is_empty() {
+                        self.profit_center_pool.iter().collect()
+                    } else {
+                        candidates
+                    };
+                    let idx = cc_seed.wrapping_add(i) % pool.len();
+                    line.profit_center = Some(pool[idx].clone());
+                } else {
+                    let suffix = match business_process {
+                        Some(BusinessProcess::P2P) => "-P2P",
+                        Some(BusinessProcess::O2C) => "-O2C",
+                        Some(BusinessProcess::R2R) => "-R2R",
+                        Some(BusinessProcess::H2R) => "-H2R",
+                        _ => "",
+                    };
+                    line.profit_center = Some(format!("PC-{company_code}{suffix}"));
+                }
             }
 
             // 4. line_text: fall back to header_text if not already set
@@ -2530,6 +2626,13 @@ impl ParallelGenerator for JournalEntryGenerator {
                 gen.vendor_pool = self.vendor_pool.clone();
                 gen.customer_pool = self.customer_pool.clone();
                 gen.material_pool = self.material_pool.clone();
+                // v5.9.0: master-data pools so sub-generators emit
+                // CC/PC values that join back to the corresponding
+                // masters (without these clones, parallel workers
+                // fell back to the hardcoded `COST_CENTER_POOL` const
+                // and the legacy `PC-{COMP}-{P2P|O2C|...}` derivation).
+                gen.cost_center_pool = self.cost_center_pool.clone();
+                gen.profit_center_pool = self.profit_center_pool.clone();
                 gen.using_real_master_data = self.using_real_master_data;
                 gen.fraud_config = self.fraud_config.clone();
                 gen.persona_errors_enabled = self.persona_errors_enabled;

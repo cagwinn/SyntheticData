@@ -557,6 +557,47 @@ pub struct GraphExportConfig {
     /// DGL-specific export settings.
     #[serde(default)]
     pub dgl: DglExportConfig,
+
+    /// `graphs/je_network.csv` flat edge-list export settings (v5.8.0+).
+    #[serde(default)]
+    pub je_network: JeNetworkConfig,
+}
+
+/// Method used to construct edges from journal entries when writing
+/// `graphs/je_network.csv` (v5.8.0+).
+///
+/// Reference: Ivertowski (2024), *Hardware Accelerated Method for
+/// Accounting Network Generation*, Methods A through E.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum JeNetworkMethod {
+    /// Method B (full Cartesian product) for every JE — bijective on
+    /// 2-line entries (Method A) and `n × m` Cartesian for multi-line
+    /// entries with proportional amount allocation.  Default for
+    /// backward compatibility with v5.8.0 datasets that already
+    /// consumed the Cartesian-product output, but produces O(n × m)
+    /// edges per JE — a 50-debit / 50-credit period-close
+    /// consolidation alone yields 2 500 edges, and a typical
+    /// HF-scale 1 M-line config can blow up to 200 M+ edges.
+    #[default]
+    Cartesian,
+    /// Method A only — emit a single edge per 2-line journal entry
+    /// (1 debit + 1 credit) and skip multi-line entries entirely.
+    /// Edge count = number of 2-line JEs (≈ 60 % of entries per the
+    /// 2024 paper); per-edge confidence is exactly `1.0`.  Recommended
+    /// for published reference datasets where size and exactness
+    /// matter more than recall on multi-line consolidations.
+    A,
+}
+
+/// Configuration for the `graphs/je_network.csv` flat edge-list
+/// export (v5.8.0+).
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct JeNetworkConfig {
+    /// Edge-construction method (see [`JeNetworkMethod`]).
+    #[serde(default)]
+    pub method: JeNetworkMethod,
 }
 
 fn default_graph_types() -> Vec<GraphTypeConfig> {
@@ -591,6 +632,7 @@ impl Default for GraphExportConfig {
             output_subdirectory: "graphs".to_string(),
             hypergraph: HypergraphExportSettings::default(),
             dgl: DglExportConfig::default(),
+            je_network: JeNetworkConfig::default(),
         }
     }
 }

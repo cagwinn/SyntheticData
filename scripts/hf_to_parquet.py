@@ -1,15 +1,21 @@
 #!/usr/bin/env python3
 """
-Convert v5.5.1 generation outputs into HF-ready parquet artefacts.
+Convert DataSynth generation outputs into HF-ready parquet artefacts.
 
 Inputs (under --output-dir):
   journal_entries.csv                   -> data/train-{NNNNN}-of-{TOTAL}.parquet
+  graphs/je_network.csv                 -> je_network.parquet            (v5.8.0+)
   chart_of_accounts.json                -> chart_of_accounts.parquet
   period_close/trial_balances.json      -> trial_balances.parquet
   master_data/cost_centers.json         -> cost_centers.parquet (optional)
   master_data/profit_centers.json       -> profit_centers.parquet (optional)
 
 The JE table is sharded so each shard is <= ~150 MB compressed.
+
+The accounting-network edge list (`graphs/je_network.csv`) is the
+v5.8.0+ flat Cartesian-product of debit↔credit edges per journal
+entry — joinable back to `journal_entries.parquet` via
+`from_line_id` / `to_line_id`.
 """
 
 from __future__ import annotations
@@ -87,6 +93,31 @@ def shard_je_csv(csv_path: Path, out_dir: Path, target_shards: int = 3) -> int:
 
     flush(shard_idx, shard_buf)
     return rows_emitted
+
+
+def je_network_csv_to_parquet(csv_path: Path, out_path: Path) -> int:
+    """Convert the v5.8.0 `graphs/je_network.csv` flat edge list to parquet.
+
+    13 columns; written as a single file (typical row counts are 1.5–3×
+    the JE row count, but the per-row payload is much smaller, so a
+    single parquet stays well under the ~150 MB shard threshold for
+    the configurations published on HF).
+    """
+    dtypes = {
+        "amount": "float64",
+        "confidence": "float64",
+        "is_fraud": "bool",
+        "is_anomaly": "bool",
+    }
+    parse_dates = ["posting_date"]
+
+    df = pd.read_csv(csv_path, dtype=dtypes, parse_dates=parse_dates, low_memory=False)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    table = pa.Table.from_pandas(df, preserve_index=False)
+    pq.write_table(table, out_path, compression="zstd", compression_level=9)
+    size_mb = out_path.stat().st_size / 1024 / 1024
+    print(f"  wrote {out_path.name}: {len(df):,} edges, {size_mb:.1f} MB (Accounting Network)")
+    return len(df)
 
 
 def json_to_parquet(json_path: Path, out_path: Path, label: str) -> int:
@@ -219,6 +250,12 @@ def main() -> int:
         if src.exists():
             print(f"Converting {src.name} -> parquet …")
             json_to_parquet(src, dst, label)
+
+    # 5. Accounting network (v5.8.0+) — flat Cartesian-product edge list.
+    je_network_csv = out / "graphs" / "je_network.csv"
+    if je_network_csv.exists():
+        print("Converting graphs/je_network.csv -> parquet …")
+        je_network_csv_to_parquet(je_network_csv, hf / "je_network.parquet")
 
     print(f"\nAll artefacts written to {hf}/")
     return 0

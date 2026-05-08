@@ -5,86 +5,55 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [5.8.0] - 2026-05-08
+## [5.9.0] - 2026-05-08
 
-### Added — `graphs/je_network.csv` flat edge-list export
+Customer-feedback follow-up release on top of v5.8.0.  Bundles a
+new opt-in graph-export configuration, the silent-drop /
+amount-inflation fixes that emerged from a customer audit, the
+defence-in-depth guard in the unusual-item generator, the
+JE-CSV widening for `predecessor_line_id`, and the CI runner-sizing
+workaround.  All issues raised during the v5.8.0 review window
+land here as a coherent minor release.
 
-A new CSV under `graphs/je_network.csv` is now produced alongside
-`journal_entries.csv` whenever CSV output is enabled. Each row
-represents one debit↔credit flow within a single JE, formed via the
-cartesian product of debit lines × credit lines (the approach in
-`datasynth-graph::TransactionGraphBuilder`):
+### Added — `graph_export.je_network.method` config option
 
-| Column | Source |
-|---|---|
-| `edge_id` | UUID v5 of `(document_id, debit_line_number, credit_line_number)` — stable across regenerations |
-| `document_id` | parent JE |
-| `posting_date` | from header |
-| `from_account` | credit line's `gl_account` (outgoing edge) |
-| `to_account` | debit line's `gl_account` (incoming edge) |
-| `from_line_id` | credit line's `transaction_id` (v5.5.1 stable line UUID) |
-| `to_line_id` | debit line's `transaction_id` |
-| `amount` | proportionally allocated (`(debit / total_debit) × (credit / total_credit) × debit_amount`) |
-| `confidence` | `1.0` for 2-line JEs (Method A from Ivertowski et al.); `1/(n×m)` for n-debit / m-credit JEs (Method B/C approximation) |
-| `predecessor_edge_id` | first outgoing edge of the predecessor line in a document chain (P2P / O2C); empty for root JEs |
-| `business_process`, `is_fraud`, `is_anomaly` | propagated from header for analytics filtering |
+The `graphs/je_network.csv` writer now honours
+`graph_export.je_network.method` from the YAML config.  Two
+methods are exposed:
 
-Joins back to `journal_entries.csv` via `transaction_id` so any tool
-that already loads the JE table can build the accounting-network
-graph directly without invoking the graph crate's specialised
-exporters (PyTorch Geometric / Neo4j / DGL — those remain available
-under the same `graphs/` directory and carry richer feature sets).
+- `cartesian` (default) — full Cartesian product of debit × credit
+  lines per JE, matching the v5.8.0 release behaviour.  Bijective
+  on 2-line entries and `n × m` Cartesian on multi-line entries.
+- `a` — Method A from Ivertowski (2024): emit exactly one edge per
+  2-line JE (1 debit + 1 credit) and skip multi-line entries
+  entirely.  Edge count = number of 2-line JEs (≈ 60 % of postings
+  per the paper); confidence is exactly `1.0` on every edge.
 
-### Added — `JournalEntryLine::predecessor_line_id`
+Background: at the HF reference-dataset scale (1 M JE lines × 12
+months × 10 companies, with `audit-group` + period-close + IC
+matching enabled), the default Cartesian method produced ≈225 M
+edges totalling ~52 GB of CSV — too large for HF publication.
+Method A drops that to ≈600 k edges (~80 MB) while preserving the
+exact-1.0-confidence cohort and matching the 2024 paper exactly.
 
-New optional field on every JE line. Populated by the document-flow
-JE generator when a JE is derived from a chained document — a
-payment line's predecessor is the corresponding line in the vendor-
-invoice JE; an invoice's GR/IR line's predecessor is the matching
-goods-receipt line. `None` for purely-GL adjustments, period-close,
-payroll, or root documents in a chain.
+The HF dataset config (`configs/examples/hf/journal_entries_1m.yaml`)
+now ships with `graph_export.je_network.method: a`.
 
-Wiring is `O(N)` along the chain via gl_account match across
-adjacent JEs (`document_flow_je_generator::wire_predecessor_chain`).
-Position-by-`gl_account` matching is intentionally simple and
-unambiguous on canonical P2P / O2C chain shapes; ties (multiple
-lines of the same gl_account in the predecessor JE) match to the
-first occurrence — deterministic but lossy on multi-position chains.
-A strict 1-to-1 line-position matcher is future work.
+### Added — `predecessor_line_id` column on JE CSV
 
-### Background
+v5.8.0 added `JournalEntryLine::predecessor_line_id` as a model
+field but only the JSON serialiser exposed it; the CSV writer kept
+the v5.6.0 42-column schema and silently dropped the field.  The
+column-positional consumers that read `journal_entries.csv` thus
+had no way to follow a posting back to its predecessor in a P2P
+or O2C document chain — the chain context was reachable only via
+`graphs/je_network.csv` `predecessor_edge_id`, which requires
+joining a separate file.
 
-The flat edge-list is the format consumers need to build accounting
-networks per Ivertowski et al. (2024)
-*"Hardware-Accelerated Method for Accounting Network Generation"*
-(EY DID Research). The paper specifies a directed graph
-`G(t₀, t₁) = A(t₀, t₁) × E(t₀, t₁)` where credit lines emit outgoing
-edges from account nodes and debit lines emit incoming edges. v5.8.0
-makes that surface available without requiring downstream code to
-re-derive the matching from raw line items.
-
-The line-items-per-JE distribution that the paper measured (Tables II
-and III: 60.68% of JEs have 2 lines, 16.63% have 4, 88% have an even
-count, with system-batch-job tails reaching 1000+ lines) is already
-faithfully implemented in `datasynth_core::distributions::line_item`
-and was unchanged in this release.
-
-### Verification
-
-- New integration test `je_network_export_end_to_end` (consolidated
-  to one orchestrator run to keep test memory bounded) — schema,
-  edge count `Σ(n_debit × n_credit)`, line-id join-back, and
-  predecessor-edge presence all assert in 1 pass
-- 1 339 datasynth-core unit tests pass
-- 1 142 datasynth-generators unit tests pass
-
-### Compatibility
-
-Pure addition. No schema changes to existing files; default behaviour
-unchanged for runs that don't enable document flows. The new
-`predecessor_line_id` field on `JournalEntryLine` uses
-`#[serde(default, skip_serializing_if = "Option::is_none")]` so v5.7.0
-fixtures deserialise into v5.8.0 readers cleanly.
+The CSV header now ends with `predecessor_line_id` as the 43rd
+column, populated for every line that has a predecessor populated
+on the model.  Old consumers that hardcode 42 columns will need
+to either ignore the new column or add it to their schema.
 
 ### Fixed — silent-drop drift in distribution structs (#183)
 
@@ -218,6 +187,75 @@ applies the same restriction
 `timeout-minutes: 60` added to the `Test` job for graceful
 cancellation if anything genuinely hangs in the future.
 
+### Fixed — JE ↔ master linkage gaps (cost-centers / profit-centers / employees)
+
+A customer-feedback audit revealed that three JE columns were
+populated from generators independent of the master tables and
+therefore did not join cleanly:
+
+| JE column | Pre-fix | Master | Status |
+|---|---|---|---|
+| `cost_center` | `CC1000–CC5000` (hardcoded const) | `CC-1000-FIN-AP` (210 ids) | **0 / 5 joined** |
+| `profit_center` | `PC-{COMP}-{P2P\|O2C\|R2R\|H2R}` (derived) | `PC-1000-CONSUMER-FOOD` (120 ids) | **0 / 51 joined** |
+| `created_by` | `NPARKE015` (UserPool, separate generator) | `EMP-1000-000001` / `u000001` (employees) | **0 / 737 joined** |
+
+The fix plumbs master pools through `JeGenerator` and
+`DocumentFlowJeGenerator`:
+
+- New builder methods on `JeGenerator`:
+  - `with_cost_center_pool(Vec<String>)` — overrides the
+    hardcoded const.
+  - `with_profit_center_pool(Vec<String>)` — overrides the
+    legacy derivation.
+  - `with_user_pool(UserPool)` — overrides the auto-generated
+    pool from `with_country_pack_names`.
+- New setters on `DocumentFlowJeGenerator`:
+  - `set_cost_center_pool(Vec<String>)`
+  - `set_profit_center_pool(Vec<String>)`
+- New constructor on `UserPool`:
+  - `UserPool::from_employees(&[Employee])` — builds a UserPool
+    from the generated employee master so the two systems share
+    `user_id` values.
+- Per-line enrichment in both JE generators now picks
+  deterministically from the company-filtered subset of the
+  master pool (via `cc_seed.wrapping_add(i) % pool.len()`),
+  falling back to the legacy const only when the orchestrator
+  did not provide a master pool (e.g. configs that skip
+  master-data generation).
+- `JournalEntryGenerator::split` propagates the new pools to
+  parallel sub-generators (otherwise sub-workers fall back to
+  the legacy const and a 1 M-line config emitted ~40 % of
+  cost_centers via the legacy path).
+- `Employee.user_id` format changed from `u{:06}` /
+  `exec{:04}` to `name.to_user_id(counter)` (e.g. `NPARKE015`),
+  matching the format `UserPool` already uses so values flow
+  bidirectionally without translation.
+- `master_data/asset_generator.rs`: `Asset.cost_center` switched
+  from `CC-{COMP}-ADMIN` (which the master never produced) to
+  `CC-{COMP}-CORP` (master Level-1 category).
+
+### Audited — other generators that *don't* need this treatment
+
+The audit also confirmed that the document-flow ↔ master
+linkages are already clean: `purchase_orders.vendor_id` →
+`vendors.vendor_id`, `sales_orders.customer_id` →
+`customers.customer_id`, and `*.items[].material_id` →
+`materials.material_id` all join 1-to-1.  Hardcoded pools in
+`treasury` (`COUNTERPARTIES`, `LENDERS`, `ISSUING_BANKS`),
+`audit` (`KAM_POOL`), `governance` (`KEY_DECISIONS`,
+`AUDIT_COMMITTEE_MATTERS`), `management_report`
+(`POSITIVE_COMMENTARY` etc.), and `legal_document`
+(`ENGAGEMENT_LETTER_TERMS` etc.) are domain-specific text
+templates, not master-pool consumers, and need no plumbing.
+
+### Verified on the v5.9.0 HF reference dataset (1 M JE lines)
+
+| Linkage | Pre-fix | Post-fix |
+|---|---|---|
+| `JE.cost_center` ↔ `cost_centers.id` | 0 / 5 | **210 / 210** |
+| `JE.profit_center` ↔ `profit_centers.id` | 0 / 51 | **120 / 120** |
+| `JE.created_by` ↔ `employees.user_id` | 0 / 737 | **675 / 737** (the 62 unmatched are `BATCH0001-BATCH00xx` automated/system postings, correctly *not* tied to a human employee record) |
+
 ### Verification — fixes
 
 - All 149 `datasynth-config` lib tests pass.
@@ -229,6 +267,87 @@ cancellation if anything genuinely hangs in the future.
   caught at validation with a clear error listing all 11 counted
   fraud-type field values, instead of silently dropping fields
   and reporting a misleading sum.
+
+## [5.8.0] - 2026-05-08
+
+### Added — `graphs/je_network.csv` flat edge-list export
+
+A new CSV under `graphs/je_network.csv` is now produced alongside
+`journal_entries.csv` whenever CSV output is enabled. Each row
+represents one debit↔credit flow within a single JE, formed via the
+cartesian product of debit lines × credit lines (the approach in
+`datasynth-graph::TransactionGraphBuilder`):
+
+| Column | Source |
+|---|---|
+| `edge_id` | UUID v5 of `(document_id, debit_line_number, credit_line_number)` — stable across regenerations |
+| `document_id` | parent JE |
+| `posting_date` | from header |
+| `from_account` | credit line's `gl_account` (outgoing edge) |
+| `to_account` | debit line's `gl_account` (incoming edge) |
+| `from_line_id` | credit line's `transaction_id` (v5.5.1 stable line UUID) |
+| `to_line_id` | debit line's `transaction_id` |
+| `amount` | proportionally allocated (`(debit / total_debit) × (credit / total_credit) × debit_amount`) |
+| `confidence` | `1.0` for 2-line JEs (Method A from Ivertowski et al.); `1/(n×m)` for n-debit / m-credit JEs (Method B/C approximation) |
+| `predecessor_edge_id` | first outgoing edge of the predecessor line in a document chain (P2P / O2C); empty for root JEs |
+| `business_process`, `is_fraud`, `is_anomaly` | propagated from header for analytics filtering |
+
+Joins back to `journal_entries.csv` via `transaction_id` so any tool
+that already loads the JE table can build the accounting-network
+graph directly without invoking the graph crate's specialised
+exporters (PyTorch Geometric / Neo4j / DGL — those remain available
+under the same `graphs/` directory and carry richer feature sets).
+
+### Added — `JournalEntryLine::predecessor_line_id`
+
+New optional field on every JE line. Populated by the document-flow
+JE generator when a JE is derived from a chained document — a
+payment line's predecessor is the corresponding line in the vendor-
+invoice JE; an invoice's GR/IR line's predecessor is the matching
+goods-receipt line. `None` for purely-GL adjustments, period-close,
+payroll, or root documents in a chain.
+
+Wiring is `O(N)` along the chain via gl_account match across
+adjacent JEs (`document_flow_je_generator::wire_predecessor_chain`).
+Position-by-`gl_account` matching is intentionally simple and
+unambiguous on canonical P2P / O2C chain shapes; ties (multiple
+lines of the same gl_account in the predecessor JE) match to the
+first occurrence — deterministic but lossy on multi-position chains.
+A strict 1-to-1 line-position matcher is future work.
+
+### Background
+
+The flat edge-list is the format consumers need to build accounting
+networks per Ivertowski et al. (2024)
+*"Hardware-Accelerated Method for Accounting Network Generation"*
+(EY DID Research). The paper specifies a directed graph
+`G(t₀, t₁) = A(t₀, t₁) × E(t₀, t₁)` where credit lines emit outgoing
+edges from account nodes and debit lines emit incoming edges. v5.8.0
+makes that surface available without requiring downstream code to
+re-derive the matching from raw line items.
+
+The line-items-per-JE distribution that the paper measured (Tables II
+and III: 60.68% of JEs have 2 lines, 16.63% have 4, 88% have an even
+count, with system-batch-job tails reaching 1000+ lines) is already
+faithfully implemented in `datasynth_core::distributions::line_item`
+and was unchanged in this release.
+
+### Verification
+
+- New integration test `je_network_export_end_to_end` (consolidated
+  to one orchestrator run to keep test memory bounded) — schema,
+  edge count `Σ(n_debit × n_credit)`, line-id join-back, and
+  predecessor-edge presence all assert in 1 pass
+- 1 339 datasynth-core unit tests pass
+- 1 142 datasynth-generators unit tests pass
+
+### Compatibility
+
+Pure addition. No schema changes to existing files; default behaviour
+unchanged for runs that don't enable document flows. The new
+`predecessor_line_id` field on `JournalEntryLine` uses
+`#[serde(default, skip_serializing_if = "Option::is_none")]` so v5.7.0
+fixtures deserialise into v5.8.0 readers cleanly.
 
 ## [5.7.0] - 2026-05-07
 

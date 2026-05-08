@@ -297,6 +297,32 @@ impl UserPool {
         }
     }
 
+    /// Build a `UserPool` from a slice of generated [`Employee`] records.
+    ///
+    /// Each employee contributes one user with the same `user_id`,
+    /// `persona`, `working_hours`, and display name.  This is the
+    /// canonical way to source user identities from master data so
+    /// that `JE.created_by` joins back to `employees.user_id`
+    /// (closes the v5.9.0 linkage gap that had JE creators using a
+    /// pool disjoint from the employees master).
+    pub fn from_employees(employees: &[Employee]) -> Self {
+        let mut pool = Self::new();
+        for emp in employees {
+            let display_name = if emp.first_name.is_empty() && emp.last_name.is_empty() {
+                emp.user_id.clone()
+            } else {
+                format!("{} {}", emp.first_name, emp.last_name)
+            };
+            let mut user = User::new(emp.user_id.clone(), display_name, emp.persona);
+            user.email = Some(emp.email.clone());
+            user.department = emp.department_id.clone();
+            user.cost_centers = emp.cost_center.iter().cloned().collect();
+            user.working_hours = emp.working_hours.clone();
+            pool.add_user(user);
+        }
+        pool
+    }
+
     /// Add a user to the pool.
     pub fn add_user(&mut self, user: User) {
         let idx = self.users.len();

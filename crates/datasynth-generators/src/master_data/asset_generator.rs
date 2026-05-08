@@ -252,7 +252,11 @@ impl AssetGenerator {
 
         // Set location info
         asset.location = Some(format!("P{company_code}"));
-        asset.cost_center = Some(format!("CC-{company_code}-ADMIN"));
+        // v5.9.0: align with master cost-centers vocabulary (FIN / PROD /
+        // SALES / RD / CORP).  ADMIN was specific to asset_generator and
+        // didn't exist in the cost-centers master, so JE lines derived
+        // from these assets fell outside the cost_centers join.
+        asset.cost_center = Some(format!("CC-{company_code}-CORP"));
 
         // Generate serial number for equipment
         if matches!(
@@ -306,7 +310,11 @@ impl AssetGenerator {
 
         asset.account_determination = self.generate_account_determination(&asset_class);
         asset.location = Some(format!("P{company_code}"));
-        asset.cost_center = Some(format!("CC-{company_code}-ADMIN"));
+        // v5.9.0: align with master cost-centers vocabulary (FIN / PROD /
+        // SALES / RD / CORP).  ADMIN was specific to asset_generator and
+        // didn't exist in the cost-centers master, so JE lines derived
+        // from these assets fell outside the cost_centers join.
+        asset.cost_center = Some(format!("CC-{company_code}-CORP"));
 
         if matches!(
             asset_class,

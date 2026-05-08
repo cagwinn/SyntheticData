@@ -10970,13 +10970,43 @@ impl EnhancedOrchestrator {
         // Pass fraud configuration for fraud injection
         let je_pack = self.primary_pack();
 
+        // Master-data CC / PC pools so JE.cost_center and
+        // JE.profit_center join back to `cost_centers.id` and
+        // `profit_centers.id` (closes the v5.9.0 linkage gap that
+        // had `JE.cost_center = "CC1000"` while master used
+        // `CC-1000-FIN` etc.).  Empty when no master is present —
+        // the generator falls back to its hardcoded constants.
+        let cc_pool: Vec<String> = self
+            .master_data
+            .cost_centers
+            .iter()
+            .map(|c| c.id.clone())
+            .collect();
+        let pc_pool: Vec<String> = self
+            .master_data
+            .profit_centers
+            .iter()
+            .map(|p| p.id.clone())
+            .collect();
+
+        // Build a UserPool from the generated employee master so
+        // JE.created_by lines join back to `employees.user_id`.  v5.9.0:
+        // closes the third linkage gap (the previous behaviour had
+        // JeGenerator generate its own UserPool internally with
+        // ids disjoint from the employee master).
+        let user_pool_from_employees =
+            datasynth_core::models::UserPool::from_employees(&self.master_data.employees);
+
         let mut generator = generator
             .with_master_data(
                 &self.master_data.vendors,
                 &self.master_data.customers,
                 &self.master_data.materials,
             )
+            .with_cost_center_pool(cc_pool)
+            .with_profit_center_pool(pc_pool)
             .with_country_pack_names(je_pack)
+            .with_user_pool(user_pool_from_employees)
             .with_country_pack_temporal(
                 self.config.temporal_patterns.clone(),
                 self.seed + 200,
@@ -11082,6 +11112,30 @@ impl EnhancedOrchestrator {
 
         let populate_fec = je_config.populate_fec_fields;
         let mut generator = DocumentFlowJeGenerator::with_config_and_seed(je_config, self.seed);
+
+        // Master-data CC / PC pools so document-flow-derived JEs
+        // (P2P / O2C postings) reference IDs that join back to the
+        // cost-centers / profit-centers masters.  Same plumbing as
+        // for `JeGenerator` above; falls back to hardcoded const
+        // pools when masters are absent.
+        let cc_pool: Vec<String> = self
+            .master_data
+            .cost_centers
+            .iter()
+            .map(|c| c.id.clone())
+            .collect();
+        let pc_pool: Vec<String> = self
+            .master_data
+            .profit_centers
+            .iter()
+            .map(|p| p.id.clone())
+            .collect();
+        if !cc_pool.is_empty() {
+            generator.set_cost_center_pool(cc_pool);
+        }
+        if !pc_pool.is_empty() {
+            generator.set_profit_center_pool(pc_pool);
+        }
 
         // Build auxiliary account lookup from vendor/customer master data so that
         // FEC auxiliary_account_number uses framework-specific GL accounts (e.g.,

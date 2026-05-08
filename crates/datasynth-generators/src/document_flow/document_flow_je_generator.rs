@@ -118,6 +118,14 @@ pub struct DocumentFlowJeGenerator {
     /// uses the framework-specific auxiliary account (e.g., PCG "4010001", SKR04 "33000001")
     /// instead of the raw partner ID.
     auxiliary_account_lookup: HashMap<String, String>,
+    /// Cost-center IDs sourced from the generated cost-centers master so
+    /// document-flow-derived JEs (P2P / O2C) reference IDs that join
+    /// back to `cost_centers.id`.  Falls back to the hardcoded
+    /// `COST_CENTER_POOL` const when empty.
+    cost_center_pool: Vec<String>,
+    /// Profit-center IDs sourced from the generated profit-centers master.
+    /// Same population semantics as `cost_center_pool`.
+    profit_center_pool: Vec<String>,
 }
 
 impl DocumentFlowJeGenerator {
@@ -132,6 +140,8 @@ impl DocumentFlowJeGenerator {
             config,
             uuid_factory: DeterministicUuidFactory::new(seed, GeneratorType::DocumentFlow),
             auxiliary_account_lookup: HashMap::new(),
+            cost_center_pool: Vec::new(),
+            profit_center_pool: Vec::new(),
         }
     }
 
@@ -142,6 +152,17 @@ impl DocumentFlowJeGenerator {
     /// of the raw partner ID.
     pub fn set_auxiliary_account_lookup(&mut self, lookup: HashMap<String, String>) {
         self.auxiliary_account_lookup = lookup;
+    }
+
+    /// Set the cost-center pool (master-data IDs).  See
+    /// `JeGenerator::with_cost_center_pool` for semantics.
+    pub fn set_cost_center_pool(&mut self, ids: Vec<String>) {
+        self.cost_center_pool = ids;
+    }
+
+    /// Set the profit-center pool (master-data IDs).
+    pub fn set_profit_center_pool(&mut self, ids: Vec<String>) {
+        self.profit_center_pool = ids;
     }
 
     /// Build an account description lookup from the configured accounts.
@@ -215,23 +236,60 @@ impl DocumentFlowJeGenerator {
                 line.account_description = desc_map.get(&line.gl_account).cloned();
             }
 
-            // 2. cost_center for expense accounts (5xxx/6xxx)
+            // 2. cost_center for expense accounts (5xxx/6xxx).
+            //    When the orchestrator wired a master-data pool via
+            //    `set_cost_center_pool`, draw from it filtered to the
+            //    entry's company; otherwise fall back to the hardcoded
+            //    `COST_CENTER_POOL`.
             if line.cost_center.is_none() {
                 let first_char = line.gl_account.chars().next().unwrap_or('0');
                 if first_char == '5' || first_char == '6' {
-                    let idx = cc_seed.wrapping_add(i) % Self::COST_CENTER_POOL.len();
-                    line.cost_center = Some(Self::COST_CENTER_POOL[idx].to_string());
+                    if !self.cost_center_pool.is_empty() {
+                        let needle = format!("-{company_code}-");
+                        let candidates: Vec<&String> = self
+                            .cost_center_pool
+                            .iter()
+                            .filter(|id| id.contains(&needle))
+                            .collect();
+                        let pool: Vec<&String> = if candidates.is_empty() {
+                            self.cost_center_pool.iter().collect()
+                        } else {
+                            candidates
+                        };
+                        let idx = cc_seed.wrapping_add(i) % pool.len();
+                        line.cost_center = Some(pool[idx].clone());
+                    } else {
+                        let idx = cc_seed.wrapping_add(i) % Self::COST_CENTER_POOL.len();
+                        line.cost_center = Some(Self::COST_CENTER_POOL[idx].to_string());
+                    }
                 }
             }
 
-            // 3. profit_center from company code + business process
+            // 3. profit_center: master pool when available, else
+            //    derived from company code + business process (legacy).
             if line.profit_center.is_none() {
-                let suffix = match business_process {
-                    Some(BusinessProcess::P2P) => "-P2P",
-                    Some(BusinessProcess::O2C) => "-O2C",
-                    _ => "",
-                };
-                line.profit_center = Some(format!("PC-{company_code}{suffix}"));
+                if !self.profit_center_pool.is_empty() {
+                    let needle = format!("-{company_code}-");
+                    let candidates: Vec<&String> = self
+                        .profit_center_pool
+                        .iter()
+                        .filter(|id| id.contains(&needle))
+                        .collect();
+                    let pool: Vec<&String> = if candidates.is_empty() {
+                        self.profit_center_pool.iter().collect()
+                    } else {
+                        candidates
+                    };
+                    let idx = cc_seed.wrapping_add(i) % pool.len();
+                    line.profit_center = Some(pool[idx].clone());
+                } else {
+                    let suffix = match business_process {
+                        Some(BusinessProcess::P2P) => "-P2P",
+                        Some(BusinessProcess::O2C) => "-O2C",
+                        _ => "",
+                    };
+                    line.profit_center = Some(format!("PC-{company_code}{suffix}"));
+                }
             }
 
             // 4. line_text: fall back to header_text

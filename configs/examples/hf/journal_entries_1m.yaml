@@ -1,7 +1,19 @@
-# VynFi Journal Entries v5.5.1 — HF dataset regeneration
-# Reproduces the published 10-company / 12-month / manufacturing dataset
-# at the v5.5.1 column schema (49 columns, transaction_id + FSA category +
-# enriched source_system + ISA-240 audit flags + per-field NULL profiles).
+# VynFi Journal Entries v5.8.0 — HF dataset regeneration
+#
+# Changes since v5.5.1 baseline:
+#   v5.6.0  ISO 21378 account-class / sub-class fields
+#           (account_class_name, account_sub_class, account_sub_class_name)
+#   v5.7.0  Industry sub-account expansion (opt-in, enabled below) — splits
+#           canonical control accounts into product-line / channel /
+#           cost-centre sub-accounts for a more realistic chart
+#   v5.8.0  graphs/je_network.csv flat edge-list export (Cartesian-product
+#           debit↔credit edges) + JournalEntryLine.predecessor_line_id for
+#           document-chain tracing (P2P / O2C predecessor lookup)
+#   v5.8.0  BenfordViolationStrategy magnitude bug fixed (#185) — fraud
+#           amounts no longer inflate to quintillion scale
+#   v5.8.0  Distribution-struct silent-drop drift closed (#183) — typos in
+#           fraud_type / behavior / credit-rating distributions now fail
+#           parse with `unknown field` instead of silently dropping
 
 global:
   industry: manufacturing
@@ -121,9 +133,20 @@ temporal_patterns:
 audit:
   enabled: false  # Audit data is published in a separate dataset
 
+# Accounting-network edge-list export (v5.8.0+).  Method A produces
+# exactly one edge per 2-line journal entry (≈60% of postings per
+# Ivertowski 2024) and skips the multi-line Cartesian-product
+# expansion that would otherwise blow the dataset to 200 M+ edges
+# at the 1 M-line scale.  Confidence is exactly 1.0 on every edge.
+graph_export:
+  je_network:
+    method: a
+
 output:
   output_directory: "./output"
   formats: [csv, json]
 
 # Default phase config (single-entity, no group consolidation).
-# Banking / OCEL / graph export disabled — published in their own datasets.
+# Banking / OCEL graph exports disabled — published in their own
+# datasets; only the lightweight `graphs/je_network.csv` ships with
+# this config.
