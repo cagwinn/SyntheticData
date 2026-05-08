@@ -86,6 +86,125 @@ unchanged for runs that don't enable document flows. The new
 `#[serde(default, skip_serializing_if = "Option::is_none")]` so v5.7.0
 fixtures deserialise into v5.8.0 readers cleanly.
 
+### Fixed — silent-drop drift in distribution structs (#183)
+
+Customer report: a retail `shrinkage_fraud` template parsed with
+empty stderr but the runtime saw a config that did not match the
+YAML.  Root cause: `serde` silently dropped keys that weren't in
+the target struct (e.g. `unauthorized_discount`, `kickback_scheme`,
+`erratic`, `problematic`, `excellent` / `good` / `fair` / `poor`,
+`fifty_k`).  An audit found the issue affected **11 of the 12
+shipped scenario templates**.  Fixes:
+
+- `FraudTypeDistribution`: added `kickback_scheme`,
+  `round_tripping`, `unauthorized_discount` fields (the
+  `RoundTripping` and `UnauthorizedDiscount` `FraudType` enum
+  variants were also added in `datasynth-core`).
+- `VendorBehaviorDistribution`: added `erratic`, `problematic`.
+- `CreditRatingDistribution`: added plain-English vocabulary
+  (`excellent` / `good` / `fair` / `poor`) parallel to bond-grade
+  tiers; the validator now counts both.
+- `PaymentBehaviorDistribution`: hardened with
+  `#[serde(deny_unknown_fields)]` + per-field defaults.
+- `TransactionVolume`: added `FiftyK` (50 000) — three templates
+  were already using it.
+- All four distribution structs now carry
+  `#[serde(deny_unknown_fields)]` so future field-name drift fails
+  fast at parse time instead of silently dropping the value.
+- Each field now has `#[serde(default)]`, so partial YAML (e.g.
+  only `reliable: 0.6, erratic: 0.25, problematic: 0.15`) parses
+  cleanly with the rest at `0.0`.
+- `validate_sum_to_one_named()`: the validator's error message
+  now lists every counted field with its value, so a user who
+  hits the customer's "got 0.9" bug immediately sees which fields
+  the validator counted (and which extra YAML keys were dropped).
+- New sum-to-one checks added for
+  `master_data.vendors.behavior_distribution`,
+  `master_data.customers.payment_behavior_distribution`, and
+  `master_data.customers.credit_rating_distribution` — previously
+  unvalidated.
+- `je_generator::select_fraud_type` and
+  `fraud_type_to_amount_pattern` updated for the new variants.
+- New regression test
+  `crates/datasynth-config/tests/scenario_templates_validate.rs`
+  walks every shipped template YAML and asserts each one
+  deserializes + passes `validate_config`.  Catches the entire
+  drift class going forward.
+
+### Fixed — variance overflow in `unusual_item_generator` (#183)
+
+`compute_account_stats` panicked on `diff * diff` (`rust_decimal`
+multiplication / addition overflow) when account-level balances
+inflated into the 10^15+ range under particular config combinations.
+Defence-in-depth guard added: variance accumulation now skips
+contributions for `|diff| > 10^13`.  Lines beyond that threshold
+are still flagged via the explicit
+`outlier_threshold_decimal` cap path.
+
+### Fixed — Benford magnitude sampling (#186, partial #185)
+
+`BenfordSampler::sample_with_first_digit` and
+`EnhancedBenfordSampler::sample_with_digits` previously sampled
+the order-of-magnitude **uniformly** across
+`[log10(min_amount), log10(max_amount)]`, so 1/N of amounts under
+the default `large_transactions()` profile landed in the \$10^7–10^8
+bucket — anti-Benford fraud amounts in particular were
+disproportionately drawn from the high tail (since
+`sample_anti_benford` re-uses this code path).  Both samplers now
+hold a `LogNormal<f64>` field constructed from the parent
+`AmountDistributionConfig` parameters and use it to derive the
+magnitude.  The first digit is still forced to match the requested
+Benford / anti-Benford distribution, so the first-digit statistical
+signature consumers care about is unchanged — only the magnitude
+distribution shifts to match routine traffic.
+
+### Fixed — quintillion-scale amounts in BenfordViolationStrategy (#185)
+
+The dominant inflation pathway in the customer's `mult_overflow`
+repro: `BenfordViolationStrategy::apply` computed magnitude from the
+**full Decimal `to_string()` with the decimal point stripped**, so a
+routine opening-balance amount like
+`530079.62588890132434634443311` (21 decimal places) yielded a 28-
+character string and `magnitude = 27`.  Clamped to `safe_magnitude
+= 18`, the strategy then constructed `base = Decimal::new(10^18, 0)`
+and produced `new_amount = target_digit × 10^18` — \$5–9
+quintillion fraud amounts on routine inputs.
+
+Those seed amounts then propagated through `period_close/accruals.rs`
+`PercentageOfBase` calculations (which read the inflated
+`account_balances` HashMap), pushing entire balance-sheet identities
+into the 10^19 range and eventually overflowing `rust_decimal`
+multiplication in `unusual_item_generator` (which PR #183 had
+already guarded with a saturation skip).
+
+The fix replaces the buggy magnitude derivation with a proper
+`f64::log10().floor()` of the absolute amount, capped at 12
+(\$1 trillion) — well below the i64-pow overflow ceiling and
+above any realistic enterprise transaction.
+
+Verification on the customer's repro YAML (with `audit-group`
+preset, 12-month, 3 retail companies, 100k volume):
+
+| Metric | Before fix | After fix |
+|---|---|---|
+| Max line debit | \$2.32 × 10^19 | **\$24.58 × 10^6** |
+| Mean line amount | \$2.55 × 10^14 | **\$2,766** |
+| Lines > \$10B | 58 | **0** |
+| Balance-sheet A (entity 1000) | \$3.77 × 10^19 | **\$569 M** |
+| Materiality (entity 1000) | \$3.69 × 10^16 | **\$391 K** |
+
+### Verification — fixes
+
+- All 149 `datasynth-config` lib tests pass.
+- All 1 339 `datasynth-core` lib tests pass.
+- All 1 142 `datasynth-generators` lib tests pass.
+- New `scenario_templates_validate.rs` integration test passes
+  (12 / 12 shipped templates deserialize + validate).
+- Customer-reported `mult_overflow_shrinkage_fraud.yaml` is now
+  caught at validation with a clear error listing all 11 counted
+  fraud-type field values, instead of silently dropping fields
+  and reporting a misleading sum.
+
 ## [5.7.0] - 2026-05-07
 
 ### Added — Industry account-pack sub-account expansion (opt-in)

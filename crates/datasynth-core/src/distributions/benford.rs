@@ -6,6 +6,7 @@
 
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
+use rand_distr::{Distribution, LogNormal};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
@@ -139,17 +140,40 @@ impl Default for ThresholdConfig {
 }
 
 /// Sampler that produces amounts following Benford's Law distribution.
+///
+/// The sampler derives the order-of-magnitude of each amount from the
+/// configured log-normal distribution (parameterised by
+/// `lognormal_mu` / `lognormal_sigma` on
+/// [`AmountDistributionConfig`]) and then overrides the first
+/// significant digit to match the requested Benford / anti-Benford
+/// distribution.  This produces realistic per-amount magnitudes that
+/// match routine traffic, while preserving the first-digit
+/// statistical signature that fraud-detection consumers care about.
+///
+/// (Earlier versions sampled magnitude uniformly across
+/// `[log10(min_amount), log10(max_amount)]`.  That over-represented
+/// the high tail and caused account-level balances to drift into
+/// numerically unsafe territory under audit-group + 12-month +
+/// `hundred_k` retail configs — see GitHub issue #185.)
 pub struct BenfordSampler {
     rng: ChaCha8Rng,
     config: AmountDistributionConfig,
+    /// Underlying log-normal that supplies realistic magnitudes for
+    /// `sample_with_first_digit`.  Identical parameters to the
+    /// parent `AmountSampler::lognormal` so fraud and routine
+    /// amounts share the same magnitude distribution.
+    lognormal: LogNormal<f64>,
 }
 
 impl BenfordSampler {
     /// Create a new Benford sampler with the given seed and amount configuration.
     pub fn new(seed: u64, config: AmountDistributionConfig) -> Self {
+        let lognormal = LogNormal::new(config.lognormal_mu, config.lognormal_sigma)
+            .expect("Invalid log-normal parameters in BenfordSampler");
         Self {
             rng: ChaCha8Rng::seed_from_u64(seed),
             config,
+            lognormal,
         }
     }
 
@@ -184,15 +208,27 @@ impl BenfordSampler {
     }
 
     /// Sample an amount with a specific first digit.
+    ///
+    /// The order-of-magnitude is drawn from the parent log-normal
+    /// distribution (clamped to `[min_amount, max_amount]`), which
+    /// matches the magnitude distribution of routine traffic.  The
+    /// first significant digit is then forced to `first_digit`,
+    /// preserving the Benford / anti-Benford statistical signature
+    /// that consumers expect.  This avoids the uniform-magnitude
+    /// over-representation of the high tail that previously inflated
+    /// account-level balances into the 10^15+ range under
+    /// audit-group + multi-period retail configs (issue #185).
     pub fn sample_with_first_digit(&mut self, first_digit: u8) -> Decimal {
         let first_digit = first_digit.clamp(1, 9);
 
-        // Determine the order of magnitude based on config range
-        let min_magnitude = self.config.min_amount.log10().floor() as i32;
-        let max_magnitude = self.config.max_amount.log10().floor() as i32;
-
-        // Sample a magnitude within the valid range
-        let magnitude = self.rng.random_range(min_magnitude..=max_magnitude);
+        // Sample a realistic raw magnitude from the parent log-normal.
+        // The clamp to `[min_amount, max_amount]` matches the bounds
+        // applied throughout the rest of `AmountSampler`.
+        let raw_amount = self
+            .lognormal
+            .sample(&mut self.rng)
+            .clamp(self.config.min_amount, self.config.max_amount);
+        let magnitude = raw_amount.log10().floor() as i32;
         let base = 10_f64.powi(magnitude);
 
         // Generate the remaining digits (0.0 to 0.999...)
@@ -392,11 +428,17 @@ pub struct EnhancedBenfordConfig {
 }
 
 /// Enhanced Benford sampler with multi-digit compliance.
+///
+/// Like [`BenfordSampler`], the magnitude of each amount is drawn
+/// from the configured log-normal distribution rather than uniformly
+/// across the magnitude range — see issue #185.
 pub struct EnhancedBenfordSampler {
     rng: ChaCha8Rng,
     config: EnhancedBenfordConfig,
     /// Pre-computed CDF for first two digits
     first_two_cdf: [f64; 90],
+    /// Underlying log-normal that supplies realistic magnitudes.
+    lognormal: LogNormal<f64>,
 }
 
 impl EnhancedBenfordSampler {
@@ -411,10 +453,17 @@ impl EnhancedBenfordSampler {
             first_two_cdf[i] = cumulative;
         }
 
+        let lognormal = LogNormal::new(
+            config.amount_config.lognormal_mu,
+            config.amount_config.lognormal_sigma,
+        )
+        .expect("Invalid log-normal parameters in EnhancedBenfordSampler");
+
         Self {
             rng: ChaCha8Rng::seed_from_u64(seed),
             config,
             first_two_cdf,
+            lognormal,
         }
     }
 
@@ -470,16 +519,19 @@ impl EnhancedBenfordSampler {
     }
 
     /// Sample an amount with specific first two digits.
+    ///
+    /// Magnitude is drawn from the parent log-normal (see
+    /// [`BenfordSampler::sample_with_first_digit`] for the rationale).
     fn sample_with_digits(&mut self, first_digit: u8, second_digit: u8) -> Decimal {
         let first_digit = first_digit.clamp(1, 9);
         let second_digit = second_digit.clamp(0, 9);
 
-        // Determine the order of magnitude based on config range
-        let min_magnitude = self.config.amount_config.min_amount.log10().floor() as i32;
-        let max_magnitude = self.config.amount_config.max_amount.log10().floor() as i32;
-
-        // Sample a magnitude within the valid range
-        let magnitude = self.rng.random_range(min_magnitude..=max_magnitude);
+        // Sample a realistic raw magnitude from the parent log-normal.
+        let raw_amount = self.lognormal.sample(&mut self.rng).clamp(
+            self.config.amount_config.min_amount,
+            self.config.amount_config.max_amount,
+        );
+        let magnitude = raw_amount.log10().floor() as i32;
         let base = 10_f64.powi(magnitude - 1); // -1 because first two digits span 10-99
 
         // Generate the remaining digits (0.0 to 0.99...)

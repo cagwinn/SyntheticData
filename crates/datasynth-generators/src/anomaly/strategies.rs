@@ -550,11 +550,28 @@ impl InjectionStrategy for BenfordViolationStrategy {
         // Get target first digit
         let target_digit = self.target_digits[rng.random_range(0..self.target_digits.len())];
 
-        // Calculate new amount with target first digit
-        let original_str = original_amount.to_string();
-        let magnitude = original_str.replace('.', "").trim_start_matches('0').len() as i32 - 1;
-        // Limit magnitude to prevent overflow (10^18 is max safe for i64)
-        let safe_magnitude = magnitude.clamp(0, 18) as u32;
+        // Compute the order of magnitude of the integer part of the
+        // original amount.  Using the full Decimal string and stripping
+        // the decimal point would conflate the integer part with the
+        // scale (a `530079.625888901324346344432` opening balance has
+        // 28 digits in its full string but only 6 in its integer part),
+        // and previously caused `safe_magnitude` to clamp to 18 — the
+        // resulting `base = 10^18` then produced 5–9 quintillion
+        // amounts on routine inputs.  See issue #185.
+        //
+        // f64 has plenty of precision for log10 of amounts that fit in
+        // a Decimal scaled-i128, and falls back to 0 for anything
+        // pathological.
+        let abs_amount: f64 = original_amount.abs().try_into().unwrap_or(0.0);
+        let magnitude = if abs_amount >= 1.0 {
+            abs_amount.log10().floor() as i32
+        } else {
+            0
+        };
+        // Cap at 12 (≈ \$1 trillion).  Anti-Benford fraud amounts on
+        // realistic enterprise data should not be quintillion-scale,
+        // and `i64::pow` overflows above 18 anyway.
+        let safe_magnitude = magnitude.clamp(0, 12) as u32;
 
         let base = Decimal::new(10_i64.pow(safe_magnitude), 0);
         let new_amount = base * Decimal::new(target_digit as i64, 0)
