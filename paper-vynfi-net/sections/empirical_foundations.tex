@@ -1,0 +1,152 @@
+% sections/empirical_foundations.tex --- Empirical Foundations
+\section{Empirical Foundations}
+\label{sec:empirical}
+
+\bench{} is calibrated against an empirical study of journal-entry
+structure conducted on a large corpus of real general
+ledgers~\citep{ivertowski2024apn}.  This section summarises the
+findings that drive the parameters of the \system{} generator and the
+distributional checks reported in Section~\ref{sec:evaluation}.  All
+figures in this section are reproduced from
+\citet{ivertowski2024apn} with permission of the author; the
+underlying client data are confidential and are not redistributed.
+
+\subsection{Corpus}
+\label{sec:empirical:corpus}
+
+The corpus comprises $155$ general-ledger datasets (approximately
+$0.2\%$ of the relevant population), drawn from a representative
+mix of industry sectors and covering each subject's full fiscal year
+of activity.  Aggregate volumes are approximately $364$ million
+journal entries and $2.4$ billion line items.  Datasets are
+classified into three size categories
+(Table~\ref{tab:emp:size}): small ($<\!1$M lines per annum,
+$74$ sets), medium ($1$--$10$M lines per annum, $47$ sets), and
+large ($>\!10$M lines per annum, $34$ sets).
+
+\begin{table}[H]
+  \centering
+  \caption{Classification of the source datasets by size.  Source:
+    \citet{ivertowski2024apn}.}
+  \label{tab:emp:size}
+  \begin{tabular}{lccc}
+    \toprule
+                  & \textbf{Small} & \textbf{Medium} & \textbf{Large}\\
+                  & ($<\!1$M lpa)  & ($1$--$10$M lpa) & ($>\!10$M lpa)\\
+    \midrule
+    Number of sets & $74$ & $47$ & $34$\\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{Line-item distribution per journal entry}
+\label{sec:empirical:line-items}
+
+The empirical distribution of line items per journal entry is
+extremely concentrated.  $92.60\%$ of all postings carry between
+two and nine line items; the remaining mass tapers across orders of
+magnitude up to a maximum of $47\,059$ line items in a single
+posting.  Table~\ref{tab:emp:bins} reproduces the bin-level
+distribution.  Within bin~1 ($2$--$9$ line items),
+Table~\ref{tab:emp:bin1} shows that two-line entries alone account
+for $60.68\%$ of the corpus, with even-count entries
+($2,4,6,\ldots$) cumulatively dominating: roughly $88\%$ of
+journal entries carry an even number of lines.
+
+\begin{table}[H]
+  \centering
+  \caption{Distribution of journal-entry line counts across the
+    corpus.  Source: \citet{ivertowski2024apn}, Table~II.}
+  \label{tab:emp:bins}
+  \begin{tabular}{ccrr}
+    \toprule
+    \textbf{Bin} & \textbf{Line items} & \textbf{Total JEs} &
+      \textbf{Cum.\ coverage}\\
+    \midrule
+    1 & $2$--$9$        & $338$M          & $\phantom{0}92.60\%$\\
+    2 & $10$--$99$      & $\phantom{00}23$M & $\phantom{0}99.22\%$\\
+    3 & $100$--$999$    & $\phantom{000}2.80$M & $\phantom{0}99.98\%$\\
+    4 & $1\,000$--$9\,999$ & $\phantom{000}63$k & $100.00\%$\\
+    5 & $\geq 10\,000$  & $\phantom{0000}196$ & $100.00\%$\\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{table}[H]
+  \centering
+  \caption{Detailed distribution within bin~1 ($2$--$9$ line
+    items).  Source: \citet{ivertowski2024apn}, Table~III.}
+  \label{tab:emp:bin1}
+  \begin{tabular}{rrrr}
+    \toprule
+    \textbf{Line items} & \textbf{Total JEs} & \textbf{Coverage} &
+      \textbf{Cum.\ coverage}\\
+    \midrule
+    $2$ & $221$M          & $60.68\%$ & $60.68\%$\\
+    $3$ & $\phantom{00}21$M & $\phantom{0}5.77\%$ & $66.46\%$\\
+    $4$ & $\phantom{00}61$M & $16.63\%$ & $83.09\%$\\
+    $5$ & $\phantom{00}11$M & $\phantom{0}3.06\%$ & $86.15\%$\\
+    $6$ & $\phantom{00}12$M & $\phantom{0}3.32\%$ & $89.47\%$\\
+    $7$ & $\phantom{000}4$M & $\phantom{0}1.13\%$ & $90.60\%$\\
+    $8$ & $\phantom{000}7$M & $\phantom{0}1.88\%$ & $92.48\%$\\
+    $9$ & $\phantom{000}2$M & $\phantom{0}0.42\%$ & $92.90\%$\\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{Debit-credit symmetry}
+\label{sec:empirical:symmetry}
+
+Within the corpus, $82\%$ of journal entries have the same number
+of debit and credit line items; $11\%$ have fewer credit than debit
+items and $7\%$ vice versa.  The dominance of even line counts
+follows directly from this symmetry, given that GAAP requires every
+posting to balance ($\sum D = \sum C$); the residual $12\%$ with an
+odd line count corresponds to entries in which a single side
+(debit or credit) carries an aggregated counterpart of multiple
+line items on the other.  These statistics motivate Method~A as the
+default network-construction strategy in
+Section~\ref{sec:network}: any two-line balanced entry admits a
+unique $1$-to-$1$ debit-credit edge, and any
+$n$-debit-and-$n$-credit balanced entry can be solved without
+decomposition.
+
+\subsection{Account population}
+\label{sec:empirical:accounts}
+
+The number of distinct general-ledger accounts populated in a single
+fiscal year ranges from $76$ to $2\,536$ across the corpus, with
+mean $557$ and median $367$
+(\citealt{ivertowski2024apn}, Fig.~3).  This range informs
+\system{}'s industry-pack expansion (manufacturing, retail,
+financial-services, healthcare, technology), which adds sub-account
+splits to base charts of accounts to bring synthetic chart sizes into
+the empirically observed range.
+
+\subsection{Implications for the benchmark}
+\label{sec:empirical:implications}
+
+Three implications drive the design of \bench{}.
+
+\textbf{(i)~Two-line entries dominate.}  Method~A, the default
+$1$-to-$1$ debit-credit edge construction, applies to roughly
+$60\%$ of all postings and is the single most important
+construction step.
+
+\textbf{(ii)~Multi-line entries are the long tail that matters
+analytically.}  Although bins 2--5 collectively cover only $7.4\%$
+of journal entries, they include the entries that are most
+frequently of audit interest---multi-line allocation entries,
+period-end accruals, and complex consolidation postings.  Methods
+B--E from Section~\ref{sec:network} exist precisely to handle these
+cases.
+
+\textbf{(iii)~Even line counts are the norm; odd line counts are
+diagnostic.}  The empirical $88\%$/$12\%$ even/odd split, when
+combined with audit-relevant flags such as \texttt{is\_post\_close}
+and \texttt{document\_type}, supplies a strong baseline against
+which structural anomalies can be measured.
+
+The configuration that produces the released \bench{} dataset
+(Appendix~\ref{sec:appendix:config}) reproduces these distributions
+within the tolerances reported in Section~\ref{sec:evaluation}.

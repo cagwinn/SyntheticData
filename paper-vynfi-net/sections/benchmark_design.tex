@@ -1,0 +1,168 @@
+% sections/benchmark_design.tex --- Benchmark Design
+\section{Benchmark Design}
+\label{sec:benchmark}
+
+This section fixes the \bench{} protocol: the tasks that submissions
+target, the splits over which they are evaluated, the metrics
+reported, and the reproducibility envelope under which a
+submission's numbers are accepted.  All elements of the protocol are
+testable from the released artefacts alone, without requiring
+any private data or any non-public tooling.
+
+\subsection{Tasks}
+\label{sec:benchmark:tasks}
+
+\bench{} defines three edge-level prediction tasks over
+\texttt{graphs/je\_network.csv}:
+
+\begin{itemize}
+  \item \textbf{T1: Binary anomaly classification.}  Predict
+    \texttt{is\_anomaly} for each edge in the test split.  The
+    positive class includes all five categories
+    (fraud, error, process, statistical, relational).  T1 is the
+    headline task and the one against which leaderboard rank is
+    computed.
+  \item \textbf{T2: Multi-class anomaly classification.}  Predict
+    one of $\{$\texttt{none}, \texttt{fraud}, \texttt{error},
+    \texttt{process}, \texttt{statistical}, \texttt{relational}$\}$
+    for each edge.  T2 supports per-category analysis and is the
+    natural target for class-conditional fraud-detection methods.
+  \item \textbf{T3: Rare-typology detection.}  A subset of T2 in
+    which only the rarest typology classes (cumulatively the
+    bottom $5\%$ of labelled edges) appear in the test split.
+    T3 is the hardest task: even strong baselines on T1 and T2
+    fall back close to base-rate performance under T3.
+\end{itemize}
+
+For each task the prediction is per-edge (i.e.\ per row of the
+edge-list CSV); models that operate on the entry table, on the
+document chain, or on alternate graph projections are welcome,
+provided the final output is an edge-level score.
+
+\subsection{Splits}
+\label{sec:benchmark:splits}
+
+Three reproducible splits are released with \bench{}.  They are not
+mutually exclusive: a method's performance on each is reported
+separately, and the leaderboard records all three.
+
+\begin{itemize}
+  \item \textbf{Temporal.}  The last three fiscal months of the
+    generated period are held out as test; the preceding nine
+    months form the training pool, with the last $20\%$ of the
+    training pool reserved as a validation slice.  This split
+    measures generalisation across time and is the most common
+    real-world deployment scenario.
+  \item \textbf{Entity.}  Ten percent of subsidiaries
+    (sampled uniformly without replacement) are held out as test;
+    all postings of held-out subsidiaries are excluded from
+    training.  This split measures generalisation to entities
+    unseen during training.
+  \item \textbf{Fraud-typology.}  Two of the five anomaly
+    categories (sampled at random and fixed in the released
+    splits file) are held out as test \emph{positives}; the
+    training set sees only the other three categories together
+    with negatives.  This split measures generalisation across
+    fraud typologies and is the basis for T3.
+\end{itemize}
+
+The splits are materialised as CSV files
+(\texttt{splits/temporal\_train.csv} etc.\@) listing the
+\texttt{edge\_id} of every edge in each fold.  No edge appears in
+both the train and test fold of the same split.
+
+\subsection{Metrics}
+\label{sec:benchmark:metrics}
+
+All tasks are evaluated under heavy class imbalance (positive rate
+on the order of $1$--$5\%$ depending on configuration), which
+makes precision-recall metrics more informative than ROC-based ones.
+Primary and secondary metrics are reported for every submission:
+
+\begin{itemize}
+  \item \textbf{Primary.}  $\AUCPR$ (area under the
+    precision--recall curve).  Reported with a $95\%$ bootstrap
+    confidence interval.
+  \item \textbf{Secondary.}  $\AUCROC$, $F_1$ at the
+    threshold that maximises validation $F_1$, precision at
+    $k = 50, 100, 500$, and recall at the top $1\%, 5\%, 10\%$ of
+    scored edges.
+  \item \textbf{Per-typology breakdown.}  For T2 and T3, $\AUCPR$
+    is also reported per anomaly category.
+\end{itemize}
+
+The leaderboard ranks methods by primary $\AUCPR$ on the temporal
+split for T1; the entity- and typology-split numbers are reported
+alongside but do not enter the headline rank.
+
+\subsection{Leakage audit}
+\label{sec:benchmark:leakage}
+
+A standing risk on any benchmark constructed from a single
+generated dataset is that information specific to a held-out
+posting leaks into the training pool through a different feature
+or row.  \bench{} addresses this risk with an explicit leakage
+audit, the script for which is part of the release.  The audit
+checks the following:
+
+\begin{itemize}
+  \item \emph{Document overlap.}  No edge in the test split shares
+    a \texttt{document\_id} with any edge in the train split.
+  \item \emph{Predecessor closure.}  No edge in the test split has
+    a \texttt{predecessor\_edge\_id} pointing to an edge in a
+    different split.  This rule is what enforces document-chain
+    integrity at the split boundary.
+  \item \emph{Entity-time coverage.}  Under the entity split, no
+    held-out subsidiary appears in any aggregated feature
+    (consolidation entries, intercompany pairs) that would leak
+    test-time data into training.
+\end{itemize}
+
+A submission that opts to engineer features from companion files
+(e.g.\ document-flow tables, sub-ledger reports) is required to
+re-run the audit on its feature-construction script.
+
+\subsection{Reproducibility envelope}
+\label{sec:benchmark:repro}
+
+Every submission must record the following metadata in the
+leaderboard entry:
+
+\begin{itemize}
+  \item the \system{} version (git tag or release number) used to
+    produce the data;
+  \item the configuration hash (SHA-256 of the canonical YAML);
+  \item the ChaCha8 seed under which the dataset was generated;
+  \item the model code repository and commit hash;
+  \item the random seed(s) used in training.
+\end{itemize}
+
+Two submissions whose first three values agree are required to
+report identical edge-list contents; this is enforced by a
+checksum the audit script computes.  Two submissions whose model
+code is identical and whose training seeds match are required to
+report identical predictions.
+
+\subsection{Submission protocol}
+\label{sec:benchmark:submission}
+
+A submission consists of the following artefacts, packaged in a
+single archive:
+
+\begin{itemize}
+  \item per-task prediction files
+    (\texttt{predictions/T1.csv} etc.), each with two columns
+    \texttt{edge\_id} and \texttt{score} (and an additional
+    \texttt{predicted\_class} column for T2/T3);
+  \item the metadata block listed in
+    Section~\ref{sec:benchmark:repro};
+  \item a description of the training pipeline of length not
+    exceeding two pages, in PDF, sufficient for an independent
+    reader to reproduce the result.
+\end{itemize}
+
+The release ships a scoring harness
+(\texttt{tools/bench\_score.py}) that consumes a submission archive
+and emits the full metric table.  Leaderboard entries are accepted
+on the basis of harness output; private re-evaluations are not
+required, but are encouraged for reviewers who wish to spot-check.

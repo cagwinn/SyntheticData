@@ -1,0 +1,81 @@
+% sections/future_work.tex --- Future Work
+\section{Future Work}
+\label{sec:future-work}
+
+We close with a list of extensions that the present release does
+not cover.  Each is supported by a configuration switch in
+\system{}, an export already produced by the runtime, or a related
+artefact in the repository, and so represents a relatively
+low-friction path from v$1.0$ of \bench{} to a richer benchmark.
+
+\subsection{Multi-period and rolling-window benchmarks}
+\label{sec:future-work:rolling}
+
+The v$1.0$ temporal split holds out the last three fiscal months
+of a single year.  A more demanding regime is the rolling-window
+protocol that mirrors continuous-auditing practice: the model is
+re-trained at the close of each month on all data up to that
+point and evaluated on the following month, repeated across the
+year.  This regime exposes whether a method's accuracy degrades
+under \emph{distribution shift within} the period---a more
+realistic deployment scenario than a single hold-out.  The
+required configuration changes are local to the splits files; no
+new generator features are needed.
+
+\subsection{Cross-jurisdictional comparability}
+\label{sec:future-work:jurisdiction}
+
+\system{}'s ISO~21378 alignment (Section~\ref{sec:datasynth:iso})
+populates account-class and account-sub-class fields that are
+common across jurisdictions but does so on a single chart of
+accounts at a time.  A natural next step is to construct splits
+that hold out entire jurisdictions---training on US-GAAP and
+IFRS, evaluating on French- and German-GAAP charts---and to
+report the resulting drop in performance as a measure of
+cross-jurisdictional transfer.  This is exactly the kind of
+question the standardised account-class fields were designed to
+support.
+
+\subsection{Counterfactual evaluation}
+\label{sec:future-work:counterfactual}
+
+The \system{} counterfactual engine produces, for any base
+generation, a paired \emph{counterfactual} dataset in which a
+specified perturbation (an anomaly removed, a different control in
+place, a different subsidiary structure) propagates through the
+causal DAG.  Pairing \bench{} edges with their counterfactuals
+yields a strictly stronger evaluation: a method should not only
+flag the anomalous edge in the base run, but also \emph{not} flag
+the corresponding edge in the counterfactual run where the
+anomaly is absent.  We anticipate releasing counterfactual pairs
+in v$1.1$.
+
+\subsection{Real-data calibration loop}
+\label{sec:future-work:calibration}
+
+The empirical foundations of the generator
+(Section~\ref{sec:empirical}) were established on a $2024$
+corpus.  The corpus is not static---new client engagements
+continually produce additional ledgers---and so the calibration
+of the generator should be revisited periodically.  We propose
+to publish, with each minor version of \bench{}, a refresh of the
+empirical Tables~\ref{tab:emp:size}--\ref{tab:emp:bin1} and a
+delta against the previous calibration; benchmark numbers are
+versioned to specific calibrations so that changes are
+traceable.
+
+\subsection{Beyond anomaly detection}
+\label{sec:future-work:beyond}
+
+The benchmark schema is a general-purpose accounting graph and
+supports tasks adjacent to anomaly detection: control testing
+(does the method correctly identify the controls implicated by a
+given posting?), account-relationship discovery (does the method
+recover the canonical chart-of-accounts hierarchy from the
+edge list?), and cutoff testing (does the method correctly
+classify postings near period boundaries as in-period or
+out-of-period?).  These tasks would be released as separate
+``challenges'' on the same underlying graph---a model trained
+for anomaly detection could be evaluated against them
+zero-shot, and a model trained jointly across challenges might
+benefit from the additional supervision.

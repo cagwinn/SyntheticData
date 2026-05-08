@@ -1,0 +1,358 @@
+% NOTE: After editing, recompile with:
+%   pdflatex main && bibtex main && pdflatex main && pdflatex main
+% references.bib --- Bibliography for the VynFi-Net benchmark paper.
+
+% ── Author's prior work ───────────────────────────────────────────────
+
+@unpublished{ivertowski2024apn,
+  author       = {Ivertowski, Michael},
+  title        = {Hardware Accelerated Method for Accounting Network
+                  Generation},
+  year         = {2024},
+  note         = {Internal working paper.  On file with the author.}
+}
+
+@misc{ivertowski2026datasynth,
+  author       = {Ivertowski, Michael},
+  title        = {{DataSynth}: Reference Knowledge Graphs for Enterprise
+                  Audit Analytics through Synthetic Data Generation with
+                  Provable Statistical Properties},
+  year         = {2026},
+  month        = {April},
+  howpublished = {SSRN Working Paper},
+  url          = {https://ssrn.com/abstract=6538639},
+  note         = {Available at SSRN: \url{https://ssrn.com/abstract=6538639}}
+}
+
+@manual{datasynth-repo,
+  title        = {{DataSynth} -- Enterprise Synthetic Data Platform
+                  ({GitHub} repository)},
+  author       = {Ivertowski, Michael},
+  year         = {2026},
+  url          = {https://github.com/mivertowski/SyntheticData}
+}
+
+% ── Foundational accounting theory ──────────────────────────────────
+
+@article{ijiri1965incidence,
+  title   = {On the generalized inverse of an incidence matrix},
+  author  = {Ijiri, Yuji},
+  journal = {Journal of the Society for Industrial and Applied
+             Mathematics},
+  volume  = {13},
+  number  = {3},
+  pages   = {827--836},
+  year    = {1965},
+  doi     = {10.1137/0113053}
+}
+
+@article{ijiri1993beauty,
+  title   = {The beauty of double-entry bookkeeping and its impact on
+             the nature of accounting information},
+  author  = {Ijiri, Yuji},
+  journal = {Economic Notes: Economic Review of Banca Monte dei
+             Paschi di Siena},
+  volume  = {22},
+  number  = {2},
+  pages   = {265--285},
+  year    = {1993}
+}
+
+% ── Accounting-network and bookkeeping ML ───────────────────────────
+
+@phdthesis{boersma2024audit,
+  title  = {Complex networks in audit: A data-driven modelling approach},
+  author = {Boersma, Marcus},
+  school = {Universiteit van Amsterdam},
+  year   = {2024}
+}
+
+@article{guo2022picture,
+  title   = {A Picture is Worth a Thousand Journal Entries: Accounting
+             Graph Topology for Auditing and Fraud Detection},
+  author  = {Guo, Kelvin~H. and Yu, Xiang and Wilkin, Carla~L.},
+  journal = {Journal of Information Systems},
+  volume  = {36},
+  number  = {2},
+  pages   = {53--81},
+  year    = {2022}
+}
+
+@unpublished{liang2021bookkeeping,
+  title  = {Pattern Recognition and Anomaly Detection in Bookkeeping
+            Data},
+  author = {Liang, Pamela~J. and Wang, Anru and Akoglu, Leman and
+            Faloutsos, Christos},
+  note   = {Carnegie Mellon University, working paper},
+  year   = {2021}
+}
+
+@inproceedings{lahann2019vat,
+  title     = {Utilizing Machine Learning Techniques to Reveal {VAT}
+               Compliance Violations in Accounting Data},
+  author    = {Lahann, Johannes and Scheid, Marvin and Fettke, Peter},
+  booktitle = {2019 IEEE 21st Conference on Business Informatics (CBI)},
+  year      = {2019}
+}
+
+@article{cambria2021kg,
+  title   = {Knowledge graph representation and reasoning},
+  author  = {Cambria, Erik and Ji, Shaoxiong and Pan, Shirui and Yu, Philip~S.},
+  journal = {Neurocomputing},
+  volume  = {461},
+  pages   = {494--496},
+  year    = {2021}
+}
+
+% ── Audit / fraud machine learning ───────────────────────────────────
+
+@article{west2016intelligent,
+  title   = {Intelligent financial fraud detection: A comprehensive
+             review},
+  author  = {West, Jarrod and Bhattacharya, Maumita},
+  journal = {Computers \& Security},
+  volume  = {57},
+  pages   = {47--66},
+  year    = {2016},
+  publisher = {Elsevier}
+}
+
+@article{hilal2022financial,
+  title   = {Financial fraud: A review of anomaly-detection techniques
+             and recent advances},
+  author  = {Hilal, Wassim and Gadsden, S.~Andrew and Yawney, John},
+  journal = {Expert Systems with Applications},
+  volume  = {193},
+  pages   = {116429},
+  year    = {2022},
+  publisher = {Elsevier}
+}
+
+@inproceedings{schreyer2017detection,
+  title     = {Detection of Anomalies in Large-Scale Accounting Data
+               using Deep Autoencoder Networks},
+  author    = {Schreyer, Marco and Sattarov, Timur and Borth, Damian
+               and Dengel, Andreas and Reimer, Bernd},
+  booktitle = {arXiv preprint arXiv:1709.05254},
+  year      = {2017}
+}
+
+@inproceedings{schreyer2019adversarial,
+  title     = {Adversarial Learning of Deepfakes in Accounting},
+  author    = {Schreyer, Marco and Sattarov, Timur and Reimer, Bernd
+               and Borth, Damian},
+  booktitle = {NeurIPS Workshop on Robust AI in Financial Services},
+  year      = {2019}
+}
+
+@article{vasarhelyi2004principles,
+  title   = {Principles of analytic monitoring for continuous assurance},
+  author  = {Vasarhelyi, Miklos~A. and Alles, Michael~G. and
+             Kogan, Alexander},
+  journal = {Journal of Emerging Technologies in Accounting},
+  volume  = {1},
+  number  = {1},
+  pages   = {1--21},
+  year    = {2004}
+}
+
+@article{nigrini2012benfords,
+  title     = {Benford's Law: Applications for Forensic Accounting,
+               Auditing, and Fraud Detection},
+  author    = {Nigrini, Mark~J.},
+  year      = {2012},
+  publisher = {John Wiley \& Sons}
+}
+
+% ── Graph neural networks ────────────────────────────────────────────
+
+@inproceedings{kipf2017semi,
+  title     = {Semi-Supervised Classification with Graph Convolutional
+               Networks},
+  author    = {Kipf, Thomas~N. and Welling, Max},
+  booktitle = {International Conference on Learning Representations
+               (ICLR)},
+  year      = {2017}
+}
+
+@inproceedings{hamilton2017inductive,
+  title     = {Inductive Representation Learning on Large Graphs},
+  author    = {Hamilton, William~L. and Ying, Rex and Leskovec, Jure},
+  booktitle = {Advances in Neural Information Processing Systems
+               (NeurIPS)},
+  year      = {2017}
+}
+
+@inproceedings{velickovic2018graph,
+  title     = {Graph Attention Networks},
+  author    = {Veli\v{c}kovi\'{c}, Petar and Cucurull, Guillem and
+               Casanova, Arantxa and Romero, Adriana and Li\`{o}, Pietro
+               and Bengio, Yoshua},
+  booktitle = {International Conference on Learning Representations
+               (ICLR)},
+  year      = {2018}
+}
+
+@inproceedings{xu2019gin,
+  title     = {How Powerful are Graph Neural Networks?},
+  author    = {Xu, Keyulu and Hu, Weihua and Leskovec, Jure and
+               Jegelka, Stefanie},
+  booktitle = {International Conference on Learning Representations
+               (ICLR)},
+  year      = {2019}
+}
+
+@inproceedings{schlichtkrull2018rgcn,
+  title     = {Modeling Relational Data with Graph Convolutional Networks},
+  author    = {Schlichtkrull, Michael and Kipf, Thomas~N. and
+               Bloem, Peter and van~den~Berg, Rianne and Titov, Ivan
+               and Welling, Max},
+  booktitle = {European Semantic Web Conference (ESWC)},
+  year      = {2018}
+}
+
+@inproceedings{hu2020ogb,
+  title     = {Open Graph Benchmark: Datasets for Machine Learning on
+               Graphs},
+  author    = {Hu, Weihua and Fey, Matthias and Zitnik, Marinka and
+               Dong, Yuxiao and Ren, Hongyu and Liu, Bowen and
+               Catasta, Michele and Leskovec, Jure},
+  booktitle = {Advances in Neural Information Processing Systems
+               (NeurIPS)},
+  year      = {2020}
+}
+
+% ── Benchmarks and reproducibility ───────────────────────────────────
+
+@inproceedings{deng2009imagenet,
+  title     = {ImageNet: A Large-Scale Hierarchical Image Database},
+  author    = {Deng, Jia and Dong, Wei and Socher, Richard and
+               Li, Li-Jia and Li, Kai and Fei-Fei, Li},
+  booktitle = {IEEE Conference on Computer Vision and Pattern
+               Recognition (CVPR)},
+  year      = {2009}
+}
+
+@techreport{krizhevsky2009cifar,
+  title       = {Learning Multiple Layers of Features from Tiny Images},
+  author      = {Krizhevsky, Alex},
+  year        = {2009},
+  institution = {University of Toronto},
+  type        = {Technical Report}
+}
+
+@inproceedings{liu2024gadbench,
+  title     = {{GADBench}: Revisiting and Benchmarking Supervised Graph
+               Anomaly Detection},
+  author    = {Liu, Yixin and Tang, Kaize and Cai, Jiabao and Lu, Ao
+               and Xu, Zhe and Pan, Shirui},
+  booktitle = {Advances in Neural Information Processing Systems
+               (NeurIPS)},
+  year      = {2024}
+}
+
+@article{tang2023bond,
+  title   = {{BOND}: Benchmarking Unsupervised Outlier Node Detection
+             on Static Attributed Graphs},
+  author  = {Tang, Jiarui and Hua, Jian and Chen, Ziyi and
+             Feng, Mengmei and Li, Xiang and Xu, Yulia~R.},
+  journal = {Advances in Neural Information Processing Systems (NeurIPS)},
+  year    = {2023}
+}
+
+% ── Synthetic tabular data ──────────────────────────────────────────
+
+@inproceedings{xu2019modeling,
+  title     = {Modeling Tabular Data using Conditional {GAN}},
+  author    = {Xu, Lei and Skoularidou, Maria and Cuesta-Infante,
+               Alfredo and Veeramachaneni, Kalyan},
+  booktitle = {Advances in Neural Information Processing Systems
+               (NeurIPS)},
+  volume    = {32},
+  year      = {2019}
+}
+
+@inproceedings{patki2016synthetic,
+  title     = {The Synthetic Data Vault},
+  author    = {Patki, Neha and Wedge, Roy and Veeramachaneni, Kalyan},
+  booktitle = {IEEE International Conference on Data Science and
+               Advanced Analytics (DSAA)},
+  pages     = {399--410},
+  year      = {2016}
+}
+
+@article{solatorio2023realtabformer,
+  title   = {{REaLTabFormer}: Generating Realistic Relational and
+             Tabular Data using Transformers},
+  author  = {Solatorio, Aivin~V. and Dupriez, Olivier},
+  journal = {arXiv preprint arXiv:2302.02041},
+  year    = {2023}
+}
+
+@inproceedings{kotelnikov2023tabddpm,
+  title     = {{TabDDPM}: Modelling Tabular Data with Diffusion Models},
+  author    = {Kotelnikov, Akim and Baranchuk, Dmitry and
+               Rubachev, Ivan and Babenko, Artem},
+  booktitle = {Proceedings of the 40th International Conference on
+               Machine Learning (ICML)},
+  volume    = {202},
+  pages     = {17564--17579},
+  year      = {2023}
+}
+
+@inproceedings{lopez2016banksim,
+  title     = {{BankSim}: A bank payments simulator for fraud detection
+               research},
+  author    = {Lopez-Rojas, Edgar~A. and Axelsson, Stefan},
+  booktitle = {26th European Modeling and Simulation Symposium (EMSS)},
+  year      = {2014}
+}
+
+% ── Tabular and classical baselines ──────────────────────────────────
+
+@inproceedings{chen2016xgboost,
+  title     = {{XGBoost}: A Scalable Tree Boosting System},
+  author    = {Chen, Tianqi and Guestrin, Carlos},
+  booktitle = {Proceedings of the 22nd ACM SIGKDD International
+               Conference on Knowledge Discovery and Data Mining},
+  pages     = {785--794},
+  year      = {2016}
+}
+
+@inproceedings{liu2008isolation,
+  title     = {Isolation Forest},
+  author    = {Liu, Fei~Tony and Ting, Kai~Ming and Zhou, Zhi-Hua},
+  booktitle = {IEEE International Conference on Data Mining (ICDM)},
+  year      = {2008}
+}
+
+@inproceedings{breunig2000lof,
+  title     = {{LOF}: Identifying Density-Based Local Outliers},
+  author    = {Breunig, Markus~M. and Kriegel, Hans-Peter and
+               Ng, Raymond~T. and Sander, J{\"o}rg},
+  booktitle = {Proceedings of the ACM SIGMOD International Conference
+               on Management of Data},
+  pages     = {93--104},
+  year      = {2000}
+}
+
+% ── Audit standards and accounting context ──────────────────────────
+
+@misc{isa240,
+  author       = {{International Auditing and Assurance Standards Board}},
+  title        = {ISA 240: The Auditor's Responsibilities Relating to
+                  Fraud in an Audit of Financial Statements},
+  year         = {2009},
+  howpublished = {IFAC},
+  note         = {Revised June 2024}
+}
+
+@misc{iso21378,
+  author       = {{International Organization for Standardization}},
+  title        = {{ISO 21378:2019} --- Audit data collection},
+  year         = {2019},
+  howpublished = {Geneva: ISO}
+}
+
+% (guo2022picture moved up to "Accounting-network and bookkeeping ML"
+% section with corrected metadata.)

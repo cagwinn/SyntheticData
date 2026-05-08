@@ -1,0 +1,114 @@
+% sections/discussion.tex --- Discussion
+\section{Discussion}
+\label{sec:discussion}
+
+We use this section to draw out the methodological consequences of
+the results in Section~\ref{sec:evaluation}, to call out the most
+pressing threats to validity, and to position \bench{} in the
+broader research economy of audit analytics.
+
+\subsection{What baselines learn, and what they do not}
+\label{sec:discussion:learn}
+
+The expected gap between the temporal and typology splits
+(Section~\ref{sec:evaluation:cross}) is the single most
+methodologically suggestive feature of the benchmark.  Temporal
+generalisation is comparatively easy: held-out months draw from the
+same anomaly categories that the model has already seen during
+training, and the relevant signal is largely \emph{within
+distribution}.  Typology generalisation is harder by design: the
+held-out anomaly categories are absent from the training pool, and
+the model must infer that a posting is anomalous on the basis of
+\emph{what is normal}, not on the basis of what previously labelled
+positives looked like.
+
+Strong GNN baselines are, in our preliminary experience, much more
+sensitive to this distinction than tabular baselines.  GNNs that
+do well on the temporal split frequently do not preserve their
+margin on the typology split, suggesting that they are exploiting
+class-specific structural cues rather than building a robust
+representation of normality.  This is a candidate driver for
+methodological work on \emph{anomaly definitions} that do not rely
+on fully supervised typology coverage---auto-encoders trained on
+clean training pools, contrastive losses that pair postings against
+their document-chain predecessors, or open-set detectors that
+explicitly admit unseen categories at test time.
+
+\subsection{Threats to validity}
+\label{sec:discussion:threats}
+
+\textbf{Synthetic-to-real transfer.}  The most serious threat to
+the validity of any synthetic benchmark is that methods which
+dominate on synthetic data fail to transfer to real client
+ledgers.  \bench{} is calibrated against a $364$M-posting empirical
+study (Section~\ref{sec:empirical}), and the released configuration
+reproduces the line-item, account-population, and temporal
+distributions reported there.  This calibration is necessary but
+not sufficient: distributional fidelity at the marginal level does
+not guarantee fidelity at the joint level, and we make no claim
+that a method's \bench{} score directly predicts its score on a
+client ledger.  The role of \bench{} is to provide a
+\emph{reference frame} on which methods can be compared,
+ablated, and reproduced; the validation against client data
+remains a separate exercise that practitioners must conduct
+themselves and under their own confidentiality protocols.
+
+\textbf{Anomaly definitions.}  The labels in
+\texttt{labels/anomaly\_labels.csv} are determined by the
+generator's anomaly-injection module
+(Section~\ref{sec:datasynth:anomaly}); they reflect the categories
+the module is configured to inject and the propagation rule from
+entries to edges.  A method that targets a different operational
+definition of ``anomaly''---for example, a definition centred on
+control-failure rather than on fraud---should expect to see lower
+numbers on \bench{} than its target definition would suggest, and
+should report this gap explicitly when claiming applicability.
+
+\textbf{Single industry profile.}  The released v$1.0$ configuration
+is manufacturing-only.  Cross-industry generalisation is not
+something the v$1.0$ benchmark numbers can measure.  The
+configuration interface supports the four other industry profiles
+shipped with \system{}, and we expect to release multi-industry
+splits in v$1.1$.
+
+\subsection{Confidentiality, reproducibility, and the role of public
+benchmarks in audit research}
+\label{sec:discussion:reproducibility}
+
+The principal motivation for \bench{} is the observation
+(Section~\ref{sec:introduction:gap}) that a research community
+cannot accumulate methodological progress on private,
+irreproducible datasets.  This observation cuts in two directions
+that are worth separating.
+
+First, public benchmarks do not displace empirical work on real
+client data.  An audit method that wins a leaderboard on \bench{}
+is not, by that fact alone, ready for production deployment; it
+must still be validated against the client ledger it will run
+against, under the auditor's own quality controls.  A reference
+benchmark is a coordination device that lets methods be compared
+and ablated; it is not a substitute for client engagement.
+
+Second, public benchmarks lower the cost of method development for
+audit practitioners.  An audit team that wishes to evaluate a new
+fraud-detection technique against the published state of the art
+no longer needs to license and replicate a corpus or to negotiate
+data-sharing agreements; the team can run the technique against
+\bench{} and read the leaderboard.  This is a particularly large
+gain for smaller audit firms, in-house audit functions, and
+academic researchers, whose access to client data is structurally
+more restricted than that of the largest firms.
+
+\subsection{Implications for practitioners}
+\label{sec:discussion:implications}
+
+For practitioners specifically: \bench{} is a measuring stick.
+It does not---and is not designed to---tell a CAE or audit
+methodology lead which detection technique to deploy on next
+year's engagement.  It does provide a defensible answer to the
+question ``how does technique X compare to the state of the art
+on equivalent data?''  When a vendor claims that a model achieves
+$\AUCPR = 0.X$, the practitioner can now ask whether the same
+model achieves the same $\AUCPR$ on \bench{}, and whether the
+model's performance on the typology-hold-out split is comparable.
+A negative answer is informative.

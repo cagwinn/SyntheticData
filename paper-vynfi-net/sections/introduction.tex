@@ -1,0 +1,231 @@
+% sections/introduction.tex --- Introduction
+\section{Introduction}
+\label{sec:introduction}
+
+\subsection{The benchmark gap in machine-learning for audit}
+\label{sec:introduction:gap}
+
+Machine-learning approaches to accounting and audit analytics have
+matured rapidly.  Deep autoencoder networks were shown to surface
+journal-entry outliers at scale~\citep{schreyer2017detection};
+adversarial training was extended to detect synthetic
+``accounting-deepfake'' postings~\citep{schreyer2019adversarial};
+gradient-boosted trees, density-based outlier detectors, and---more
+recently---graph neural networks have all been reported as effective on
+particular fraud and error schemes
+\citep{west2016intelligent,hilal2022financial}.  In parallel, the
+auditing standards themselves have moved towards explicit endorsement
+of analytical procedures~\citep{vasarhelyi2004principles,isa240} and a
+standardised data-exchange schema~\citep{iso21378}, both of which
+presuppose that practitioners can compare detection methods on
+comparable data.
+
+Yet the empirical literature on accounting-anomaly detection has, to a
+remarkable degree, advanced \emph{without a shared benchmark}.  Almost
+every published evaluation operates on a private dataset---typically a
+single client's general ledger, held under audit-confidentiality
+constraints---and reports figures that are reproducible only by the
+authors and by readers with access to the same proprietary system.
+Two effects follow.  First, methodological comparison across papers is
+not possible: a graph attention network reported as ``state of the
+art'' on one corporate ledger may underperform a simple rule-based
+detector on another, and the field has no way of detecting this from
+the published numbers alone.  Second, the gap between the empirical
+literature and what audit practitioners actually deploy remains
+opaque: there is no widely-accepted measuring stick against which a
+new technique can claim concrete improvement.
+
+By contrast, neighbouring fields have made disciplined use of public
+benchmarks for two decades.  ImageNet and CIFAR
+\citep{deng2009imagenet,krizhevsky2009cifar} drove a generation of
+progress in computer vision precisely because results could be
+reproduced and compared at near-zero friction.  The Open Graph
+Benchmark~\citep{hu2020ogb} and follow-on benchmarks for graph anomaly
+detection~\citep{liu2024gadbench,tang2023bond} have begun to provide
+the same service for graph machine learning.  No equivalent reference
+exists in the accounting domain.
+
+The obstacle is not principally technical: it is institutional.  Real
+general ledgers cannot be released without exposing identifiable
+business activity, customer and vendor relationships, and personnel
+data.  Even after anonymisation, joins against public records can
+re-identify entities; even after aggregation, the resulting data may
+no longer support the structural analyses that audit techniques
+depend on.  The community has therefore been left with a choice
+between empirical realism (private, irreproducible) and
+reproducibility (public, but typically toy-scale and unrealistic).
+
+This paper takes the position that the choice is false---provided the
+synthetic side is held to a high empirical and statistical standard.
+We construct \bench{}, a synthetic reference benchmark, on top of the
+\system{} generator~\citep{ivertowski2026datasynth} and an empirical
+study of $364$ million journal-entry postings drawn from $155$ client
+general ledgers~\citep{ivertowski2024apn}.  The generator is open
+source~\citep{datasynth-repo}, the configuration that produces the
+benchmark dataset is shipped in the same repository, and the
+edge-list export, anomaly labels, and baseline implementations are
+all reproducible end-to-end from a single command.
+
+\subsection{Importance of analysing journal entries}
+\label{sec:introduction:je-importance}
+
+Journal entries are the elementary units of accounting truth.  Every
+financial event in an enterprise---a sale, a goods receipt, a payroll
+run, a depreciation calculation, an intercompany allocation---is
+recorded as a journal entry consisting of two or more line items, the
+debits of which must equal the credits.  Trial balances, subledger
+reports, financial statements, and consolidated group accounts are all
+derived structures: they are aggregations of, or projections from, the
+underlying journal-entry table.  An auditor reasoning about an
+anomaly in any of these derived structures must, at the limit, trace
+the anomaly back to the journal entries that produced it.
+
+This primacy of the journal entry is reflected in the audit standards.
+ISA~240~\citep{isa240} explicitly requires the auditor to test
+journal entries for indicators of management fraud, and lists
+characteristics---unusual posting times, round-dollar amounts, manual
+postings to typically-automated accounts, period-end clustering---that
+have become standard targets for analytical procedures.  ISO~21378
+\citep{iso21378} standardises the schema in which journal entries are
+exported for audit data collection precisely because audit work
+products converge on this layer.  Most recurring fraud typologies
+documented in the practitioner literature---split transactions, ghost
+employees, duplicate payments, period-cutoff manipulation, fictitious
+revenue---manifest first as patterns in journal entries.
+
+The consequence for machine learning is that the journal-entry table
+is the right object of study.  Aggregated views (trial balances,
+roll-up dashboards) discard the structure on which detection depends;
+narrower views (single-account histories) discard the cross-account
+relationships that distinguish, for example, a legitimate revenue
+posting from a fictitious one.  A benchmark designed to drive
+methodological progress must therefore expose journal entries in their
+native granularity, with their full source-document and
+inter-account context.
+
+\subsection{Benefits of accounting-network analysis}
+\label{sec:introduction:network-benefits}
+
+Journal entries do not merely admit a network interpretation; they
+\emph{are} a directed graph by construction.  This is not a new
+observation: \citet{ijiri1965incidence} formalised the algebraic
+relationship between double-entry bookkeeping and the
+incidence matrix of a directed graph in $1965$, and the same author
+later argued in his programmatic essay ``The beauty of double-entry
+bookkeeping''~\citep{ijiri1993beauty} that the directed-graph
+structure---accounts as nodes, postings as directed edges from
+credit accounts to debit accounts---is the mathematical signature of
+double-entry as an information system, and the property that
+distinguishes it from single-entry record-keeping.  Subsequent work
+in the audit-analytics literature
+\citep{liang2021bookkeeping,guo2022picture,boersma2024audit} has
+built on this foundation, treating the accounting graph as the
+primary object of study rather than the journal-entry table from
+which it is derived; the present author's earlier empirical
+study~\citep{ivertowski2024apn} reports the structural regularities
+of this graph at scale across $155$ general ledgers.
+
+The consequence is that an accounting network is not a derived view
+of the underlying postings: the postings \emph{are} edges, the
+accounts \emph{are} nodes, and the journal-entry table is a
+particular tabular serialisation of an object that is intrinsically
+graph-shaped.  The accounting network therefore carries information
+that is not present in any single row of the row-level table.
+
+First, network structure exposes recurring \emph{motifs}.  Routine
+operating cycles---procure-to-pay, order-to-cash, hire-to-retire---trace
+out characteristic edge patterns whose deviations are themselves
+diagnostic.  A purchase order that triggers a goods receipt that
+triggers a vendor invoice that triggers a payment yields a
+predictable sequence of edges across well-defined account pairs;
+schemes such as duplicate payments, three-way-match overrides, and
+cutoff manipulation appear as distinctive perturbations of that
+sequence.
+
+Second, network structure is the natural input for graph neural
+networks (GNNs).  GNNs aggregate information across local
+neighbourhoods of the graph and have been shown to outperform
+non-relational baselines on a wide variety of structured-data tasks
+\citep{kipf2017semi,hamilton2017inductive,velickovic2018graph,xu2019gin}.
+On accounting graphs in particular, edge-level classification of
+suspect postings can exploit the company a posting keeps---the other
+edges incident to the same accounts, the same documents, or the same
+counterparties---in ways that flat tabular models cannot.  GNN-based
+graph anomaly detection has been actively benchmarked on synthetic and
+public-domain graph data~\citep{liu2024gadbench,tang2023bond}, but
+\emph{not} on accounting graphs of realistic size and structure.
+
+Third, network analysis supports a class of statistical reasoning that
+is otherwise hard to formalise.  Benford's law~\citep{nigrini2012benfords}
+characterises distributional properties of amounts, but the same
+postings additionally carry topological signatures---degree
+distributions, density of strongly-connected components, betweenness
+of central accounts---that fraud and error patterns alter.  A reference
+benchmark that exposes both the row-level table and the induced
+network-edge list is therefore strictly more useful than one that
+exposes only the former.
+
+\subsection{Contributions}
+\label{sec:introduction:contributions}
+
+This paper makes the following contributions, organised in the order in
+which they appear in the remainder of the document.
+
+\begin{enumerate}
+
+  \item \textbf{Empirical foundation.}  We summarise---and revisit
+    where appropriate---the empirical study of journal-entry
+    line-item distributions on a corpus of $364$ million postings
+    drawn from $155$ client general ledgers \citep{ivertowski2024apn}.
+    The recovered distribution informs the parameters that
+    \system{}~\citep{ivertowski2026datasynth} uses to generate
+    accounting networks of realistic structure
+    (Section~\ref{sec:empirical}).
+
+  \item \textbf{Network construction methods.}  We present, with full
+    mathematical statement, the five Cartesian-product methods
+    (A through E) by which a balanced journal entry can be
+    materialised as a set of debit\,$\to$\,credit edges, and show
+    their correspondence to the standard
+    financial-statement-consolidation operation
+    (Section~\ref{sec:network}).
+
+  \item \textbf{Reference graph schema.}  We define a $13$-column flat
+    edge-list export (\texttt{graphs/je\_network.csv}) with
+    deterministic UUID v5 edge identifiers, joinable column-for-column
+    against the journal-entry table and against the document-flow
+    chain via a \texttt{predecessor\_line\_id} field
+    (Section~\ref{sec:graph}).  The schema is sufficient to reproduce
+    all baselines reported here without additional pre-processing.
+
+  \item \textbf{Benchmark design.}  We open-source \bench{}: a
+    fully-specified benchmark with three reproducible splits
+    (temporal, entity, fraud-typology), a labelling discipline that
+    surfaces over $130$ anomaly subtypes at the edge level, and a
+    leaderboard protocol that includes a leakage audit
+    (Section~\ref{sec:benchmark}).
+
+  \item \textbf{Strong baselines and initial evaluation.}  We provide
+    a baseline suite covering five GNN architectures, gradient-boosted
+    trees, two classical anomaly detectors, and a rule-based
+    reference, all trained from a single declarative configuration,
+    and report initial numbers on the released splits
+    (Section~\ref{sec:evaluation}).
+
+\end{enumerate}
+
+\subsection{Paper organisation}
+\label{sec:introduction:organisation}
+
+Section~\ref{sec:related-work} surveys the prior literature on
+accounting-anomaly detection, graph anomaly benchmarks, and
+synthetic-data generation for finance.  Section~\ref{sec:empirical}
+revisits the empirical foundations.  Section~\ref{sec:datasynth}
+summarises the \system{} generator that produces the
+benchmark dataset.  Section~\ref{sec:network} states the network
+construction methods.  Section~\ref{sec:graph} describes the
+reference graph schema.  Section~\ref{sec:benchmark} fixes the
+benchmark protocol.  Section~\ref{sec:evaluation} reports baseline
+results.  Section~\ref{sec:discussion} interprets them and discusses
+threats to validity, and Section~\ref{sec:future-work} lists open
+problems.  Section~\ref{sec:conclusion} concludes.

@@ -1,0 +1,182 @@
+% sections/reference_graph.tex --- Reference Graph and Schema
+\section{Reference Graph and Schema}
+\label{sec:graph}
+
+This section fixes the on-disk schema of the released benchmark.
+The single artefact that a downstream user needs in order to train
+and evaluate any of the baselines reported in
+Section~\ref{sec:evaluation} is
+\texttt{graphs/je\_network.csv}; companion files are available for
+joining additional features back from the row-level journal-entry
+table.
+
+\subsection{File layout}
+\label{sec:graph:layout}
+
+The released benchmark archive contains the following top-level
+files:
+
+\begin{itemize}
+  \item \texttt{graphs/je\_network.csv} --- the flat edge list,
+    one row per debit-credit edge produced by the
+    Section~\ref{sec:network} dispatch.  This is the primary input
+    to all baselines.
+  \item \texttt{journal\_entries.csv} --- the row-level
+    $42$-column journal-entry table, one row per line item, used
+    to recover entry-level features when needed.
+  \item \texttt{coa.csv} --- the chart of accounts with ISO~21378
+    \texttt{Type}, \texttt{Class}, and \texttt{Sub-Class} fields
+    populated alongside the internal \texttt{AccountType}
+    classification.
+  \item \texttt{period\_close/trial\_balances/} --- per-period
+    trial balances for spot-checking distributional tests.
+  \item \texttt{labels/} --- per-entry anomaly labels
+    (\texttt{anomaly\_labels.csv}, \texttt{fraud\_labels.csv},
+    \texttt{quality\_labels.csv}); already projected onto the edge
+    list, but exposed separately for users who wish to re-label.
+\end{itemize}
+
+The full set of $\sim$$60$ output directories produced by
+\system{} is available in the same archive for users who require
+non-anomaly features (master data, document flow, sub-ledger,
+intercompany eliminations, etc.); these are documented in
+\citep{ivertowski2026datasynth} and are not strictly required for
+the baselines reported here.
+
+\subsection{Edge-list schema}
+\label{sec:graph:schema}
+
+Table~\ref{tab:graph:schema} fixes the $13$ columns of
+\texttt{graphs/je\_network.csv}.  All identifiers are UTF-8 strings;
+all amounts are serialised as decimal strings (no IEEE 754) to
+preserve exact precision; dates use ISO 8601 (\texttt{YYYY-MM-DD}).
+
+\begin{table}[H]
+  \centering
+  \caption{Schema of \texttt{graphs/je\_network.csv}.}
+  \label{tab:graph:schema}
+  \small
+  \begin{tabular}{p{1.6cm}p{2.5cm}p{8.0cm}}
+    \toprule
+    \textbf{Column} & \textbf{Type} & \textbf{Description}\\
+    \midrule
+    \texttt{edge\_id}            & UUID v5  &
+      Deterministic identifier; UUID v5 of
+      $(\text{document\_id}, \text{debit.line\_number},
+        \text{credit.line\_number})$.\\
+    \texttt{document\_id}        & string   &
+      Source document identifier
+      (e.g.\ \texttt{PO-2024-000123}).  \texttt{Manual} when no
+      source document.\\
+    \texttt{posting\_date}       & ISO date &
+      Posting date of the underlying journal entry.\\
+    \texttt{from\_account}       & string   &
+      Debit (source) general-ledger account number.\\
+    \texttt{to\_account}         & string   &
+      Credit (destination) general-ledger account number.\\
+    \texttt{from\_line\_id}      & UUID v5  &
+      Stable line-level identifier of the debit line.\\
+    \texttt{to\_line\_id}        & UUID v5  &
+      Stable line-level identifier of the credit line.\\
+    \texttt{amount}              & decimal  &
+      Edge weight in the entry's currency, in absolute value.\\
+    \texttt{confidence}          & decimal  &
+      Per-entry confidence per Table~\ref{tab:confidence};
+      $1.00$ for Methods A, B-distinct, C-distinct, and D.\\
+    \texttt{predecessor\_edge\_id} & UUID v5 &
+      Edge in the immediately preceding journal entry of the same
+      document chain matching on \texttt{from\_account}; empty for
+      chain heads and for journal entries outside any chain.\\
+    \texttt{business\_process}   & enum     &
+      One of \texttt{P2P}, \texttt{O2C}, \texttt{R2R},
+      \texttt{H2R}, \texttt{A2R}, \texttt{S2C}, \texttt{MFG},
+      \texttt{BANK}, \texttt{AUDIT}, \texttt{Treasury},
+      \texttt{Tax}, \texttt{Intercompany}, \texttt{PROJECT},
+      \texttt{ESG}.\\
+    \texttt{is\_fraud}           & bool     &
+      Edge inherits the \texttt{is\_fraud} flag of the underlying
+      journal entry.\\
+    \texttt{is\_anomaly}         & bool     &
+      Edge inherits the broader \texttt{is\_anomaly} flag,
+      covering fraud, error, process, statistical, and relational
+      categories (Section~\ref{sec:datasynth:anomaly}).\\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{Deterministic edge identity}
+\label{sec:graph:determinism}
+
+The \texttt{edge\_id} field is the UUID~v5 of the triple
+$(\text{document\_id},\, \text{debit.line\_number},\,
+  \text{credit.line\_number})$
+under a fixed namespace seeded by \system{}'s
+\texttt{DeterministicUuidFactory}.  Two consequences follow.
+First, two runs of the generator with the same seed and
+configuration produce identical \texttt{edge\_id} values for every
+edge, and the released benchmark is therefore reproducible at the
+edge identifier level.  Second, an edge identifier remains stable
+under irrelevant rearrangements (re-ordering of unrelated postings,
+re-numbering of unrelated documents) but \emph{changes} when any
+of the three components changes; this is the property required
+for cross-version differential analysis.
+
+\subsection{Joinability}
+\label{sec:graph:joinability}
+
+The schema is joinable column-for-column against the row-level
+journal-entry table via $(\text{document\_id},
+  \text{from\_line\_id})$ and $(\text{document\_id},
+  \text{to\_line\_id})$.  A typical query pattern, written in SQL
+shorthand, is:
+
+\begin{verbatim}
+SELECT  e.*, j_d.account_class, j_d.account_sub_class,
+              j_c.is_post_close
+FROM    je_network e
+LEFT JOIN journal_entries j_d
+       ON j_d.line_id = e.from_line_id
+LEFT JOIN journal_entries j_c
+       ON j_c.line_id = e.to_line_id
+WHERE   e.posting_date BETWEEN '2024-10-01' AND '2024-12-31';
+\end{verbatim}
+
+This recovers the full $42$-column entry context for any edge
+without requiring duplication of features in the edge list.
+
+\subsection{Predecessor chain}
+\label{sec:graph:predecessor}
+
+The \texttt{predecessor\_edge\_id} field traces booking chains across
+documents.  For a payment posting that clears an open vendor
+invoice, the predecessor edge is the corresponding
+$\text{AP\_CONTROL} \to \text{VENDOR\_AUX}$ edge of the invoice
+posting; for a customer receipt clearing an open AR balance, the
+predecessor edge is the corresponding
+$\text{AR\_CONTROL} \to \text{CUSTOMER\_AUX}$ edge.  Heads of chains
+(purchase orders, sales orders, manual postings) carry an empty
+\texttt{predecessor\_edge\_id}.  This field allows the construction
+of \emph{document-chain features} (length of incoming chain,
+expected vs.\ observed time between adjacent postings, etc.) without
+requiring a separate document-flow export to be parsed.
+
+\subsection{Alternate exports}
+\label{sec:graph:alternate}
+
+The same edge list is produced in three additional formats
+for users who prefer typed graph artefacts:
+
+\begin{itemize}
+  \item PyTorch Geometric (\texttt{.pt}): node and edge tensors
+    plus edge-level labels, ready to load into a
+    \texttt{torch\_geometric.data.Data} object.
+  \item Neo4j: CSV node and relationship files plus a Cypher
+    \texttt{LOAD CSV} script.
+  \item DGL: a serialised \texttt{DGLGraph} (binary) with edge
+    labels.
+\end{itemize}
+
+These exports are produced from the same edge-list source and
+share \texttt{edge\_id} values with the CSV file; switching format
+does not alter any baseline numbers reported in
+Section~\ref{sec:evaluation}.

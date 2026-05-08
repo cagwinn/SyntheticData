@@ -1,0 +1,201 @@
+% sections/evaluation.tex --- Empirical Evaluation
+\section{Empirical Evaluation}
+\label{sec:evaluation}
+
+This section reports the headline results of the released
+configuration of \bench{}.  Numerical entries marked
+``\textit{[pending training run]}'' will be filled in from the
+v$1.0$ release training runs; the methodology, baselines, and
+evaluation harness are fully specified here.
+
+\subsection{Released configuration}
+\label{sec:evaluation:config}
+
+The released v$1.0$ configuration of \bench{} produces a
+twelve-month synthetic enterprise dataset under the
+manufacturing industry profile (Section~\ref{sec:datasynth}).
+Headline volumes are summarised in Table~\ref{tab:eval:volume};
+the verbatim YAML is reproduced in
+Appendix~\ref{sec:appendix:config}.
+
+\begin{table}[H]
+  \centering
+  \caption{Released configuration v$1.0$: headline volumes.
+    Edges are produced by Method~A on $1$-to-$1$ entries and
+    Method~B on $n$-to-$n$ entries; counts are deterministic
+    given the configuration seed.}
+  \label{tab:eval:volume}
+  \begin{tabular}{lr}
+    \toprule
+    Period             & FY2024 (12 months)\\
+    Industry profile   & Manufacturing\\
+    Subsidiaries       & $25$\\
+    Chart-of-accounts size (mean) & $\sim$$520$ accounts\\
+    Journal entries    & \textit{[pending training run]}\\
+    Edge count (\texttt{je\_network.csv}) & \textit{[pending training run]}\\
+    Anomaly rate (T1 positive)            & $\sim$$3.5\%$\\
+    Fraud rate (subset)                   & $\sim$$1.0\%$\\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+The fraud-rate split between line-level and document-level fraud
+follows the calibration formula of \citep{ivertowski2026datasynth}:
+\texttt{fraud\_rate}~$= 0.020$, \texttt{document\_fraud\_rate}~$= 0.050$,
+\texttt{propagate\_to\_lines}~$= \mathrm{true}$, yielding the
+$\sim$$3.5\%$ headline.
+
+\subsection{Baselines}
+\label{sec:evaluation:baselines}
+
+We provide a baseline suite that spans the methodological space of
+edge-level anomaly detection.  All baselines train from a single
+declarative configuration (\texttt{baselines/config.yaml}); the
+hyperparameter tables for each are listed in
+Appendix~\ref{sec:appendix:hyperparams}.
+
+\begin{itemize}
+  \item \textbf{Graph neural networks.}
+    GCN~\citep{kipf2017semi},
+    GraphSAGE~\citep{hamilton2017inductive},
+    GAT~\citep{velickovic2018graph},
+    GIN~\citep{xu2019gin},
+    RGCN~\citep{schlichtkrull2018rgcn}.  All are trained as
+    edge-classification models with two $128$-dimensional
+    hidden layers; node features are constructed from
+    account-class one-hots, account-degree statistics, and a
+    normalised account-frequency embedding.
+  \item \textbf{Tabular gradient boosting.}
+    XGBoost~\citep{chen2016xgboost} on a feature vector
+    composed of the $13$ edge columns plus aggregated
+    neighbour statistics (mean / max / std of incident-edge
+    amounts and same-document edge counts).
+  \item \textbf{Classical anomaly detectors.}
+    Local Outlier Factor~\citep{breunig2000lof} and
+    Isolation Forest~\citep{liu2008isolation} on the same
+    feature vector as XGBoost, used unsupervised and scored
+    against the ground-truth labels.
+  \item \textbf{Rule-based reference.}  An ISA~240-style rule
+    set~\citep{isa240}: round-dollar amounts, weekend or
+    off-hours postings, post-close postings, manual postings to
+    typically-automated accounts.  This baseline is the
+    fairest non-ML reference for ``what an audit programme
+    catches today''.
+\end{itemize}
+
+\subsection{Hyperparameter protocol}
+\label{sec:evaluation:hp}
+
+For each baseline we use the validation slice of the temporal
+split to select hyperparameters.  We do not perform a full grid
+search; we report the single configuration shipped with the
+release plus, for the GNN family, a learning-rate sweep over
+$\{10^{-3}, 5\!\times\!10^{-4}, 10^{-4}\}$ and a depth sweep over
+$\{2, 3\}$ layers.  The fixed configuration is what the release
+trains; the sweeps appear only in the ablation Section
+\ref{sec:evaluation:ablations}.
+
+\subsection{Headline results}
+\label{sec:evaluation:headline}
+
+Table~\ref{tab:eval:headline} reports primary $\AUCPR$ on T1 for
+each split.  Entries marked \textit{[pending]} will be supplied
+in the v$1.0$ release.
+
+\begin{table}[H]
+  \centering
+  \caption{T1 binary anomaly detection: primary $\AUCPR$ by split.
+    Higher is better.  $95\%$ bootstrap CIs in parentheses.
+    \textit{[All values pending v$1.0$ training run.]}}
+  \label{tab:eval:headline}
+  \small
+  \begin{tabular}{lccc}
+    \toprule
+    \textbf{Method} & \textbf{Temporal} & \textbf{Entity} &
+      \textbf{Typology}\\
+    \midrule
+    Rule-based reference   & \textit{[pending]} & \textit{[pending]} & \textit{[pending]}\\
+    Local Outlier Factor   & \textit{[pending]} & \textit{[pending]} & \textit{[pending]}\\
+    Isolation Forest       & \textit{[pending]} & \textit{[pending]} & \textit{[pending]}\\
+    XGBoost                & \textit{[pending]} & \textit{[pending]} & \textit{[pending]}\\
+    \midrule
+    GCN~\citep{kipf2017semi}              & \textit{[pending]} & \textit{[pending]} & \textit{[pending]}\\
+    GraphSAGE~\citep{hamilton2017inductive} & \textit{[pending]} & \textit{[pending]} & \textit{[pending]}\\
+    GAT~\citep{velickovic2018graph}        & \textit{[pending]} & \textit{[pending]} & \textit{[pending]}\\
+    GIN~\citep{xu2019gin}                 & \textit{[pending]} & \textit{[pending]} & \textit{[pending]}\\
+    RGCN~\citep{schlichtkrull2018rgcn}    & \textit{[pending]} & \textit{[pending]} & \textit{[pending]}\\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+We expect, on the basis of preliminary internal runs, that the
+ranking on the temporal split groups roughly into three tiers:
+relational-aware GNNs (RGCN, GAT) at the top, attention-free GNNs
+and XGBoost in a competitive middle band, and the unsupervised
+classical detectors and the rule-based reference forming the
+floor.  We expect the entity-split numbers to lag the temporal
+numbers by a small margin and the typology-split numbers to lag
+substantially---this gap is itself one of the headline findings
+the benchmark is designed to surface.
+
+\subsection{Per-typology breakdown}
+\label{sec:evaluation:typology}
+
+Table~\ref{tab:eval:typology} reports T2 per-typology $\AUCPR$ on
+the temporal split.  We anticipate, again from preliminary runs,
+that fraud is the most learnable category (it is also the
+category with the most distinctive behavioural-bias signature),
+followed by error and process anomalies; statistical and
+relational categories are harder and benefit most from network
+features.
+
+\begin{table}[H]
+  \centering
+  \caption{T2 multi-class $\AUCPR$ on the temporal split, by
+    anomaly category.  \textit{[All values pending v$1.0$ training
+    run.]}}
+  \label{tab:eval:typology}
+  \small
+  \begin{tabular}{lccccc}
+    \toprule
+    \textbf{Method} & \textbf{Fraud} & \textbf{Error} &
+      \textbf{Process} & \textbf{Statistical} & \textbf{Relational}\\
+    \midrule
+    Rule-based reference & \textit{[pending]} & \textit{[pending]} & \textit{[pending]} & \textit{[pending]} & \textit{[pending]}\\
+    XGBoost              & \textit{[pending]} & \textit{[pending]} & \textit{[pending]} & \textit{[pending]} & \textit{[pending]}\\
+    Best GNN             & \textit{[pending]} & \textit{[pending]} & \textit{[pending]} & \textit{[pending]} & \textit{[pending]}\\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{Ablations}
+\label{sec:evaluation:ablations}
+
+The release supports three planned ablation experiments, each of
+which a downstream user can re-run from configuration:
+
+\begin{itemize}
+  \item \textbf{Network depth.}  Hold the GNN family fixed and
+    vary the number of message-passing layers in
+    $\{1, 2, 3, 4\}$; report $\AUCPR$ on the temporal split.
+  \item \textbf{\texttt{predecessor\_edge\_id} feature.}  Re-train
+    the best GNN with and without document-chain features
+    derived from \texttt{predecessor\_edge\_id}; report the
+    delta $\AUCPR$ as evidence for the value of chain context.
+  \item \textbf{Structure-only vs.\ attribute-only.}  Train two
+    additional XGBoost variants: one on edge-list structure
+    (no amounts, no dates, no flags) and one on edge attributes
+    only (no graph features); both are reported alongside the
+    full XGBoost as a decomposition of the signal.
+\end{itemize}
+
+\subsection{Cross-typology generalisation}
+\label{sec:evaluation:cross}
+
+We also expect the typology-hold-out split to be the hardest of
+the three.  Initial runs on a near-final configuration showed all
+baselines falling within a narrow $\AUCPR$ band on T3---substantially
+below their T1 performance on the same data.  This finding, which
+we will quantify in the v$1.0$ release, is a candidate driver for
+methodological work on \emph{class-conditional} fraud detection
+that does not currently dominate the literature.

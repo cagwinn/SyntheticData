@@ -1,0 +1,113 @@
+% sections/related_work.tex --- Related Work
+\section{Related Work}
+\label{sec:related-work}
+
+This section places \bench{} in three nearby literatures: machine
+learning for accounting and audit, graph anomaly-detection benchmarks
+in the wider machine-learning community, and synthetic-data generation
+for finance.  We discuss each in turn and identify the gap that
+motivates the present work.
+
+\subsection{Machine learning for accounting and audit}
+\label{sec:related-work:audit-ml}
+
+Machine-learning approaches to accounting-anomaly detection date to the
+expert-system literature of the 1990s and have accelerated steadily
+over the last decade.  \citet{west2016intelligent} survey the broader
+landscape of intelligent financial-fraud detection and emphasise the
+predominance of supervised methods on imbalanced data;
+\citet{hilal2022financial} update the survey for the deep-learning
+era and document a shift towards autoencoder, sequence-model, and
+graph-based approaches.  Within accounting specifically,
+\citet{schreyer2017detection} demonstrated that deep autoencoder
+networks reconstruct routine general-ledger postings well and surface
+unusual entries through reconstruction-error scoring;
+\citet{schreyer2019adversarial} extend this with adversarial training
+to detect synthetic ``accounting-deepfake'' postings designed to
+evade autoencoder defences.  \citet{liang2021bookkeeping} apply
+pattern-recognition methods to the bookkeeping graph itself, showing
+that subgraph anomalies can be detected when the journal-entry table
+is interpreted as a network.  Domain-specific work on
+VAT-compliance violations~\citep{lahann2019vat} and on
+continuous-auditing analytics~\citep{vasarhelyi2004principles}
+highlights the close relationship between detection technique and the
+particular accounting structure on which it operates.
+\citet{guo2022picture} formalise the topology of the accounting graph
+for audit and fraud-detection purposes and argue, in a position
+consonant with the present paper, that accounting-graph structure
+encodes information not present in the row-level table.
+\citet{boersma2024audit} explores the use of complex-network methods
+in audit and offers a data-driven modelling perspective that
+complements the present work.
+
+A persistent feature of this literature, however, is that empirical
+evaluation is conducted on private datasets---typically a single
+client's general ledger held under audit-confidentiality
+constraints---and the released code, when any, does not include the
+data on which the published numbers were computed.  Cross-paper
+comparison is therefore not possible: a ``state-of-the-art'' method
+on one corporate ledger may underperform a simpler model on another,
+and the field has no standard way of detecting this from the
+published numbers alone.
+
+\subsection{Graph anomaly-detection benchmarks}
+\label{sec:related-work:graph-bench}
+
+Outside accounting, graph-based anomaly detection has converged on a
+small number of public benchmarks.  The Open Graph
+Benchmark~\citep{hu2020ogb} provides standardised splits and
+evaluation protocols for node-, link-, and graph-level prediction
+tasks across citation, biological, and product graphs and has been
+widely adopted as a comparison frame for graph neural networks
+(GNNs).  More recently, dedicated graph-anomaly benchmarks have
+emerged: \citet{liu2024gadbench} (\textsc{GADBench}) revisit
+supervised graph-anomaly detection across heterogeneous graph
+families, and \citet{tang2023bond} (\textsc{BOND}) survey unsupervised
+outlier-node detection on static attributed graphs.  Both benchmarks
+have proved valuable in clarifying which methodological gains
+generalise across graph types and which are dataset-specific.
+
+Neither \textsc{GADBench} nor \textsc{BOND}, however, includes
+accounting graphs of realistic structure.  Accounting graphs differ
+from the citation, social, and product graphs that drive these
+benchmarks in three ways that matter for evaluation: (i)~edges carry
+\emph{signed monetary amounts} subject to a balance constraint
+($\sum D = \sum C$ per posting), (ii)~the underlying business
+processes (P2P, O2C, R2R) impose recurring \emph{document-flow
+patterns} across edges, and (iii)~the standards-driven categorical
+structure (account class, account sub-class, business process) is
+itself a strong predictive signal that no general graph carries by
+default.  A benchmark that exposes these features explicitly is, to
+our knowledge, not available in the public-graph-benchmark space, and
+it is the gap \bench{} is designed to fill.
+
+\subsection{Synthetic data for finance}
+\label{sec:related-work:synth-finance}
+
+The third nearby literature is synthetic data generation for finance.
+\citet{xu2019modeling} introduced \textsc{CTGAN} and \textsc{TVAE} for
+conditional tabular generation; \citet{patki2016synthetic} earlier
+presented the \textsc{Synthetic Data Vault} for hierarchical relational
+data; \citet{solatorio2023realtabformer} and
+\citet{kotelnikov2023tabddpm} extended tabular generation to
+transformer- and diffusion-based architectures.  In the finance
+domain, the \textsc{BankSim} simulator~\citep{lopez2016banksim} and
+its successors have made transaction-level fraud-detection studies
+reproducible and have, in particular, given rise to the widely-used
+PaySim corpus.
+
+These efforts share an important property with \bench{}: they
+generate data that is independently releasable, free of confidentiality
+constraints, and reproducible up to a known seed.  They differ in a
+property that is decisive for accounting: \bench{} is designed not as
+a tabular sampler trained from real data, but as a \emph{forward}
+generator that respects the hard accounting invariants
+($\sum D = \sum C$ per posting, $A = L + E$ at consolidation,
+document-chain integrity for P2P/O2C flows) by
+construction~\citep{ivertowski2026datasynth}.  Sample-based generators
+have no native mechanism to enforce these constraints; the
+forward-generation approach that \system{} implements does, and it
+also exposes the underlying generative process to the user.  This
+positioning is consonant with the broader argument in
+\citet{cambria2021kg} that knowledge-graph-style structured generation
+gives stronger reasoning purchase than purely sample-based methods.

@@ -1,0 +1,69 @@
+% sections/abstract.tex --- Abstract
+\begin{abstract}
+Machine-learning research on accounting-anomaly detection has produced
+a steady stream of methodological advances over the past decade---deep
+autoencoders for journal-entry outliers~\citep{schreyer2017detection},
+adversarial detectors for accounting deepfakes~\citep{schreyer2019adversarial},
+graph neural networks for transaction-graph fraud, and a wide variety of
+tabular baselines.  Yet the field has no shared, reproducible benchmark.
+Every published result is reported on a private dataset---typically a
+single client's general ledger held under audit-confidentiality
+constraints---which makes cross-paper comparison impossible and slows
+the accumulation of knowledge that public benchmarks
+\citep{deng2009imagenet,krizhevsky2009cifar,hu2020ogb} have driven in
+neighbouring fields.
+
+We close this gap with \bench{}, an open, fully-provenanced reference
+benchmark for accounting-network anomaly detection.  \bench{} is built on
+\system{}~\citep{ivertowski2026datasynth}, a Rust framework that
+generates end-to-end coherent synthetic enterprise datasets where every
+node, edge, and property derives from a known generative process.  The
+empirical foundation of the benchmark is an internal study of $364$
+million journal-entry postings drawn from $155$ real-world general
+ledgers~\citep{ivertowski2024apn}, from which we recover the line-item
+distribution and structural network properties that \system{}
+implements.
+
+The benchmark contributes four reusable artefacts.  \emph{First}, a
+$13$-column flat edge schema (\texttt{graphs/je\_network.csv}) that
+materialises five mathematically-equivalent network-construction
+methods (Methods~A--E) over the journal-entry table, with
+deterministic UUID v5 edge identifiers and a \texttt{predecessor\_line\_id}
+field that traces booking chains across documents.
+\emph{Second}, a labelled anomaly-injection layer covering more than
+$130$ subtypes---spanning fraud, error, process-control, statistical,
+and relational categories---with every flagged edge linked back to a
+ground-truth event class, enabling both binary and multi-class tasks
+without re-labelling.
+\emph{Third}, three reproducible evaluation splits---temporal (last
+three fiscal months held out), entity (ten percent of subsidiaries held
+out), and fraud-typology (typology classes held out)---together with a
+leakage audit so that any future submission can be checked against the
+same data partition.
+\emph{Fourth}, a baseline suite spanning graph neural networks (GCN,
+GraphSAGE, GAT, GIN, RGCN), tabular gradient boosting (XGBoost), and
+classical anomaly detectors (Isolation Forest, Local Outlier Factor),
+together with a simple rule-based reference, all trained from a single
+declarative configuration.
+
+We report initial numbers on the released configuration.  Strong GNN
+baselines reach competitive area-under-precision-recall on the binary
+task, but cross-typology generalisation under the typology-hold-out
+split remains substantially harder---suggesting that structural
+representations alone do not fully transfer across fraud schemes.
+The full benchmark---data-generation configuration, generated dataset,
+edge-list export, splits, baselines, and weights---is released under a
+permissive licence at the \system{} repository
+\citep{datasynth-repo}.
+
+\bench{} does not replace empirical work on real client data.  Its role
+is complementary: a reference frame against which methods can be
+trained, ablated, and compared without the confidentiality concerns
+that block public release of the underlying ledgers.
+
+\medskip
+\noindent\textbf{Keywords:} accounting networks, journal entries,
+synthetic benchmarks, graph neural networks, anomaly detection, fraud
+detection, audit analytics, reproducibility, ISO~21378, reference
+knowledge graphs
+\end{abstract}

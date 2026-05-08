@@ -1,0 +1,113 @@
+% sections/datasynth.tex --- The DataSynth Generator
+\section{The \system{} Generator}
+\label{sec:datasynth}
+
+\bench{} is built on the \system{} generator
+\citep{ivertowski2026datasynth,datasynth-repo}, an open-source Rust
+framework for forward generation of coherent enterprise datasets.
+This section summarises the parts of \system{} that the benchmark
+relies on; for the full architectural description we refer to the
+SSRN paper.  No reader of this benchmark paper is expected to
+modify \system{}; all that is needed to reproduce \bench{} is the
+configuration in Appendix~\ref{sec:appendix:config} and the released
+\system{} version pinned therein.
+
+\subsection{Architecture}
+\label{sec:datasynth:arch}
+
+\system{} is a Cargo workspace of $17$ active crates, of which
+five are directly relevant to \bench{}: \texttt{datasynth-core}
+(domain models and resource guards), \texttt{datasynth-config}
+(YAML configuration and validation), \texttt{datasynth-generators}
+(journal-entry, document-flow, sub-ledger, and anomaly generators),
+\texttt{datasynth-runtime} (orchestrator and output writers), and
+\texttt{datasynth-graph} (graph builders and the edge-list export
+that produces \texttt{graphs/je\_network.csv}).
+
+Determinism is provided by a single \texttt{ChaCha8} pseudo-random
+number generator seeded from the configuration; identifiers (entity
+codes, document numbers, line-level UUIDs, and edge-level UUIDs) are
+derived through stable hashing so that any two runs with the same
+seed and configuration produce identical output.  A
+\texttt{DeterministicUuidFactory} discriminates UUIDs by generator
+type to avoid collisions between modules.
+
+\subsection{Coherence guarantees}
+\label{sec:datasynth:coherence}
+
+The generator enforces a small number of hard accounting invariants
+\emph{at construction time}, by design rather than by post-hoc
+validation:
+
+\begin{itemize}
+  \item \textbf{Per-entry balance.}  Every \texttt{JournalEntry}
+    instance is constructed with $\sum D = \sum C$ to within the
+    rounding tolerance of \texttt{rust\_decimal}; the type system
+    prevents construction of an unbalanced entry.
+  \item \textbf{Document-chain integrity.}  P2P chains
+    (purchase order $\to$ goods receipt $\to$ vendor invoice $\to$
+    payment) and O2C chains (sales order $\to$ delivery $\to$
+    customer invoice $\to$ customer receipt) maintain
+    cross-document references; the corresponding journal entries
+    inherit a stable \texttt{document\_id} that the edge-list
+    export consumes when wiring \texttt{predecessor\_edge\_id}.
+  \item \textbf{Balance-sheet identity.}  $A = L + E$ holds across
+    every reporting period; subledger reconciliation reports are
+    produced and checked.
+\end{itemize}
+
+These invariants---in addition to twenty-five further coherence
+checks shipped with the runtime---are what allow the released
+benchmark to support strong evaluations: a synthetic dataset on which
+trivial sanity checks fail does not justify methodological claims.
+
+\subsection{Statistical layer}
+\label{sec:datasynth:stat}
+
+Amounts are drawn from a configurable log-normal mixture (default
+three components: routine, significant, and major postings) with
+optional Benford-first-digit calibration; cross-field dependencies
+are induced by Gaussian, Clayton, Gumbel, Frank, or Student-$t$
+copulas; temporal dynamics include period-end clustering, business-day
+calendars for $15$ regions, processing-lag modelling for
+event-to-posting delays, and intraday-volume profiles
+(morning spike, lunch dip, end-of-day rush).  Industry profiles
+(retail, manufacturing, financial-services, healthcare, technology)
+preset these parameters so that a single switch in the configuration
+produces datasets with industry-appropriate distributional
+signatures.
+
+\subsection{Anomaly injection and labelling}
+\label{sec:datasynth:anomaly}
+
+\system{} ships an injector covering more than $130$ anomaly
+subtypes across five categories: fraud (e.g.\ fictitious revenue,
+split transactions, ghost employees, duplicate payments), error
+(e.g.\ duplicate entries, reversed amounts, wrong period or
+account), process (late posting, skipped approval, threshold
+manipulation), statistical (Benford violation, unusual amount,
+trend break), and relational (circular transaction, dormant-account
+activity).  Every flagged journal entry passes through a behavioural
+bias module that applies weekend, round-dollar, off-hours, and
+post-close shifts with configurable probabilities, so that surface
+features used by ISA~240-style heuristics are
+exercised~\citep{isa240}.
+
+The labels propagate through the edge-list export: an edge is
+flagged with \texttt{is\_fraud=true} if either of its endpoints is on
+a line of an entry flagged \texttt{is\_fraud=true}, and similarly for
+\texttt{is\_anomaly}.  This propagation rule is the basis of the
+edge-level binary and multi-class anomaly-detection tasks
+(Section~\ref{sec:benchmark}).
+
+\subsection{ISO 21378 alignment}
+\label{sec:datasynth:iso}
+
+\system{} populates the ISO~21378 \citep{iso21378} account-class and
+account-sub-class fields on every \texttt{GLAccount}, with a total
+mapping from the internal \texttt{AccountSubType} enumeration into
+the standard's three-level (\texttt{Type}/\texttt{Class}/
+\texttt{Sub-Class}) classification.  This makes the released
+benchmark immediately compatible with audit data-collection tooling
+that already speaks ISO~21378 and supports cross-jurisdictional
+splits in future versions of \bench{}.

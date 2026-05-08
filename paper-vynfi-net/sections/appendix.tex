@@ -1,0 +1,89 @@
+% sections/appendix.tex --- Appendix
+\section{Released Configuration v$1.0$}
+\label{sec:appendix:config}
+
+The verbatim YAML below is the configuration that produces the
+released v$1.0$ \bench{} dataset.  It is reproduced in
+\texttt{configs/examples/bench/vynfi\_net\_v1.yaml} in the
+\system{} repository~\citep{datasynth-repo} and is the file the
+released archive is generated from.
+
+\begin{lstlisting}[language={},basicstyle=\ttfamily\footnotesize,
+                   caption={Released configuration v$1.0$ (excerpt).
+                            Full file in
+                            \texttt{configs/examples/bench/vynfi\_net\_v1.yaml}.}]
+global:
+  seed: 42
+  period_months: 12
+  fiscal_year_start: "2024-01-01"
+  industry_profile: manufacturing
+  presentation_currency: USD
+
+companies:
+  count: 25
+  group_structure: enterprise
+
+chart_of_accounts:
+  preset: manufacturing
+  expand_industry_subaccounts: true
+
+transactions:
+  count_per_company_per_month: ~       # set by industry profile
+
+fraud:
+  fraud_rate: 0.020
+  document_fraud_rate: 0.050
+  propagate_to_lines: true
+
+graph_export:
+  je_network_csv:
+    enabled: true
+    methods: [A, B]                    # default; C, D, E disabled
+  pytorch_geometric:
+    enabled: true
+  neo4j:
+    enabled: false
+  dgl:
+    enabled: false
+
+financial_reporting:
+  enabled: true                        # produces trial balances
+\end{lstlisting}
+
+\section{Schema reference}
+\label{sec:appendix:schema}
+
+Per-column documentation of \texttt{graphs/je\_network.csv} appears
+in Section~\ref{sec:graph:schema} (Table~\ref{tab:graph:schema}).
+This appendix supplies one worked example of every column for a
+single edge.
+
+\begin{lstlisting}[language={},basicstyle=\ttfamily\footnotesize,
+                   caption={Example row of \texttt{graphs/je\_network.csv}.}]
+edge_id              = 6c4f9a3e-0b7d-5d20-9b9b-7c5e2c2a1f30
+document_id          = INV-2024-000123
+posting_date         = 2024-07-15
+from_account         = 1100             # AR control
+to_account           = 4000             # Product revenue
+from_line_id         = 7e2c-8a-...
+to_line_id           = 9b3d-12-...
+amount               = 1250.00
+confidence           = 1.00             # Method A
+predecessor_edge_id  = b1a2-...         # PO -> GR -> Invoice chain head
+business_process     = O2C
+is_fraud             = false
+is_anomaly           = false
+\end{lstlisting}
+
+\section{Baseline hyperparameters}
+\label{sec:appendix:hyperparams}
+
+Hyperparameter tables for each baseline appear in the release
+under \texttt{baselines/<method>/hparams.yaml}.  All fixed values
+are reproduced below for reference; the full sweep configurations
+used for ablations are in the same files under the
+\texttt{sweeps:} key.
+
+\textit{[The hyperparameter tables are pending the v$1.0$ release
+training run; the YAML files in the repository are the
+authoritative source.]}
