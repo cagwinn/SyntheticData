@@ -1501,6 +1501,8 @@ fn default_weight() -> f64 {
 pub enum TransactionVolume {
     /// 10,000 transactions per year
     TenK,
+    /// 50,000 transactions per year
+    FiftyK,
     /// 100,000 transactions per year
     HundredK,
     /// 1,000,000 transactions per year
@@ -1518,6 +1520,7 @@ impl TransactionVolume {
     pub fn count(&self) -> u64 {
         match self {
             Self::TenK => 10_000,
+            Self::FiftyK => 50_000,
             Self::HundredK => 100_000,
             Self::OneM => 1_000_000,
             Self::TenM => 10_000_000,
@@ -2116,20 +2119,49 @@ impl Default for FraudConfig {
 }
 
 /// Distribution of fraud types.
+///
+/// All fields default to `0.0` if absent from the YAML, so partial
+/// distributions are accepted; the validator (`validate_sum_to_one`)
+/// then enforces that the populated weights sum to `1.0 ± 0.01`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct FraudTypeDistribution {
+    #[serde(default)]
     pub suspense_account_abuse: f64,
+    #[serde(default)]
     pub fictitious_transaction: f64,
+    #[serde(default)]
     pub revenue_manipulation: f64,
+    #[serde(default)]
     pub expense_capitalization: f64,
+    #[serde(default)]
     pub split_transaction: f64,
+    #[serde(default)]
     pub timing_anomaly: f64,
+    #[serde(default)]
     pub unauthorized_access: f64,
+    #[serde(default)]
     pub duplicate_payment: f64,
+    /// Vendor kickback scheme.
+    #[serde(default)]
+    pub kickback_scheme: f64,
+    /// Round-tripping funds through multiple entities or accounts.
+    #[serde(default)]
+    pub round_tripping: f64,
+    /// Unauthorized customer/vendor discounts (sweethearting, side deals).
+    #[serde(default)]
+    pub unauthorized_discount: f64,
 }
 
 impl Default for FraudTypeDistribution {
     fn default() -> Self {
+        // Preserves the pre-extension default sum=1.0 over the original
+        // eight fields.  The three additional fields (kickback_scheme,
+        // round_tripping, unauthorized_discount) default to 0.0 so that
+        // existing fraud packs / templates that explicitly enumerate the
+        // original eight fields continue to merge to a 1.0 sum without
+        // modification.  Users who want those fraud types must set them
+        // explicitly (and rebalance the others).
         Self {
             suspense_account_abuse: 0.25,
             fictitious_transaction: 0.15,
@@ -2139,6 +2171,9 @@ impl Default for FraudTypeDistribution {
             timing_anomaly: 0.10,
             unauthorized_access: 0.10,
             duplicate_payment: 0.05,
+            kickback_scheme: 0.0,
+            round_tripping: 0.0,
+            unauthorized_discount: 0.0,
         }
     }
 }
@@ -2713,28 +2748,50 @@ impl Default for PaymentTermsDistribution {
 }
 
 /// Vendor behavior distribution.
+///
+/// All fields default to `0.0` if absent from the YAML, so partial
+/// distributions are accepted; the validator (`validate_sum_to_one`)
+/// then enforces that the populated weights sum to `1.0 ± 0.01`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct VendorBehaviorDistribution {
     /// Reliable vendors (consistent delivery, quality)
+    #[serde(default)]
     pub reliable: f64,
     /// Sometimes late vendors
+    #[serde(default)]
     pub sometimes_late: f64,
     /// Inconsistent quality vendors
+    #[serde(default)]
     pub inconsistent_quality: f64,
     /// Premium vendors (high quality, premium pricing)
+    #[serde(default)]
     pub premium: f64,
     /// Budget vendors (lower quality, lower pricing)
+    #[serde(default)]
     pub budget: f64,
+    /// Erratic vendors (variable behavior, unpredictable performance)
+    #[serde(default)]
+    pub erratic: f64,
+    /// Problematic vendors (frequent issues, high risk for fraud scenarios)
+    #[serde(default)]
+    pub problematic: f64,
 }
 
 impl Default for VendorBehaviorDistribution {
     fn default() -> Self {
+        // Preserves the pre-extension default sum=1.0 over the original
+        // five fields.  `erratic` and `problematic` default to 0.0 so
+        // that existing configs/packs continue to merge to a 1.0 sum
+        // without modification.
         Self {
             reliable: 0.50,
             sometimes_late: 0.20,
             inconsistent_quality: 0.10,
             premium: 0.10,
             budget: 0.10,
+            erratic: 0.0,
+            problematic: 0.0,
         }
     }
 }
@@ -2776,22 +2833,49 @@ impl Default for CustomerMasterConfig {
 }
 
 /// Credit rating distribution for customers.
+///
+/// Two parallel vocabularies are accepted:
+///   * Bond-grade tiers: `aaa`, `aa`, `a`, `bbb`, `bb`, `b`, `below_b`
+///   * Plain-English tiers: `excellent`, `good`, `fair`, `poor`
+///
+/// All fields default to `0.0` if absent; mix and match as needed.
+/// The validator enforces that the populated weights sum to `1.0`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CreditRatingDistribution {
     /// AAA rating
+    #[serde(default)]
     pub aaa: f64,
     /// AA rating
+    #[serde(default)]
     pub aa: f64,
     /// A rating
+    #[serde(default)]
     pub a: f64,
     /// BBB rating
+    #[serde(default)]
     pub bbb: f64,
     /// BB rating
+    #[serde(default)]
     pub bb: f64,
     /// B rating
+    #[serde(default)]
     pub b: f64,
     /// Below B rating
+    #[serde(default)]
     pub below_b: f64,
+    /// Plain-English: excellent credit (≈ AAA/AA tier)
+    #[serde(default)]
+    pub excellent: f64,
+    /// Plain-English: good credit (≈ A tier)
+    #[serde(default)]
+    pub good: f64,
+    /// Plain-English: fair credit (≈ BBB/BB tier)
+    #[serde(default)]
+    pub fair: f64,
+    /// Plain-English: poor credit (≈ B/below tier)
+    #[serde(default)]
+    pub poor: f64,
 }
 
 impl Default for CreditRatingDistribution {
@@ -2804,22 +2888,35 @@ impl Default for CreditRatingDistribution {
             bb: 0.20,
             b: 0.10,
             below_b: 0.05,
+            excellent: 0.0,
+            good: 0.0,
+            fair: 0.0,
+            poor: 0.0,
         }
     }
 }
 
 /// Payment behavior distribution for customers.
+///
+/// All fields default to `0.0` if absent from the YAML.  Validator
+/// enforces that populated weights sum to `1.0 ± 0.01`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PaymentBehaviorDistribution {
     /// Always pays early
+    #[serde(default)]
     pub early_payer: f64,
     /// Pays on time
+    #[serde(default)]
     pub on_time: f64,
     /// Occasionally late
+    #[serde(default)]
     pub occasional_late: f64,
     /// Frequently late
+    #[serde(default)]
     pub frequent_late: f64,
     /// Takes early payment discounts
+    #[serde(default)]
     pub discount_taker: f64,
 }
 

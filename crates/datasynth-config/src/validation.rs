@@ -207,17 +207,20 @@ fn validate_fraud(config: &GeneratorConfig) -> SynthResult<()> {
 
     // Validate fraud type distribution sums to ~1.0
     let dist = &config.fraud.fraud_type_distribution;
-    validate_sum_to_one(
+    validate_sum_to_one_named(
         "fraud_type_distribution",
         &[
-            dist.suspense_account_abuse,
-            dist.fictitious_transaction,
-            dist.revenue_manipulation,
-            dist.expense_capitalization,
-            dist.split_transaction,
-            dist.timing_anomaly,
-            dist.unauthorized_access,
-            dist.duplicate_payment,
+            ("suspense_account_abuse", dist.suspense_account_abuse),
+            ("fictitious_transaction", dist.fictitious_transaction),
+            ("revenue_manipulation", dist.revenue_manipulation),
+            ("expense_capitalization", dist.expense_capitalization),
+            ("split_transaction", dist.split_transaction),
+            ("timing_anomaly", dist.timing_anomaly),
+            ("unauthorized_access", dist.unauthorized_access),
+            ("duplicate_payment", dist.duplicate_payment),
+            ("kickback_scheme", dist.kickback_scheme),
+            ("round_tripping", dist.round_tripping),
+            ("unauthorized_discount", dist.unauthorized_discount),
         ],
     )?;
 
@@ -292,10 +295,58 @@ fn validate_master_data(config: &GeneratorConfig) -> SynthResult<()> {
         config.master_data.vendors.intercompany_percent,
     )?;
 
+    // Vendor behavior distribution must sum to 1.0
+    let vbd = &config.master_data.vendors.behavior_distribution;
+    validate_sum_to_one_named(
+        "master_data.vendors.behavior_distribution",
+        &[
+            ("reliable", vbd.reliable),
+            ("sometimes_late", vbd.sometimes_late),
+            ("inconsistent_quality", vbd.inconsistent_quality),
+            ("premium", vbd.premium),
+            ("budget", vbd.budget),
+            ("erratic", vbd.erratic),
+            ("problematic", vbd.problematic),
+        ],
+    )?;
+
     // Customer config
     validate_rate(
         "customers.intercompany_percent",
         config.master_data.customers.intercompany_percent,
+    )?;
+
+    // Customer payment behavior distribution must sum to 1.0
+    let pbd = &config.master_data.customers.payment_behavior_distribution;
+    validate_sum_to_one_named(
+        "master_data.customers.payment_behavior_distribution",
+        &[
+            ("early_payer", pbd.early_payer),
+            ("on_time", pbd.on_time),
+            ("occasional_late", pbd.occasional_late),
+            ("frequent_late", pbd.frequent_late),
+            ("discount_taker", pbd.discount_taker),
+        ],
+    )?;
+
+    // Customer credit rating distribution must sum to 1.0
+    // (Plain-English and bond-grade vocabularies counted together.)
+    let crd = &config.master_data.customers.credit_rating_distribution;
+    validate_sum_to_one_named(
+        "master_data.customers.credit_rating_distribution",
+        &[
+            ("aaa", crd.aaa),
+            ("aa", crd.aa),
+            ("a", crd.a),
+            ("bbb", crd.bbb),
+            ("bb", crd.bb),
+            ("b", crd.b),
+            ("below_b", crd.below_b),
+            ("excellent", crd.excellent),
+            ("good", crd.good),
+            ("fair", crd.fair),
+            ("poor", crd.poor),
+        ],
     )?;
 
     // Material config
@@ -560,6 +611,29 @@ fn validate_sum_to_one(name: &str, values: &[f64]) -> SynthResult<()> {
     if (sum - 1.0).abs() > 0.01 {
         return Err(SynthError::validation(format!(
             "{name} must sum to 1.0, got {sum}"
+        )));
+    }
+    Ok(())
+}
+
+/// Same as `validate_sum_to_one`, but produces an error message that lists
+/// every field name and its value when the check fails.
+///
+/// Use this for distributions where users repeatedly hit silent-drop drift
+/// (extra YAML keys discarded by serde, leading to a sum that disagrees
+/// with what the user wrote).  The named variant makes it obvious which
+/// fields the validator actually counted.
+fn validate_sum_to_one_named(name: &str, fields: &[(&str, f64)]) -> SynthResult<()> {
+    let sum: f64 = fields.iter().map(|(_, v)| *v).sum();
+    if (sum - 1.0).abs() > 0.01 {
+        let detail = fields
+            .iter()
+            .map(|(n, v)| format!("{n}={v}"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        return Err(SynthError::validation(format!(
+            "{name} must sum to 1.0, got {sum} (counted {} fields: {detail})",
+            fields.len()
         )));
     }
     Ok(())
@@ -2918,8 +2992,14 @@ mod tests {
             + dist.split_transaction
             + dist.timing_anomaly
             + dist.unauthorized_access
-            + dist.duplicate_payment;
-        assert!((sum - 1.0).abs() < 0.001);
+            + dist.duplicate_payment
+            + dist.kickback_scheme
+            + dist.round_tripping
+            + dist.unauthorized_discount;
+        assert!(
+            (sum - 1.0).abs() < 0.001,
+            "FraudTypeDistribution::default() must sum to 1.0, got {sum}"
+        );
     }
 
     #[test]
@@ -2952,8 +3032,13 @@ mod tests {
             + dist.sometimes_late
             + dist.inconsistent_quality
             + dist.premium
-            + dist.budget;
-        assert!((sum - 1.0).abs() < 0.001);
+            + dist.budget
+            + dist.erratic
+            + dist.problematic;
+        assert!(
+            (sum - 1.0).abs() < 0.001,
+            "VendorBehaviorDistribution::default() must sum to 1.0, got {sum}"
+        );
     }
 
     #[test]

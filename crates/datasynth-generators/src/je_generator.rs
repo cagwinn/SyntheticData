@@ -1010,7 +1010,27 @@ impl JournalEntryGenerator {
             return FraudType::UnauthorizedAccess;
         }
 
-        // Default fallback
+        cumulative += dist.duplicate_payment;
+        if roll < cumulative {
+            return FraudType::DuplicatePayment;
+        }
+
+        cumulative += dist.kickback_scheme;
+        if roll < cumulative {
+            return FraudType::KickbackScheme;
+        }
+
+        cumulative += dist.round_tripping;
+        if roll < cumulative {
+            return FraudType::RoundTripping;
+        }
+
+        cumulative += dist.unauthorized_discount;
+        if roll < cumulative {
+            return FraudType::UnauthorizedDiscount;
+        }
+
+        // Fallback when distribution is sub-1.0 (validator allows tolerance)
         FraudType::DuplicatePayment
     }
 
@@ -1044,6 +1064,8 @@ impl JournalEntryGenerator {
             | FraudType::ShellCompanyPayment
             | FraudType::Kickback
             | FraudType::KickbackScheme
+            | FraudType::UnauthorizedDiscount
+            | FraudType::RoundTripping
             | FraudType::InvoiceManipulation
             | FraudType::AssetMisappropriation
             | FraudType::InventoryTheft

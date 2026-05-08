@@ -374,7 +374,26 @@ fn compute_account_stats(entries: &[&JournalEntry]) -> HashMap<String, AccountSt
                 .copied()
                 .unwrap_or(Decimal::ZERO);
             let diff = amount - mean;
-            // diff² using Decimal multiplication
+            // diff² using Decimal multiplication.
+            //
+            // `rust_decimal` panics on both multiplication and addition
+            // overflow.  We have observed configurations where
+            // account-level balances grow into the 10^15+ range
+            // (compounding across 12-month period close + intercompany
+            // + audit-group features); squaring those would exceed
+            // `Decimal::MAX` (≈ 7.92 × 10^28), and even a saturated
+            // value would then overflow the running variance sum once
+            // accumulated across thousands of lines.  Skip the
+            // contribution when |diff| is large enough to make the
+            // squared value unsafe to accumulate; the variance estimate
+            // is only used to set a z-score threshold for the
+            // unusual-amount flagger, and lines beyond that threshold
+            // would be flagged anyway by the explicit
+            // `outlier_threshold_decimal` cap.
+            let abs_diff_f = diff.abs().try_into().unwrap_or(0.0_f64);
+            if abs_diff_f > 1e13_f64 {
+                continue;
+            }
             let diff_sq = diff * diff;
             let entry = variance_sums.entry(line.gl_account.clone()).or_default();
             entry.0 += diff_sq;

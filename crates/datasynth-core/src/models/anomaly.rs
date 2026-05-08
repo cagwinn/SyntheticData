@@ -348,6 +348,11 @@ pub enum FraudType {
     Kickback,
     /// Kickback scheme (alias).
     KickbackScheme,
+    /// Unauthorized customer/vendor discount (sweethearting, side deals).
+    UnauthorizedDiscount,
+    /// Round-tripping funds through multiple entities or accounts to
+    /// inflate apparent activity or obscure origin.
+    RoundTripping,
     /// Invoice manipulation.
     InvoiceManipulation,
 
