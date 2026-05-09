@@ -294,6 +294,24 @@ pub fn run_aggregate(
     // ── 7. Convert to elimination JEs (Task 5.5) ────────────────────────
     let elim_jes = eliminations_to_journal_entries(&elim_result);
 
+    // ── 7b. v5.10 — emit per-entity + consolidated je_network artefacts.
+    // Hooks in here (after eliminations land but before TB consolidation
+    // rewrites contributing_jes) so we can mark elimination edges with
+    // is_eliminated=true while the original IC pair JEs are still in
+    // their entity-tagged form.
+    let je_network_summary = crate::aggregate::je_network::write_je_network_artefacts(
+        &contributing_jes,
+        &elim_jes,
+        out_dir,
+    )?;
+    tracing::info!(
+        "v5.10 je_network: {} per-entity files, {} elim edges, {} consolidated edges -> {:?}",
+        je_network_summary.per_entity_edge_count.len(),
+        je_network_summary.elim_edge_count,
+        je_network_summary.consolidated_edge_count,
+        je_network_summary.consolidated_csv_path,
+    );
+
     // ── 8. Apply eliminations to pre-elim TB (Task 5.6) ─────────────────
     let post_elim = apply_eliminations_to_tb(&pre_elim, &elim_jes)?;
 

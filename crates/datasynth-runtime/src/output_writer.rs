@@ -252,6 +252,11 @@ fn write_journal_entries_csv(
 /// Ivertowski et al. (2024); for larger JEs it is a Method-B/C
 /// approximation with proportional amount allocation.
 ///
+/// v5.10: edge construction has been extracted into
+/// [`crate::je_network::build_je_network_edges`] so the same logic is
+/// reused by the `datasynth-group` aggregate emitter.  The CSV format
+/// is unchanged — this writer keeps the v5.8.0 13-column schema.
+///
 /// Joins back to `journal_entries.csv` via:
 ///   - `document_id` → JE-level header
 ///   - `from_line_id` / `to_line_id` → per-line `transaction_id`
@@ -261,8 +266,6 @@ fn write_je_network_csv(
     output_dir: &Path,
     method: datasynth_config::JeNetworkMethod,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    use rust_decimal::Decimal;
-
     if result.journal_entries.is_empty() {
         return Ok(());
     }
@@ -279,159 +282,32 @@ fn write_je_network_csv(
          predecessor_edge_id,business_process,is_fraud,is_anomaly"
     )?;
 
-    // Build a map line_transaction_id → edge_id of the FIRST out-going
-    // edge from that line so predecessor_edge_id can be resolved without
-    // a second pass: if a curr-line's predecessor_line_id points at
-    // some prev-line's transaction_id, the predecessor edge is the
-    // first edge in that prev JE that has this line as its credit
-    // ("from") side. This reasonably maps each line to one canonical
-    // outgoing edge.
-    //
-    // We populate the map during the first pass (write the rows) and
-    // resolve predecessor_edge_id with the existing entry — JEs are
-    // emitted in chain order, so the predecessor will already be in
-    // the map by the time we look it up.
-    let mut line_id_to_edge_id: std::collections::HashMap<String, String> =
-        std::collections::HashMap::with_capacity(result.journal_entries.len() * 2);
+    let edges = crate::je_network::build_je_network_edges(&result.journal_entries, method);
 
-    let mut total_edges: usize = 0;
-
-    for je in &result.journal_entries {
-        let h = &je.header;
-        // Pre-compute transaction_ids for every line (so we can pair
-        // them without re-deriving inside the inner loop).
-        let line_ids: Vec<String> = je
-            .lines
-            .iter()
-            .map(|l| {
-                l.transaction_id.clone().unwrap_or_else(|| {
-                    datasynth_core::models::JournalEntryLine::derive_transaction_id(
-                        l.document_id,
-                        l.line_number,
-                    )
-                })
-            })
-            .collect();
-
-        let debits: Vec<usize> = je
-            .lines
-            .iter()
-            .enumerate()
-            .filter(|(_, l)| l.debit_amount > Decimal::ZERO)
-            .map(|(i, _)| i)
-            .collect();
-        let credits: Vec<usize> = je
-            .lines
-            .iter()
-            .enumerate()
-            .filter(|(_, l)| l.credit_amount > Decimal::ZERO)
-            .map(|(i, _)| i)
-            .collect();
-        if debits.is_empty() || credits.is_empty() {
-            continue;
-        }
-
-        // Method A: bijective on 2-line entries only.  Multi-line JEs
-        // are skipped under this method — see Ivertowski (2024)
-        // Methods A through E.  The full Cartesian product of a
-        // multi-line consolidation produces O(n × m) edges per JE,
-        // which dominates total dataset size at scale; users who need
-        // the multi-line edges should set
-        // `graph_export.je_network.method: cartesian` (the default).
-        if method == datasynth_config::JeNetworkMethod::A
-            && !(debits.len() == 1 && credits.len() == 1)
-        {
-            continue;
-        }
-
-        let total_debit: Decimal = debits.iter().map(|i| je.lines[*i].debit_amount).sum();
-        let total_credit: Decimal = credits.iter().map(|i| je.lines[*i].credit_amount).sum();
-        if total_debit.is_zero() || total_credit.is_zero() {
-            continue;
-        }
-
-        // Confidence per the paper: bijective on 2-line entries
-        // (Method A), 1/(n*m) approximation otherwise.
-        let confidence: f64 = if debits.len() == 1 && credits.len() == 1 {
-            1.0
-        } else {
-            1.0 / (debits.len() * credits.len()) as f64
-        };
-
-        let bp = h
-            .business_process
-            .map(|bp| format!("{bp:?}"))
-            .unwrap_or_default();
-        let posting_date = h.posting_date.to_string();
-        let doc_id = h.document_id.to_string();
-
-        for &di in &debits {
-            let debit_line = &je.lines[di];
-            let to_line_id = &line_ids[di];
-            for &ci in &credits {
-                let credit_line = &je.lines[ci];
-                let from_line_id = &line_ids[ci];
-
-                // Edge id = UUID v5 of (document_id, debit.line_number,
-                // credit.line_number). Stable across regenerations.
-                let mut input = Vec::with_capacity(16 + 8);
-                input.extend_from_slice(h.document_id.as_bytes());
-                input.extend_from_slice(&debit_line.line_number.to_le_bytes());
-                input.extend_from_slice(&credit_line.line_number.to_le_bytes());
-                let edge_id = uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_OID, &input).to_string();
-
-                // Proportional allocation of the flow's amount (matches
-                // the existing TransactionGraphBuilder::add_journal_entry
-                // _debit_credit formula).
-                let proportion = (debit_line.debit_amount / total_debit)
-                    * (credit_line.credit_amount / total_credit);
-                let amount = debit_line.debit_amount * proportion;
-
-                // Resolve predecessor: the predecessor_line_id from the
-                // CREDIT side (it represents the "from" of the next
-                // edge); fall back to the debit side. Either points at
-                // a transaction_id whose first outgoing edge id is the
-                // predecessor edge.
-                let predecessor_edge_id: String = credit_line
-                    .predecessor_line_id
-                    .as_ref()
-                    .or(debit_line.predecessor_line_id.as_ref())
-                    .and_then(|tx_id| line_id_to_edge_id.get(tx_id).cloned())
-                    .unwrap_or_default();
-
-                writeln!(
-                    w,
-                    "{},{},{},{},{},{},{},{},{},{},{},{},{}",
-                    csv_escape(&edge_id),
-                    csv_escape(&doc_id),
-                    csv_escape(&posting_date),
-                    csv_escape(&credit_line.gl_account),
-                    csv_escape(&debit_line.gl_account),
-                    csv_escape(from_line_id),
-                    csv_escape(to_line_id),
-                    amount,
-                    confidence,
-                    csv_escape(&predecessor_edge_id),
-                    csv_escape(&bp),
-                    h.is_fraud,
-                    h.is_anomaly,
-                )?;
-
-                // Map the credit line ("from" end) to its first edge —
-                // this is the canonical outgoing edge subsequent JEs
-                // can refer to as their predecessor.
-                line_id_to_edge_id
-                    .entry(from_line_id.clone())
-                    .or_insert_with(|| edge_id.clone());
-                total_edges += 1;
-            }
-        }
+    for e in &edges {
+        writeln!(
+            w,
+            "{},{},{},{},{},{},{},{},{},{},{},{},{}",
+            csv_escape(&e.edge_id),
+            csv_escape(&e.document_id.to_string()),
+            csv_escape(&e.posting_date.to_string()),
+            csv_escape(&e.from_account),
+            csv_escape(&e.to_account),
+            csv_escape(&e.from_line_id),
+            csv_escape(&e.to_line_id),
+            e.amount,
+            e.confidence,
+            csv_escape(&e.predecessor_edge_id),
+            csv_escape(&e.business_process),
+            e.is_fraud,
+            e.is_anomaly,
+        )?;
     }
 
     w.flush()?;
     info!(
         "  JE network CSV written: {} edges from {} entries -> {}",
-        total_edges,
+        edges.len(),
         result.journal_entries.len(),
         path.display()
     );

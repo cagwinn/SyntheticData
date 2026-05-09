@@ -371,6 +371,95 @@ fn run_aggregate_writes_full_artifact_set_in_emission_order() {
         summary.total_nci,
         diff,
     );
+
+    // ── v5.10 je_network artefacts ─────────────────────────────────
+    // Per-entity files
+    for entity in ["NESTLE_SA", "NESTLE_USA"] {
+        let entity_csv = root
+            .join("entities")
+            .join(entity)
+            .join("graphs")
+            .join("je_network.csv");
+        let entity_pq = root
+            .join("entities")
+            .join(entity)
+            .join("graphs")
+            .join("je_network.parquet");
+        assert!(
+            entity_csv.exists(),
+            "missing per-entity je_network.csv: {:?}",
+            entity_csv
+        );
+        assert!(
+            entity_pq.exists(),
+            "missing per-entity je_network.parquet: {:?}",
+            entity_pq
+        );
+
+        // Header sanity: 15 columns, ic_pair_id + ic_partner_entity present
+        let body = std::fs::read_to_string(&entity_csv).expect("read entity csv");
+        let header = body.lines().next().expect("non-empty");
+        assert!(
+            header.contains("ic_pair_id") && header.contains("ic_partner_entity"),
+            "entity csv header missing v5.10 IC columns: {header}",
+        );
+        let line_count = body.lines().count();
+        assert!(
+            line_count >= 2,
+            "expect at least header + 1 row; got {line_count}"
+        );
+    }
+
+    // Consolidated file
+    let consol_csv = root.join("consolidated").join("je_network.csv");
+    let consol_pq = root.join("consolidated").join("je_network.parquet");
+    assert!(consol_csv.exists(), "missing consolidated je_network.csv");
+    assert!(
+        consol_pq.exists(),
+        "missing consolidated je_network.parquet"
+    );
+
+    let consol_body = std::fs::read_to_string(&consol_csv).expect("read consolidated csv");
+    let consol_header = consol_body.lines().next().expect("non-empty");
+    for col in [
+        "edge_id",
+        "entity_code",
+        "ic_pair_id",
+        "ic_partner_entity",
+        "is_eliminated",
+        "eliminates_ic_pair_id",
+    ] {
+        assert!(
+            consol_header.contains(col),
+            "consolidated header missing column `{col}`: {consol_header}",
+        );
+    }
+
+    // At least one row should have is_eliminated=true (Mini-Nestlé has
+    // matched IC pairs that produce eliminations).
+    let has_elim = consol_body.lines().skip(1).any(|l| {
+        // find `,true,` in the right column position is fragile; just
+        // require *any* row to contain the literal `,true,` substring
+        // — the only true booleans are is_fraud / is_anomaly /
+        // is_eliminated and the test fixture sets neither fraud nor
+        // anomaly, so any `,true,` must be is_eliminated.
+        l.contains(",true,")
+    });
+    assert!(
+        has_elim,
+        "expected at least one is_eliminated=true row in consolidated csv"
+    );
+
+    // At least one row should carry an IC pair id (matched seller/buyer).
+    let has_ic = consol_body.lines().skip(1).any(|l| {
+        l.split(',')
+            .nth(14)
+            .is_some_and(|c| !c.is_empty() && c != "\"\"")
+    });
+    assert!(
+        has_ic,
+        "expected at least one row with non-empty ic_pair_id in consolidated csv"
+    );
 }
 
 #[test]

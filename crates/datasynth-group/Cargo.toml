@@ -33,12 +33,16 @@ blake3 = { workspace = true }
 hex = { workspace = true }
 strsim = "0.11"
 rayon = { workspace = true }
+arrow = { workspace = true }
+parquet = { workspace = true }
 
 [dev-dependencies]
 datasynth-test-utils = { workspace = true }
 rust_decimal_macros = { workspace = true }
 pretty_assertions = "1"
 tempfile = { workspace = true }
+smallvec = { workspace = true }
+uuid = { workspace = true }
 # Subprocess-based determinism harness in `tests/determinism_in_process.rs`
 # (Task 11.4) drives the `datasynth-data` CLI binary as a subprocess.
 # `assert_cmd` is used for ergonomics; the binary itself is discovered

@@ -5,6 +5,70 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.10.0] - 2026-05-09
+
+Group-audit-aware Method-A edge-list export — the v5.9.0 single-entity
+Method-A network is now extended to the consolidated-group level so
+the `vynfi-group-audit-enterprise-2000` archive (and any other
+group-audit run) emits per-entity *and* consolidated `je_network`
+artefacts.
+
+### Added — group-audit `je_network` export
+
+- **Per-entity** `entities/{code}/graphs/je_network.{csv,parquet}` —
+  the same Method-A edges the single-entity output_writer would
+  produce, extended with `ic_pair_id` + `ic_partner_entity` columns
+  so consumers can join the IC postings back into pairs.
+- **Consolidated** `consolidated/je_network.{csv,parquet}` — every
+  entity's edges concatenated, plus the elimination JEs (flagged
+  `is_eliminated=true`), with `entity_code` as a partition column.
+- Schema additions on the consolidated file: `entity_code`,
+  `ic_pair_id`, `ic_partner_entity`, `is_eliminated`,
+  `eliminates_ic_pair_id`. Per-entity adds `ic_pair_id` +
+  `ic_partner_entity` only.
+- Both formats use Zstd-compressed parquet (~5× smaller than CSV)
+  matching the convention from the single-entity dataset.
+
+### Refactored — shared Method-A helper
+
+- New `datasynth_runtime::je_network::build_je_network_edges()` —
+  pure builder reused by `output_writer::write_je_network_csv` and
+  the new group emitter. Single-entity CSV output is byte-identical
+  to v5.9.0 (verified by the existing
+  `tests/je_network_export.rs` integration test).
+- New struct `JeNetworkEdge` exposes the IC fields through the
+  existing edge model so single-entity runs that *do* have IC
+  postings (multi-company-in-one-shard configs) can still surface
+  them — though the single-entity CSV writer keeps the v5.8.0
+  13-column schema for backwards compatibility.
+
+### Validated against `mini_nestle.yaml`
+
+End-to-end smoke through `datasynth-data group generate` against
+`configs/examples/group/mini_nestle.yaml` produced:
+- 4 per-entity `je_network.{csv,parquet}` files
+  (NESTLE_SA / NESTLE_USA / NESTLE_DE / NESTLE_BR)
+- 368 elimination edges
+- 69,287 consolidated edges
+- 376 IC-pair edges (matched seller + buyer sides) with
+  `ic_pair_id` populated
+- Coverage 0.9583 (matched / planned IC pairs)
+
+`vynfi-group-audit-enterprise-2000` regeneration is the next
+deliverable; this release ships the engine changes that make it
+possible.
+
+### Implementation notes
+
+- Wired into `aggregate/driver.rs` immediately after
+  `eliminations_to_journal_entries` runs (step 7b) so elimination
+  edges can be flagged `is_eliminated=true` while the contributing
+  entity-tagged JEs are still in their pre-TB-rewrite form.
+- `eliminates_ic_pair_id` is left empty on v5.10 elimination edges
+  — the synthetic JEs produced by the elimination factory don't
+  carry the source `IcPairId` on their headers. Plumbing it
+  through the elimination → JE conversion can land in v5.10.x.
+
 ## [5.9.0] - 2026-05-08
 
 Customer-feedback follow-up release on top of v5.8.0.  Bundles a

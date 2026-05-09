@@ -56,3 +56,4 @@ reqwest = { workspace = true, optional = true }
 proptest = { workspace = true }
 datasynth-test-utils = { workspace = true }
 tempfile = { workspace = true }
+smallvec = { workspace = true }

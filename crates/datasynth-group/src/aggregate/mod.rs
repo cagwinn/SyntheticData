@@ -26,6 +26,7 @@ pub mod elimination;
 pub mod equity_method;
 pub mod fs;
 pub mod ic_matcher;
+pub mod je_network;
 pub mod nci;
 pub mod opening_balance;
 pub mod post_elim;
@@ -65,6 +66,7 @@ pub use fs::{
 pub use ic_matcher::{
     match_ic_pairs, IcMatchResult, IcMatchedPair, UnmatchedReason, UnmatchedSide,
 };
+pub use je_network::{write_je_network_artefacts, JeNetworkSummary};
 pub use nci::{
     compute_nci_rollforward, ingest_opening_nci_balances, write_nci_rollforward, NciInputs,
     NciRollforward, NCI_ROLLFORWARD_FILENAME,
