@@ -48,6 +48,27 @@ df = ds.to_pandas()
 
 All datasets are Apache 2.0, entirely synthetic, no PII.
 
+## Showcases — interactive Spaces + trained models
+
+| | URL | What |
+|---|---|---|
+| 🔗 **Accounting Network Explorer** | [`VynFi/accounting-network-explorer`](https://huggingface.co/spaces/VynFi/accounting-network-explorer) | Streamlit Space — interactive ISO 21378 Level-2 account-class graph from `je_network.parquet`. Filter by business process · fraud · anomaly · min-amount · top-N; click a class to drill into Level-3 sub-classes. |
+| 🛡️ **Fraud-GNN Demo** | [`VynFi/fraud-gnn-demo`](https://huggingface.co/spaces/VynFi/fraud-gnn-demo) | Gradio Space — three tabs: edge fraud predictor (curated samples + manual entry), node anomaly explorer, live check on sampled edges with confusion matrix + ROC. |
+| 📊 **Process Mining Demo** | [`VynFi/process-mining-demo`](https://huggingface.co/spaces/VynFi/process-mining-demo) | Streamlit Space — pm4py DFG, variants, statistics on `vynfi-supply-chain-ocel`. |
+| 🤖 **JE Fraud GNN** | [`VynFi/je-fraud-gnn`](https://huggingface.co/VynFi/je-fraud-gnn) | Trained model: GraphSAGE 2-layer fraud classifier (test AUC **0.914**, F1 0.78) + attribute-reconstruction GAE node anomaly scorer (per-edge AUC **0.654** *unsupervised*). Bundle includes weights, preprocessor, and full metrics. |
+
+The GNN training pipeline is reproducible from this repo:
+
+```bash
+pip install -r requirements-ml.txt
+python -m scripts.ml.build_je_pyg_dataset --output data/ml/je_pyg_v1.pt --seed 20260509
+python -m scripts.ml.train_je_fraud_gnn --epochs 60
+python -m scripts.ml.train_je_anomaly_gae --epochs 80
+python -m scripts.ml.package_for_hf
+```
+
+See [`notebooks/gnn_fraud_demo.ipynb`](notebooks/gnn_fraud_demo.ipynb) for the end-to-end walkthrough and the [model card](https://huggingface.co/VynFi/je-fraud-gnn) for honest framing of where graph methods help vs the LR baseline.
+
 ---
 
 ## Quick Start

@@ -79,3 +79,10 @@ paper/tmp/
 
 # v5.0 XXL VM verification artifacts (large binary blobs, regenerable)
 docs/superpowers/verification-runs/
+
+# GNN fraud-detection showcase — large training artefacts kept out of git
+data/ml/
+models/ml/
+*.pt
+*.pkl
+.gnn-venv/
