@@ -1,0 +1,144 @@
+# VynFi Audit P2P (vynfi-audit-p2p) — HF dataset regeneration recipe
+#
+# Document Flow with Fraud Labels.  Showcases the P2P (purchase
+# order → goods receipt → vendor invoice → payment) and O2C
+# (sales order → delivery → customer invoice → customer receipt)
+# document chains, with line-level fraud labels and the v5.8.0+
+# `predecessor_line_id` chain context surfaced both on JE lines
+# and via the `je_network.csv` flat edge list.
+#
+# Volumes target ≈230 documents across the four core P2P document
+# types — small enough for quick prototyping, large enough to
+# show realistic fraud-injection patterns at the document level.
+# Manufacturing industry, 10 entities, 6 fiscal periods.
+#
+# Reproducibility:
+# - global.seed pinned for byte-stable regeneration on the
+#   v5.9.0 release binary;
+# - graph_export.je_network.method: a (Method A from
+#   Ivertowski 2024 — exactly one edge per 2-line journal entry,
+#   no Cartesian-product blow-up on multi-line consolidations);
+# - cost-centers / profit-centers / employees masters generated so
+#   `cost_center` / `profit_center` / `created_by` join cleanly to
+#   their respective master tables (closes the v5.9.0 linkage gap).
+
+global:
+  industry: manufacturing
+  start_date: "2024-01-01"
+  period_months: 6
+  seed: 20260509
+  group_currency: USD
+  parallel: true
+  worker_threads: 4
+  memory_limit_mb: 4096
+
+companies:
+  - { code: "1000", name: "VynFi Mfg HQ",       currency: USD, country: US, annual_transaction_volume: ten_k, volume_weight: 0.18, fiscal_year_variant: K4 }
+  - { code: "1100", name: "VynFi Mfg Plant 1",  currency: USD, country: US, annual_transaction_volume: ten_k, volume_weight: 0.14, fiscal_year_variant: K4 }
+  - { code: "1200", name: "VynFi Mfg Plant 2",  currency: USD, country: US, annual_transaction_volume: ten_k, volume_weight: 0.12, fiscal_year_variant: K4 }
+  - { code: "1300", name: "VynFi Mfg Plant 3",  currency: USD, country: US, annual_transaction_volume: ten_k, volume_weight: 0.10, fiscal_year_variant: K4 }
+  - { code: "2000", name: "VynFi Mfg EU GmbH",  currency: EUR, country: DE, annual_transaction_volume: ten_k, volume_weight: 0.10, fiscal_year_variant: K4 }
+  - { code: "2100", name: "VynFi Mfg UK Ltd",   currency: GBP, country: GB, annual_transaction_volume: ten_k, volume_weight: 0.08, fiscal_year_variant: K4 }
+  - { code: "2200", name: "VynFi Mfg FR SAS",   currency: EUR, country: FR, annual_transaction_volume: ten_k, volume_weight: 0.08, fiscal_year_variant: K4 }
+  - { code: "3000", name: "VynFi Mfg APAC SG",  currency: SGD, country: SG, annual_transaction_volume: ten_k, volume_weight: 0.08, fiscal_year_variant: K4 }
+  - { code: "3100", name: "VynFi Mfg AU Pty",   currency: AUD, country: AU, annual_transaction_volume: ten_k, volume_weight: 0.06, fiscal_year_variant: K4 }
+  - { code: "4000", name: "VynFi Mfg CA Inc",   currency: CAD, country: CA, annual_transaction_volume: ten_k, volume_weight: 0.06, fiscal_year_variant: K4 }
+
+chart_of_accounts:
+  complexity: small
+  industry_specific: true
+
+master_data:
+  vendors:    { count: 50, intercompany_percent: 0.10 }
+  customers:  { count: 60, intercompany_percent: 0.05 }
+  materials:  { count: 100, bom_enabled: true, average_bom_depth: 2 }
+  fixed_assets: { count: 30 }
+  employees:  { count: 50 }
+
+# Document flows are the headline content for this dataset.
+# Volumes tuned so each of PO / GR / Invoice / Payment lands in the
+# 50-80 range across the 6-month / 10-company horizon (≈ 1 chain
+# per company per month for both P2P and O2C).
+document_flows:
+  p2p:
+    enabled: true
+    chains_per_month: 1
+    three_way_match_rate: 0.92
+    partial_delivery_rate: 0.12
+    gr_ir_clearing_enabled: true
+  o2c:
+    enabled: true
+    chains_per_month: 1
+    credit_check_failure_rate: 0.04
+    partial_shipment_rate: 0.10
+    return_rate: 0.025
+
+balance:
+  generate_opening_balances: true
+  generate_trial_balances: true
+  reconcile_subledgers: true
+  validate_balance_equation: true
+  target_gross_margin: 0.32
+  target_dso_days: 45
+  target_dpo_days: 30
+
+period_close:
+  enabled: true
+
+financial_reporting:
+  enabled: true
+
+# 3 % document-level fraud (matches the published 3 % rate).
+fraud:
+  enabled: true
+  fraud_rate: 0.02
+  document_fraud_rate: 0.03
+  propagate_to_lines: true
+
+internal_controls:
+  enabled: true
+  coso_enabled: true
+  include_entity_level_controls: true
+  target_maturity_level: managed
+  exception_rate: 0.02
+  sod_violation_rate: 0.01
+
+distributions:
+  enabled: true
+  industry_profile: manufacturing
+  amounts:
+    enabled: true
+    distribution_type: log_normal
+    components:
+      - { weight: 0.65, mu: 5.5, sigma: 1.3, label: "routine" }
+      - { weight: 0.28, mu: 7.8, sigma: 0.9, label: "significant" }
+      - { weight: 0.07, mu: 9.5, sigma: 0.6, label: "major" }
+    benford_compliance: true
+
+temporal_patterns:
+  enabled: true
+  business_days:
+    enabled: true
+    half_day_policy: half_day
+    month_end_convention: modified_following
+  calendars:
+    regions: [US, DE, GB, SG]
+  period_end:
+    model: exponential
+    month_end:   { start_day: -10, base_multiplier: 1.0, peak_multiplier: 3.5, decay_rate: 0.3 }
+    quarter_end: { inherit_from: month_end, additional_multiplier: 1.5 }
+
+audit:
+  enabled: false  # Audit data has its own dataset
+
+# Method A flat edge-list for the accounting network.  Provides a
+# bonus artefact alongside the document-flow tables — every
+# 2-line JE in this dataset gets one edge, joinable back to the
+# row-level JE table via from_line_id / to_line_id.
+graph_export:
+  je_network:
+    method: a
+
+output:
+  output_directory: "./output"
+  formats: [csv, json]
