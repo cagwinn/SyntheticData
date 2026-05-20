@@ -88,13 +88,38 @@ def doc_flow_json_to_parquet(json_path: Path, out_path: Path, label: str) -> int
     return len(df)
 
 
+def csv_to_parquet(csv_path: Path, out_path: Path, label: str) -> int:
+    """Convert a flat CSV (journal_entries / je_network) to a single parquet.
+
+    These carry the fine-grained `fraud_type` typology (v5.27) — the
+    document-flow tables only have binary `is_fraud`, so the JE + edge-list
+    views are how this dataset surfaces the fraud category. Joinable to the
+    document tables via `document_id`.
+    """
+    if not csv_path.exists():
+        print(f"  {label}: source {csv_path} missing, skipping")
+        return 0
+    dtypes = {"is_fraud": "bool", "is_anomaly": "bool"}
+    df = pd.read_csv(csv_path, dtype=dtypes, low_memory=False)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    table = pa.Table.from_pandas(df, preserve_index=False)
+    pq.write_table(table, out_path, compression="zstd", compression_level=9)
+    size_kb = out_path.stat().st_size / 1024
+    print(
+        f"  wrote {out_path.parent.name}/{out_path.name}: "
+        f"{len(df):,} rows x {len(df.columns)} cols, {size_kb:.1f} KB ({label})"
+    )
+    return len(df)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--output-dir", required=True)
     ap.add_argument("--hf-dir", required=True)
     args = ap.parse_args()
 
-    out = Path(args.output_dir) / "document_flows"
+    out_root = Path(args.output_dir)
+    out = out_root / "document_flows"
     hf = Path(args.hf_dir)
     hf.mkdir(parents=True, exist_ok=True)
 
@@ -118,6 +143,20 @@ def main() -> int:
             continue
         dst = hf / subdir / "train-00000-of-00001.parquet"
         doc_flow_json_to_parquet(src, dst, label)
+
+    # v5.27 — also publish the line-level JE table and the je_network edge
+    # list, both carrying `fraud_type` (the document tables only have binary
+    # is_fraud). These are the fine-grained-fraud views for this dataset.
+    csv_to_parquet(
+        out_root / "journal_entries.csv",
+        hf / "journal_entries" / "train-00000-of-00001.parquet",
+        "Journal Entries (line-level, with fraud_type)",
+    )
+    csv_to_parquet(
+        out_root / "graphs" / "je_network.csv",
+        hf / "je_network" / "train-00000-of-00001.parquet",
+        "Accounting Network (Method-A edges, with fraud_type)",
+    )
 
     print(f"\nAll artefacts written to {hf}/")
     return 0
