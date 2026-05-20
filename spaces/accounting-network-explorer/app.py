@@ -3,7 +3,7 @@
 Interactive ISO 21378 Level-2 account-class network from
 `VynFi/vynfi-journal-entries-1m`.  One node per account class,
 one edge per (from_class, to_class) pair aggregated from the
-v5.9.0 Method-A `je_network.parquet` (2-line JEs only,
+v5.27.0 Method-A `je_network.parquet` (2-line JEs only,
 confidence = 1.0).
 """
 from __future__ import annotations
@@ -155,10 +155,12 @@ def fmt_money(x: float) -> str:
 
 
 def node_size(amount: float, max_amount: float) -> int:
+    # Smaller nodes (7–22px, was 18–60) so the 23 class nodes don't overlap
+    # into a single clump; the barnesHut spacing below does the rest.
     if amount <= 0 or max_amount <= 0:
-        return 18
+        return 7
     ratio = math.log10(amount + 1.0) / max(math.log10(max_amount + 1.0), 1.0)
-    return int(18 + ratio * 42)
+    return int(7 + ratio * 15)
 
 
 def edge_width(amount: float, max_amount: float) -> int:
@@ -177,7 +179,7 @@ st.title("🔗 VynFi Accounting Network Explorer")
 st.caption(
     "ISO 21378 Level-2 account-class flows from "
     "[`VynFi/vynfi-journal-entries-1m`](https://huggingface.co/datasets/VynFi/vynfi-journal-entries-1m) · "
-    "Method-A edge list (one edge per 2-line JE) · v5.9.0"
+    "Method-A edge list (one edge per 2-line JE) · v5.27.0"
 )
 
 with st.sidebar:
@@ -221,7 +223,7 @@ with st.sidebar:
     st.divider()
     st.caption(
         f"**Source rows:** {len(edges_raw):,} edges · {len(coa_raw):,} accounts  \n"
-        f"_v5.9.0 · ChaCha8 seed `20260509`_"
+        f"_v5.27.0 · ChaCha8 seed `20260507`_"
     )
 
 
@@ -276,7 +278,7 @@ for _, n in nodes_df.iterrows():
             title=title,
             size=node_size(n["total_flow"], max_node),
             color=color,
-            font={"color": "#ffffff", "size": 11, "face": "monospace"},
+            font={"color": "#e5e7eb", "size": 9, "face": "monospace"},
             shape="dot",
         )
     )
@@ -308,12 +310,31 @@ for _, e in class_edges_df.iterrows():
 
 
 config = Config(
-    width=900,
-    height=650,
+    width=1100,
+    height=820,
     directed=True,
     physics=(layout_mode == "force-directed"),
     hierarchical=(layout_mode == "hierarchical"),
 )
+
+# Spread the force-directed layout: stronger node repulsion + longer edges +
+# hard overlap avoidance, so the 23 account classes fan out instead of
+# collapsing into one clump. vis-network barnesHut tuning (defaults in
+# parentheses) — `config.physics` is the full physics options object.
+if layout_mode == "force-directed":
+    config.physics["barnesHut"] = {
+        "gravitationalConstant": -14000,  # (-2000) much stronger repulsion
+        "centralGravity": 0.12,           # (0.3)   less pull toward centre
+        "springLength": 260,              # (95)    longer edges = more distance
+        "springConstant": 0.02,           # (0.04)  softer springs
+        "damping": 0.4,
+        "avoidOverlap": 1.0,              # (0)     nodes must not overlap
+    }
+    config.physics["stabilization"] = {
+        "enabled": True,
+        "iterations": 400,
+        "fit": True,
+    }
 
 graph_col, side_col = st.columns([3, 1])
 with graph_col:
@@ -420,14 +441,14 @@ with st.expander("Top edges (table view)", expanded=False):
 with st.expander("About this Space", expanded=False):
     st.markdown(
         """
-**What this is.**  An interactive view of the v5.9.0 Method-A
+**What this is.**  An interactive view of the v5.27.0 Method-A
 accounting network published in
 [`VynFi/vynfi-journal-entries-1m`](https://huggingface.co/datasets/VynFi/vynfi-journal-entries-1m).
 The 61 656 line-level edges are aggregated to ISO 21378 Level-2
 account classes (~30 nodes), so you can see the macro money-flow
 structure at a glance.
 
-**Method-A.**  In v5.9.0 the JE network defaults to "Method A"
+**Method-A.**  In v5.27.0 the JE network defaults to "Method A"
 from Ivertowski 2024: exactly **one edge per 2-line journal entry**,
 confidence = 1.0.  This avoids the Cartesian explosion (225 M edges
 on 1 M JEs) that the legacy `cartesian` method produced, and gives
