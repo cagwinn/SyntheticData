@@ -5,7 +5,7 @@ Configs that produce the published reference datasets at
 
 | Config | Dataset | What it generates |
 |--------|---------|-------------------|
-| [`journal_entries_1m.yaml`](journal_entries_1m.yaml) | [`VynFi/vynfi-journal-entries-1m`](https://huggingface.co/datasets/VynFi/vynfi-journal-entries-1m) | 10 manufacturing companies × 12 monthly periods → ~1 M JE lines, full chart of accounts, trial balance, cost / profit centres |
+| [`journal_entries_1m.yaml`](journal_entries_1m.yaml) | [`VynFi/vynfi-journal-entries-1m`](https://huggingface.co/datasets/VynFi/vynfi-journal-entries-1m) | 10 manufacturing companies × 12 monthly periods → ~1 M JE lines (46 cols), full chart of accounts, trial balance, cost / profit centres. **Carries `is_fraud` + fine-grained `fraud_type` typology + `anomaly_type` labels** (v5.27.0). |
 
 ## One-shot regeneration + upload
 
@@ -37,7 +37,8 @@ A clean rerun produces identical parquet bytes.
 `hf_je_output/` will contain (relevant subset):
 
 ```
-journal_entries.csv               # 38-column flat table (sharded into parquet)
+journal_entries.csv               # 46-column flat table (sharded into parquet),
+                                   # incl. is_fraud + fraud_type + anomaly_type
 chart_of_accounts.json            # Full COA snapshot
 period_close/trial_balances.json  # 12 monthly TBs for the primary entity
 master_data/cost_centers.json     # Cost-centre master

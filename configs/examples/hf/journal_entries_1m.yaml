@@ -1,4 +1,13 @@
-# VynFi Journal Entries v5.8.0 — HF dataset regeneration
+# VynFi Journal Entries — HF dataset regeneration config
+#
+# v5.27.0 (current): regeneration adds the community-requested fine-grained
+#   fraud-typology column. No config change needed — the engine emits
+#   `fraud_type` (FraudType variant, e.g. SuspenseAccountAbuse / SplitTransaction
+#   / FictitiousTransaction / RevenueManipulation) + `anomaly_type` since
+#   v5.17.0, and scripts/hf_to_parquet.py carries them through. JE table is now
+#   46 columns (was 38 at v5.5.1 / 43 at v5.9.0). je_network defaults to
+#   Method A (set explicitly below). Published dataset: 1,058,941 lines,
+#   5.82% is_fraud, 20 fraud_type categories.
 #
 # Changes since v5.5.1 baseline:
 #   v5.6.0  ISO 21378 account-class / sub-class fields
