@@ -129,6 +129,7 @@ fn je_network_export_end_to_end() {
         "business_process",
         "is_fraud",
         "is_anomaly",
+        "fraud_type",
     ];
     let header_set: BTreeSet<&str> = header.iter().map(String::as_str).collect();
     let expected_set: BTreeSet<&str> = expected_cols.iter().copied().collect();

@@ -38,6 +38,10 @@ pub struct JeNetworkEdge {
     pub business_process: String,
     pub is_fraud: bool,
     pub is_anomaly: bool,
+    /// v5.27 — fine-grained fraud typology (the `FraudType` variant name,
+    /// e.g. `SuspenseAccountAbuse`), surfaced from the JE header so the edge
+    /// list carries the same label as the JE table. Empty on non-fraud edges.
+    pub fraud_type: Option<String>,
     /// v5.10 — surfaces `JournalEntryHeader::ic_pair_id` when present.
     /// `None` for non-IC postings (and on every edge from a single-entity run).
     pub ic_pair_id: Option<String>,
@@ -116,6 +120,7 @@ pub fn build_je_network_edges(jes: &[JournalEntry], method: JeNetworkMethod) -> 
             .unwrap_or_default();
         let ic_pair_id_str = h.ic_pair_id.as_ref().map(|id| id.to_string());
         let ic_partner = h.ic_partner_entity.clone();
+        let fraud_type_str = h.fraud_type.map(|ft| format!("{ft:?}"));
 
         for &di in &debits {
             let debit_line = &je.lines[di];
@@ -159,6 +164,7 @@ pub fn build_je_network_edges(jes: &[JournalEntry], method: JeNetworkMethod) -> 
                     business_process: bp.clone(),
                     is_fraud: h.is_fraud,
                     is_anomaly: h.is_anomaly,
+                    fraud_type: fraud_type_str.clone(),
                     ic_pair_id: ic_pair_id_str.clone(),
                     ic_partner_entity: ic_partner.clone(),
                 });

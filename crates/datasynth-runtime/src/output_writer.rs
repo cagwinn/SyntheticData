@@ -345,7 +345,7 @@ fn write_je_network_csv(
         w,
         "edge_id,document_id,posting_date,from_account,to_account,\
          from_line_id,to_line_id,amount,confidence,\
-         predecessor_edge_id,business_process,is_fraud,is_anomaly"
+         predecessor_edge_id,business_process,is_fraud,is_anomaly,fraud_type"
     )?;
 
     let edges = crate::je_network::build_je_network_edges(&result.journal_entries, method);
@@ -353,7 +353,7 @@ fn write_je_network_csv(
     for e in &edges {
         writeln!(
             w,
-            "{},{},{},{},{},{},{},{},{},{},{},{},{}",
+            "{},{},{},{},{},{},{},{},{},{},{},{},{},{}",
             csv_escape(&e.edge_id),
             csv_escape(&e.document_id.to_string()),
             csv_escape(&e.posting_date.to_string()),
@@ -367,6 +367,7 @@ fn write_je_network_csv(
             csv_escape(&e.business_process),
             e.is_fraud,
             e.is_anomaly,
+            csv_escape(e.fraud_type.as_deref().unwrap_or("")),
         )?;
     }
 
