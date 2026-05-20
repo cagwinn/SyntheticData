@@ -396,12 +396,15 @@ fn run_aggregate_writes_full_artifact_set_in_emission_order() {
             entity_pq
         );
 
-        // Header sanity: 15 columns, ic_pair_id + ic_partner_entity present
+        // Header sanity: 16 columns, fraud_type (v5.27) + ic_pair_id +
+        // ic_partner_entity (v5.10) present
         let body = std::fs::read_to_string(&entity_csv).expect("read entity csv");
         let header = body.lines().next().expect("non-empty");
         assert!(
-            header.contains("ic_pair_id") && header.contains("ic_partner_entity"),
-            "entity csv header missing v5.10 IC columns: {header}",
+            header.contains("fraud_type")
+                && header.contains("ic_pair_id")
+                && header.contains("ic_partner_entity"),
+            "entity csv header missing v5.27 fraud_type / v5.10 IC columns: {header}",
         );
         let line_count = body.lines().count();
         assert!(
@@ -424,6 +427,7 @@ fn run_aggregate_writes_full_artifact_set_in_emission_order() {
     for col in [
         "edge_id",
         "entity_code",
+        "fraud_type",
         "ic_pair_id",
         "ic_partner_entity",
         "is_eliminated",
@@ -451,9 +455,15 @@ fn run_aggregate_writes_full_artifact_set_in_emission_order() {
     );
 
     // At least one row should carry an IC pair id (matched seller/buyer).
+    // Resolve the column index from the header so this survives schema
+    // additions (e.g. fraud_type in v5.27 shifted ic_pair_id right by one).
+    let ic_idx = consol_header
+        .split(',')
+        .position(|c| c == "ic_pair_id")
+        .expect("consolidated header must contain ic_pair_id");
     let has_ic = consol_body.lines().skip(1).any(|l| {
         l.split(',')
-            .nth(14)
+            .nth(ic_idx)
             .is_some_and(|c| !c.is_empty() && c != "\"\"")
     });
     assert!(

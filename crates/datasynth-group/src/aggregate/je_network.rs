@@ -45,15 +45,15 @@ pub struct JeNetworkSummary {
     pub consolidated_parquet_path: Option<std::path::PathBuf>,
 }
 
-/// Per-entity CSV header (15 columns — single-entity v5.8 schema + 2 IC fields).
+/// Per-entity CSV header (16 columns — single-entity v5.27 schema + 2 IC fields).
 const ENTITY_CSV_HEADER: &str = "edge_id,document_id,posting_date,from_account,to_account,\
 from_line_id,to_line_id,amount,confidence,predecessor_edge_id,\
-business_process,is_fraud,is_anomaly,ic_pair_id,ic_partner_entity";
+business_process,is_fraud,is_anomaly,fraud_type,ic_pair_id,ic_partner_entity";
 
-/// Consolidated CSV header (18 columns — entity-scoped + IC + elimination flags).
+/// Consolidated CSV header (19 columns — entity-scoped + IC + elimination flags).
 const CONSOLIDATED_CSV_HEADER: &str = "edge_id,document_id,entity_code,posting_date,\
 from_account,to_account,from_line_id,to_line_id,amount,confidence,\
-predecessor_edge_id,business_process,is_fraud,is_anomaly,\
+predecessor_edge_id,business_process,is_fraud,is_anomaly,fraud_type,\
 ic_pair_id,ic_partner_entity,is_eliminated,eliminates_ic_pair_id";
 
 /// Emit per-entity + consolidated je_network artefacts.
@@ -151,7 +151,7 @@ fn write_entity_csv(out_dir: &Path, entity: &str, edges: &[JeNetworkEdge]) -> Gr
 fn write_entity_row<W: std::io::Write>(w: &mut W, e: &JeNetworkEdge) -> GroupResult<()> {
     writeln!(
         w,
-        "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}",
+        "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}",
         csv_escape(&e.edge_id),
         csv_escape(&e.document_id.to_string()),
         csv_escape(&e.posting_date.to_string()),
@@ -165,6 +165,7 @@ fn write_entity_row<W: std::io::Write>(w: &mut W, e: &JeNetworkEdge) -> GroupRes
         csv_escape(&e.business_process),
         e.is_fraud,
         e.is_anomaly,
+        csv_escape(e.fraud_type.as_deref().unwrap_or("")),
         csv_escape(e.ic_pair_id.as_deref().unwrap_or("")),
         csv_escape(e.ic_partner_entity.as_deref().unwrap_or("")),
     )
@@ -183,7 +184,7 @@ fn write_consolidated_csv(
     for (entity_code, e, is_elim, elim_pair) in rows {
         writeln!(
             w,
-            "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}",
+            "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}",
             csv_escape(&e.edge_id),
             csv_escape(&e.document_id.to_string()),
             csv_escape(entity_code),
@@ -198,6 +199,7 @@ fn write_consolidated_csv(
             csv_escape(&e.business_process),
             e.is_fraud,
             e.is_anomaly,
+            csv_escape(e.fraud_type.as_deref().unwrap_or("")),
             csv_escape(e.ic_pair_id.as_deref().unwrap_or("")),
             csv_escape(e.ic_partner_entity.as_deref().unwrap_or("")),
             is_elim,
@@ -229,6 +231,7 @@ fn entity_parquet_schema() -> Arc<Schema> {
         Field::new("business_process", DataType::Utf8, false),
         Field::new("is_fraud", DataType::Boolean, false),
         Field::new("is_anomaly", DataType::Boolean, false),
+        Field::new("fraud_type", DataType::Utf8, true),
         Field::new("ic_pair_id", DataType::Utf8, true),
         Field::new("ic_partner_entity", DataType::Utf8, true),
     ]))
@@ -250,6 +253,7 @@ fn consolidated_parquet_schema() -> Arc<Schema> {
         Field::new("business_process", DataType::Utf8, false),
         Field::new("is_fraud", DataType::Boolean, false),
         Field::new("is_anomaly", DataType::Boolean, false),
+        Field::new("fraud_type", DataType::Utf8, true),
         Field::new("ic_pair_id", DataType::Utf8, true),
         Field::new("ic_partner_entity", DataType::Utf8, true),
         Field::new("is_eliminated", DataType::Boolean, false),
@@ -283,6 +287,7 @@ fn write_entity_parquet(out_dir: &Path, entity: &str, edges: &[JeNetworkEdge]) -
     let bp: Vec<&str> = edges.iter().map(|e| e.business_process.as_str()).collect();
     let is_fraud: Vec<bool> = edges.iter().map(|e| e.is_fraud).collect();
     let is_anomaly: Vec<bool> = edges.iter().map(|e| e.is_anomaly).collect();
+    let fraud_type: Vec<Option<String>> = edges.iter().map(|e| e.fraud_type.clone()).collect();
     let ic_pair: Vec<Option<String>> = edges.iter().map(|e| e.ic_pair_id.clone()).collect();
     let ic_partner: Vec<Option<String>> =
         edges.iter().map(|e| e.ic_partner_entity.clone()).collect();
@@ -301,6 +306,7 @@ fn write_entity_parquet(out_dir: &Path, entity: &str, edges: &[JeNetworkEdge]) -
         Arc::new(StringArray::from(bp)),
         Arc::new(BooleanArray::from(is_fraud)),
         Arc::new(BooleanArray::from(is_anomaly)),
+        Arc::new(StringArray::from(fraud_type)),
         Arc::new(StringArray::from(ic_pair)),
         Arc::new(StringArray::from(ic_partner)),
     ];
@@ -358,6 +364,10 @@ fn write_consolidated_parquet(
         .collect();
     let is_fraud: Vec<bool> = rows.iter().map(|(_, e, _, _)| e.is_fraud).collect();
     let is_anomaly: Vec<bool> = rows.iter().map(|(_, e, _, _)| e.is_anomaly).collect();
+    let fraud_type: Vec<Option<String>> = rows
+        .iter()
+        .map(|(_, e, _, _)| e.fraud_type.clone())
+        .collect();
     let ic_pair: Vec<Option<String>> = rows
         .iter()
         .map(|(_, e, _, _)| e.ic_pair_id.clone())
@@ -384,6 +394,7 @@ fn write_consolidated_parquet(
         Arc::new(StringArray::from(bp)),
         Arc::new(BooleanArray::from(is_fraud)),
         Arc::new(BooleanArray::from(is_anomaly)),
+        Arc::new(StringArray::from(fraud_type)),
         Arc::new(StringArray::from(ic_pair)),
         Arc::new(StringArray::from(ic_partner)),
         Arc::new(BooleanArray::from(is_eliminated)),

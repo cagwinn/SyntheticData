@@ -21,6 +21,7 @@ BF P1-P4 metrics intentionally **not** re-baselined here — SP6 only touches te
 
 ### Added
 
+- **`fraud_type` on the `je_network` edge list.** Every Method-A edge now carries the originating JE's fine-grained fraud typology (empty on non-fraud edges) next to the existing `is_fraud` / `is_anomaly` flags, so the published accounting-network graph supports multi-class fraud-typology tasks rather than only the binary edge label (community request). Wired through the single-entity `output_writer` *and* the group emitter's per-entity (`entities/{code}/graphs/je_network.{csv,parquet}`) and consolidated (`consolidated/je_network.{csv,parquet}`) artefacts. Column lands directly after `is_anomaly`, ahead of the IC / elimination columns.
 - **PII-safe placeholder grammar** (`datasynth-core::distributions::text_taxonomy`)
   - `PlaceholderGrammar::tokenize` — Phase A automated structural pass (`{year}`, `{quarter}`, `{month}`, `{date}`, `{digits}`)
   - `PlaceholderGrammar::fill` — structural fill + PII fill via `PlaceholderResolver` (companies / persons / streets / patients)
