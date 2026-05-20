@@ -235,7 +235,6 @@ fn percentile(sorted_input: &[f64], q: f64) -> f64 {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use std::io::Write;

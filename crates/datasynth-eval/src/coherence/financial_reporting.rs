@@ -319,7 +319,6 @@ impl Default for FinancialReportingEvaluator {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

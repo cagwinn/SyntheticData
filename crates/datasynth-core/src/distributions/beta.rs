@@ -278,7 +278,6 @@ impl BetaConfig {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

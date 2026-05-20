@@ -49,7 +49,7 @@ impl Default for MarginalDistribution {
 }
 
 impl MarginalDistribution {
-    /// Transform a uniform [0,1] value to this marginal distribution.
+    /// Transform a uniform \[0,1\] value to this marginal distribution.
     pub fn inverse_cdf(&self, u: f64) -> f64 {
         match self {
             Self::Normal { mu, sigma } => mu + sigma * standard_normal_quantile(u),
@@ -407,7 +407,6 @@ pub mod correlation_presets {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

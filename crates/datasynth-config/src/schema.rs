@@ -573,20 +573,27 @@ pub struct GraphExportConfig {
 pub enum JeNetworkMethod {
     /// Method B (full Cartesian product) for every JE — bijective on
     /// 2-line entries (Method A) and `n × m` Cartesian for multi-line
-    /// entries with proportional amount allocation.  Default for
-    /// backward compatibility with v5.8.0 datasets that already
-    /// consumed the Cartesian-product output, but produces O(n × m)
-    /// edges per JE — a 50-debit / 50-credit period-close
+    /// entries with proportional amount allocation.  Produces
+    /// O(n × m) edges per JE — a 50-debit / 50-credit period-close
     /// consolidation alone yields 2 500 edges, and a typical
-    /// HF-scale 1 M-line config can blow up to 200 M+ edges.
-    #[default]
+    /// HF-scale 1 M-line config can blow up to 200 M+ edges (and tens
+    /// of GB of memory). Use explicitly when downstream consumers
+    /// already depend on the Cartesian shape.
     Cartesian,
     /// Method A only — emit a single edge per 2-line journal entry
     /// (1 debit + 1 credit) and skip multi-line entries entirely.
     /// Edge count = number of 2-line JEs (≈ 60 % of entries per the
-    /// 2024 paper); per-edge confidence is exactly `1.0`.  Recommended
-    /// for published reference datasets where size and exactness
-    /// matter more than recall on multi-line consolidations.
+    /// 2024 paper); per-edge confidence is exactly `1.0`.
+    ///
+    /// **Default since v5.27** (previously `Cartesian`). The Cartesian
+    /// default OOM'd small-complexity CLI smoke tests on 14-16 GB CI
+    /// runners — a 50 × 50 period-close JE alone wanted 20 GB of edge
+    /// memory. Method A is the bounded, exactness-preserving fallback
+    /// recommended for published reference datasets where size and
+    /// exactness matter more than recall on multi-line consolidations.
+    /// Set `je_network.method: cartesian` explicitly to restore the
+    /// pre-v5.27 behaviour.
+    #[default]
     A,
 }
 
@@ -6290,8 +6297,11 @@ pub struct AdvancedDistributionConfig {
     pub regime_changes: RegimeChangeSchemaConfig,
 
     /// Industry-specific distribution profile.
+    ///
+    /// Accepts either the legacy bare-name form (`industry_profile: retail`) or
+    /// the SP3 extended struct form with optional `priors` sub-section.
     #[serde(default)]
-    pub industry_profile: Option<IndustryProfileType>,
+    pub industry_profile: Option<IndustryProfileField>,
 
     /// Statistical validation configuration.
     #[serde(default)]
@@ -6389,6 +6399,115 @@ pub enum IndustryProfileType {
     Technology,
 }
 
+impl IndustryProfileType {
+    /// Return the lowercase ASCII slug used for bundled-priors filenames.
+    ///
+    /// E.g. `IndustryProfileType::FinancialServices => "financial_services"`.
+    pub fn slug(self) -> &'static str {
+        match self {
+            Self::Retail => "retail",
+            Self::Manufacturing => "manufacturing",
+            Self::FinancialServices => "financial_services",
+            // Matches SP2's bundle naming (corpus uses "Health", not "Healthcare").
+            Self::Healthcare => "health",
+            Self::Technology => "technology",
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// SP3 — IndustryProfileField: backward-compatible wrapper
+// ---------------------------------------------------------------------------
+
+/// The value of `distributions.industry_profile` in config YAML.
+///
+/// Accepts both the legacy bare-name form:
+/// ```yaml
+/// distributions:
+///   industry_profile: retail
+/// ```
+/// and the new SP3 extended struct form with optional `priors` sub-section:
+/// ```yaml
+/// distributions:
+///   industry_profile:
+///     name: retail
+///     priors:
+///       enabled: true
+///       source: bundled
+/// ```
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum IndustryProfileField {
+    /// Legacy form: `industry_profile: retail`.
+    Name(IndustryProfileType),
+    /// New form: `industry_profile: { name: retail, priors: { ... } }`.
+    Full(IndustryProfileFull),
+}
+
+impl IndustryProfileField {
+    /// Return the bare `IndustryProfileType` regardless of which form was used.
+    pub fn profile_type(&self) -> IndustryProfileType {
+        match self {
+            IndustryProfileField::Name(t) => *t,
+            IndustryProfileField::Full(f) => f.name,
+        }
+    }
+
+    /// Return the optional `priors` sub-section, if present.
+    pub fn priors(&self) -> Option<&IndustryPriorsConfig> {
+        match self {
+            IndustryProfileField::Name(_) => None,
+            IndustryProfileField::Full(f) => f.priors.as_ref(),
+        }
+    }
+}
+
+/// Extended industry profile struct used when `priors` is needed (SP3).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct IndustryProfileFull {
+    /// The industry variant (same values as the bare-name legacy form).
+    pub name: IndustryProfileType,
+    /// Optional SP3 priors sub-section.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub priors: Option<IndustryPriorsConfig>,
+}
+
+/// SP3 — configuration for industry-prior injection.
+///
+/// When `enabled = true`, the generator uses pre-baked statistical priors
+/// for the given industry. `source` selects whether to use bundled priors or
+/// load from a user-supplied file (requires `path`).
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+pub struct IndustryPriorsConfig {
+    /// Enable prior injection. When false the rest of the struct is ignored.
+    #[serde(default)]
+    pub enabled: bool,
+
+    /// Where to load the priors from.
+    #[serde(default)]
+    pub source: PriorsSource,
+
+    /// Path to the priors file. Required when `source = file`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub path: Option<std::path::PathBuf>,
+
+    /// SP3.4 — enable online velocity-rule calibrator. Adds per-line overhead
+    /// when `true`; default `false` keeps v5.12/v5.13-without-calibration behavior.
+    #[serde(default)]
+    pub velocity_calibration: bool,
+}
+
+/// Source of industry priors.
+#[derive(Debug, Clone, Copy, PartialEq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum PriorsSource {
+    /// Use the priors bundled with the binary (default).
+    #[default]
+    Bundled,
+    /// Load priors from a user-supplied file (requires `path`).
+    File,
+}
+
 /// Mixture model distribution configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MixtureDistributionSchemaConfig {
@@ -6443,7 +6562,7 @@ impl Default for MixtureDistributionSchemaConfig {
 }
 
 impl MixtureDistributionSchemaConfig {
-    /// Convert this schema-level config into a [`LogNormalMixtureConfig`]
+    /// Convert this schema-level config into a `LogNormalMixtureConfig`
     /// suitable for `LogNormalMixtureSampler::new`. Returns `None` if there
     /// are no components (schema default is an empty list, which cannot
     /// drive a sampler).
@@ -6477,7 +6596,7 @@ impl MixtureDistributionSchemaConfig {
         })
     }
 
-    /// Convert this schema-level config into a [`GaussianMixtureConfig`].
+    /// Convert this schema-level config into a `GaussianMixtureConfig`.
     /// Returns `None` if there are no components.
     pub fn to_gaussian_config(
         &self,
@@ -6764,8 +6883,8 @@ pub struct ConditionalBreakpointConfig {
 
 impl ConditionalDistributionSchemaConfig {
     /// Convert this schema config into a core
-    /// [`ConditionalDistributionConfig`] suitable for
-    /// [`ConditionalSampler::new`]. v3.5.3+.
+    /// `ConditionalDistributionConfig` suitable for
+    /// `ConditionalSampler::new`. v3.5.3+.
     pub fn to_core_config(&self) -> datasynth_core::distributions::ConditionalDistributionConfig {
         use datasynth_core::distributions::{
             Breakpoint, ConditionalDistributionConfig, ConditionalDistributionParams,
@@ -14259,7 +14378,6 @@ impl Default for ComplianceOutputConfig {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use crate::presets::demo_preset;
@@ -15333,5 +15451,130 @@ mod tests {
         );
         assert!(config.session.per_period_output);
         assert!(!config.session.consolidated_output);
+    }
+
+    // -----------------------------------------------------------------------
+    // SP3 — IndustryProfileField / IndustryPriorsConfig tests
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn industry_profile_legacy_string_form_parses() {
+        // Legacy YAML: bare enum variant name.  Must round-trip without changes
+        // to existing config files.
+        let yaml = r#"
+enabled: true
+industry_profile: retail
+"#;
+        let cfg: AdvancedDistributionConfig =
+            serde_yaml::from_str(yaml).expect("parse legacy industry_profile string");
+        let profile = cfg.industry_profile.expect("Some");
+        assert_eq!(profile.profile_type(), IndustryProfileType::Retail);
+        assert!(profile.priors().is_none());
+    }
+
+    #[test]
+    fn industry_profile_full_form_with_priors_parses() {
+        let yaml = r#"
+enabled: true
+industry_profile:
+  name: healthcare
+  priors:
+    enabled: true
+    source: bundled
+"#;
+        let cfg: AdvancedDistributionConfig =
+            serde_yaml::from_str(yaml).expect("parse full industry_profile struct");
+        let profile = cfg.industry_profile.expect("Some");
+        assert_eq!(profile.profile_type(), IndustryProfileType::Healthcare);
+        let priors = profile.priors().expect("priors present");
+        assert!(priors.enabled);
+        assert_eq!(priors.source, PriorsSource::Bundled);
+        assert!(priors.path.is_none());
+    }
+
+    #[test]
+    fn industry_profile_full_form_without_priors_parses() {
+        // Struct form with only `name` and no priors block.
+        let yaml = r#"
+enabled: true
+industry_profile:
+  name: manufacturing
+"#;
+        let cfg: AdvancedDistributionConfig =
+            serde_yaml::from_str(yaml).expect("parse struct without priors");
+        let profile = cfg.industry_profile.expect("Some");
+        assert_eq!(profile.profile_type(), IndustryProfileType::Manufacturing);
+        assert!(profile.priors().is_none());
+    }
+
+    #[test]
+    fn industry_profile_priors_file_without_path_fails_validation() {
+        use crate::validation::validate_config;
+
+        // Minimal valid config plumbing.
+        let yaml = r#"
+global:
+  seed: 42
+  start_date: "2024-01-01"
+  period_months: 1
+  industry: retail
+companies:
+  - code: C001
+    name: Test Corp
+    currency: USD
+    country: US
+    annual_transaction_volume: ten_k
+chart_of_accounts:
+  complexity: small
+output:
+  output_directory: ./output
+distributions:
+  enabled: true
+  industry_profile:
+    name: retail
+    priors:
+      enabled: true
+      source: file
+"#;
+        let cfg: GeneratorConfig = serde_yaml::from_str(yaml).expect("serde parse should succeed");
+        let err = validate_config(&cfg).expect_err("path required when source=file");
+        let msg = err.to_string();
+        assert!(
+            msg.contains("path") || msg.contains("required"),
+            "unexpected error message: {msg}"
+        );
+    }
+
+    #[test]
+    fn industry_profile_priors_file_with_path_passes_validation() {
+        use crate::validation::validate_config;
+
+        let yaml = r#"
+global:
+  seed: 42
+  start_date: "2024-01-01"
+  period_months: 1
+  industry: retail
+companies:
+  - code: C001
+    name: Test Corp
+    currency: USD
+    country: US
+    annual_transaction_volume: ten_k
+chart_of_accounts:
+  complexity: small
+output:
+  output_directory: ./output
+distributions:
+  enabled: true
+  industry_profile:
+    name: retail
+    priors:
+      enabled: true
+      source: file
+      path: /tmp/priors.json
+"#;
+        let cfg: GeneratorConfig = serde_yaml::from_str(yaml).expect("serde parse should succeed");
+        validate_config(&cfg).expect("validation should pass with path supplied");
     }
 }

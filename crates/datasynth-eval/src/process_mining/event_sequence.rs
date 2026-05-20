@@ -248,7 +248,6 @@ impl Default for EventSequenceAnalyzer {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

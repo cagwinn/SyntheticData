@@ -858,6 +858,13 @@ fn validate_distributions(config: &GeneratorConfig) -> SynthResult<()> {
     // to the industry's canonical sales-amount mixture (v3.4.0+).
     validate_mixture_config(&dist.amounts, dist.industry_profile.is_some())?;
 
+    // SP3 — validate industry_profile.priors sub-section when present.
+    if let Some(profile) = dist.industry_profile.as_ref() {
+        if let Some(priors) = profile.priors() {
+            validate_industry_priors(priors)?;
+        }
+    }
+
     // Validate correlation configuration
     validate_correlation_config(&dist.correlations)?;
 
@@ -872,6 +879,21 @@ fn validate_distributions(config: &GeneratorConfig) -> SynthResult<()> {
     // Validate statistical validation settings
     validate_statistical_validation(&dist.validation)?;
 
+    Ok(())
+}
+
+/// SP3 — validate `distributions.industry_profile.priors` sub-section.
+///
+/// When `source = file`, a `path` must be supplied; otherwise the runtime
+/// would have no file to read at generation time.
+fn validate_industry_priors(priors: &crate::schema::IndustryPriorsConfig) -> SynthResult<()> {
+    use crate::schema::PriorsSource;
+    if priors.enabled && priors.source == PriorsSource::File && priors.path.is_none() {
+        return Err(SynthError::validation(
+            "distributions.industry_profile.priors.path is required when \
+             source = file (and priors.enabled = true)",
+        ));
+    }
     Ok(())
 }
 
@@ -2538,7 +2560,6 @@ fn validate_session(config: &GeneratorConfig) -> SynthResult<()> {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use crate::presets::{create_preset, demo_preset, stress_test_preset};

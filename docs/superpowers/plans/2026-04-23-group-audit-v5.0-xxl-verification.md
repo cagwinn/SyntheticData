@@ -30,14 +30,14 @@ later GPU work.
 Rationale for 320 GiB:
 - `cargo test --workspace --release` peaks at ~40 GiB RSS across rustc + linker + test binaries.
 - `saft_export_smoke` alone holds ~6 GiB peak per subprocess (×3 parallel) ≈ 18 GiB.
-- Mini-Nestlé Chunk 11 golden fixture regen is ~5 GiB peak per shard; with `parallel_shards: true` and 5 entities at ~17 GiB each, a worst-case parallel run could touch ~85 GiB. 320 GiB leaves ~3.7× headroom.
+- Mini-Acme Chunk 11 golden fixture regen is ~5 GiB peak per shard; with `parallel_shards: true` and 5 entities at ~17 GiB each, a worst-case parallel run could touch ~85 GiB. 320 GiB leaves ~3.7× headroom.
 - The hypothetical `enterprise-2000` scale smoke (2 000 entities × ~500 rows each, ~80 GiB peak) is **out of scope for v5.0**; if added later, this SKU still has 4× memory headroom for it.
 
 Region: **West Europe** (only region in the VynFi subscription with sufficient pre-approved CPU/GPU quota — Switzerland North caps at 10 total regional vCPUs).
 
 Storage:
 - OS disk: 128 GiB Premium SSD (Ubuntu 24.04 LTS).
-- Local NVMe: 128 GiB at `/mnt/resource` — fits cargo `target/` (~5 GiB built) + Mini-Nestlé output (~50 MB) + workspace test artefacts (≪ 1 GiB) with comfortable margin.
+- Local NVMe: 128 GiB at `/mnt/resource` — fits cargo `target/` (~5 GiB built) + Mini-Acme output (~50 MB) + workspace test artefacts (≪ 1 GiB) with comfortable margin.
 - **If `enterprise-2000` is later added:** attach a 2-TiB Premium SSD as a data disk; 128 GiB ephemeral is too small for that workload (~1 TiB output).
 - Mount `/mnt/resource` with `discard` and `noatime` for speed.
 
@@ -158,7 +158,7 @@ cargo test --workspace --release -- --test-threads=4 --include-ignored \
   shards generated, and every consolidated artefact emitted.
 - **Chunk 11 (`#[ignore]`d) — property tests + golden fixture:** in addition,
   - `datasynth-group::golden_archive::check_against_golden` (Task 11.1) — diffs
-    the live archive against the committed `tests/golden/mini_nestle/`. Run
+    the live archive against the committed `tests/golden/mini_acme/`. Run
     `cargo test -p datasynth-group --test golden_archive --release -- --ignored
     check_against_golden`. **First-run bootstrap:** until the very first
     `regenerate_golden` lands, the golden directory contains only
@@ -172,7 +172,7 @@ cargo test --workspace --release -- --test-threads=4 --include-ignored \
     matches `generate_standalone` byte-for-byte.
 - **Budget:** ~10 min on top of 3.2's budget. The shard-runner test alone
   is ~3 min single-entity at quarterly period.  Add ~70 min for the
-  golden-archive + determinism harnesses (each runs the full Mini-Nestlé
+  golden-archive + determinism harnesses (each runs the full Mini-Acme
   pipeline ≥ once).
 
 ### 3.3 Lint + format
@@ -186,7 +186,7 @@ cargo clippy --workspace --all-targets --no-deps -- -D warnings 2>&1 | tee /mnt/
 - **Budget:** ~3 min for clippy (uses build artifacts from 3.1).
 - **Known exceptions:** `crates/datasynth-group/tests/expansion.rs:57` pre-existing `needless_range_loop` warning — track, don't block the release on it.
 
-### 3.4 Mini-Nestlé golden regen check
+### 3.4 Mini-Acme golden regen check
 
 ```bash
 # The Chunk 11 property test compares against a committed golden manifest.
@@ -194,27 +194,27 @@ cargo test -p datasynth-group --test manifest_golden --release -- --ignored \
   2>&1 | tee /mnt/work/output/golden.log
 ```
 
-- **Pass:** The ignored `regenerate_golden` test runs and produces a manifest byte-identical to `tests/golden/mini_nestle_manifest.json`. If it differs, `git diff` will show which fields drifted — investigate before merging.
+- **Pass:** The ignored `regenerate_golden` test runs and produces a manifest byte-identical to `tests/golden/mini_acme_manifest.json`. If it differs, `git diff` will show which fields drifted — investigate before merging.
 - **Budget:** ~10 s.
 
-### 3.5 Mini-Nestlé end-to-end generation (Chunk 10 CLI + Chunk 4 shard runner)
+### 3.5 Mini-Acme end-to-end generation (Chunk 10 CLI + Chunk 4 shard runner)
 
-Once Chunk 10's CLI command lands (`datasynth-data group run --config <file>`), exercise it against the mini_nestle fixture:
+Once Chunk 10's CLI command lands (`datasynth-data group run --config <file>`), exercise it against the mini_acme fixture:
 
 ```bash
 ./target/release/datasynth-data group run \
-  --config crates/datasynth-group/tests/fixtures/mini_nestle.yaml \
-  --output /mnt/work/output/mini_nestle \
+  --config crates/datasynth-group/tests/fixtures/mini_acme.yaml \
+  --output /mnt/work/output/mini_acme \
   2>&1 | tee /mnt/work/output/e2e-mini.log
 ```
 
 - **Pass criteria:**
   - Exit 0.
-  - `/mnt/work/output/mini_nestle/entities/{NESTLE_SA,NESTLE_USA,NESTLE_DE,NESTLE_BR,NESTLE_JV}/` each contain `journal_entries.json` with ≥1 line.
+  - `/mnt/work/output/mini_acme/entities/{ACME_SA,ACME_USA,ACME_DE,ACME_BR,ACME_JV}/` each contain `journal_entries.json` with ≥1 line.
   - Every JE whose `header.ic_pair_id` is `Some` has a mirror JE under the counterparty entity with the same `pair_id`.
-  - `/mnt/work/output/mini_nestle/consolidated/trial_balance.json` balances (total debit = total credit within ±0.01 CHF).
+  - `/mnt/work/output/mini_acme/consolidated/trial_balance.json` balances (total debit = total credit within ±0.01 CHF).
   - `shard_summary.json` and `aggregate_summary.json` exist and list every entity.
-- **Budget:** ~30 s for mini_nestle (5 entities × quarterly period).
+- **Budget:** ~30 s for mini_acme (5 entities × quarterly period).
 
 ### 3.6 Enterprise-2000 scale smoke (stretch)
 
@@ -255,19 +255,19 @@ cargo test --workspace --release -- --test-threads=4 \
 cargo test --workspace --release -- --test-threads=4 --include-ignored \
   2>&1 | tee /mnt/work/output/test-ignored-final.log
 
-# 5. Generate Mini-Nestlé end-to-end
+# 5. Generate Mini-Acme end-to-end
 cargo run --release -p datasynth-cli -- group generate \
-  --config configs/examples/group/mini_nestle.yaml \
-  --out /mnt/work/output/v5.0-mini-nestle/
+  --config configs/examples/group/mini_acme.yaml \
+  --out /mnt/work/output/v5.0-mini-acme/
 
 # 6. Inspect output layout
-ls -la /mnt/work/output/v5.0-mini-nestle/
-ls -la /mnt/work/output/v5.0-mini-nestle/consolidated/
-ls -la /mnt/work/output/v5.0-mini-nestle/entities/
-cat /mnt/work/output/v5.0-mini-nestle/ic_eliminations/ic_matching_coverage.json | jq .
+ls -la /mnt/work/output/v5.0-mini-acme/
+ls -la /mnt/work/output/v5.0-mini-acme/consolidated/
+ls -la /mnt/work/output/v5.0-mini-acme/entities/
+cat /mnt/work/output/v5.0-mini-acme/ic_eliminations/ic_matching_coverage.json | jq .
 ```
 
-- **Pass:** All 4 cargo commands exit 0; the Mini-Nestlé run completes and the
+- **Pass:** All 4 cargo commands exit 0; the Mini-Acme run completes and the
   output tree contains every directory documented in §1.4 of the spec, including
   `consolidated/consolidated_financial_statements.json`.
 - **Budget:** ~30 min on the XXL VM in addition to 3.1–3.6.
@@ -300,13 +300,13 @@ for output-size accounting.
 # One entity, no rayon parallelism — establishes the baseline per-shard cost.
 mkdir -p /mnt/work/output/perf
 
-/usr/bin/time -v -o /mnt/work/output/perf/shard-NESTLE_SA.time \
+/usr/bin/time -v -o /mnt/work/output/perf/shard-ACME_SA.time \
   cargo run --release -p datasynth-cli -- group manifest \
-    --config configs/examples/group/mini_nestle.yaml \
+    --config configs/examples/group/mini_acme.yaml \
     --out /mnt/work/output/perf/manifest.json
 
-# Find the shard NESTLE_SA lives in (it's S_SIG_0001 in the canonical fixture)
-SHARD_ID=$(jq -r '.ownership_graph.entities[] | select(.code=="NESTLE_SA") | .shard_id' \
+# Find the shard ACME_SA lives in (it's S_SIG_0001 in the canonical fixture)
+SHARD_ID=$(jq -r '.ownership_graph.entities[] | select(.code=="ACME_SA") | .shard_id' \
   /mnt/work/output/perf/manifest.json)
 
 /usr/bin/time -v -o /mnt/work/output/perf/shard-${SHARD_ID}.time \
@@ -330,14 +330,14 @@ archive ~10 MB per entity.
 # Sequential (parallel_shards=false) — deterministic baseline
 /usr/bin/time -v -o /mnt/work/output/perf/standalone-sequential.time \
   cargo run --release -p datasynth-cli -- group generate \
-    --config configs/examples/group/mini_nestle.yaml \
+    --config configs/examples/group/mini_acme.yaml \
     --no-parallel-shards \
     --out /mnt/work/output/perf/standalone-seq/
 
 # Parallel (default) — exercise rayon scheduling
 /usr/bin/time -v -o /mnt/work/output/perf/standalone-parallel.time \
   cargo run --release -p datasynth-cli -- group generate \
-    --config configs/examples/group/mini_nestle.yaml \
+    --config configs/examples/group/mini_acme.yaml \
     --out /mnt/work/output/perf/standalone-par/
 
 du -sh /mnt/work/output/perf/standalone-{seq,par}/ \
@@ -434,7 +434,7 @@ cat > /mnt/work/output/perf/SUMMARY.md <<'EOF'
 | Per-shard, 1 entity            | ${SHARD_1ENT}      | shard-S_SIG_0001    |
 | Standalone, sequential         | ${STANDALONE_SEQ}  | standalone-seq      |
 | Standalone, parallel-shards    | ${STANDALONE_PAR}  | standalone-par      |
-| Mini-Nestlé archive size       | ${ARCHIVE_SIZE}    | archive-dirs.tsv    |
+| Mini-Acme archive size       | ${ARCHIVE_SIZE}    | archive-dirs.tsv    |
 | IC matching, per iteration     | ${IC_PER_ITER}     | ic-coverage.time    |
 EOF
 # Fill in by hand from the .time files — the elapsed wall-clock and Maximum resident set size lines.
@@ -462,13 +462,13 @@ Before tearing down the VM, copy these back to the workstation (or upload to the
 /mnt/work/output/e2e-mini.log
 /mnt/work/output/e2e-enterprise.log          # if 3.6 ran (out of scope for v5.0)
 /mnt/work/output/fraud-bias.log
-/mnt/work/output/mini_nestle/                # the generated archive — ~50 MB
+/mnt/work/output/mini_acme/                # the generated archive — ~50 MB
 /mnt/work/output/perf/                       # §3.9 performance data (~few MB of .time/.log files)
 /mnt/work/output/perf/SUMMARY.md             # one-page perf roll-up — feeds CLAUDE.md / README / docs/performance/
 /mnt/work/output/perf/standalone-par/        # canonical end-to-end archive used as performance reference
 ```
 
-Commit nothing to the feature branch from the VM — keep it a pure verification harness. Logs and the mini_nestle archive live outside the repo under `docs/superpowers/verification-runs/<date>/` once manually reviewed.
+Commit nothing to the feature branch from the VM — keep it a pure verification harness. Logs and the mini_acme archive live outside the repo under `docs/superpowers/verification-runs/<date>/` once manually reviewed.
 
 ---
 

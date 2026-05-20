@@ -15,8 +15,8 @@ fn test_seeds_are_deterministic() {
     let b = derive_manifest_seed(42, d(2024, 1, 1));
     assert_eq!(a, b);
 
-    let a = derive_entity_seed(42, "NESTLE_SA");
-    let b = derive_entity_seed(42, "NESTLE_SA");
+    let a = derive_entity_seed(42, "ACME_SA");
+    let b = derive_entity_seed(42, "ACME_SA");
     assert_eq!(a, b);
 
     let a = derive_aggregate_seed(42, d(2024, 1, 1));
@@ -52,20 +52,8 @@ fn test_different_inputs_produce_different_seeds() {
 #[test]
 fn test_entity_seeds_are_order_independent() {
     // Derive seeds for a set of entities in two different orders; compare pairwise.
-    let codes_order_a = [
-        "NESTLE_SA",
-        "NESPRESSO_SA",
-        "NESTLE_USA",
-        "NESTLE_DE",
-        "NESTLE_BR",
-    ];
-    let codes_order_b = [
-        "NESTLE_BR",
-        "NESTLE_SA",
-        "NESTLE_DE",
-        "NESPRESSO_SA",
-        "NESTLE_USA",
-    ];
+    let codes_order_a = ["ACME_SA", "NESPRESSO_SA", "ACME_USA", "ACME_DE", "ACME_BR"];
+    let codes_order_b = ["ACME_BR", "ACME_SA", "ACME_DE", "NESPRESSO_SA", "ACME_USA"];
 
     let seeds_a: std::collections::BTreeMap<&str, [u8; 32]> = codes_order_a
         .iter()
@@ -124,7 +112,7 @@ fn test_chacha_rng_is_deterministic() {
     use datasynth_group::chacha_rng_from_seed;
     use rand::Rng;
 
-    let seed = derive_entity_seed(42, "NESTLE_SA");
+    let seed = derive_entity_seed(42, "ACME_SA");
     let mut rng1 = chacha_rng_from_seed(&seed);
     let mut rng2 = chacha_rng_from_seed(&seed);
 

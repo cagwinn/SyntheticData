@@ -3,8 +3,9 @@
 use serde::{Deserialize, Serialize};
 
 use super::{
-    AnomalyFingerprint, BankingFingerprint, CorrelationFingerprint, IntegrityFingerprint, Manifest,
-    PrivacyAudit, RulesFingerprint, SchemaFingerprint, StatisticsFingerprint,
+    AnomalyFingerprint, BankingFingerprint, BehavioralPriors, CorrelationFingerprint,
+    IntegrityFingerprint, Manifest, PrivacyAudit, RulesFingerprint, SchemaFingerprint,
+    StatisticsFingerprint,
 };
 
 /// The root fingerprint structure containing all extracted components.
@@ -43,6 +44,10 @@ pub struct Fingerprint {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub banking: Option<BankingFingerprint>,
 
+    /// Behavioral priors mined from corpus GL data (SP2).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub behavioral: Option<BehavioralPriors>,
+
     /// Privacy audit trail documenting all privacy decisions.
     pub privacy_audit: PrivacyAudit,
 }
@@ -64,6 +69,7 @@ impl Fingerprint {
             rules: None,
             anomalies: None,
             banking: None,
+            behavioral: None,
             privacy_audit,
         }
     }

@@ -6,7 +6,7 @@
 //! by adapting patterns to the control weaknesses and business processes present.
 //!
 //! Designed schemes are represented as [`DesignedScheme`] structs that can be
-//! converted to [`SchemeStage`] sequences for the existing [`FraudScheme`]
+//! converted to `SchemeStage` sequences for the existing `FraudScheme`
 //! infrastructure or cached for reuse without further LLM calls.
 
 use std::sync::Arc;
@@ -560,7 +560,6 @@ impl SchemeLibrary {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use datasynth_core::llm::MockLlmProvider;

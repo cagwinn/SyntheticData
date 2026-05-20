@@ -148,7 +148,6 @@ fn shift_toward_lower(weights: &mut [f64; 5], amount: f64) {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

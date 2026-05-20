@@ -195,7 +195,6 @@ fn pearson_correlation(x: &[f64], y: &[f64], n: usize) -> f64 {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

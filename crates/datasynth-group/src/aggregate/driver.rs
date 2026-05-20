@@ -18,7 +18,7 @@
 //!    presentation currency check on the pre-elim aggregator means
 //!    every contributing entity must already be denominated in the
 //!    presentation currency at this point — the v5.0 fixture (Mini-
-//!    Nestlé) is single-currency CHF so this trivially holds.  Multi-
+//!    Acme) is single-currency CHF so this trivially holds.  Multi-
 //!    currency engagements will need to translate first; that path is
 //!    documented in the spec but not exercised in v5.0 driver-level
 //!    tests.
@@ -954,8 +954,8 @@ fn build_nci_rollforwards(
         if ownership >= Decimal::ONE {
             // Wholly-owned `Full` entities have no NCI to measure.  We
             // skip them silently here rather than surfacing an error
-            // because mini_nestle.yaml has both 100%-owned (NESTLE_USA,
-            // NESTLE_BR) and partially-owned (NESTLE_DE 80%) Full
+            // because mini_acme.yaml has both 100%-owned (ACME_USA,
+            // ACME_BR) and partially-owned (ACME_DE 80%) Full
             // subsidiaries.  The NCI rollforward computer would reject
             // 100% ownership as a caller bug, so the filter must happen
             // at the driver level.
@@ -1179,7 +1179,7 @@ fn dividends_from_tb(tb: &TrialBalance) -> Decimal {
 // ── Unit tests ────────────────────────────────────────────────────────────────
 //
 // The driver itself is end-to-end tested by `tests/aggregate_e2e.rs`
-// (which exercises the full pipeline against a Mini-Nestlé fixture).
+// (which exercises the full pipeline against a Mini-Acme fixture).
 // `resolve_primary_framework` is the only branch worth exercising at
 // the unit-test layer; the remainder of the helpers are linear glue
 // over already-tested sub-modules.

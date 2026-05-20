@@ -19,18 +19,18 @@ fn period_end() -> NaiveDate {
     NaiveDate::from_ymd_opt(2024, 3, 31).unwrap()
 }
 
-/// Build a trimmed two-entity manifest from `mini_nestle.yaml`.
+/// Build a trimmed two-entity manifest from `mini_acme.yaml`.
 fn load_two_entity_manifest() -> GroupManifest {
-    let yaml = include_str!("fixtures/mini_nestle.yaml");
-    let mut cfg: GroupConfig = serde_yaml::from_str(yaml).expect("mini_nestle.yaml must parse");
+    let yaml = include_str!("fixtures/mini_acme.yaml");
+    let mut cfg: GroupConfig = serde_yaml::from_str(yaml).expect("mini_acme.yaml must parse");
 
     cfg.ownership
         .entities
-        .retain(|e| e.code == "NESTLE_SA" || e.code == "NESTLE_USA");
+        .retain(|e| e.code == "ACME_SA" || e.code == "ACME_USA");
     cfg.intercompany.relationships.retain(|rel| match rel {
         IcRelationshipConfig::Explicit(e) => {
-            (e.seller == "NESTLE_SA" || e.seller == "NESTLE_USA")
-                && (e.buyer == "NESTLE_SA" || e.buyer == "NESTLE_USA")
+            (e.seller == "ACME_SA" || e.seller == "ACME_USA")
+                && (e.buyer == "ACME_SA" || e.buyer == "ACME_USA")
         }
         IcRelationshipConfig::Pattern(_) => true,
     });
@@ -56,7 +56,7 @@ fn empty_coverage() -> datasynth_group::CoverageReport {
 fn nci_rf(entity: &str, opening: Decimal, share: Decimal, closing: Decimal) -> NciRollforward {
     NciRollforward {
         entity_code: entity.to_string(),
-        parent_entity_code: "NESTLE_SA".to_string(),
+        parent_entity_code: "ACME_SA".to_string(),
         ownership_percent: dec!(0.80),
         nci_percent: dec!(0.20),
         opening_nci: opening,
@@ -85,7 +85,7 @@ fn cta_rf(entity: &str, opening: Decimal, period: Decimal) -> CtaRollforward {
 fn em_inv(investee: &str, closing: Decimal, share: Decimal) -> EquityMethodInvestment {
     EquityMethodInvestment {
         investee_code: investee.to_string(),
-        investor_entity_code: "NESTLE_SA".to_string(),
+        investor_entity_code: "ACME_SA".to_string(),
         ownership_percent: dec!(0.30),
         opening_carrying_value: Decimal::ZERO,
         opening_suppressed_loss: Decimal::ZERO,
@@ -219,7 +219,7 @@ fn note_6_emits_geographic_segmentation_not_placeholder() {
         "note 6 must summarise the entity count, got:\n{}",
         note_6.body
     );
-    // Mini-Nestlé fixture has 2 entities — make sure both appear.
+    // Mini-Acme fixture has 2 entities — make sure both appear.
     let entity_count = manifest.ownership_graph.entities.len();
     assert!(
         note_6.body.contains(&format!("{}", entity_count)),

@@ -230,7 +230,6 @@ impl Default for TaxEvaluator {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

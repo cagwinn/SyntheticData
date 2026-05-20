@@ -107,7 +107,7 @@ impl PayrollGenerator {
     /// When a country pack is set, generated [`PayrollLineItem`] records will
     /// carry localized deduction labels derived from the pack's
     /// `payroll.statutory_deductions` and `payroll.employer_contributions`.
-    /// The stored pack is also used by [`generate`] to resolve deduction rates,
+    /// The stored pack is also used by `generate` to resolve deduction rates,
     /// so callers no longer need to pass the pack explicitly.
     pub fn set_country_pack(&mut self, pack: CountryPack) {
         self.country_pack = Some(pack);
@@ -117,7 +117,7 @@ impl PayrollGenerator {
     ///
     /// Uses tax rates from the [`PayrollConfig`] (defaults: 22% federal, 5% state,
     /// 7.65% FICA, 3% health, 5% retirement).  If a country pack has been set via
-    /// [`set_country_pack`], the stored pack is used to resolve both rates and
+    /// `set_country_pack`, the stored pack is used to resolve both rates and
     /// localized deduction labels automatically.
     ///
     /// # Arguments
@@ -664,7 +664,7 @@ impl PayrollGenerator {
     }
 
     /// Generate a payroll run, adjusting each employee's salary based on
-    /// [`EmployeeChangeEvent`] records before delegating to [`generate`].
+    /// `EmployeeChangeEvent` records before delegating to `generate`.
     ///
     /// For each employee, all `SalaryAdjustment` events whose `effective_date`
     /// falls on or before `period_end` are examined.  The most recent such
@@ -766,7 +766,6 @@ impl PayrollGenerator {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

@@ -1189,7 +1189,6 @@ impl ToNodeProperties for ClimateScenario {
 // ===========================================================================
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

@@ -576,7 +576,6 @@ pub fn degree_centrality(adjacency: &[Vec<usize>]) -> Vec<f64> {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

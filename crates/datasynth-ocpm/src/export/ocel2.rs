@@ -515,7 +515,6 @@ fn qualifier_to_string(qualifier: &ObjectQualifier) -> String {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

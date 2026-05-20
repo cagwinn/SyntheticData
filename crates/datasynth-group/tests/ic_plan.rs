@@ -14,23 +14,23 @@ use rust_decimal::prelude::ToPrimitive;
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
-fn load_mini_nestle_manifest() -> GroupManifest {
-    let yaml = include_str!("fixtures/mini_nestle.yaml");
+fn load_mini_acme_manifest() -> GroupManifest {
+    let yaml = include_str!("fixtures/mini_acme.yaml");
     let cfg: GroupConfig =
-        serde_yaml::from_str(yaml).expect("mini_nestle.yaml must parse into GroupConfig");
-    build_manifest(&cfg).expect("mini_nestle.yaml must build a manifest")
+        serde_yaml::from_str(yaml).expect("mini_acme.yaml must parse into GroupConfig");
+    build_manifest(&cfg).expect("mini_acme.yaml must build a manifest")
 }
 
 /// A manifest with no intercompany relationships at all.  Built by taking
-/// the mini_nestle fixture and overwriting `intercompany.relationships`
+/// the mini_acme fixture and overwriting `intercompany.relationships`
 /// with an empty list.  Used by tests that need a well-formed manifest
 /// but want to exercise the no-IC branch of the derivation.
 fn load_manifest_without_ic() -> GroupManifest {
-    let yaml = include_str!("fixtures/mini_nestle.yaml");
+    let yaml = include_str!("fixtures/mini_acme.yaml");
     let mut cfg: GroupConfig =
-        serde_yaml::from_str(yaml).expect("mini_nestle.yaml must parse into GroupConfig");
+        serde_yaml::from_str(yaml).expect("mini_acme.yaml must parse into GroupConfig");
     cfg.intercompany.relationships.clear();
-    build_manifest(&cfg).expect("mutated mini_nestle must still build a manifest")
+    build_manifest(&cfg).expect("mutated mini_acme must still build a manifest")
 }
 
 /// Find a relationship where both endpoints are explicit entities we can
@@ -42,7 +42,7 @@ fn first_bilateral_relationship(
     let rel = manifest
         .ic_relationships
         .first()
-        .expect("mini_nestle fixture must have at least one IC relationship");
+        .expect("mini_acme fixture must have at least one IC relationship");
     let tx_type = *rel
         .types
         .first()
@@ -63,7 +63,7 @@ fn first_bilateral_relationship(
 /// IC matching by `pair_id` a no-tiebreak join.
 #[test]
 fn test_seller_and_buyer_produce_mirror_plans() {
-    let manifest = load_mini_nestle_manifest();
+    let manifest = load_mini_acme_manifest();
     let (seller, buyer, rel_id, tx_type) = first_bilateral_relationship(&manifest);
 
     let seller_plans = derive_ic_pair_plans(&manifest, &seller);
@@ -136,7 +136,7 @@ fn test_seller_and_buyer_produce_mirror_plans() {
 /// for work budgeting.
 #[test]
 fn test_pair_count_matches_formula() {
-    let manifest = load_mini_nestle_manifest();
+    let manifest = load_mini_acme_manifest();
     let (seller, _buyer, rel_id, tx_type) = first_bilateral_relationship(&manifest);
 
     // Recompute expected N from first principles.
@@ -172,7 +172,7 @@ fn test_pair_count_matches_formula() {
 /// analyses see IC postings on the close date itself.
 #[test]
 fn test_dates_span_period() {
-    let manifest = load_mini_nestle_manifest();
+    let manifest = load_mini_acme_manifest();
     let period_start = manifest.period.start;
     let period_end = manifest.period.end;
     let (seller, _buyer, rel_id, _tx_type) = first_bilateral_relationship(&manifest);
@@ -215,7 +215,7 @@ fn test_dates_span_period() {
 
 /// An entity that exists in the manifest but is not named in any IC
 /// relationship returns an empty plan list.  We build a manifest from
-/// the mini_nestle fixture but clear all IC relationships so every
+/// the mini_acme fixture but clear all IC relationships so every
 /// entity is a non-participant.
 #[test]
 fn test_non_participant_entity_returns_empty() {
@@ -225,13 +225,7 @@ fn test_non_participant_entity_returns_empty() {
         manifest.ic_relationships.is_empty(),
         "fixture wiring: manifest.ic_relationships must be empty for this test"
     );
-    for entity_code in [
-        "NESTLE_SA",
-        "NESTLE_USA",
-        "NESTLE_DE",
-        "NESTLE_BR",
-        "NESTLE_JV",
-    ] {
+    for entity_code in ["ACME_SA", "ACME_USA", "ACME_DE", "ACME_BR", "ACME_JV"] {
         let plans = derive_ic_pair_plans(&manifest, entity_code);
         assert!(
             plans.is_empty(),
@@ -248,7 +242,7 @@ fn test_non_participant_entity_returns_empty() {
 /// nothing.
 #[test]
 fn test_entity_not_in_manifest_returns_empty() {
-    let manifest = load_mini_nestle_manifest();
+    let manifest = load_mini_acme_manifest();
     let plans = derive_ic_pair_plans(&manifest, "ENTITY_THAT_DOES_NOT_EXIST");
     assert!(
         plans.is_empty(),
@@ -263,20 +257,20 @@ fn test_entity_not_in_manifest_returns_empty() {
 /// thread ordering).
 #[test]
 fn test_deterministic_across_calls() {
-    let manifest = load_mini_nestle_manifest();
+    let manifest = load_mini_acme_manifest();
 
     // Pick an entity that participates in several relationships so we
     // cover multiple branches in the derivation (seller + buyer).
-    let a = derive_ic_pair_plans(&manifest, "NESTLE_SA");
-    let b = derive_ic_pair_plans(&manifest, "NESTLE_SA");
+    let a = derive_ic_pair_plans(&manifest, "ACME_SA");
+    let b = derive_ic_pair_plans(&manifest, "ACME_SA");
     assert_eq!(
         a, b,
         "two calls with the same arguments must return equal Vec<IcPairPlan>"
     );
 
     // Also exercise a buyer-side entity.
-    let a = derive_ic_pair_plans(&manifest, "NESTLE_USA");
-    let b = derive_ic_pair_plans(&manifest, "NESTLE_USA");
+    let a = derive_ic_pair_plans(&manifest, "ACME_USA");
+    let b = derive_ic_pair_plans(&manifest, "ACME_USA");
     assert_eq!(a, b);
 }
 
@@ -285,19 +279,19 @@ fn test_deterministic_across_calls() {
 /// that could produce phantom matches in the aggregate phase.
 #[test]
 fn test_pair_ids_are_unique_across_all_relationships() {
-    let manifest = load_mini_nestle_manifest();
-    let plans = derive_ic_pair_plans(&manifest, "NESTLE_SA");
+    let manifest = load_mini_acme_manifest();
+    let plans = derive_ic_pair_plans(&manifest, "ACME_SA");
     let mut seen = std::collections::BTreeSet::new();
     for p in &plans {
         assert!(
             seen.insert(p.pair_id),
-            "duplicate pair_id {:?} for entity NESTLE_SA — this would break aggregate matching",
+            "duplicate pair_id {:?} for entity ACME_SA — this would break aggregate matching",
             p.pair_id
         );
     }
     assert!(
         !plans.is_empty(),
-        "NESTLE_SA must have at least one IC pair plan in the mini_nestle fixture"
+        "ACME_SA must have at least one IC pair plan in the mini_acme fixture"
     );
 }
 
@@ -305,8 +299,8 @@ fn test_pair_ids_are_unique_across_all_relationships() {
 /// per-relationship list (0, 1, 2, ...) and monotonically increase.
 #[test]
 fn test_indices_are_contiguous_per_relationship() {
-    let manifest = load_mini_nestle_manifest();
-    let plans = derive_ic_pair_plans(&manifest, "NESTLE_SA");
+    let manifest = load_mini_acme_manifest();
+    let plans = derive_ic_pair_plans(&manifest, "ACME_SA");
 
     // Group by relationship id, preserve order.
     let mut by_rel: std::collections::BTreeMap<String, Vec<&IcPairPlan>> =
@@ -329,12 +323,12 @@ fn test_indices_are_contiguous_per_relationship() {
     }
 }
 
-/// Sanity: the period start from the mini_nestle fixture is 2024-01-01
+/// Sanity: the period start from the mini_acme fixture is 2024-01-01
 /// and the period is quarterly — pins the test data so later spec tweaks
 /// don't silently invalidate this file.
 #[test]
-fn test_mini_nestle_fixture_period_is_stable() {
-    let manifest = load_mini_nestle_manifest();
+fn test_mini_acme_fixture_period_is_stable() {
+    let manifest = load_mini_acme_manifest();
     assert_eq!(
         manifest.period.start,
         NaiveDate::from_ymd_opt(2024, 1, 1).unwrap()

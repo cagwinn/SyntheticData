@@ -539,7 +539,6 @@ pub fn analyze(
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use datasynth_core::models::{JournalEntry, JournalEntryHeader, JournalEntryLine};

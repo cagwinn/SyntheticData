@@ -165,7 +165,6 @@ fn next_month_start(date: NaiveDate) -> NaiveDate {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use datasynth_core::models::{CostCategory, CostSourceType, ProjectType, WbsElement};

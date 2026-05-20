@@ -26,7 +26,7 @@
 //!           - (operating + investing + financing)
 //! ```
 //!
-//! For a single-currency engagement (Mini-Nestlé, every entity in
+//! For a single-currency engagement (Mini-Acme, every entity in
 //! CHF) the residual is zero modulo rounding.  Multi-currency
 //! engagements pick up the IAS 21 retranslation difference here.
 //!

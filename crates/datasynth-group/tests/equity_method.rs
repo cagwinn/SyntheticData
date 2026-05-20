@@ -24,18 +24,18 @@ fn period_end() -> NaiveDate {
     NaiveDate::from_ymd_opt(2024, 3, 31).unwrap()
 }
 
-/// Pull NESTLE_JV (50%, equity_method) from the real manifest pipeline.
-fn nestle_jv() -> datasynth_group::ManifestEntity {
-    let yaml = include_str!("fixtures/mini_nestle.yaml");
+/// Pull ACME_JV (50%, equity_method) from the real manifest pipeline.
+fn acme_jv() -> datasynth_group::ManifestEntity {
+    let yaml = include_str!("fixtures/mini_acme.yaml");
     let cfg: GroupConfig =
-        serde_yaml::from_str(yaml).expect("mini_nestle.yaml must parse into GroupConfig");
+        serde_yaml::from_str(yaml).expect("mini_acme.yaml must parse into GroupConfig");
     let manifest = build_manifest(&cfg).expect("manifest builds");
     manifest
         .ownership_graph
         .entities
         .into_iter()
-        .find(|e| e.code == "NESTLE_JV")
-        .expect("NESTLE_JV must be present in the fixture")
+        .find(|e| e.code == "ACME_JV")
+        .expect("ACME_JV must be present in the fixture")
 }
 
 /// Hand-rolled entity builder for tests that vary
@@ -67,8 +67,8 @@ fn make_entity(
 
 #[test]
 fn happy_path_fifty_percent_jv() {
-    // 50%-owned NESTLE_JV — the canonical equity-method case.
-    let investee = nestle_jv();
+    // 50%-owned ACME_JV — the canonical equity-method case.
+    let investee = acme_jv();
     assert_eq!(
         investee.consolidation_method,
         ConsolidationMethod::EquityMethod
@@ -77,7 +77,7 @@ fn happy_path_fifty_percent_jv() {
 
     let inputs = EquityMethodInputs {
         investee: &investee,
-        investor_entity_code: "NESTLE_SA".to_string(),
+        investor_entity_code: "ACME_SA".to_string(),
         investee_net_income: dec!(800_000),
         investee_dividends_paid: dec!(200_000),
         opening_carrying_value: dec!(1_500_000),
@@ -89,8 +89,8 @@ fn happy_path_fifty_percent_jv() {
 
     let inv = compute_equity_method_investment(&inputs).expect("must succeed");
 
-    assert_eq!(inv.investee_code, "NESTLE_JV");
-    assert_eq!(inv.investor_entity_code, "NESTLE_SA");
+    assert_eq!(inv.investee_code, "ACME_JV");
+    assert_eq!(inv.investor_entity_code, "ACME_SA");
     assert_eq!(inv.ownership_percent, dec!(0.50));
     assert_eq!(inv.share_of_profit, dec!(400_000.00));
     assert_eq!(inv.dividends_received, dec!(100_000.00));

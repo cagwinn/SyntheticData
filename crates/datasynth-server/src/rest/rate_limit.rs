@@ -231,7 +231,6 @@ fn extract_client_key(request: &Request<Body>) -> String {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use axum::{body::Body, http::Request, middleware, routing::get, Router};

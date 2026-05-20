@@ -187,6 +187,8 @@ pub fn balanced_journal_entry(amount: Decimal) -> JournalEntry {
             created_by: "TESTUSER".to_string(),
             user_persona: "test_user".to_string(),
             source: TransactionSource::Manual,
+            sap_source_code: None,
+            trading_partner: None,
             business_process: Some(BusinessProcess::R2R),
             ledger: "0L".to_string(),
             is_fraud: false,
@@ -292,7 +294,6 @@ pub fn standard_test_accounts() -> Vec<GLAccount> {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

@@ -1,5 +1,5 @@
-id: "MINI_NESTLE_2024_Q1"
-name: "Mini Nestlé Reference Group"
+id: "MINI_ACME_2024_Q1"
+name: "Mini Acme Reference Group"
 presentation_currency: "CHF"
 period:
   start_date: "2024-01-01"
@@ -8,9 +8,9 @@ period:
 seed: 0x1234567890ABCDEF
 
 ownership:
-  parent_entity_code: NESTLE_SA
+  parent_entity_code: ACME_SA
   entities:
-    - code: NESTLE_SA
+    - code: ACME_SA
       country: CH
       functional_currency: CHF
       scoping_profile: significant

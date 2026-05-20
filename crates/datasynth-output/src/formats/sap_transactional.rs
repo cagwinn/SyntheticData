@@ -914,7 +914,6 @@ pub fn write_mseg(cfg: &SapExportConfig, grs: &[GoodsReceipt], path: &Path) -> S
 // ---------------------------------------------------------------------------
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::super::sap::SapDialect;
     use super::*;

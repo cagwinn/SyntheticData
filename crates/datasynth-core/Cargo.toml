@@ -23,10 +23,12 @@ thiserror = { workspace = true }
 rand = { workspace = true }
 rand_chacha = { workspace = true }
 rand_distr = { workspace = true }
+statrs = { workspace = true }
 smallvec = { workspace = true }
 sha2 = { workspace = true }
 hex = { workspace = true }
 tracing = { workspace = true }
+regex = { workspace = true }
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
@@ -61,3 +63,11 @@ tempfile = { workspace = true }
 
 [build-dependencies]
 serde_yaml = { workspace = true }
+
+[package.metadata.cargo-machete]
+# safetensors: public feature-gated optional dep (`neural` feature in
+# this Cargo.toml). datasynth-core has no `use safetensors::*`, but
+# removing the declaration would change the public feature surface and
+# break downstream crates that activate `neural` expecting safetensors
+# to be available. Pinning here keeps the contract explicit.
+ignored = ["safetensors"]

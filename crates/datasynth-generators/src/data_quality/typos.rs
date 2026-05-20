@@ -596,7 +596,6 @@ pub fn introduce_encoding_issue<R: Rng>(text: &str, issue: EncodingIssue, rng: &
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use datasynth_core::utils::seeded_rng;

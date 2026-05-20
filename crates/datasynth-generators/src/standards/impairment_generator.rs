@@ -75,7 +75,7 @@ impl ImpairmentGenerator {
     }
 
     /// Create a new impairment generator with custom configuration (seed only;
-    /// the per-run [`ImpairmentConfig`] is passed to [`generate`]).
+    /// the per-run [`ImpairmentConfig`] is passed to `generate`).
     pub fn with_config(seed: u64, _config: &ImpairmentConfig) -> Self {
         // Config is used at generation time, not construction time.
         // The constructor signature is kept for consistency with other generators.
@@ -370,7 +370,6 @@ impl ImpairmentGenerator {
 // ===========================================================================
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use rust_decimal_macros::dec;

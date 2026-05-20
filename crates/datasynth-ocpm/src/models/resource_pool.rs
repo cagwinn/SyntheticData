@@ -119,7 +119,6 @@ pub fn default_resource_pools() -> Vec<ResourcePool> {
 // ---------------------------------------------------------------------------
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

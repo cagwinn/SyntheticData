@@ -353,7 +353,6 @@ fn safe_decimal(raw: f64, dp: u32) -> Decimal {
 // ---------------------------------------------------------------------------
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

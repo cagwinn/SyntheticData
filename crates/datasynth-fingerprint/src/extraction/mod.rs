@@ -98,21 +98,36 @@
 
 mod anomaly_extractor;
 pub mod banking_extractor;
+pub mod behavioral_extractor;
+pub mod coa_extractor;
 mod correlation_extractor;
 mod integrity_extractor;
+pub mod pii_denylist;
+pub mod reference_extractor;
 mod rules_extractor;
 mod schema_extractor;
 mod stats_extractor;
 pub mod streaming;
+pub mod tb_extractor;
+pub mod text_extractor;
+pub mod user_extractor;
 
 pub use anomaly_extractor::*;
 pub use banking_extractor::*;
+pub use coa_extractor::extract_coa_semantic_from_parquet;
 pub use correlation_extractor::*;
 pub use integrity_extractor::*;
+pub use pii_denylist::PiiDenylist;
+pub use reference_extractor::{extract_reference_formats, fill_template, tokenize_reference};
 pub use rules_extractor::*;
 pub use schema_extractor::*;
 pub use stats_extractor::*;
 pub use streaming::{StreamingCategoricalStats, StreamingNumericStats};
+pub use tb_extractor::extract_tb_anchor_from_parquet;
+pub use text_extractor::{
+    extract_text_taxonomy, extract_text_taxonomy_checked, extract_text_taxonomy_from_records,
+    TextTaxonomyRecord,
+};
 
 use std::path::Path;
 

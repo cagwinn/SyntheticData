@@ -60,7 +60,7 @@ pub enum JurisdictionAccountingFramework {
 pub enum AuditFramework {
     /// ISA (International Standards on Auditing) adopted directly
     Isa,
-    /// ISA with local modifications (e.g., ISA (UK), ISA [DE])
+    /// ISA with local modifications (e.g., ISA (UK), ISA `DE`)
     IsaLocal,
     /// PCAOB standards (US public companies)
     Pcaob,

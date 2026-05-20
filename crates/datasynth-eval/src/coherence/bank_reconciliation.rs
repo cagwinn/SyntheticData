@@ -194,7 +194,6 @@ impl Default for BankReconciliationEvaluator {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

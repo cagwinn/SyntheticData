@@ -160,7 +160,6 @@ impl<'de> serde::de::Visitor<'de> for OptionDecimalVisitor {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use rust_decimal_macros::dec;

@@ -85,7 +85,6 @@ pub fn interpolate_env(input: &str) -> Result<String, EnvInterpolationError> {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

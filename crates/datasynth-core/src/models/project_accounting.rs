@@ -948,7 +948,6 @@ impl ToNodeProperties for EarnedValueMetric {
 // ---------------------------------------------------------------------------
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

@@ -721,7 +721,6 @@ fn escape_csv_field(field: &str) -> String {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use crate::test_helpers::create_test_je;

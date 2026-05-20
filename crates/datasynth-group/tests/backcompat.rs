@@ -95,28 +95,28 @@ fn legacy_configs_dispatch_to_single_entity_flow() {
     }
 }
 
-/// The Mini-Nestlé v5.0 `GroupConfig` fixture must dispatch to the
+/// The Mini-Acme v5.0 `GroupConfig` fixture must dispatch to the
 /// **group** flow (heuristic returns `true`).  This is the
 /// counter-example: any change to the heuristic that breaks group
 /// detection would be caught here.
 #[test]
-fn mini_nestle_dispatches_to_group_flow() {
-    let yaml = include_str!("fixtures/mini_nestle.yaml");
+fn mini_acme_dispatches_to_group_flow() {
+    let yaml = include_str!("fixtures/mini_acme.yaml");
     assert!(
         yaml_is_group_config(yaml),
-        "Mini-Nestlé fixture must be classified as a GroupConfig",
+        "Mini-Acme fixture must be classified as a GroupConfig",
     );
 }
 
-/// The minimal Mini-Nestlé fixture (`mini_nestle_minimal.yaml`) is
+/// The minimal Mini-Acme fixture (`mini_acme_minimal.yaml`) is
 /// also a `GroupConfig` even with sparse content — it carries
 /// `presentation_currency` and `ownership` at top-level.
 #[test]
-fn mini_nestle_minimal_dispatches_to_group_flow() {
-    let yaml = include_str!("fixtures/mini_nestle_minimal.yaml");
+fn mini_acme_minimal_dispatches_to_group_flow() {
+    let yaml = include_str!("fixtures/mini_acme_minimal.yaml");
     assert!(
         yaml_is_group_config(yaml),
-        "Mini-Nestlé minimal fixture must be classified as a GroupConfig",
+        "Mini-Acme minimal fixture must be classified as a GroupConfig",
     );
 }
 

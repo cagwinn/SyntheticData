@@ -175,7 +175,6 @@ impl Default for CrossModalAnalyzer {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

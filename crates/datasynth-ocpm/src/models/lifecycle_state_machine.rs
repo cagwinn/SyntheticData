@@ -206,7 +206,6 @@ pub fn all_state_machines() -> Vec<LifecycleStateMachine> {
 // ---------------------------------------------------------------------------
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

@@ -428,7 +428,6 @@ fn extract_x_api_key(request: &Request<Body>) -> Option<String> {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use axum::{

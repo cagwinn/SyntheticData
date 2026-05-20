@@ -941,7 +941,6 @@ fn resolve_coa_framework_from_config(
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use datasynth_config::presets::create_preset;

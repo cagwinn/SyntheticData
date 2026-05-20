@@ -444,7 +444,6 @@ fn regularized_gamma_q_cf(a: f64, x: f64) -> f64 {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use crate::models::MixtureComponent;

@@ -856,7 +856,6 @@ fn get_esg_config(industry: IndustrySector) -> EsgConfig {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

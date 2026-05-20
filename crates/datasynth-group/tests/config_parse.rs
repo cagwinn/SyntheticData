@@ -3,26 +3,26 @@
 use datasynth_group::{validate::validate, GroupConfig};
 
 #[test]
-fn test_mini_nestle_parses() {
-    let yaml = include_str!("fixtures/mini_nestle_minimal.yaml");
-    let cfg: GroupConfig = serde_yaml::from_str(yaml).expect("mini_nestle fixture must parse");
+fn test_mini_acme_parses() {
+    let yaml = include_str!("fixtures/mini_acme_minimal.yaml");
+    let cfg: GroupConfig = serde_yaml::from_str(yaml).expect("mini_acme fixture must parse");
 
-    assert_eq!(cfg.id, "MINI_NESTLE_2024_Q1");
+    assert_eq!(cfg.id, "MINI_ACME_2024_Q1");
     assert_eq!(cfg.presentation_currency, "CHF");
-    assert_eq!(cfg.ownership.parent_entity_code, "NESTLE_SA");
+    assert_eq!(cfg.ownership.parent_entity_code, "ACME_SA");
     assert!(!cfg.ownership.entities.is_empty());
 }
 
 #[test]
-fn test_full_mini_nestle_parses() {
+fn test_full_mini_acme_parses() {
     use rust_decimal_macros::dec;
 
-    let yaml = include_str!("fixtures/mini_nestle.yaml");
+    let yaml = include_str!("fixtures/mini_acme.yaml");
     let cfg: datasynth_group::GroupConfig =
-        serde_yaml::from_str(yaml).expect("full mini_nestle must parse");
+        serde_yaml::from_str(yaml).expect("full mini_acme must parse");
 
     // Spot-check all sections are present.
-    assert_eq!(cfg.id, "MINI_NESTLE_2024_Q1");
+    assert_eq!(cfg.id, "MINI_ACME_2024_Q1");
     assert_eq!(cfg.scoping_profiles.len(), 2, "significant + material");
     assert_eq!(
         cfg.ownership.entities.len(),
@@ -76,7 +76,7 @@ fn test_full_mini_nestle_parses() {
     // Audit + tax both configured
     assert_eq!(
         cfg.audit.engagement_id.as_deref(),
-        Some("EY_MINI_NESTLE_2024_Q1")
+        Some("EY_MINI_ACME_2024_Q1")
     );
     assert!(
         cfg.tax
@@ -88,5 +88,5 @@ fn test_full_mini_nestle_parses() {
     );
 
     // Structural validation must also pass on this fixture.
-    validate(&cfg).expect("mini_nestle.yaml must pass structural validation");
+    validate(&cfg).expect("mini_acme.yaml must pass structural validation");
 }

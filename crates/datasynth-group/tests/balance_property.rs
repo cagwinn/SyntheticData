@@ -19,7 +19,7 @@
 //!    consolidation arithmetic — translation / CTA is exercised
 //!    separately in `tests/translation_e2e.rs`.
 //!
-//! 2. **`balances_for_mini_nestle`** — the canonical Mini-Nestlé
+//! 2. **`balances_for_mini_acme`** — the canonical Mini-Acme
 //!    fixture, hand-built per-entity TBs, full pipeline.  This is the
 //!    "golden" property check: the same fixture every other
 //!    integration test references.
@@ -35,7 +35,7 @@
 //!
 //! No orchestrator runs — every helper drives in-memory pieces of the
 //! Chunk 5 / 7 / 8 pipeline directly.  Each iteration runs in
-//! milliseconds, so all 10 random configs + Mini-Nestlé finish in
+//! milliseconds, so all 10 random configs + Mini-Acme finish in
 //! under a second.  Cheap → no `#[ignore]`.
 
 use chrono::NaiveDate;
@@ -464,13 +464,13 @@ fn balances_for_random_configs() {
     }
 }
 
-/// Mini-Nestlé fixture: hand-built per-entity TBs (5 entities, 4 of
+/// Mini-Acme fixture: hand-built per-entity TBs (5 entities, 4 of
 /// which contribute to the Parent + Full scope), full Chunk 5 → 7 →
 /// 8.1 pipeline, BS identity must hold to the cent.
 #[test]
-fn balances_for_mini_nestle() {
-    let yaml = include_str!("fixtures/mini_nestle.yaml");
-    let mut cfg: GroupConfig = serde_yaml::from_str(yaml).expect("mini_nestle.yaml");
+fn balances_for_mini_acme() {
+    let yaml = include_str!("fixtures/mini_acme.yaml");
+    let mut cfg: GroupConfig = serde_yaml::from_str(yaml).expect("mini_acme.yaml");
 
     // Pin every entity to CHF so we don't need to translate.  The
     // property under test is the post-elim balance identity, not
@@ -483,7 +483,7 @@ fn balances_for_mini_nestle() {
     // pairs are needed when functional == presentation everywhere.
     cfg.fx.rates.clear();
 
-    let manifest = build_manifest(&cfg).expect("mini_nestle build_manifest");
+    let manifest = build_manifest(&cfg).expect("mini_acme build_manifest");
     let tbs = build_random_entity_tbs(&manifest);
 
     let bs = run_pipeline_to_bs(&manifest, &tbs);
@@ -494,6 +494,6 @@ fn balances_for_mini_nestle() {
     let tolerance = dec!(0.01);
     assert!(
         diff <= tolerance,
-        "Mini-Nestlé: BS doesn't balance: assets={lhs}, L+E+NCI={rhs}, diff={diff}",
+        "Mini-Acme: BS doesn't balance: assets={lhs}, L+E+NCI={rhs}, diff={diff}",
     );
 }

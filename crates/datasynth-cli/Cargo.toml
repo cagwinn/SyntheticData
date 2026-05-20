@@ -34,24 +34,22 @@ datasynth-audit-fsm = { workspace = true }
 datasynth-audit-optimizer = { workspace = true }
 datasynth-banking = { workspace = true }
 datasynth-fingerprint = { workspace = true }
-datasynth-graph = { workspace = true }
 datasynth-group = { workspace = true }
 clap = { workspace = true }
-indicatif = { workspace = true }
 anyhow = { workspace = true }
-tokio = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
-serde = { workspace = true }
 csv = { workspace = true }
 serde_yaml = { workspace = true }
 serde_json = { workspace = true }
-itoa = { workspace = true }
-ryu = { workspace = true }
 rand = { workspace = true }
 rand_chacha = { workspace = true }
 rayon = { workspace = true }
 num_cpus = { workspace = true }
+
+# Feature-gated optional dep — activated by the `streaming` feature in
+# this Cargo.toml. No `use reqwest` exists in cli sources; reqwest is
+# pulled in transitively so `datasynth-runtime/streaming` sees it.
 reqwest = { workspace = true, optional = true }
 
 # Signal handling for pause/resume
@@ -62,3 +60,7 @@ signal-hook = { workspace = true }
 assert_cmd = { workspace = true }
 predicates = { workspace = true }
 tempfile = { workspace = true }
+
+# reqwest: feature-gated optional, see comment in [dependencies] above.
+[package.metadata.cargo-machete]
+ignored = ["reqwest"]

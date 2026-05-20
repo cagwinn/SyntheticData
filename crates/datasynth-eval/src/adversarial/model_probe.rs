@@ -263,7 +263,6 @@ fn compute_stats(samples: &[ProbeSample]) -> PredictionStats {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

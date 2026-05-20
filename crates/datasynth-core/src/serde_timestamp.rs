@@ -272,7 +272,6 @@ impl<'de> serde::de::Visitor<'de> for OptionNaiveVisitor {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use chrono::NaiveDate;
 

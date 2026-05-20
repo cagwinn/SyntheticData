@@ -2,7 +2,7 @@
 //!
 //! Mirrors the fixture pattern of `tests/ic_matcher.rs` and
 //! `tests/elimination_to_je.rs`: build a trimmed two-entity manifest
-//! from `mini_nestle.yaml`, run the matcher end-to-end, then summarise
+//! from `mini_acme.yaml`, run the matcher end-to-end, then summarise
 //! into a [`CoverageReport`] and exercise the on-disk writer.
 //!
 //! # Test taxonomy
@@ -44,17 +44,17 @@ use datasynth_group::{
 /// the fixture in lockstep so a change to the canonical trim flows
 /// through both files.
 fn load_two_entity_manifest() -> GroupManifest {
-    let yaml = include_str!("fixtures/mini_nestle.yaml");
+    let yaml = include_str!("fixtures/mini_acme.yaml");
     let mut cfg: GroupConfig =
-        serde_yaml::from_str(yaml).expect("mini_nestle.yaml must parse into GroupConfig");
+        serde_yaml::from_str(yaml).expect("mini_acme.yaml must parse into GroupConfig");
 
     cfg.ownership
         .entities
-        .retain(|e| e.code == "NESTLE_SA" || e.code == "NESTLE_USA");
+        .retain(|e| e.code == "ACME_SA" || e.code == "ACME_USA");
     cfg.intercompany.relationships.retain(|rel| match rel {
         IcRelationshipConfig::Explicit(e) => {
-            (e.seller == "NESTLE_SA" || e.seller == "NESTLE_USA")
-                && (e.buyer == "NESTLE_SA" || e.buyer == "NESTLE_USA")
+            (e.seller == "ACME_SA" || e.seller == "ACME_USA")
+                && (e.buyer == "ACME_SA" || e.buyer == "ACME_USA")
         }
         IcRelationshipConfig::Pattern(_) => true,
     });
@@ -64,18 +64,18 @@ fn load_two_entity_manifest() -> GroupManifest {
     if let Some(tp) = cfg.tax.transfer_pricing.as_mut() {
         tp.local_files_for.retain(|j| j == "CH" || j == "US");
     }
-    build_manifest(&cfg).expect("trimmed mini_nestle must still build a manifest")
+    build_manifest(&cfg).expect("trimmed mini_acme must still build a manifest")
 }
 
 /// Build the no-IC variant: clears `intercompany.relationships`.  Used
 /// by the empty-manifest coverage test.
 fn load_two_entity_manifest_no_ic() -> GroupManifest {
-    let yaml = include_str!("fixtures/mini_nestle.yaml");
+    let yaml = include_str!("fixtures/mini_acme.yaml");
     let mut cfg: GroupConfig =
-        serde_yaml::from_str(yaml).expect("mini_nestle.yaml must parse into GroupConfig");
+        serde_yaml::from_str(yaml).expect("mini_acme.yaml must parse into GroupConfig");
     cfg.ownership
         .entities
-        .retain(|e| e.code == "NESTLE_SA" || e.code == "NESTLE_USA");
+        .retain(|e| e.code == "ACME_SA" || e.code == "ACME_USA");
     cfg.intercompany.relationships.clear();
     if let Some(p2) = cfg.tax.pillar_two.as_mut() {
         p2.jurisdictions.retain(|j| j == "CH" || j == "US");
@@ -87,21 +87,21 @@ fn load_two_entity_manifest_no_ic() -> GroupManifest {
 }
 
 fn sa_jes(manifest: &GroupManifest) -> Vec<JournalEntry> {
-    let plans = derive_ic_pair_plans(manifest, "NESTLE_SA");
+    let plans = derive_ic_pair_plans(manifest, "ACME_SA");
     inject_ic_journal_entries(
         &plans,
         &InjectionCtx {
-            entity_code: "NESTLE_SA".to_string(),
+            entity_code: "ACME_SA".to_string(),
         },
     )
 }
 
 fn usa_jes(manifest: &GroupManifest) -> Vec<JournalEntry> {
-    let plans = derive_ic_pair_plans(manifest, "NESTLE_USA");
+    let plans = derive_ic_pair_plans(manifest, "ACME_USA");
     inject_ic_journal_entries(
         &plans,
         &InjectionCtx {
-            entity_code: "NESTLE_USA".to_string(),
+            entity_code: "ACME_USA".to_string(),
         },
     )
 }
@@ -126,8 +126,8 @@ fn happy_path_full_coverage_zero_unmatched() {
     let result = match_ic_pairs(
         &manifest,
         &[
-            ("NESTLE_SA".to_string(), sa_jes(&manifest)),
-            ("NESTLE_USA".to_string(), usa_jes(&manifest)),
+            ("ACME_SA".to_string(), sa_jes(&manifest)),
+            ("ACME_USA".to_string(), usa_jes(&manifest)),
         ],
     )
     .expect("match");
@@ -169,7 +169,7 @@ fn happy_path_full_coverage_zero_unmatched() {
 #[test]
 fn partial_match_missing_buyer_side() {
     let manifest = load_two_entity_manifest();
-    let sa_plans = derive_ic_pair_plans(&manifest, "NESTLE_SA");
+    let sa_plans = derive_ic_pair_plans(&manifest, "ACME_SA");
     let sa_seller_count = sa_plans.iter().filter(|p| p.role == IcRole::Seller).count();
     assert!(
         sa_seller_count >= 1,
@@ -177,7 +177,7 @@ fn partial_match_missing_buyer_side() {
     );
 
     let result =
-        match_ic_pairs(&manifest, &[("NESTLE_SA".to_string(), sa_jes(&manifest))]).expect("match");
+        match_ic_pairs(&manifest, &[("ACME_SA".to_string(), sa_jes(&manifest))]).expect("match");
     let report = build_coverage_report(&result);
 
     assert!(
@@ -219,8 +219,8 @@ fn empty_manifest_zero_coverage() {
     let result = match_ic_pairs(
         &manifest,
         &[
-            ("NESTLE_SA".to_string(), Vec::new()),
-            ("NESTLE_USA".to_string(), Vec::new()),
+            ("ACME_SA".to_string(), Vec::new()),
+            ("ACME_USA".to_string(), Vec::new()),
         ],
     )
     .expect("match");
@@ -294,8 +294,8 @@ fn writer_emits_at_spec_path_and_roundtrips() {
     let result = match_ic_pairs(
         &manifest,
         &[
-            ("NESTLE_SA".to_string(), sa_jes(&manifest)),
-            ("NESTLE_USA".to_string(), usa_jes(&manifest)),
+            ("ACME_SA".to_string(), sa_jes(&manifest)),
+            ("ACME_USA".to_string(), usa_jes(&manifest)),
         ],
     )
     .expect("match");

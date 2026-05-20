@@ -428,7 +428,6 @@ impl From<CustomSeasonalEventConfig> for SeasonalEvent {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

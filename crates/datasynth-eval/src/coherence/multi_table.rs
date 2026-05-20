@@ -692,7 +692,6 @@ pub fn get_o2c_flow_relationships() -> Vec<TableRelationshipDef> {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

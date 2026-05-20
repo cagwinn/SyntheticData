@@ -5,7 +5,7 @@
 //! path unchanged.
 
 use datasynth_config::schema::{
-    AdvancedDistributionConfig, IndustryProfileType, MixtureComponentConfig,
+    AdvancedDistributionConfig, IndustryProfileField, IndustryProfileType, MixtureComponentConfig,
     MixtureDistributionSchemaConfig, MixtureDistributionType,
 };
 use datasynth_runtime::{EnhancedOrchestrator, PhaseConfig};
@@ -137,7 +137,7 @@ fn industry_profile_retail_produces_smaller_amounts_than_manufacturing() {
     let mut retail = build_runtime(|c| {
         c.distributions = AdvancedDistributionConfig {
             enabled: true,
-            industry_profile: Some(IndustryProfileType::Retail),
+            industry_profile: Some(IndustryProfileField::Name(IndustryProfileType::Retail)),
             amounts: MixtureDistributionSchemaConfig {
                 enabled: true,
                 distribution_type: MixtureDistributionType::LogNormal,
@@ -154,7 +154,9 @@ fn industry_profile_retail_produces_smaller_amounts_than_manufacturing() {
     let mut mfg = build_runtime(|c| {
         c.distributions = AdvancedDistributionConfig {
             enabled: true,
-            industry_profile: Some(IndustryProfileType::Manufacturing),
+            industry_profile: Some(IndustryProfileField::Name(
+                IndustryProfileType::Manufacturing,
+            )),
             amounts: MixtureDistributionSchemaConfig {
                 enabled: true,
                 distribution_type: MixtureDistributionType::LogNormal,

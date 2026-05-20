@@ -167,7 +167,6 @@ impl Default for NetworkStructureAnalyzer {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

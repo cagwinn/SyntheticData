@@ -355,7 +355,6 @@ fn fraud_type_to_aml_typology(fraud: datasynth_core::models::FraudType) -> Optio
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use chrono::NaiveDate;

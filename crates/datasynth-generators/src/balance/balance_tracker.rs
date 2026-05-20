@@ -9,6 +9,7 @@ use rust_decimal_macros::dec;
 use std::collections::HashMap;
 use tracing::debug;
 
+use datasynth_core::distributions::behavioral_priors::TbAnchorPrior;
 use datasynth_core::models::balance::{
     AccountBalance, AccountPeriodActivity, AccountType, BalanceSnapshot,
 };
@@ -56,6 +57,9 @@ pub struct RunningBalanceTracker {
     stats: TrackerStatistics,
     /// Default currency for new account balances and snapshots.
     currency: String,
+    /// SP4.1 — optional TB anchor prior.  When `Some`, `account_drift()` and
+    /// `drift_correction_needed()` compare running balances against targets.
+    tb_anchor: Option<TbAnchorPrior>,
 }
 
 /// Entry in balance history.
@@ -123,6 +127,7 @@ impl RunningBalanceTracker {
             validation_errors: Vec::new(),
             stats: TrackerStatistics::default(),
             currency,
+            tb_anchor: None,
         }
     }
 
@@ -526,6 +531,252 @@ impl RunningBalanceTracker {
             .and_then(|b| b.get(account_code))
     }
 
+    // ---- SP4.1 — target-aware drift methods --------------------------------
+
+    /// SP4.1 — Attach a TB anchor prior to this tracker.  When set, enables
+    /// `account_drift()` and `drift_correction_needed()`.  Does not change
+    /// the existing balance-tracking behaviour — purely additive.
+    pub fn with_tb_anchor(mut self, anchor: TbAnchorPrior) -> Self {
+        self.tb_anchor = Some(anchor);
+        self
+    }
+
+    /// SP4.1 — Set the TB anchor prior on this tracker (mutable version).
+    pub fn set_tb_anchor(&mut self, anchor: TbAnchorPrior) {
+        self.tb_anchor = Some(anchor);
+    }
+
+    /// SP4.1 — Returns the per-account drift (current closing balance − target
+    /// closing balance) for every account that appears in the TB anchor prior.
+    ///
+    /// Positive drift means the synthetic account balance is higher than the
+    /// target; negative means it is lower.
+    ///
+    /// Returns an empty `Vec` when no TB anchor is loaded or no company has
+    /// been tracked yet.
+    pub fn account_drift(&self, company_code: &str) -> Vec<(String, f64)> {
+        let Some(anchor) = &self.tb_anchor else {
+            return Vec::new();
+        };
+        let company_balances = match self.balances.get(company_code) {
+            Some(b) => b,
+            None => return Vec::new(),
+        };
+
+        anchor
+            .per_account
+            .iter()
+            .map(|(account, target)| {
+                use rust_decimal::prelude::ToPrimitive;
+                let current = company_balances
+                    .get(account)
+                    .map(|b| b.closing_balance.to_f64().unwrap_or(0.0))
+                    .unwrap_or(0.0);
+                let drift = current - target.closing_balance;
+                (account.clone(), drift)
+            })
+            .collect()
+    }
+
+    /// SP4.1 / SP5.1 — Returns `true` when the TB anchor is loaded and any
+    /// single account's absolute drift exceeds `2 × closing_stdev` (or a
+    /// fallback of 2% of `|closing_balance|` when stdev is zero), OR the
+    /// aggregate absolute drift across all tracked accounts exceeds 0.5% of
+    /// `total_assets`.
+    ///
+    /// Thresholds were tuned to 2σ / 0.5% in SP5.1 (previously 3σ / 1%)
+    /// so that the drift-correction pass fires on realistic synthetic runs
+    /// where balances are shaped by priors but not pinned to the corpus median.
+    ///
+    /// Returns `false` when no TB anchor is loaded (backwards-compatible
+    /// behaviour — caller does not emit drift-correction entries).
+    pub fn drift_correction_needed(&self, company_code: &str) -> bool {
+        let Some(anchor) = &self.tb_anchor else {
+            return false;
+        };
+        if !anchor.has_data() {
+            return false;
+        }
+        let total_assets = anchor.total_assets.abs().max(1.0);
+
+        let drifts = self.account_drift(company_code);
+        if drifts.is_empty() {
+            return false;
+        }
+
+        // SP5.1 — Check per-account threshold: 2σ or 2% of |closing_balance|
+        // (previously 3σ or 5% of total_assets for the stdev=0 case).
+        for (account, drift) in &drifts {
+            if let Some(target) = anchor.per_account.get(account) {
+                let threshold = if target.closing_stdev > 1e-9 {
+                    2.0 * target.closing_stdev
+                } else {
+                    // No cross-client stdev — use 2% of |closing_balance| so
+                    // single-client targets fire on meaningful deviations without
+                    // requiring an unreachably-large per-account swing.
+                    (target.closing_balance.abs() * 0.02).max(1.0)
+                };
+                if drift.abs() > threshold {
+                    return true;
+                }
+            }
+        }
+
+        // SP5.1 — Aggregate threshold lowered from 1% → 0.5% of total_assets.
+        let aggregate_drift: f64 = drifts.iter().map(|(_, d)| d.abs()).sum();
+        if aggregate_drift > 0.005 * total_assets {
+            return true;
+        }
+
+        false
+    }
+
+    /// SP4.1 W8.1 — Build a balanced drift-correction JE that nudges the most-drifted
+    /// accounts back toward their TB anchor targets.
+    ///
+    /// The emitted JE:
+    /// - Has `document_type = "SA"` and `source = Adjustment` (period-end style).
+    /// - Includes at most 8 account lines (the worst drifters), plus one balancing line
+    ///   posted to suspense account "9999" when the selected lines don't net to zero.
+    /// - Always satisfies `total_debit == total_credit` (mandatory for `apply_entry`).
+    ///
+    /// Returns `None` when no TB anchor is loaded, when no drifts exceed the noise
+    /// floor, or when the resulting JE would have fewer than 2 lines.
+    ///
+    /// SP5.1: The net / balancing amount is now computed in Decimal (not f64) so
+    /// that f64→Decimal precision loss cannot produce an "unbalanced" JE.
+    pub fn build_drift_correction_je<R: rand::RngExt>(
+        &self,
+        company_code: &str,
+        posting_date: NaiveDate,
+        rng: &mut R,
+    ) -> Option<datasynth_core::models::JournalEntry> {
+        use datasynth_core::models::{
+            JournalEntry, JournalEntryHeader, JournalEntryLine, TransactionSource,
+        };
+        use rust_decimal::prelude::FromPrimitive;
+
+        // Only include accounts whose absolute drift exceeds 1% of target or $1.
+        let anchor = self.tb_anchor.as_ref()?;
+        let mut drifts: Vec<(String, f64)> = self
+            .account_drift(company_code)
+            .into_iter()
+            .filter(|(account, drift)| {
+                let threshold = anchor
+                    .per_account
+                    .get(account)
+                    .map(|t| (t.closing_balance.abs() * 0.01).max(1.0))
+                    .unwrap_or(1.0);
+                drift.abs() > threshold
+            })
+            .collect();
+
+        if drifts.is_empty() {
+            tracing::debug!(
+                target: "datasynth_generators::balance_tracker",
+                company = %company_code,
+                "W8.1 drift-correction: all drifts below noise floor — returning None"
+            );
+            return None;
+        }
+
+        // Take the top-8 worst drifters to keep the JE manageable.
+        drifts.sort_by(|a, b| {
+            b.1.abs()
+                .partial_cmp(&a.1.abs())
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+        drifts.truncate(8);
+
+        let document_id = uuid::Uuid::now_v7();
+        let mut header = JournalEntryHeader::with_deterministic_id(
+            company_code.to_string(),
+            posting_date,
+            document_id,
+        );
+        header.source = TransactionSource::Adjustment;
+        header.document_type = "SA".to_string();
+        header.reference = Some(format!(
+            "DRIFT-CORR-{:08}",
+            rng.random_range(0u32..u32::MAX)
+        ));
+        header.header_text = Some("W8.1 Trial Balance Drift Correction".to_string());
+
+        let mut entry = JournalEntry::new(header);
+        let mut line_num = 1u32;
+
+        // SP5.1 — accumulate Decimal debit and credit totals as we add lines so
+        // the balancing suspense line can be computed from exact Decimal arithmetic
+        // rather than from the f64 `net`, avoiding f64→Decimal precision skew.
+        let mut decimal_debits = Decimal::ZERO;
+        let mut decimal_credits = Decimal::ZERO;
+
+        // For each drifted account: if drift > 0 (over-target) → credit; if < 0 (under-target) → debit.
+        for (account_number, drift) in &drifts {
+            let amount = match Decimal::from_f64(drift.abs()) {
+                Some(a) if a > Decimal::ZERO => a,
+                _ => continue,
+            };
+            let line = if *drift > 0.0 {
+                decimal_credits += amount;
+                JournalEntryLine::credit(document_id, line_num, account_number.clone(), amount)
+            } else {
+                decimal_debits += amount;
+                JournalEntryLine::debit(document_id, line_num, account_number.clone(), amount)
+            };
+            entry.add_line(line);
+            line_num += 1;
+        }
+
+        // SP5.1 — Compute the balancing amount in Decimal (not f64) to ensure
+        // `entry.is_balanced()` passes even for very large or fractional amounts.
+        let decimal_net = decimal_debits - decimal_credits;
+        if decimal_net.abs() > dec!(0.005) {
+            // decimal_net > 0 means debits exceed credits → credit the suspense.
+            // decimal_net < 0 means credits exceed debits → debit the suspense.
+            let balancing_line = if decimal_net > Decimal::ZERO {
+                JournalEntryLine::credit(
+                    document_id,
+                    line_num,
+                    "9999".to_string(),
+                    decimal_net.abs(),
+                )
+            } else {
+                JournalEntryLine::debit(
+                    document_id,
+                    line_num,
+                    "9999".to_string(),
+                    decimal_net.abs(),
+                )
+            };
+            entry.add_line(balancing_line);
+        }
+
+        if entry.lines.len() < 2 {
+            tracing::debug!(
+                target: "datasynth_generators::balance_tracker",
+                company = %company_code,
+                lines = entry.lines.len(),
+                "W8.1 drift-correction: too few lines — returning None"
+            );
+            return None;
+        }
+
+        if !entry.is_balanced() {
+            tracing::warn!(
+                target: "datasynth_generators::balance_tracker",
+                company = %company_code,
+                debit = %entry.total_debit(),
+                credit = %entry.total_credit(),
+                diff = %(entry.total_debit() - entry.total_credit()),
+                "W8.1 drift-correction: JE is unbalanced — returning None (should not happen with Decimal net)"
+            );
+            return None;
+        }
+
+        Some(entry)
+    }
+
     /// Gets all validation errors.
     pub fn get_validation_errors(&self) -> &[ValidationError] {
         &self.validation_errors
@@ -566,7 +817,6 @@ impl RunningBalanceTracker {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use datasynth_core::models::{JournalEntry, JournalEntryLine};

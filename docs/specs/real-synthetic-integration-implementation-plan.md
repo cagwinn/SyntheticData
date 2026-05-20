@@ -249,7 +249,7 @@ Each submodule starts as an empty `mod.rs` with a doc comment describing its pur
 
 ## Phase 1: Data Sources & Schema Harmonization
 
-**Goal:** Read real client data from files (CSV, JSON, Parquet) and transform it into DataSynth's internal model representation through schema mapping.
+**Goal:** Read client data from files (CSV, JSON, Parquet) and transform it into DataSynth's internal model representation through schema mapping.
 
 **Depends on:** Phase 0
 
@@ -260,7 +260,7 @@ Each submodule starts as an empty `mod.rs` with a doc comment describing its pur
 Define a unified trait for reading real data regardless of source format:
 
 ```rust
-/// A row of real client data — column name → value
+/// A row of client data — column name → value
 pub type RawRecord = HashMap<String, serde_json::Value>;
 
 /// Metadata about a data source table
@@ -1502,7 +1502,7 @@ Add a new top-level subcommand with sub-subcommands:
 #[derive(Subcommand)]
 enum Commands {
     // ... existing: Generate, Validate, Init, Info, Verify, Fingerprint, Scenario
-    /// Integrate real client data with synthetic baseline
+    /// Integrate client data with synthetic baseline
     Integrate {
         #[command(subcommand)]
         command: IntegrateCommands,
@@ -1513,7 +1513,7 @@ enum Commands {
 enum IntegrateCommands {
     /// Run gap analysis: compare real data against synthetic baseline
     GapAnalysis {
-        /// Path to real client data (CSV/JSON/Parquet directory)
+        /// Path to client data (CSV/JSON/Parquet directory)
         #[arg(long)]
         real: PathBuf,
 

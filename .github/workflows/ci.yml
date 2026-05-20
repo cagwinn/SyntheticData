@@ -47,12 +47,31 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libfontconfig1-dev
       - name: Exclude graph-export (requires private sibling repo)
         run: sed -i '/"crates\/datasynth-graph-export",/d' Cargo.toml
-      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+
+  machete:
+    name: Unused dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Exclude graph-export (requires private sibling repo)
+        run: sed -i '/"crates\/datasynth-graph-export",/d' Cargo.toml
+      - name: Install cargo-machete
+        run: cargo install cargo-machete --locked
+      - name: Run cargo-machete
+        run: cargo machete
 
   test:
     name: Test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 60
+    # 90 min: the windows-latest runner is ~50% slower than macOS on the
+    # full `--all-targets` integration suite (orchestrator + CLI-subprocess
+    # tests). macOS finishes ~40 min; Windows was hitting the prior 60-min
+    # cap and getting cancelled-by-timeout (not a test failure). Linux runs
+    # `--lib --bins` only (see step comment) so it stays ~10 min.
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
@@ -105,6 +124,26 @@ jobs:
       - name: Workspace tests (macOS / Windows — full integration suite)
         if: runner.os != 'Linux'
         run: cargo test --workspace --exclude datasynth-server --all-targets
+      - name: Behavioral-fidelity smoke
+        run: cargo test -p datasynth-eval --test behavioral_smoke -- --test-threads=4
+      - name: Behavioral-fidelity noise floor
+        run: cargo test -p datasynth-eval --test behavioral_noise_floor -- --test-threads=4
+      - name: Behavioral-priors smoke (SP2)
+        run: cargo test -p datasynth-fingerprint --test behavioral_priors_smoke -- --test-threads=4
+      - name: Behavioral-priors backward-compat (SP2)
+        run: cargo test -p datasynth-fingerprint --test behavioral_priors_backward_compat -- --test-threads=4
+      - name: SP3 priors smoke
+        run: cargo test -p datasynth-generators --test sp3_priors_smoke -- --test-threads=4
+      - name: SP3 backward-compat
+        run: cargo test -p datasynth-generators --test sp3_backward_compat -- --test-threads=4
+      - name: v5.13 SP3.1 autocorr (conditional_iet)
+        run: cargo test -p datasynth-core --lib distributions::conditional_iet -- --test-threads=4
+      - name: v5.13 SP3.2 multi-segment (source_active_window)
+        run: cargo test -p datasynth-core --lib distributions::source_active_window -- --test-threads=4
+      - name: v5.13 smoke
+        run: cargo test -p datasynth-generators --test v5_13_smoke -- --test-threads=4
+      - name: v5.14 smoke (SP3.5 hardening)
+        run: cargo test -p datasynth-runtime --test v5_14_smoke -- --test-threads=4 --nocapture
 
   msrv:
     name: MSRV (1.88)

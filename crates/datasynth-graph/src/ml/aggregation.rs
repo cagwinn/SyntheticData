@@ -335,7 +335,6 @@ pub fn aggregate_node_features(
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use crate::test_helpers::create_aggregation_test_graph;

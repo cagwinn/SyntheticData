@@ -67,7 +67,6 @@ pub mod unusual_item_generator;
 mod workpaper_generator;
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 pub(crate) mod test_helpers;
 
 pub use engagement_generator::*;

@@ -2,15 +2,15 @@
 
 > **Status:** Draft
 > **Date:** 2026-03-22
-> **Scope:** Comprehensive architecture for blending real client data with synthetic ground truth across all knowledge layers to create a unified knowledge system for audit analytics
+> **Scope:** Comprehensive architecture for blending client data with synthetic ground truth across all knowledge layers to create a unified knowledge system for audit analytics
 
 ---
 
 ## 1. Executive Summary
 
-DataSynth generates reference knowledge graphs — fully provenanced synthetic datasets where every record traces to a known generative process. This document describes the architecture for **integrating real client data** with the synthetic ground truth to create a **comprehensive knowledge system** that surfaces facts for internal and external audits.
+DataSynth generates reference knowledge graphs — fully provenanced synthetic datasets where every record traces to a known generative process. This document describes the architecture for **integrating client data** with the synthetic ground truth to create a **comprehensive knowledge system** that surfaces facts for internal and external audits.
 
-The core insight: synthetic data establishes the **expected baseline** (what normal looks like), real client data represents the **observed reality** (what actually happened), and the **gap between them** is where audit value lives — anomalies, errors, fraud, compliance violations, and process inefficiencies all manifest as deviations from the expected baseline.
+The core insight: synthetic data establishes the **expected baseline** (what normal looks like), client data represents the **observed reality** (what actually happened), and the **gap between them** is where audit value lives — anomalies, errors, fraud, compliance violations, and process inefficiencies all manifest as deviations from the expected baseline.
 
 ### 1.1 The Four Integration Modes
 
@@ -93,7 +93,7 @@ When real data meets synthetic baseline:
 │  └────────────────────────────────────────────────────┘             │
 │                                                                     │
 ├──────────────────────┬──────────────────────────────────────────────┤
-│   Synthetic Ground   │          Real Client Data                    │
+│   Synthetic Ground   │          Client Data                    │
 │   Truth (DataSynth)  │          (Direct or Fingerprint)             │
 │                      │                                              │
 │  ┌────────────────┐  │  ┌────────────────┐  ┌──────────────────┐   │
@@ -110,7 +110,7 @@ When real data meets synthetic baseline:
 ### 3.2 Data Flow
 
 ```
-Real Client Data ──┐
+Client Data ──┐
                    ├──→ Schema Harmonizer ──→ Record Aligner ──→ Blending Engine
 Synthetic Ground ──┘                                               │
 Truth                                                              ├──→ Blended Dataset
@@ -128,12 +128,12 @@ This mode already exists in the codebase and serves as the privacy-preserving fo
 ### 4.1 Pipeline
 
 ```
-Real Client Data
+Client Data
   → FingerprintExtractor.extract()          # Privacy: ε-DP + k-anonymity
   → .dsf file (ZIP: schema, stats, correlations, rules, anomalies)
   → ConfigSynthesizer.synthesize_full()     # Produces ConfigPatch + CopulaGeneratorSpec
   → EnhancedOrchestrator::from_fingerprint()
-  → Synthetic data statistically matching real client
+  → Synthetic data statistically matching client
   → FidelityEvaluator.evaluate()            # KS, Wasserstein, JS divergence
   → AutoTuner.analyze()                     # Iterative refinement
 ```
@@ -216,7 +216,7 @@ pub enum DirectDataSource {
 
 ### 5.3 Schema Harmonization
 
-Real client data rarely matches the synthetic schema exactly. The `SchemaHarmonizer` resolves this:
+Client data rarely matches the synthetic schema exactly. The `SchemaHarmonizer` resolves this:
 
 ```
 Client Schema                          DataSynth Schema
@@ -329,13 +329,13 @@ integration:
 
 ## 6. Mode 3: Gap Analysis
 
-Gap analysis is the core audit value proposition. It compares real client data against the synthetic baseline across all three knowledge layers and produces actionable findings.
+Gap analysis is the core audit value proposition. It compares client data against the synthetic baseline across all three knowledge layers and produces actionable findings.
 
 ### 6.1 The Gap Analysis Pipeline
 
 ```
                     ┌──────────────────┐
-                    │  Real Client     │
+                    │  Client     │
                     │  Data            │
                     └────────┬─────────┘
                              │
@@ -1029,7 +1029,7 @@ Each iteration brings the synthetic baseline closer to the client's reality whil
 2. Graph export to PyTorch Geometric for GNN training
 3. Model trained on labeled synthetic data
 4. Model validated on held-out synthetic data (known ground truth)
-5. Model applied to real client data — findings are scored deviations from the synthetic baseline, not predictions in a vacuum
+5. Model applied to client data — findings are scored deviations from the synthetic baseline, not predictions in a vacuum
 
 **Value**: The model's predictions are anchored to the synthetic ground truth. A flagged transaction is not just "unusual" — it deviates from a specific, reproducible expectation in a specific knowledge layer.
 
@@ -1116,7 +1116,7 @@ This leverages the existing counterfactual simulation engine (`CausalDAG`, `Inte
 
 ## 15. Summary
 
-The real–synthetic integration architecture transforms DataSynth from a synthetic data generator into a **comprehensive knowledge system** for enterprise audit analytics. By establishing the synthetic ground truth as an expected baseline and measuring real client data against it across all three knowledge layers, every deviation becomes a measurable, traceable, reproducible audit finding.
+The real–synthetic integration architecture transforms DataSynth from a synthetic data generator into a **comprehensive knowledge system** for enterprise audit analytics. By establishing the synthetic ground truth as an expected baseline and measuring client data against it across all three knowledge layers, every deviation becomes a measurable, traceable, reproducible audit finding.
 
 | Capability | Before Integration | After Integration |
 |-----------|-------------------|-------------------|

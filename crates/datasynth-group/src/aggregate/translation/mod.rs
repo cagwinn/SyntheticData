@@ -11,7 +11,7 @@
 //! Subsequent tasks in Chunk 6 add per-entity translation
 //! (Task 6.2), CTA computation and rollforward (Task 6.3), the
 //! translation worksheet emission (Task 6.4), and an end-to-end
-//! Mini-Nestlé round-trip (Task 6.5).
+//! Mini-Acme round-trip (Task 6.5).
 //!
 //! # IAS 21 contract recap
 //!

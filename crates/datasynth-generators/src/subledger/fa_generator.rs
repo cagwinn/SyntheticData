@@ -249,11 +249,12 @@ impl FAGenerator {
     }
 
     fn generate_acquisition_je(&self, asset: &FixedAssetRecord) -> JournalEntry {
+        let header_text = format!("Asset Acquisition {}", asset.asset_number);
         let mut je = JournalEntry::new_simple(
             format!("JE-ACQ-{}", asset.asset_number),
             asset.company_code.clone(),
             asset.acquisition_date,
-            format!("Asset Acquisition {}", asset.asset_number),
+            header_text.clone(),
         );
 
         // Debit Fixed Asset
@@ -265,6 +266,7 @@ impl FAGenerator {
             profit_center: asset.profit_center.clone(),
             reference: Some(asset.asset_number.clone()),
             text: Some(asset.description.clone()),
+            line_text: Some(header_text.clone()),
             quantity: Some(dec!(1)),
             unit: Some("EA".to_string()),
             ..Default::default()
@@ -276,6 +278,7 @@ impl FAGenerator {
             gl_account: asset.account_determination.clearing_account.clone(),
             credit_amount: asset.acquisition_cost,
             reference: Some(asset.asset_number.clone()),
+            line_text: Some(header_text),
             ..Default::default()
         });
 
@@ -288,11 +291,12 @@ impl FAGenerator {
         entry: &DepreciationEntry,
         posting_date: NaiveDate,
     ) -> JournalEntry {
+        let header_text = format!("Depreciation {}", asset.asset_number);
         let mut je = JournalEntry::new_simple(
             format!("JE-DEP-{}", asset.asset_number),
             asset.company_code.clone(),
             posting_date,
-            format!("Depreciation {}", asset.asset_number),
+            header_text.clone(),
         );
 
         // Debit Depreciation Expense
@@ -303,6 +307,7 @@ impl FAGenerator {
             cost_center: asset.cost_center.clone(),
             profit_center: asset.profit_center.clone(),
             reference: Some(asset.asset_number.clone()),
+            line_text: Some(header_text.clone()),
             ..Default::default()
         });
 
@@ -312,6 +317,7 @@ impl FAGenerator {
             gl_account: entry.accum_depr_account.clone(),
             credit_amount: entry.depreciation_amount,
             reference: Some(asset.asset_number.clone()),
+            line_text: Some(header_text),
             ..Default::default()
         });
 
@@ -323,11 +329,12 @@ impl FAGenerator {
         asset: &FixedAssetRecord,
         disposal: &AssetDisposal,
     ) -> JournalEntry {
+        let header_text = format!("Asset Disposal {}", asset.asset_number);
         let mut je = JournalEntry::new_simple(
             format!("JE-{}", disposal.disposal_id),
             asset.company_code.clone(),
             disposal.disposal_date,
-            format!("Asset Disposal {}", asset.asset_number),
+            header_text.clone(),
         );
 
         let mut line_num = 1;
@@ -339,6 +346,7 @@ impl FAGenerator {
                 gl_account: cash_accounts::OPERATING_CASH.to_string(),
                 debit_amount: disposal.sale_proceeds,
                 reference: Some(disposal.disposal_id.clone()),
+                line_text: Some(header_text.clone()),
                 ..Default::default()
             });
             line_num += 1;
@@ -353,6 +361,7 @@ impl FAGenerator {
                 .clone(),
             debit_amount: disposal.accumulated_depreciation,
             reference: Some(disposal.disposal_id.clone()),
+            line_text: Some(header_text.clone()),
             ..Default::default()
         });
         line_num += 1;
@@ -366,6 +375,7 @@ impl FAGenerator {
                 cost_center: asset.cost_center.clone(),
                 profit_center: asset.profit_center.clone(),
                 reference: Some(disposal.disposal_id.clone()),
+                line_text: Some(header_text.clone()),
                 ..Default::default()
             });
             line_num += 1;
@@ -377,6 +387,7 @@ impl FAGenerator {
             gl_account: asset.account_determination.acquisition_account.clone(),
             credit_amount: asset.acquisition_cost,
             reference: Some(disposal.disposal_id.clone()),
+            line_text: Some(header_text.clone()),
             ..Default::default()
         });
         line_num += 1;
@@ -390,6 +401,7 @@ impl FAGenerator {
                 cost_center: asset.cost_center.clone(),
                 profit_center: asset.profit_center.clone(),
                 reference: Some(disposal.disposal_id.clone()),
+                line_text: Some(header_text),
                 ..Default::default()
             });
         }
@@ -399,7 +411,6 @@ impl FAGenerator {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use datasynth_core::models::subledger::fa::DepreciationRunStatus;

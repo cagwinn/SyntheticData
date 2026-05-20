@@ -10,7 +10,7 @@
 //! `datasynth-group` keeps the layering intact: the injector reaches *down*
 //! to `datasynth-core::models::journal_entry`, never *up*.  The
 //! orchestrator in `datasynth-runtime` consumes the output through the
-//! opaque [`crate::shard_context::ShardContext`]-equivalent surface
+//! opaque `crate::shard_context::ShardContext`-equivalent surface
 //! ([`datasynth_runtime::ShardContext`]) — no group-crate types leak
 //! across that boundary.
 //!
@@ -93,7 +93,7 @@ pub fn seller_accounts(t: IcTransactionType) -> (&'static str, &'static str) {
 ///
 /// Accounts match the constants in
 /// [`datasynth_core::accounts::control_accounts`],
-/// [`datasynth_core::accounts::cogs_accounts`], and
+/// `datasynth_core::accounts::cogs_accounts`, and
 /// [`datasynth_core::accounts::expense_accounts`].
 pub fn buyer_accounts(t: IcTransactionType) -> (&'static str, &'static str) {
     match t {

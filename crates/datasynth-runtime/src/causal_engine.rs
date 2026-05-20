@@ -522,7 +522,6 @@ impl<'a> CausalPropagationEngine<'a> {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use datasynth_core::causal_dag::{CausalEdge, CausalNode, NodeCategory, TransferFunction};

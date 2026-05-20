@@ -443,7 +443,6 @@ fn winsorize_values(values: &mut [f64], percentile: f64) -> (usize, usize) {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

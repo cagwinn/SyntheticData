@@ -288,7 +288,7 @@ impl NciMeasurement {
     /// Under `Proportionate`: `total_nci = nci_share_net_assets`.
     /// Under `FullGoodwill`: `total_nci = acquisition_date_fair_value`
     /// (caller's responsibility to roll forward across periods using
-    /// the [`crate::aggregate::nci::compute_nci_rollforward`] path in
+    /// the `crate::aggregate::nci::compute_nci_rollforward` path in
     /// `datasynth-group`).  When `FullGoodwill` is requested without
     /// a fair value, falls back to the proportionate calculation and
     /// emits a `tracing::warn!`.
@@ -336,7 +336,6 @@ impl NciMeasurement {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use rust_decimal_macros::dec;

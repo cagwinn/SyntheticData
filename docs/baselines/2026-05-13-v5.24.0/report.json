@@ -1,0 +1,331 @@
+{
+  "profile": "gl-source-tp",
+  "generator_id": "datasynth",
+  "generator_version": "5.10.0",
+  "seed": 42,
+  "generated_at": "2026-05-13T17:01:20.311387870Z",
+  "real_corpus": {
+    "path": "(in-memory)",
+    "n_rows": 1397662,
+    "n_entities_primary": 24,
+    "n_entities_secondary": 39,
+    "period_start": "2020-12-01",
+    "period_end": "2023-01-16"
+  },
+  "synthetic": {
+    "path": "(in-memory)",
+    "n_rows": 93940,
+    "n_entities_primary": 26,
+    "n_entities_secondary": 123,
+    "period_start": "2023-12-19",
+    "period_end": "2025-02-13"
+  },
+  "noise_floor": {
+    "p1_ietd_w1_days": 0.0002923011779785156,
+    "p1_autocorr_gap": 0.0030675579962894453,
+    "p2_active_lifetime_w1": 22.473735332489014,
+    "p2_burst_len_by_threshold": {
+      "1": 21.90141487121582,
+      "3": 108.30209875106812,
+      "7": 209.25734663009644
+    },
+    "p2_je_line_burst_w1": 0.015594005584716797,
+    "p3_fanout_by_attr": {
+      "CostCenter": 0.25014257431030273,
+      "GLAccount": 0.12047767639160156,
+      "ProfitCenter": 0.30734920501708984,
+      "TradingPartner": 0.5742120742797852
+    },
+    "p3_clustering_gap": 0.006528546172587579,
+    "p3_triangle_log_ratio": 0.10577365344515267,
+    "p4_mean_gap": 0.06561264822134386
+  },
+  "per_entity": {
+    "Source": {
+      "entity_column": "Source",
+      "p1_ietd": {
+        "raw": 0.09375,
+        "baseline": 0.0002923011779785156,
+        "dr": 320.73083197389883,
+        "is_degenerate_baseline": false,
+        "is_volume_bounded": true
+      },
+      "p1_autocorr": {
+        "raw": 0.004705374862375281,
+        "baseline": 0.0030675579962894453,
+        "dr": 1.5339155341372381,
+        "is_degenerate_baseline": false,
+        "is_volume_bounded": false
+      },
+      "p2_active_lifetime": {
+        "raw": 335.84889125823975,
+        "baseline": 22.473735332489014,
+        "dr": 14.944061869978594,
+        "is_degenerate_baseline": false,
+        "is_volume_bounded": false
+      },
+      "p2_burst_len_by_threshold": {
+        "1": {
+          "raw": 909.4710206985474,
+          "baseline": 21.90141487121582,
+          "dr": 41.52567430215798,
+          "is_degenerate_baseline": false,
+          "is_volume_bounded": false
+        },
+        "3": {
+          "raw": 1736.1467199325562,
+          "baseline": 108.30209875106812,
+          "dr": 16.030591650149656,
+          "is_degenerate_baseline": false,
+          "is_volume_bounded": false
+        },
+        "7": {
+          "raw": 4303.311487197876,
+          "baseline": 209.25734663009644,
+          "dr": 20.564685333628102,
+          "is_degenerate_baseline": false,
+          "is_volume_bounded": true
+        }
+      },
+      "p2_je_line_burst": {
+        "raw": 2.6813926696777344,
+        "baseline": 0.015594005584716797,
+        "dr": 171.95021863437606,
+        "is_degenerate_baseline": false,
+        "is_volume_bounded": false
+      },
+      "p3_fanout_by_attr": {
+        "CostCenter": {
+          "raw": 1.6849346160888672,
+          "baseline": 0.25014257431030273,
+          "dr": 6.735897000878786,
+          "is_degenerate_baseline": false,
+          "is_volume_bounded": true
+        },
+        "GLAccount": {
+          "raw": 0.6099586486816406,
+          "baseline": 0.12047767639160156,
+          "dr": 5.062835431014011,
+          "is_degenerate_baseline": false,
+          "is_volume_bounded": true
+        },
+        "ProfitCenter": {
+          "raw": 2.405186653137207,
+          "baseline": 0.30734920501708984,
+          "dr": 7.825582802478598,
+          "is_degenerate_baseline": false,
+          "is_volume_bounded": true
+        },
+        "TradingPartner": {
+          "raw": 3.772627830505371,
+          "baseline": 0.5742120742797852,
+          "dr": 6.570094916999527,
+          "is_degenerate_baseline": false,
+          "is_volume_bounded": true
+        }
+      },
+      "p3_clustering": {
+        "raw": 0.2392400155098876,
+        "baseline": 0.006528546172587579,
+        "dr": 36.645220725315816,
+        "is_degenerate_baseline": false,
+        "is_volume_bounded": false
+      },
+      "p3_triangle_log_ratio": {
+        "raw": 1.2564638544001139,
+        "baseline": 0.10577365344515267,
+        "dr": 11.878797918724006,
+        "is_degenerate_baseline": false,
+        "is_volume_bounded": false
+      },
+      "p4_rule_results": [
+        {
+          "id": "R1",
+          "trigger_rate_real": 0.9166666666666666,
+          "trigger_rate_syn": 1.0,
+          "abs_gap": 0.08333333333333337
+        },
+        {
+          "id": "R2",
+          "trigger_rate_real": 0.25,
+          "trigger_rate_syn": 0.9230769230769231,
+          "abs_gap": 0.6730769230769231
+        },
+        {
+          "id": "R3",
+          "trigger_rate_real": 0.8333333333333334,
+          "trigger_rate_syn": 1.0,
+          "abs_gap": 0.16666666666666663
+        },
+        {
+          "id": "R4",
+          "trigger_rate_real": 0.5416666666666666,
+          "trigger_rate_syn": 1.0,
+          "abs_gap": 0.45833333333333337
+        },
+        {
+          "id": "R5",
+          "trigger_rate_real": 0.375,
+          "trigger_rate_syn": 0.5,
+          "abs_gap": 0.125
+        },
+        {
+          "id": "R6",
+          "trigger_rate_real": 0.875,
+          "trigger_rate_syn": 1.0,
+          "abs_gap": 0.125
+        },
+        {
+          "id": "R7",
+          "trigger_rate_real": 0.4583333333333333,
+          "trigger_rate_syn": 0.038461538461538464,
+          "abs_gap": 0.4198717948717948
+        },
+        {
+          "id": "R8",
+          "trigger_rate_real": 0.625,
+          "trigger_rate_syn": 0.0,
+          "abs_gap": 0.625
+        },
+        {
+          "id": "R9",
+          "trigger_rate_real": 0.0,
+          "trigger_rate_syn": 0.0,
+          "abs_gap": 0.0
+        },
+        {
+          "id": "R10",
+          "trigger_rate_real": 0.08333333333333333,
+          "trigger_rate_syn": 0.0,
+          "abs_gap": 0.08333333333333333
+        }
+      ],
+      "p4_mean_gap": {
+        "raw": 0.2759615384615385,
+        "baseline": 0.06561264822134386,
+        "dr": 4.2059198331788705,
+        "is_degenerate_baseline": false,
+        "is_volume_bounded": false
+      }
+    },
+    "TradingPartner": {
+      "entity_column": "TradingPartner",
+      "p1_ietd": {
+        "raw": 0.31464576721191406,
+        "baseline": 0.0,
+        "dr": 100.0,
+        "is_degenerate_baseline": true,
+        "is_volume_bounded": true
+      },
+      "p1_autocorr": {
+        "raw": 0.0285839027030598,
+        "baseline": 0.015598029558774817,
+        "dr": 1.8325329231716745,
+        "is_degenerate_baseline": false,
+        "is_volume_bounded": false
+      },
+      "p2_active_lifetime": {
+        "raw": 309.6118392944336,
+        "baseline": 15.472266674041748,
+        "dr": 20.010761565652043,
+        "is_degenerate_baseline": false,
+        "is_volume_bounded": false
+      },
+      "p2_burst_len_by_threshold": {
+        "1": {
+          "raw": 434.6986298561096,
+          "baseline": 56.94118118286133,
+          "dr": 7.634169520651763,
+          "is_degenerate_baseline": false,
+          "is_volume_bounded": false
+        },
+        "3": {
+          "raw": 729.5605320930481,
+          "baseline": 39.98919677734375,
+          "dr": 18.243940636146696,
+          "is_degenerate_baseline": false,
+          "is_volume_bounded": false
+        },
+        "7": {
+          "raw": 2018.701325416565,
+          "baseline": 56.23067378997803,
+          "dr": 35.90035810270439,
+          "is_degenerate_baseline": false,
+          "is_volume_bounded": true
+        }
+      },
+      "p2_je_line_burst": {
+        "raw": 2.6813926696777344,
+        "baseline": 0.015594005584716797,
+        "dr": 171.95021863437606,
+        "is_degenerate_baseline": false,
+        "is_volume_bounded": false
+      },
+      "p3_fanout_by_attr": {
+        "CostCenter": {
+          "raw": 3.0057458877563477,
+          "baseline": 0.15337324142456055,
+          "dr": 19.59758990446048,
+          "is_degenerate_baseline": false,
+          "is_volume_bounded": true
+        },
+        "GLAccount": {
+          "raw": 2.670351028442383,
+          "baseline": 0.09122180938720703,
+          "dr": 29.273164459034216,
+          "is_degenerate_baseline": false,
+          "is_volume_bounded": true
+        },
+        "ProfitCenter": {
+          "raw": 4.4179229736328125,
+          "baseline": 0.22885704040527344,
+          "dr": 19.304291298223973,
+          "is_degenerate_baseline": false,
+          "is_volume_bounded": true
+        },
+        "TradingPartner": {
+          "raw": 0.0,
+          "baseline": 0.0,
+          "dr": 0.0,
+          "is_degenerate_baseline": true,
+          "is_volume_bounded": true
+        }
+      },
+      "p3_clustering": {
+        "raw": 0.011317855519523579,
+        "baseline": 0.008236838443540728,
+        "dr": 1.3740533576203577,
+        "is_degenerate_baseline": false,
+        "is_volume_bounded": false
+      },
+      "p3_triangle_log_ratio": {
+        "raw": 1.7637044352363358,
+        "baseline": 0.025989056581437343,
+        "dr": 67.8633497029692,
+        "is_degenerate_baseline": false,
+        "is_volume_bounded": false
+      },
+      "p4_rule_results": [],
+      "p4_mean_gap": {
+        "raw": 0.0,
+        "baseline": 0.0,
+        "dr": 0.0,
+        "is_degenerate_baseline": true,
+        "is_volume_bounded": false
+      }
+    }
+  },
+  "composite_bf_score": 42.36755032127708,
+  "composite_bf_median": 18.243940636146696,
+  "n_metrics_aggregated": 25,
+  "n_metrics_excluded_degenerate": 3,
+  "composite_bf_volume_corrected": 39.17489512057374,
+  "n_metrics_excluded_volume": 10,
+  "intraday_structural": null,
+  "gates": {
+    "fail_if_dr_above": 1000.0,
+    "fail_if_composite_above": 1000.0,
+    "passed": true,
+    "failures": []
+  }
+}

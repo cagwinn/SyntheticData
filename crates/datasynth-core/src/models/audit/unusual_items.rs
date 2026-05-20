@@ -97,7 +97,7 @@ impl std::fmt::Display for UnusualSeverity {
 /// One flag is raised per journal entry that triggers at least one unusual
 /// dimension.  Multiple dimensions can be present in a single flag.
 ///
-/// The flag links back to the source journal entry via [`journal_entry_id`]
+/// The flag links back to the source journal entry via `journal_entry_id`
 /// (which corresponds to `JournalEntryHeader::document_id` as a string).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UnusualItemFlag {

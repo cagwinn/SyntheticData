@@ -8,7 +8,7 @@
 //!
 //! ## Determinism
 //!
-//! - When backed by [`MockLlmProvider`], the provider is fully
+//! - When backed by `MockLlmProvider`, the provider is fully
 //!   deterministic: same seed → same hash-keyed cache → same output.
 //! - When backed by a real HTTP provider, the first invocation for a
 //!   given (method, context) populates the cache; all subsequent
@@ -209,7 +209,6 @@ impl TemplateProvider for LlmTemplateProvider {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use crate::llm::MockLlmProvider;

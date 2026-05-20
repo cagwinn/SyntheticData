@@ -1,6 +1,6 @@
 //! Task 11.5 — order-independence of manifest building.
 //!
-//! Two cheap tests over the Mini-Nestlé fixture verify that the
+//! Two cheap tests over the Mini-Acme fixture verify that the
 //! [`build_manifest`] output is **equivalent in content** when the
 //! YAML's `ownership.entities` or `intercompany.relationships` are
 //! reordered.  Equivalence is asserted at the level of canonical
@@ -36,9 +36,9 @@ use datasynth_group::{build_manifest, GroupConfig};
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-fn load_mini_nestle() -> GroupConfig {
-    let yaml = include_str!("fixtures/mini_nestle.yaml");
-    serde_yaml::from_str(yaml).expect("mini_nestle.yaml must parse into GroupConfig")
+fn load_mini_acme() -> GroupConfig {
+    let yaml = include_str!("fixtures/mini_acme.yaml");
+    serde_yaml::from_str(yaml).expect("mini_acme.yaml must parse into GroupConfig")
 }
 
 /// Snapshot of the manifest fields whose **content** must be
@@ -177,7 +177,7 @@ struct SortableIcRelationship {
 /// See module-level rustdoc for the v5.0 content-equality contract.
 #[test]
 fn reorder_entities_byte_identical_manifest() {
-    let cfg1 = load_mini_nestle();
+    let cfg1 = load_mini_acme();
     let mut cfg2 = cfg1.clone();
     cfg2.ownership.entities.reverse();
 
@@ -189,12 +189,12 @@ fn reorder_entities_byte_identical_manifest() {
 
     // Sanity: the original manifest's `entities_by_code` and the
     // reversed-config manifest's snapshot should both list every
-    // Mini-Nestlé entity (the snapshot is a sorted-by-code projection,
+    // Mini-Acme entity (the snapshot is a sorted-by-code projection,
     // so reversal of input order can't change it).
     assert_eq!(
         s1.entities_by_code.len(),
         5,
-        "Mini-Nestlé fixture must yield 5 entities; got {}",
+        "Mini-Acme fixture must yield 5 entities; got {}",
         s1.entities_by_code.len(),
     );
 
@@ -223,7 +223,7 @@ fn reorder_entities_byte_identical_manifest() {
 /// `intercompany.relationships` instead.
 #[test]
 fn reorder_ic_relationships_byte_identical_manifest() {
-    let cfg1 = load_mini_nestle();
+    let cfg1 = load_mini_acme();
     let mut cfg2 = cfg1.clone();
     cfg2.intercompany.relationships.reverse();
 
@@ -237,7 +237,7 @@ fn reorder_ic_relationships_byte_identical_manifest() {
     // reorder property to be non-vacuous.
     assert!(
         !s1.ic_relationships_by_id.is_empty(),
-        "fixture sanity: Mini-Nestlé must yield ≥ 1 IC relationship",
+        "fixture sanity: Mini-Acme must yield ≥ 1 IC relationship",
     );
 
     // The set of IC relationships keyed by id must match.  Note: the
@@ -260,20 +260,20 @@ fn reorder_ic_relationships_byte_identical_manifest() {
     assert_eq!(s1, s2);
 }
 
-/// Sanity check: the Mini-Nestlé fixture should produce a non-empty
+/// Sanity check: the Mini-Acme fixture should produce a non-empty
 /// IC relationship set and exactly 5 entities — guards the property
 /// tests above against silently passing on an empty fixture.
 #[test]
 fn fixture_sanity() {
-    let cfg = load_mini_nestle();
-    let manifest = build_manifest(&cfg).expect("Mini-Nestlé must build a manifest");
+    let cfg = load_mini_acme();
+    let manifest = build_manifest(&cfg).expect("Mini-Acme must build a manifest");
     assert_eq!(
         manifest.ownership_graph.entities.len(),
         5,
-        "fixture sanity: Mini-Nestlé must have 5 entities",
+        "fixture sanity: Mini-Acme must have 5 entities",
     );
     assert!(
         !manifest.ic_relationships.is_empty(),
-        "fixture sanity: Mini-Nestlé must have ≥ 1 IC relationship",
+        "fixture sanity: Mini-Acme must have ≥ 1 IC relationship",
     );
 }

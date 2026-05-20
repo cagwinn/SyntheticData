@@ -6,7 +6,7 @@
 //! that drive `EnhancedOrchestrator` end-to-end via `group shard`,
 //! `group aggregate`, `group generate`, or auto-detected single-entity
 //! generation are gated behind `#[ignore]` per the v5.0 memory-discipline
-//! rules — each Mini-Nestlé entity peaks at ~17 GiB RSS so running the
+//! rules — each Mini-Acme entity peaks at ~17 GiB RSS so running the
 //! aggregate suite from `cargo test -p datasynth-cli` would OOM a
 //! workstation.
 //!
@@ -34,7 +34,7 @@ fn synth_data_bin() -> Command {
     cmd
 }
 
-/// Minimal-but-valid Mini-Nestlé-shaped GroupConfig — single CHF
+/// Minimal-but-valid Mini-Acme-shaped GroupConfig — single CHF
 /// presentation entity, no IC relationships, no generated blocks.  Keeps
 /// the manifest cheap (no expanded entity blocks, no FX rates required
 /// since presentation==functional, no ownership graph beyond the parent)

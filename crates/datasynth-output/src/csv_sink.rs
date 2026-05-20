@@ -94,7 +94,8 @@ impl CsvSink {
         }
 
         let header = "document_id,company_code,fiscal_year,fiscal_period,posting_date,\
-            document_type,currency,source,line_number,gl_account,debit_amount,credit_amount\n";
+            document_type,currency,source,line_number,gl_account,debit_amount,credit_amount,\
+            trading_partner,fraud_type,anomaly_type\n";
         let bytes = header.as_bytes();
         self.writer.write_all(bytes)?;
         self.bytes_written += bytes.len() as u64;
@@ -121,11 +122,30 @@ impl Sink for CsvSink {
         // Write directly to BufWriter using write!() — no intermediate String allocation.
         // This is the Phase 3 optimization: format!() allocated a new String per row,
         // while write!() formats directly into the BufWriter's internal buffer.
+        // SP3.6 — emit canonical SAP source code when priors are loaded;
+        // fall back to the TransactionSource debug label otherwise.
+        let source_label: std::borrow::Cow<str> = match &item.header.sap_source_code {
+            Some(code) => std::borrow::Cow::Borrowed(code.as_str()),
+            None => std::borrow::Cow::Owned(format!("{:?}", item.header.source)),
+        };
+        // v5.17.0 — fraud_type and anomaly_type category columns (schema parity
+        // with output_writer::write_journal_entries_csv).
+        let fraud_type_str = item
+            .header
+            .fraud_type
+            .map(|ft| format!("{ft:?}"))
+            .unwrap_or_default();
+        let anomaly_type_str = item
+            .header
+            .anomaly_type
+            .as_deref()
+            .unwrap_or("")
+            .to_string();
         for line in &item.lines {
             let bytes_before = self.bytes_written;
             writeln!(
                 self.writer,
-                "{},{},{},{},{},{},{},{:?},{},{},{},{}",
+                "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}",
                 item.header.document_id,
                 item.header.company_code,
                 item.header.fiscal_year,
@@ -133,11 +153,14 @@ impl Sink for CsvSink {
                 item.header.posting_date,
                 item.header.document_type,
                 item.header.currency,
-                item.header.source,
+                source_label,
                 line.line_number,
                 line.gl_account,
                 line.debit_amount,
                 line.credit_amount,
+                line.trading_partner.as_deref().unwrap_or(""),
+                fraud_type_str,
+                anomaly_type_str,
             )?;
             // Estimate bytes written (exact tracking would require a counting writer)
             let estimated_bytes = 100u64; // conservative estimate per line
@@ -638,5 +661,160 @@ impl Sink for OnAccountPaymentCsvSink {
 
     fn items_written(&self) -> u64 {
         self.items_written
+    }
+}
+
+// ============================================================================
+// Tests
+// ============================================================================
+
+#[cfg(test)]
+mod tests {
+    use datasynth_core::models::{JournalEntry, JournalEntryHeader, JournalEntryLine};
+    use datasynth_core::traits::Sink;
+    use rust_decimal_macros::dec;
+
+    /// Build a minimal two-line JournalEntry: line 1 has trading_partner=Some("VENDOR_A"),
+    /// line 2 has trading_partner=None.
+    fn make_je_with_trading_partner() -> JournalEntry {
+        use chrono::NaiveDate;
+        let posting_date = NaiveDate::from_ymd_opt(2024, 1, 15).unwrap();
+        let header = JournalEntryHeader::new("US10".to_string(), posting_date);
+        let mut je = JournalEntry::new(header);
+
+        let mut line1 =
+            JournalEntryLine::debit(je.header.document_id, 1, "1000".to_string(), dec!(500.00));
+        line1.trading_partner = Some("VENDOR_A".to_string());
+
+        let line2 =
+            JournalEntryLine::credit(je.header.document_id, 2, "2000".to_string(), dec!(500.00));
+        // line2.trading_partner stays None
+
+        je.lines.push(line1);
+        je.lines.push(line2);
+        je
+    }
+
+    /// Build a JE with fraud_type = DuplicatePayment for category-column tests.
+    fn make_je_with_fraud_type() -> JournalEntry {
+        use chrono::NaiveDate;
+        use datasynth_core::models::FraudType;
+        let posting_date = NaiveDate::from_ymd_opt(2024, 6, 1).unwrap();
+        let mut header = JournalEntryHeader::new("FR10".to_string(), posting_date);
+        header.is_fraud = true;
+        header.fraud_type = Some(FraudType::DuplicatePayment);
+        let mut je = JournalEntry::new(header);
+        let line1 =
+            JournalEntryLine::debit(je.header.document_id, 1, "2000".to_string(), dec!(200.00));
+        let line2 =
+            JournalEntryLine::credit(je.header.document_id, 2, "1000".to_string(), dec!(200.00));
+        je.lines.push(line1);
+        je.lines.push(line2);
+        je
+    }
+
+    #[test]
+    fn csv_writer_includes_trading_partner_column() {
+        let tmp = tempfile::NamedTempFile::new().unwrap();
+        let path = tmp.path().to_path_buf();
+
+        let mut sink = super::CsvSink::new(path.clone()).unwrap();
+        sink.write(make_je_with_trading_partner()).unwrap();
+        sink.flush().unwrap();
+
+        let contents = std::fs::read_to_string(&path).unwrap();
+        let mut lines = contents.lines();
+
+        // Header must include trading_partner column.
+        let header = lines.next().expect("no header line");
+        assert!(
+            header.contains("trading_partner"),
+            "header missing trading_partner column; got: {header}"
+        );
+        // v5.17.0 — header must also include fraud_type and anomaly_type.
+        assert!(
+            header.contains("fraud_type"),
+            "header missing fraud_type column; got: {header}"
+        );
+        assert!(
+            header.contains("anomaly_type"),
+            "header missing anomaly_type column; got: {header}"
+        );
+
+        // First data row (debit line): trading_partner=VENDOR_A, fraud_type=empty, anomaly_type=empty.
+        let row1 = lines.next().expect("no first data row");
+        assert!(
+            row1.contains(",VENDOR_A,"),
+            "expected row1 to contain ',VENDOR_A,'; got: {row1}"
+        );
+        // Row ends with ",,": trading_partner=VENDOR_A, fraud_type=empty, anomaly_type=empty.
+        assert!(
+            row1.ends_with("VENDOR_A,,"),
+            "expected row1 to end with 'VENDOR_A,,'; got: {row1}"
+        );
+
+        // Second data row (credit line): trading_partner=empty, both category cols empty → ends ",,".
+        let row2 = lines.next().expect("no second data row");
+        assert!(
+            row2.ends_with(",,"),
+            "expected row2 to end with ',,' (empty trading_partner, fraud_type, anomaly_type); got: {row2}"
+        );
+    }
+
+    /// v5.17.0 — fraud_type column in CsvSink streaming writer emits Debug variant name.
+    #[test]
+    fn csv_sink_fraud_type_column_populated() {
+        let tmp = tempfile::NamedTempFile::new().unwrap();
+        let path = tmp.path().to_path_buf();
+
+        let mut sink = super::CsvSink::new(path.clone()).unwrap();
+        sink.write(make_je_with_fraud_type()).unwrap();
+        sink.flush().unwrap();
+
+        let contents = std::fs::read_to_string(&path).unwrap();
+        let mut lines = contents.lines();
+        let _header = lines.next().expect("no header");
+        let row1 = lines.next().expect("no data row");
+
+        // fraud_type column must contain "DuplicatePayment".
+        assert!(
+            row1.contains("DuplicatePayment"),
+            "expected 'DuplicatePayment' in fraud_type column; got: {row1}"
+        );
+    }
+
+    /// v5.17.0 — fraud_type and anomaly_type columns are empty strings when None.
+    #[test]
+    fn csv_sink_fraud_type_none_is_empty() {
+        let tmp = tempfile::NamedTempFile::new().unwrap();
+        let path = tmp.path().to_path_buf();
+
+        let mut sink = super::CsvSink::new(path.clone()).unwrap();
+        sink.write(make_je_with_trading_partner()).unwrap();
+        sink.flush().unwrap();
+
+        let contents = std::fs::read_to_string(&path).unwrap();
+        let mut lines = contents.lines();
+        let _header = lines.next().expect("no header");
+        let row1 = lines.next().expect("no data row");
+
+        // Row has 15 columns; cols 14 and 15 (fraud_type, anomaly_type) must be empty.
+        let cols: Vec<&str> = row1.split(',').collect();
+        assert_eq!(
+            cols.len(),
+            15,
+            "expected 15 columns in CsvSink row, got {}; row: {row1}",
+            cols.len()
+        );
+        assert!(
+            cols[13].is_empty(),
+            "expected empty fraud_type (col 14); got: {}",
+            cols[13]
+        );
+        assert!(
+            cols[14].is_empty(),
+            "expected empty anomaly_type (col 15); got: {}",
+            cols[14]
+        );
     }
 }

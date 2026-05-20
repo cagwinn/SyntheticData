@@ -553,7 +553,6 @@ fn estimate_cardinality(values: &[&str]) -> u64 {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

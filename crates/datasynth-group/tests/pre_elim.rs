@@ -3,16 +3,16 @@
 //! These tests assemble hand-rolled `TrialBalance` fixtures with
 //! `TrialBalance::new` + `add_line` (mirroring `tb_loader.rs::balanced_tb`)
 //! so each case stays a few KB of resident memory.  The manifest is
-//! loaded from `mini_nestle.yaml` because building one by hand would
+//! loaded from `mini_acme.yaml` because building one by hand would
 //! require materialising every sub-plan (`ChartOfAccountsMaster`,
 //! `FxRateMaster`, `AuditEngagementPlan`, `TaxGroupPlan`,
-//! `ShardPlan`) — `mini_nestle.yaml` already has the entity mix we
+//! `ShardPlan`) — `mini_acme.yaml` already has the entity mix we
 //! need (Parent + 3×Full + 1×EquityMethod) and we mutate
 //! `consolidation_method` on individual entries when we need a
 //! different shape (e.g. Proportional for the mixed-methods case).
 //!
 //! Currency handling: every contributing TB in these tests is in
-//! CHF, matching `mini_nestle.yaml::presentation_currency`.  The
+//! CHF, matching `mini_acme.yaml::presentation_currency`.  The
 //! v5.0 contract (Chunk 6 will lift it) is that the aggregator
 //! refuses to mix currencies — tested explicitly in
 //! `errors_on_currency_mismatch`.
@@ -36,16 +36,16 @@ use datasynth_group::{aggregate_pre_elimination, build_manifest, GroupConfig};
 
 // ── Fixture builders ──────────────────────────────────────────────────────────
 
-/// Load the mini_nestle manifest — 5 entities, 1 Parent + 3 Full +
+/// Load the mini_acme manifest — 5 entities, 1 Parent + 3 Full +
 /// 1 EquityMethod, presentation currency CHF.
-fn load_mini_nestle_manifest() -> GroupManifest {
-    let yaml = include_str!("fixtures/mini_nestle.yaml");
+fn load_mini_acme_manifest() -> GroupManifest {
+    let yaml = include_str!("fixtures/mini_acme.yaml");
     let cfg: GroupConfig =
-        serde_yaml::from_str(yaml).expect("mini_nestle.yaml must parse into GroupConfig");
-    build_manifest(&cfg).expect("mini_nestle.yaml must build a manifest")
+        serde_yaml::from_str(yaml).expect("mini_acme.yaml must parse into GroupConfig");
+    build_manifest(&cfg).expect("mini_acme.yaml must build a manifest")
 }
 
-/// Like [`load_mini_nestle_manifest`] but mutates the consolidation
+/// Like [`load_mini_acme_manifest`] but mutates the consolidation
 /// method on the named entity to `method` *before* `build_manifest`
 /// runs, so the produced `ManifestEntity` carries that method.
 ///
@@ -55,9 +55,9 @@ fn load_manifest_with_method_override(
     entity_code: &str,
     method: ConsolidationMethod,
 ) -> GroupManifest {
-    let yaml = include_str!("fixtures/mini_nestle.yaml");
+    let yaml = include_str!("fixtures/mini_acme.yaml");
     let mut cfg: GroupConfig =
-        serde_yaml::from_str(yaml).expect("mini_nestle.yaml must parse into GroupConfig");
+        serde_yaml::from_str(yaml).expect("mini_acme.yaml must parse into GroupConfig");
     let entry = cfg
         .ownership
         .entities
@@ -65,7 +65,7 @@ fn load_manifest_with_method_override(
         .find(|e| e.code == entity_code)
         .unwrap_or_else(|| panic!("fixture must contain entity {entity_code}"));
     entry.consolidation_method = method;
-    build_manifest(&cfg).expect("mutated mini_nestle must still build a manifest")
+    build_manifest(&cfg).expect("mutated mini_acme must still build a manifest")
 }
 
 /// Build a 2-line balanced TB in `currency`: one debit line on
@@ -124,35 +124,35 @@ fn build_balanced_tb(
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
-/// Happy path: NESTLE_SA (Parent) + NESTLE_USA (Full) — both in CHF.
+/// Happy path: ACME_SA (Parent) + ACME_USA (Full) — both in CHF.
 /// The aggregator must sum per-account totals, record both as
 /// contributing entities, and end up with `total_debits ==
 /// total_credits` because both inputs are individually balanced.
 #[test]
 fn aggregates_two_full_entities_correctly() {
-    let manifest = load_mini_nestle_manifest();
+    let manifest = load_mini_acme_manifest();
 
     // SA posts 1100 (Cash) DR 10_000 / 3100 (Common Stock) CR 10_000
     // USA posts 1100 (Cash) DR 25_000 / 3100 (Common Stock) CR 25_000
     // Combined: 1100 DR 35_000, 3100 CR 35_000.
     let tbs = vec![
         (
-            "NESTLE_SA".to_string(),
-            build_balanced_tb("NESTLE_SA", "CHF", "1100", "3100", dec!(10000)),
+            "ACME_SA".to_string(),
+            build_balanced_tb("ACME_SA", "CHF", "1100", "3100", dec!(10000)),
         ),
         (
-            "NESTLE_USA".to_string(),
-            build_balanced_tb("NESTLE_USA", "CHF", "1100", "3100", dec!(25000)),
+            "ACME_USA".to_string(),
+            build_balanced_tb("ACME_USA", "CHF", "1100", "3100", dec!(25000)),
         ),
     ];
 
     let agg = aggregate_pre_elimination(&manifest, &tbs).expect("happy path must succeed");
 
-    assert_eq!(agg.group_id, "MINI_NESTLE_2024_Q1");
+    assert_eq!(agg.group_id, "MINI_ACME_2024_Q1");
     assert_eq!(agg.currency, "CHF");
     assert_eq!(
         agg.contributing_entities,
-        vec!["NESTLE_SA".to_string(), "NESTLE_USA".to_string()],
+        vec!["ACME_SA".to_string(), "ACME_USA".to_string()],
         "contributing entities must be sorted lexicographically"
     );
     assert!(
@@ -185,29 +185,28 @@ fn aggregates_two_full_entities_correctly() {
 /// per-account math (covered by the happy-path test).
 #[test]
 fn defers_equity_method_and_proportional_entities() {
-    // Flip NESTLE_BR from Full to Proportional so the fixture has one
+    // Flip ACME_BR from Full to Proportional so the fixture has one
     // of each special method to defer.
-    let manifest =
-        load_manifest_with_method_override("NESTLE_BR", ConsolidationMethod::Proportional);
+    let manifest = load_manifest_with_method_override("ACME_BR", ConsolidationMethod::Proportional);
 
     let tbs = vec![
         (
-            "NESTLE_SA".to_string(),
-            build_balanced_tb("NESTLE_SA", "CHF", "1100", "3100", dec!(1000)),
+            "ACME_SA".to_string(),
+            build_balanced_tb("ACME_SA", "CHF", "1100", "3100", dec!(1000)),
         ),
         (
-            "NESTLE_USA".to_string(),
-            build_balanced_tb("NESTLE_USA", "CHF", "1100", "3100", dec!(2000)),
+            "ACME_USA".to_string(),
+            build_balanced_tb("ACME_USA", "CHF", "1100", "3100", dec!(2000)),
         ),
         // EquityMethod entity — must NOT be summed.
         (
-            "NESTLE_JV".to_string(),
-            build_balanced_tb("NESTLE_JV", "CHF", "1100", "3100", dec!(500)),
+            "ACME_JV".to_string(),
+            build_balanced_tb("ACME_JV", "CHF", "1100", "3100", dec!(500)),
         ),
         // Proportional entity (was Full) — must NOT be summed.
         (
-            "NESTLE_BR".to_string(),
-            build_balanced_tb("NESTLE_BR", "CHF", "1100", "3100", dec!(750)),
+            "ACME_BR".to_string(),
+            build_balanced_tb("ACME_BR", "CHF", "1100", "3100", dec!(750)),
         ),
     ];
 
@@ -216,7 +215,7 @@ fn defers_equity_method_and_proportional_entities() {
     // Only the two Parent/Full entities contributed.
     assert_eq!(
         agg.contributing_entities,
-        vec!["NESTLE_SA".to_string(), "NESTLE_USA".to_string()],
+        vec!["ACME_SA".to_string(), "ACME_USA".to_string()],
         "only Parent + Full entities should contribute"
     );
     assert_eq!(
@@ -226,12 +225,12 @@ fn defers_equity_method_and_proportional_entities() {
     );
 
     // Deferred list is sorted lexicographically.
-    assert_eq!(agg.deferred_entities[0].entity_code, "NESTLE_BR");
+    assert_eq!(agg.deferred_entities[0].entity_code, "ACME_BR");
     assert_eq!(
         agg.deferred_entities[0].method,
         ConsolidationMethod::Proportional
     );
-    assert_eq!(agg.deferred_entities[1].entity_code, "NESTLE_JV");
+    assert_eq!(agg.deferred_entities[1].entity_code, "ACME_JV");
     assert_eq!(
         agg.deferred_entities[1].method,
         ConsolidationMethod::EquityMethod
@@ -250,11 +249,11 @@ fn defers_equity_method_and_proportional_entities() {
 /// empty maps + zero totals (recovery / dry-run path).
 #[test]
 fn empty_input_returns_empty_aggregate() {
-    let manifest = load_mini_nestle_manifest();
+    let manifest = load_mini_acme_manifest();
 
     let agg = aggregate_pre_elimination(&manifest, &[]).expect("empty input must succeed");
 
-    assert_eq!(agg.group_id, "MINI_NESTLE_2024_Q1");
+    assert_eq!(agg.group_id, "MINI_ACME_2024_Q1");
     assert_eq!(agg.currency, "CHF");
     assert!(agg.account_totals.is_empty());
     assert!(agg.contributing_entities.is_empty());
@@ -269,7 +268,7 @@ fn empty_input_returns_empty_aggregate() {
 /// manifest.
 #[test]
 fn errors_on_unknown_entity() {
-    let manifest = load_mini_nestle_manifest();
+    let manifest = load_mini_acme_manifest();
 
     let tbs = vec![(
         "GHOST_ENTITY".to_string(),
@@ -298,17 +297,17 @@ fn errors_on_unknown_entity() {
 /// the wrong currency, and the expected currency.
 #[test]
 fn errors_on_currency_mismatch() {
-    let manifest = load_mini_nestle_manifest();
+    let manifest = load_mini_acme_manifest();
 
     let tbs = vec![
         (
-            "NESTLE_SA".to_string(),
-            build_balanced_tb("NESTLE_SA", "CHF", "1100", "3100", dec!(1000)),
+            "ACME_SA".to_string(),
+            build_balanced_tb("ACME_SA", "CHF", "1100", "3100", dec!(1000)),
         ),
         // EUR but manifest is CHF — must error.
         (
-            "NESTLE_DE".to_string(),
-            build_balanced_tb("NESTLE_DE", "EUR", "1100", "3100", dec!(2000)),
+            "ACME_DE".to_string(),
+            build_balanced_tb("ACME_DE", "EUR", "1100", "3100", dec!(2000)),
         ),
     ];
 
@@ -324,7 +323,7 @@ fn errors_on_currency_mismatch() {
     assert_eq!(result.contributing_entities.len(), 2);
     assert!(result
         .contributing_entities
-        .contains(&"NESTLE_DE".to_string()));
+        .contains(&"ACME_DE".to_string()));
 }
 
 /// Deterministic output: two calls with identical input must produce
@@ -333,29 +332,29 @@ fn errors_on_currency_mismatch() {
 /// raw bytes directly.
 #[test]
 fn deterministic_output_across_calls() {
-    let manifest = load_mini_nestle_manifest();
+    let manifest = load_mini_acme_manifest();
 
     // Build two identical input vecs — same construction, same order.
     // Then reverse the order on the second call to prove that the
     // aggregator's internal sorting cancels caller-side ordering.
     let tbs_a = vec![
         (
-            "NESTLE_USA".to_string(),
-            build_balanced_tb("NESTLE_USA", "CHF", "1100", "3100", dec!(2000)),
+            "ACME_USA".to_string(),
+            build_balanced_tb("ACME_USA", "CHF", "1100", "3100", dec!(2000)),
         ),
         (
-            "NESTLE_SA".to_string(),
-            build_balanced_tb("NESTLE_SA", "CHF", "1100", "3100", dec!(1000)),
+            "ACME_SA".to_string(),
+            build_balanced_tb("ACME_SA", "CHF", "1100", "3100", dec!(1000)),
         ),
     ];
     let tbs_b = vec![
         (
-            "NESTLE_SA".to_string(),
-            build_balanced_tb("NESTLE_SA", "CHF", "1100", "3100", dec!(1000)),
+            "ACME_SA".to_string(),
+            build_balanced_tb("ACME_SA", "CHF", "1100", "3100", dec!(1000)),
         ),
         (
-            "NESTLE_USA".to_string(),
-            build_balanced_tb("NESTLE_USA", "CHF", "1100", "3100", dec!(2000)),
+            "ACME_USA".to_string(),
+            build_balanced_tb("ACME_USA", "CHF", "1100", "3100", dec!(2000)),
         ),
     ];
 
@@ -379,9 +378,9 @@ fn deterministic_output_across_calls() {
 /// builder (Task 5.6) rely on.
 #[test]
 fn aggregated_tb_is_balanced_when_inputs_balanced() {
-    let manifest = load_mini_nestle_manifest();
+    let manifest = load_mini_acme_manifest();
 
-    let tbs: Vec<(String, TrialBalance)> = ["NESTLE_SA", "NESTLE_USA", "NESTLE_DE", "NESTLE_BR"]
+    let tbs: Vec<(String, TrialBalance)> = ["ACME_SA", "ACME_USA", "ACME_DE", "ACME_BR"]
         .iter()
         .enumerate()
         .map(|(i, code)| {
@@ -410,16 +409,16 @@ fn aggregated_tb_is_balanced_when_inputs_balanced() {
 }
 
 /// Sanity: the [`AggregatedTb::as_of_date`] mirrors the manifest's
-/// period end date — Mini-Nestlé is a Q1-2024 engagement, so the
+/// period end date — Mini-Acme is a Q1-2024 engagement, so the
 /// quarter end is 2024-03-31.
 #[test]
 fn as_of_date_mirrors_manifest_period_end() {
-    let manifest = load_mini_nestle_manifest();
+    let manifest = load_mini_acme_manifest();
     let agg = aggregate_pre_elimination(&manifest, &[]).expect("empty must succeed");
     assert_eq!(agg.as_of_date, manifest.period.end);
     assert_eq!(
         agg.as_of_date,
         NaiveDate::from_ymd_opt(2024, 3, 31).expect("valid date"),
-        "mini_nestle is Q1 2024 starting 2024-01-01 so end is 2024-03-31"
+        "mini_acme is Q1 2024 starting 2024-01-01 so end is 2024-03-31"
     );
 }

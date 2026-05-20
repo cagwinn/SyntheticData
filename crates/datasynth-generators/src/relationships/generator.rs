@@ -600,7 +600,6 @@ impl Default for RelationshipConfigBuilder {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

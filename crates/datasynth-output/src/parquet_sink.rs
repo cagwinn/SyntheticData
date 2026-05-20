@@ -282,7 +282,6 @@ impl Sink for ParquetSink {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use arrow::array::Array;

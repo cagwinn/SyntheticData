@@ -102,7 +102,7 @@ pub struct RiskAssessment {
     pub risk_score: f64,
 
     // === Display ===
-    /// Human-readable risk name (e.g. "Revenue Recognition Risk [High]")
+    /// Human-readable risk name (e.g. "Revenue Recognition Risk `High`")
     pub risk_name: String,
 
     // === Control Linkage ===
@@ -540,7 +540,6 @@ pub enum DetectionRisk {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

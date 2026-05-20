@@ -239,7 +239,6 @@ impl<'a> Drop for RunBudgetGuard<'a> {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use tempfile::NamedTempFile;

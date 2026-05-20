@@ -1,4 +1,4 @@
-#![deny(clippy::unwrap_used)]
+#![cfg_attr(not(test), deny(clippy::unwrap_used))]
 //! # synth-output
 //!
 //! Output sinks for CSV, Parquet, JSON, and streaming formats.
@@ -122,7 +122,6 @@ pub use tax_export::*;
 pub use treasury_export::*;
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod test_helpers;
 
 #[cfg(test)]
@@ -140,13 +139,10 @@ mod output_root_config_tests {
 
     #[test]
     fn per_entity_mode_routes_under_entities_code() {
-        let cfg = OutputRootConfig::per_entity("/tmp/out", "NESTLE_SA");
-        assert_eq!(
-            cfg.effective_dir(),
-            Path::new("/tmp/out/entities/NESTLE_SA")
-        );
+        let cfg = OutputRootConfig::per_entity("/tmp/out", "ACME_SA");
+        assert_eq!(cfg.effective_dir(), Path::new("/tmp/out/entities/ACME_SA"));
         assert!(cfg.per_entity_subtree);
-        assert_eq!(cfg.entity_code.as_deref(), Some("NESTLE_SA"));
+        assert_eq!(cfg.entity_code.as_deref(), Some("ACME_SA"));
     }
 
     #[test]

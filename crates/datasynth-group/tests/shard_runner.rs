@@ -1,7 +1,7 @@
 //! Task 4.3 — shard runner integration test (single entity).
 //!
 //! Drives [`datasynth_group::shard::run_shard`] with a manifest scoped down
-//! to a single entity (NESTLE_SA) to keep host memory bounded — the
+//! to a single entity (ACME_SA) to keep host memory bounded — the
 //! orchestrator's per-entity working set is on the order of hundreds of
 //! megabytes, so multi-entity tests in this file would risk OOM on the CI
 //! host.  Task 4.5 will add a multi-entity + IC-mirror test once the
@@ -9,13 +9,13 @@
 //!
 //! # Why scope the manifest down rather than pick a single-entity shard?
 //!
-//! The full mini_nestle fixture's `significant` profile contains three
-//! entities (NESTLE_SA, NESTLE_USA, NESTLE_DE), and the shard plan batches
+//! The full mini_acme fixture's `significant` profile contains three
+//! entities (ACME_SA, ACME_USA, ACME_DE), and the shard plan batches
 //! every entity in a profile into a single shard while the row budget is
 //! below the 10 B-row cap.  Calling `run_shard("S_SIG_0001")` against the
 //! unmodified fixture would therefore drive the orchestrator three times
 //! in one test process — a known OOM risk on the CI host.  We mutate the
-//! parsed [`GroupConfig`] to retain only NESTLE_SA and rebuild the manifest
+//! parsed [`GroupConfig`] to retain only ACME_SA and rebuild the manifest
 //! before testing so the resulting `S_SIG_0001` shard contains exactly one
 //! entity.
 //!
@@ -33,20 +33,20 @@ use datasynth_group::{build_manifest, GroupConfig};
 
 // ── Fixture helpers ───────────────────────────────────────────────────────────
 
-/// Load the full mini_nestle fixture, then trim it down to NESTLE_SA only.
+/// Load the full mini_acme fixture, then trim it down to ACME_SA only.
 ///
 /// Manipulating the parsed config (rather than maintaining a separate
 /// single-entity fixture) keeps this test in lockstep with the multi-entity
-/// fixture — every change to mini_nestle.yaml automatically flows through
+/// fixture — every change to mini_acme.yaml automatically flows through
 /// here, and we only have one place to keep up to date.
 fn load_single_entity_manifest() -> GroupManifest {
-    let yaml = include_str!("fixtures/mini_nestle.yaml");
+    let yaml = include_str!("fixtures/mini_acme.yaml");
     let mut cfg: GroupConfig =
-        serde_yaml::from_str(yaml).expect("mini_nestle.yaml must parse into GroupConfig");
+        serde_yaml::from_str(yaml).expect("mini_acme.yaml must parse into GroupConfig");
 
-    // Retain only NESTLE_SA — drop the other entities so the resulting
+    // Retain only ACME_SA — drop the other entities so the resulting
     // shard plan puts exactly one entity into S_SIG_0001.
-    cfg.ownership.entities.retain(|e| e.code == "NESTLE_SA");
+    cfg.ownership.entities.retain(|e| e.code == "ACME_SA");
 
     // Strip every IC relationship — both explicit pairs and patterns —
     // so the manifest builder doesn't reject references to dropped
@@ -57,7 +57,7 @@ fn load_single_entity_manifest() -> GroupManifest {
     // The fixture's `tax.pillar_two.jurisdictions: [CH, DE, US]` references
     // entities we just dropped — the manifest's tax-plan builder rejects
     // any jurisdiction that doesn't appear in some entity's country, so we
-    // narrow the list to just CH (the country of NESTLE_SA, the lone
+    // narrow the list to just CH (the country of ACME_SA, the lone
     // remaining entity).  The cbc_report and transfer_pricing branches
     // tolerate the trimmed entity list as-is.
     if let Some(p2) = cfg.tax.pillar_two.as_mut() {
@@ -71,7 +71,7 @@ fn load_single_entity_manifest() -> GroupManifest {
     // either, but the builder tolerates extra rate columns so we leave
     // them — exercising that tolerance in passing.
 
-    build_manifest(&cfg).expect("trimmed mini_nestle must still build a manifest")
+    build_manifest(&cfg).expect("trimmed mini_acme must still build a manifest")
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -88,8 +88,8 @@ fn load_single_entity_manifest() -> GroupManifest {
 /// # Why `#[ignore]`?
 ///
 /// Driving [`datasynth_runtime::EnhancedOrchestrator`] for a single
-/// `mini_nestle` entity (even after the manifest is trimmed to
-/// `NESTLE_SA` and IC relationships stripped) consumes ~17 GiB peak RSS
+/// `mini_acme` entity (even after the manifest is trimmed to
+/// `ACME_SA` and IC relationships stripped) consumes ~17 GiB peak RSS
 /// against the workstation's 32 GiB envelope and runs for 15+ minutes —
 /// it has triggered host OOMs twice during v5.0 development.  The
 /// runner's *wiring* is exercised by `run_shard_unknown_shard_id_errors`
@@ -109,13 +109,13 @@ fn run_shard_writes_per_entity_output_and_summary() {
     // The single retained entity must land in some shard — that's the one
     // we drive.  Looking it up from the manifest (rather than hard-coding
     // "S_SIG_0001") keeps the test resilient to shard-id format changes.
-    let nestle_sa = manifest
+    let acme_sa = manifest
         .ownership_graph
         .entities
         .iter()
-        .find(|e| e.code == "NESTLE_SA")
-        .expect("NESTLE_SA must remain after trimming");
-    let shard_id = nestle_sa.shard_id.clone();
+        .find(|e| e.code == "ACME_SA")
+        .expect("ACME_SA must remain after trimming");
+    let shard_id = acme_sa.shard_id.clone();
 
     let summary = run_shard(&manifest, &shard_id, out_dir).expect("run_shard must succeed");
 

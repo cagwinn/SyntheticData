@@ -21,7 +21,6 @@ tokio = { workspace = true }
 
 # Serialization
 serde = { workspace = true }
-serde_json = { workspace = true }
 
 # Date/Time
 chrono = { workspace = true }
@@ -36,8 +35,6 @@ smallvec = { workspace = true }
 uuid = { workspace = true }
 
 # Random
-rand = { workspace = true }
-rand_chacha = { workspace = true }
 
 # Error handling
 thiserror = { workspace = true }
@@ -49,7 +46,6 @@ tracing = { workspace = true }
 reqwest = { workspace = true }
 
 # Testing utilities
-tempfile = { workspace = true }
 
 [dev-dependencies]
 proptest = { workspace = true }

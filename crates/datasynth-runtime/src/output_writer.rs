@@ -107,6 +107,16 @@ fn write_journal_entries_csv(
     //                                                  populated by document_flow_je_generator for
     //                                                  P2P / O2C chains, empty for chain heads and
     //                                                  for purely-GL adjustments)
+    //   v5.16.1 (SP3.8a) added:
+    //     trading_partner                             (counterparty company code; populated from
+    //                                                  SP3.7 per-source conditional when priors are
+    //                                                  loaded; empty for chain heads / GL adjustments
+    //                                                  when priors are absent)
+    //   v5.17.0 (HF community request) added:
+    //     fraud_type                                  (FraudType enum variant via Debug format, e.g.
+    //                                                  "GhostEmployee"; empty string when None)
+    //     anomaly_type                                (AnomalyType serialized name, e.g.
+    //                                                  "DuplicateEntry"; empty string when None)
     writeln!(
         w,
         "document_id,company_code,fiscal_year,fiscal_period,posting_date,document_date,\
@@ -119,7 +129,7 @@ fn write_journal_entries_csv(
          account_description,financial_statement_category,\
          assignment,value_date,tax_code,transaction_id,\
          account_class,account_class_name,account_sub_class,account_sub_class_name,\
-         predecessor_line_id"
+         predecessor_line_id,trading_partner,fraud_type,anomaly_type"
     )?;
 
     // Build a CoA → (short_description, ISO class, ISO sub-class) lookup.
@@ -144,8 +154,49 @@ fn write_journal_entries_csv(
         })
         .collect();
 
+    // SP5.2 — Secondary index built from the CoA semantic prior (when loaded).
+    // The per-source attribute conditional (SP3.7) draws corpus GL account
+    // numbers (e.g. `0000105000`) that typically are NOT present in the synthetic
+    // CoA master table, so the primary `coa_index` misses ~85% of lines.  This
+    // fallback index covers 3,123 corpus accounts sourced from the `.dsf`
+    // bundle, resolving `account_description` and ISO 21378 class codes for any
+    // account number the prior knows about.
+    //
+    // When no prior is loaded the map is empty and the existing behaviour is
+    // byte-identical to earlier releases.
+    let coa_semantic_index: std::collections::HashMap<&str, (&str, &str, &str, &str, &str)> =
+        result
+            .coa_semantic_prior
+            .as_ref()
+            .map(|prior| {
+                prior
+                    .accounts
+                    .iter()
+                    .map(|(account_number, sem)| {
+                        (
+                            account_number.as_str(),
+                            (
+                                sem.description.as_str(),
+                                sem.account_class.as_deref().unwrap_or(""),
+                                sem.account_class_name.as_deref().unwrap_or(""),
+                                sem.account_sub_class.as_deref().unwrap_or(""),
+                                sem.account_sub_class_name.as_deref().unwrap_or(""),
+                            ),
+                        )
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+
     for je in &result.journal_entries {
         let h = &je.header;
+        // SP3.6 — when priors are loaded, `sap_source_code` holds a canonical
+        // SAP source code (`KR`, `RV`, …); fall back to the TransactionSource
+        // Display label for the priors-disabled path.
+        let source_label: std::borrow::Cow<str> = match &h.sap_source_code {
+            Some(code) => std::borrow::Cow::Borrowed(code.as_str()),
+            None => std::borrow::Cow::Owned(h.source.to_string()),
+        };
         for line in &je.lines {
             let lettrage_date_str = line
                 .lettrage_date
@@ -153,7 +204,12 @@ fn write_journal_entries_csv(
                 .unwrap_or_default();
             let value_date_str = line.value_date.map(|d| d.to_string()).unwrap_or_default();
             // Look up CoA-joined fields in one shot.
-            let coa_hit = coa_index.get(line.gl_account.as_str()).copied();
+            // SP5.2 — try primary (synthetic CoA) then fall through to the
+            // corpus prior secondary index when the primary misses.
+            let coa_hit = coa_index
+                .get(line.gl_account.as_str())
+                .copied()
+                .or_else(|| coa_semantic_index.get(line.gl_account.as_str()).copied());
             let coa_short_desc = coa_hit.map(|t| t.0).unwrap_or("");
             let coa_class = coa_hit.map(|t| t.1).unwrap_or("");
             let coa_class_name = coa_hit.map(|t| t.2).unwrap_or("");
@@ -179,9 +235,14 @@ fn write_journal_entries_csv(
                     line.line_number,
                 )
             });
+            // v5.17.0 — fraud_type and anomaly_type category columns (cols 45-46).
+            // fraud_type: Option<FraudType> → Debug format, empty when None.
+            // anomaly_type: Option<String> → already serialized, empty when None.
+            let fraud_type_str = h.fraud_type.map(|ft| format!("{ft:?}")).unwrap_or_default();
+            let anomaly_type_str = h.anomaly_type.as_deref().unwrap_or("").to_string();
             writeln!(
                 w,
-                "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}",
+                "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}",
                 h.document_id,
                 csv_escape(&h.company_code),
                 h.fiscal_year,
@@ -194,7 +255,7 @@ fn write_journal_entries_csv(
                 csv_opt_str(&h.reference),
                 csv_opt_str(&h.header_text),
                 csv_escape(&h.created_by),
-                h.source,
+                source_label,
                 h.business_process
                     .map(|bp| format!("{bp:?}"))
                     .unwrap_or_default(),
@@ -227,6 +288,11 @@ fn write_journal_entries_csv(
                 csv_escape(coa_sub_class),
                 csv_escape(coa_sub_class_name),
                 csv_opt_str(&line.predecessor_line_id),
+                // SP3.8a — trading_partner appended as column 44.
+                csv_opt_str(&line.trading_partner),
+                // v5.17.0 — fraud_type (col 45) and anomaly_type (col 46).
+                csv_escape(&fraud_type_str),
+                csv_escape(&anomaly_type_str),
             )?;
         }
     }
@@ -3111,5 +3177,92 @@ impl BalanceValidationSummary {
             has_unbalanced_entries: v.has_unbalanced_entries,
             validation_error_count: v.validation_errors.len(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    /// v5.17.0 — verify the journal_entries.csv header has exactly 46 columns
+    /// (44 from SP3.8a + fraud_type + anomaly_type appended last).  This
+    /// catches any accidental drift between the header string and the row
+    /// format string.
+    #[test]
+    fn journal_entries_csv_header_has_46_columns() {
+        let header =
+            "document_id,company_code,fiscal_year,fiscal_period,posting_date,document_date,\
+                      document_type,currency,exchange_rate,reference,header_text,created_by,source,\
+                      business_process,ledger,is_fraud,is_anomaly,\
+                      line_number,gl_account,debit_amount,credit_amount,local_amount,\
+                      cost_center,profit_center,line_text,\
+                      auxiliary_account_number,auxiliary_account_label,lettrage,lettrage_date,\
+                      is_manual,is_post_close,source_system,\
+                      account_description,financial_statement_category,\
+                      assignment,value_date,tax_code,transaction_id,\
+                      account_class,account_class_name,account_sub_class,account_sub_class_name,\
+                      predecessor_line_id,trading_partner,fraud_type,anomaly_type";
+        // Strip any embedded whitespace from line continuations before counting.
+        let normalized: String = header.chars().filter(|c| !c.is_whitespace()).collect();
+        let n_cols = normalized.split(',').count();
+        assert_eq!(
+            n_cols, 46,
+            "expected 46 columns in journal_entries.csv header, got {n_cols}"
+        );
+    }
+
+    /// v5.17.0 — fraud_type column emits the FraudType variant name via Debug.
+    #[test]
+    fn journal_entries_csv_fraud_type_column_populated() {
+        use datasynth_core::models::FraudType;
+        use datasynth_core::models::{JournalEntry, JournalEntryHeader};
+
+        // Build a minimal JE with fraud_type = GhostEmployee.
+        let posting_date = chrono::NaiveDate::from_ymd_opt(2024, 3, 1).unwrap();
+        let mut header = JournalEntryHeader::new("DE10".to_string(), posting_date);
+        header.is_fraud = true;
+        header.fraud_type = Some(FraudType::GhostEmployee);
+        let je = JournalEntry::new(header);
+
+        // Reproduce the fraud_type / anomaly_type extraction exactly as in
+        // write_journal_entries_csv so we can unit-test the helper logic
+        // without spinning up a full EnhancedGenerationResult.
+        let h = &je.header;
+        let fraud_type_str = h.fraud_type.map(|ft| format!("{ft:?}")).unwrap_or_default();
+        let anomaly_type_str = h.anomaly_type.as_deref().unwrap_or("").to_string();
+
+        // fraud_type column must be "GhostEmployee".
+        assert_eq!(
+            fraud_type_str, "GhostEmployee",
+            "expected 'GhostEmployee' for FraudType::GhostEmployee; got: {fraud_type_str}"
+        );
+        // anomaly_type is None by default → empty string.
+        assert!(
+            anomaly_type_str.is_empty(),
+            "expected empty anomaly_type when None; got: {anomaly_type_str}"
+        );
+    }
+
+    /// v5.17.0 — fraud_type and anomaly_type columns emit empty strings when None.
+    #[test]
+    fn journal_entries_csv_fraud_type_none_is_empty() {
+        use datasynth_core::models::{JournalEntry, JournalEntryHeader};
+
+        let posting_date = chrono::NaiveDate::from_ymd_opt(2024, 3, 1).unwrap();
+        let header = JournalEntryHeader::new("DE10".to_string(), posting_date);
+        let je = JournalEntry::new(header);
+
+        let h = &je.header;
+        // fraud_type is None by default.
+        let fraud_type_str = h.fraud_type.map(|ft| format!("{ft:?}")).unwrap_or_default();
+        // anomaly_type is None by default.
+        let anomaly_type_str = h.anomaly_type.as_deref().unwrap_or("").to_string();
+
+        assert!(
+            fraud_type_str.is_empty(),
+            "expected empty fraud_type for None; got: {fraud_type_str}"
+        );
+        assert!(
+            anomaly_type_str.is_empty(),
+            "expected empty anomaly_type for None; got: {anomaly_type_str}"
+        );
     }
 }

@@ -62,8 +62,8 @@ fn missing_file_returns_empty_map() {
 fn valid_file_round_trips_to_opening_balances() {
     let tmp = tempfile::tempdir().expect("tmp");
     let rfs = vec![
-        rf("NESTLE_DE", "NESTLE_SA", dec!(940_000.00)),
-        rf("NESTLE_BR", "NESTLE_SA", dec!(125_500.50)),
+        rf("ACME_DE", "ACME_SA", dec!(940_000.00)),
+        rf("ACME_BR", "ACME_SA", dec!(125_500.50)),
     ];
 
     let path = write_nci_rollforward(&rfs, tmp.path()).expect("write");
@@ -72,8 +72,8 @@ fn valid_file_round_trips_to_opening_balances() {
     let map = ingest_opening_nci_balances(tmp.path()).expect("read");
     assert_eq!(map.len(), 2);
     // Closing NCI from prior period = opening NCI for this period.
-    assert_eq!(map.get("NESTLE_DE"), Some(&dec!(940_000.00)));
-    assert_eq!(map.get("NESTLE_BR"), Some(&dec!(125_500.50)));
+    assert_eq!(map.get("ACME_DE"), Some(&dec!(940_000.00)));
+    assert_eq!(map.get("ACME_BR"), Some(&dec!(125_500.50)));
 }
 
 #[test]
@@ -95,8 +95,8 @@ fn corrupt_json_returns_serde_error() {
 fn duplicate_entity_returns_aggregate_error() {
     let tmp = tempfile::tempdir().expect("tmp");
     let rfs = vec![
-        rf("NESTLE_DE", "NESTLE_SA", dec!(100)),
-        rf("NESTLE_DE", "NESTLE_SA", dec!(200)), // duplicate
+        rf("ACME_DE", "ACME_SA", dec!(100)),
+        rf("ACME_DE", "ACME_SA", dec!(200)), // duplicate
     ];
     write_nci_rollforward(&rfs, tmp.path()).expect("write");
 
@@ -104,7 +104,7 @@ fn duplicate_entity_returns_aggregate_error() {
     match err {
         GroupError::Aggregate(msg) => {
             assert!(msg.contains("duplicate"), "msg names problem: {msg}");
-            assert!(msg.contains("NESTLE_DE"), "msg names entity: {msg}");
+            assert!(msg.contains("ACME_DE"), "msg names entity: {msg}");
         }
         other => panic!("expected Aggregate, got {other:?}"),
     }

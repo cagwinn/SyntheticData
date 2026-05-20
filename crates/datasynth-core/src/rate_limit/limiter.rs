@@ -394,7 +394,6 @@ pub trait RateLimitExt: Iterator + Sized {
 impl<I: Iterator> RateLimitExt for I {}
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use std::time::Duration;

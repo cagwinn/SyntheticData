@@ -509,7 +509,6 @@ pub fn check_sufficient_disk_space(
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

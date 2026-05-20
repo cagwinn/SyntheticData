@@ -62,7 +62,7 @@
 //! - `EliminationType::MinorityInterest` (NCI roll-forward) — Chunk 7.
 //! - `EliminationType::Goodwill` (recognised at acquisition) — Chunk 7.
 //! - `EliminationType::CurrencyTranslation` (CTA on
-//!   [`ICAggregatedBalance`] mismatches due to FX drift) — Chunk 8.
+//!   `ICAggregatedBalance` mismatches due to FX drift) — Chunk 8.
 //!
 //! # Determinism
 //!

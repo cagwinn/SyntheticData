@@ -11,7 +11,7 @@
 //! ```json
 //! [
 //!   {
-//!     "entity_code": "NESTLE_USA",
+//!     "entity_code": "ACME_USA",
 //!     "functional_currency": "USD",
 //!     "presentation_currency": "CHF",
 //!     "as_of_date": "2024-03-31",
@@ -165,7 +165,7 @@ mod tests {
 
     fn sample_translated_tb() -> TranslatedTb {
         TranslatedTb {
-            entity_code: "NESTLE_USA".to_string(),
+            entity_code: "ACME_USA".to_string(),
             functional_currency: "USD".to_string(),
             presentation_currency: "CHF".to_string(),
             as_of_date: period_end(),
@@ -198,7 +198,7 @@ mod tests {
     #[test]
     fn build_entity_derives_ccy_pair_per_line() {
         let we = build_entity(&sample_translated_tb());
-        assert_eq!(we.entity_code, "NESTLE_USA");
+        assert_eq!(we.entity_code, "ACME_USA");
         assert_eq!(we.lines.len(), 2);
         for l in &we.lines {
             assert_eq!(l.ccy_pair, "USD/CHF");

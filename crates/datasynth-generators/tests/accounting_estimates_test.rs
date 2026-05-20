@@ -8,7 +8,6 @@
 //! - Estimate types are not duplicated within a single entity
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod accounting_estimates_integration_tests {
     use datasynth_core::models::audit::accounting_estimates::{
         EstimateComplexity, EstimateType, UncertaintyLevel,

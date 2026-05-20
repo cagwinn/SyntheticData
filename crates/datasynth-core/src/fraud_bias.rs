@@ -254,7 +254,6 @@ pub fn clamp_to_off_hours<R: Rng>(ts: DateTime<Utc>, rng: &mut R) -> DateTime<Ut
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use crate::models::{FraudType, JournalEntryLine};

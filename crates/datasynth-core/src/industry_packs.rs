@@ -26,7 +26,7 @@
 //! ## Picker semantics
 //!
 //! The `weight` on each sub-account drives the deterministic-by-document
-//! picker exposed via [`ChartOfAccounts::pick_subaccount_for_document`]
+//! picker exposed via `ChartOfAccounts::pick_subaccount_for_document`
 //! (in `models::chart_of_accounts`). Higher weight = more likely.
 //! Hashing on `document_id` keeps every regeneration of the same dataset
 //! byte-identical.

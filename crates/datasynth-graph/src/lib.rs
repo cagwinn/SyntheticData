@@ -1,4 +1,4 @@
-#![deny(clippy::unwrap_used)]
+#![cfg_attr(not(test), deny(clippy::unwrap_used))]
 //! # synth-graph
 //!
 //! Graph/network export library for synthetic accounting data.
@@ -27,7 +27,6 @@ pub mod ml;
 pub mod models;
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 pub(crate) mod test_helpers;
 
 // Re-export builder types

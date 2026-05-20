@@ -31,25 +31,25 @@ use datasynth_group::{build_manifest, GroupConfig, GroupError};
 // ── Fixture builders ──────────────────────────────────────────────────────────
 
 /// Mirror of `tests/elimination_to_je.rs::load_two_entity_manifest` —
-/// trim mini_nestle to NESTLE_SA + NESTLE_USA with exactly the explicit
+/// trim mini_acme to ACME_SA + ACME_USA with exactly the explicit
 /// SA→USA IC relationship.
 fn load_two_entity_manifest() -> GroupManifest {
-    let yaml = include_str!("fixtures/mini_nestle.yaml");
+    let yaml = include_str!("fixtures/mini_acme.yaml");
     let mut cfg: GroupConfig =
-        serde_yaml::from_str(yaml).expect("mini_nestle.yaml must parse into GroupConfig");
+        serde_yaml::from_str(yaml).expect("mini_acme.yaml must parse into GroupConfig");
 
     cfg.ownership
         .entities
-        .retain(|e| matches!(e.code.as_str(), "NESTLE_SA" | "NESTLE_USA"));
+        .retain(|e| matches!(e.code.as_str(), "ACME_SA" | "ACME_USA"));
 
     cfg.intercompany.relationships.retain(|r| match r {
-        IcRelationshipConfig::Explicit(e) => e.seller == "NESTLE_SA" && e.buyer == "NESTLE_USA",
+        IcRelationshipConfig::Explicit(e) => e.seller == "ACME_SA" && e.buyer == "ACME_USA",
         IcRelationshipConfig::Pattern(_) => false,
     });
     assert_eq!(
         cfg.intercompany.relationships.len(),
         1,
-        "trim must leave exactly one explicit NESTLE_SA→NESTLE_USA relationship",
+        "trim must leave exactly one explicit ACME_SA→ACME_USA relationship",
     );
 
     if let Some(p2) = cfg.tax.pillar_two.as_mut() {
@@ -61,7 +61,7 @@ fn load_two_entity_manifest() -> GroupManifest {
             .retain(|j| matches!(j.as_str(), "CH" | "US"));
     }
 
-    build_manifest(&cfg).expect("trimmed mini_nestle must still build a manifest")
+    build_manifest(&cfg).expect("trimmed mini_acme must still build a manifest")
 }
 
 /// Build a balanced 2-line TB.  Mirrors
@@ -151,7 +151,7 @@ fn build_multi_line_tb(
     tb
 }
 
-/// Build the full pipeline state for the trimmed mini_nestle fixture:
+/// Build the full pipeline state for the trimmed mini_acme fixture:
 /// per-entity IC JEs → matched pairs → eliminations → JEs.
 struct PipelineState {
     manifest: GroupManifest,
@@ -161,26 +161,26 @@ struct PipelineState {
 fn build_pipeline_state() -> PipelineState {
     let manifest = load_two_entity_manifest();
 
-    let sa_plans = derive_ic_pair_plans(&manifest, "NESTLE_SA");
-    let usa_plans = derive_ic_pair_plans(&manifest, "NESTLE_USA");
+    let sa_plans = derive_ic_pair_plans(&manifest, "ACME_SA");
+    let usa_plans = derive_ic_pair_plans(&manifest, "ACME_USA");
     let sa_jes = inject_ic_journal_entries(
         &sa_plans,
         &InjectionCtx {
-            entity_code: "NESTLE_SA".to_string(),
+            entity_code: "ACME_SA".to_string(),
         },
     );
     let usa_jes = inject_ic_journal_entries(
         &usa_plans,
         &InjectionCtx {
-            entity_code: "NESTLE_USA".to_string(),
+            entity_code: "ACME_USA".to_string(),
         },
     );
 
     let match_result = match_ic_pairs(
         &manifest,
         &[
-            ("NESTLE_SA".to_string(), sa_jes),
-            ("NESTLE_USA".to_string(), usa_jes),
+            ("ACME_SA".to_string(), sa_jes),
+            ("ACME_USA".to_string(), usa_jes),
         ],
     )
     .expect("match_ic_pairs");
@@ -193,7 +193,7 @@ fn build_pipeline_state() -> PipelineState {
 }
 
 /// Compute the per-entity IC notional totals from the seller-side IC JEs
-/// — the sum of every IC AR clearing debit on NESTLE_SA's books.  This
+/// — the sum of every IC AR clearing debit on ACME_SA's books.  This
 /// is the elimination amount we expect to see fully reversed in the
 /// post-elim TB.
 fn ic_notional_totals(manifest: &GroupManifest, entity_code: &str) -> Decimal {
@@ -212,7 +212,7 @@ fn ic_notional_totals(manifest: &GroupManifest, entity_code: &str) -> Decimal {
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
-/// Happy path — 2-entity Mini-Nestlé end-to-end.
+/// Happy path — 2-entity Mini-Acme end-to-end.
 ///
 /// 1. Synthesise per-entity TBs containing the IC clearing balances on
 ///    both sides (seller has IC_AR + IC_REVENUE, buyer has IC_AP + COGS).
@@ -226,11 +226,11 @@ fn ic_notional_totals(manifest: &GroupManifest, entity_code: &str) -> Decimal {
 fn happy_path_zeros_out_ic_balances_and_revenue() {
     let state = build_pipeline_state();
 
-    // Total IC notional on NESTLE_SA's books = sum of seller-side debits.
+    // Total IC notional on ACME_SA's books = sum of seller-side debits.
     // For the trimmed fixture this is non-zero (multiple goods_sale +
     // royalty pairs scale to ~5M CHF annual volume).
-    let sa_ic_total = ic_notional_totals(&state.manifest, "NESTLE_SA");
-    let usa_ic_total = ic_notional_totals(&state.manifest, "NESTLE_USA");
+    let sa_ic_total = ic_notional_totals(&state.manifest, "ACME_SA");
+    let usa_ic_total = ic_notional_totals(&state.manifest, "ACME_USA");
     assert!(
         sa_ic_total > Decimal::ZERO,
         "fixture sanity: SA must have non-zero IC notional"
@@ -263,9 +263,9 @@ fn happy_path_zeros_out_ic_balances_and_revenue() {
     // construct the buyer TB to mirror what the IC injector would have
     // emitted.
     let usa_jes = inject_ic_journal_entries(
-        &derive_ic_pair_plans(&state.manifest, "NESTLE_USA"),
+        &derive_ic_pair_plans(&state.manifest, "ACME_USA"),
         &InjectionCtx {
-            entity_code: "NESTLE_USA".to_string(),
+            entity_code: "ACME_USA".to_string(),
         },
     );
     let mut usa_per_account: std::collections::BTreeMap<String, (Decimal, Decimal)> =
@@ -285,14 +285,14 @@ fn happy_path_zeros_out_ic_balances_and_revenue() {
         .collect();
 
     let sa_tb = build_multi_line_tb(
-        "NESTLE_SA",
+        "ACME_SA",
         "CHF",
         &[
             ("1150", sa_ic_total, Decimal::ZERO),
             ("4500", Decimal::ZERO, sa_ic_total),
         ],
     );
-    let usa_tb = build_multi_line_tb("NESTLE_USA", "CHF", &usa_lines);
+    let usa_tb = build_multi_line_tb("ACME_USA", "CHF", &usa_lines);
 
     debug_assert!(sa_tb.is_balanced, "SA fixture TB must balance");
     debug_assert!(usa_tb.is_balanced, "USA fixture TB must balance");
@@ -301,8 +301,8 @@ fn happy_path_zeros_out_ic_balances_and_revenue() {
     let pre_elim = aggregate_pre_elimination(
         &state.manifest,
         &[
-            ("NESTLE_SA".to_string(), sa_tb),
-            ("NESTLE_USA".to_string(), usa_tb),
+            ("ACME_SA".to_string(), sa_tb),
+            ("ACME_USA".to_string(), usa_tb),
         ],
     )
     .expect("aggregate_pre_elimination");
@@ -422,7 +422,7 @@ fn non_elimination_jes_are_silently_ignored() {
 
     // Build a non-elimination JE that should NOT affect the TB.
     let mut bad_je = JournalEntry::new(JournalEntryHeader::new(
-        "NESTLE_SA".to_string(),
+        "ACME_SA".to_string(),
         NaiveDate::from_ymd_opt(2024, 3, 31).unwrap(),
     ));
     // Important: leave header.is_elimination = false (the default).
@@ -462,12 +462,12 @@ fn empty_elim_jes_returns_pre_elim_unchanged() {
         &state.manifest,
         &[
             (
-                "NESTLE_SA".to_string(),
-                build_balanced_tb("NESTLE_SA", "CHF", "1100", "3100", dec!(1000)),
+                "ACME_SA".to_string(),
+                build_balanced_tb("ACME_SA", "CHF", "1100", "3100", dec!(1000)),
             ),
             (
-                "NESTLE_USA".to_string(),
-                build_balanced_tb("NESTLE_USA", "CHF", "1100", "3100", dec!(2000)),
+                "ACME_USA".to_string(),
+                build_balanced_tb("ACME_USA", "CHF", "1100", "3100", dec!(2000)),
             ),
         ],
     )
@@ -488,7 +488,7 @@ fn currency_mismatch_errors_out() {
     let state = build_pipeline_state();
     let pre_elim = aggregate_pre_elimination(&state.manifest, &[]).expect("empty aggregate");
 
-    // Pre-elim is CHF (mini_nestle.yaml::presentation_currency).  Build
+    // Pre-elim is CHF (mini_acme.yaml::presentation_currency).  Build
     // an elimination JE in EUR.
     let mut bad_je = JournalEntry::new(JournalEntryHeader::new(
         state.manifest.group_id.clone(),
@@ -531,11 +531,11 @@ fn currency_mismatch_errors_out() {
 fn balance_preserved_across_application() {
     let state = build_pipeline_state();
 
-    let sa_ic = ic_notional_totals(&state.manifest, "NESTLE_SA");
+    let sa_ic = ic_notional_totals(&state.manifest, "ACME_SA");
     let usa_jes = inject_ic_journal_entries(
-        &derive_ic_pair_plans(&state.manifest, "NESTLE_USA"),
+        &derive_ic_pair_plans(&state.manifest, "ACME_USA"),
         &InjectionCtx {
-            entity_code: "NESTLE_USA".to_string(),
+            entity_code: "ACME_USA".to_string(),
         },
     );
     let mut usa_per_account: std::collections::BTreeMap<String, (Decimal, Decimal)> =
@@ -558,9 +558,9 @@ fn balance_preserved_across_application() {
         &state.manifest,
         &[
             (
-                "NESTLE_SA".to_string(),
+                "ACME_SA".to_string(),
                 build_multi_line_tb(
-                    "NESTLE_SA",
+                    "ACME_SA",
                     "CHF",
                     &[
                         ("1150", sa_ic, Decimal::ZERO),
@@ -569,8 +569,8 @@ fn balance_preserved_across_application() {
                 ),
             ),
             (
-                "NESTLE_USA".to_string(),
-                build_multi_line_tb("NESTLE_USA", "CHF", &usa_lines),
+                "ACME_USA".to_string(),
+                build_multi_line_tb("ACME_USA", "CHF", &usa_lines),
             ),
         ],
     )
@@ -596,11 +596,11 @@ fn balance_preserved_across_application() {
 fn deterministic_output_across_calls() {
     let state = build_pipeline_state();
 
-    let sa_ic = ic_notional_totals(&state.manifest, "NESTLE_SA");
+    let sa_ic = ic_notional_totals(&state.manifest, "ACME_SA");
     let usa_jes = inject_ic_journal_entries(
-        &derive_ic_pair_plans(&state.manifest, "NESTLE_USA"),
+        &derive_ic_pair_plans(&state.manifest, "ACME_USA"),
         &InjectionCtx {
-            entity_code: "NESTLE_USA".to_string(),
+            entity_code: "ACME_USA".to_string(),
         },
     );
     let mut usa_per_account: std::collections::BTreeMap<String, (Decimal, Decimal)> =
@@ -623,9 +623,9 @@ fn deterministic_output_across_calls() {
         &state.manifest,
         &[
             (
-                "NESTLE_SA".to_string(),
+                "ACME_SA".to_string(),
                 build_multi_line_tb(
-                    "NESTLE_SA",
+                    "ACME_SA",
                     "CHF",
                     &[
                         ("1150", sa_ic, Decimal::ZERO),
@@ -634,8 +634,8 @@ fn deterministic_output_across_calls() {
                 ),
             ),
             (
-                "NESTLE_USA".to_string(),
-                build_multi_line_tb("NESTLE_USA", "CHF", &usa_lines),
+                "ACME_USA".to_string(),
+                build_multi_line_tb("ACME_USA", "CHF", &usa_lines),
             ),
         ],
     )
@@ -663,12 +663,12 @@ fn passes_through_identity_fields_unchanged() {
         &state.manifest,
         &[
             (
-                "NESTLE_SA".to_string(),
-                build_balanced_tb("NESTLE_SA", "CHF", "1100", "3100", dec!(1000)),
+                "ACME_SA".to_string(),
+                build_balanced_tb("ACME_SA", "CHF", "1100", "3100", dec!(1000)),
             ),
             (
-                "NESTLE_USA".to_string(),
-                build_balanced_tb("NESTLE_USA", "CHF", "1100", "3100", dec!(2000)),
+                "ACME_USA".to_string(),
+                build_balanced_tb("ACME_USA", "CHF", "1100", "3100", dec!(2000)),
             ),
         ],
     )

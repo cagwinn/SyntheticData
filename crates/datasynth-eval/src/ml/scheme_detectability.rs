@@ -245,7 +245,6 @@ impl Default for SchemeDetectabilityAnalyzer {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

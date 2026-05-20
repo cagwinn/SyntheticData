@@ -1,4 +1,4 @@
-#![deny(clippy::unwrap_used)]
+#![cfg_attr(not(test), deny(clippy::unwrap_used))]
 // Allow some clippy lints that are common in test/evaluation code
 #![allow(clippy::field_reassign_with_default)]
 #![allow(clippy::too_many_arguments)]
@@ -39,6 +39,7 @@ pub mod error;
 pub mod gates;
 pub mod privacy;
 
+pub mod behavioral_fidelity;
 pub mod coherence;
 pub mod ml;
 pub mod quality;
@@ -439,7 +440,7 @@ impl Evaluator {
     /// `Evaluator` struct holds only configuration — it has no access to the generated
     /// journal entry or balance data that the sub-module evaluators require.
     ///
-    /// To evaluate actual generation output, use [`run_evaluation_with_amounts`] which
+    /// To evaluate actual generation output, use `run_evaluation_with_amounts` which
     /// accepts raw JE amounts and runs the Benford analysis.  Full wiring of all
     /// sub-modules (BalanceSheetEvaluator, DocumentChainEvaluator, etc.) requires
     /// passing the complete `EnhancedGenerationResult` from the runtime crate, which
@@ -484,7 +485,6 @@ impl Evaluator {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

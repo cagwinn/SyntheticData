@@ -26,17 +26,17 @@ fn period_end() -> NaiveDate {
 /// Build a `ManifestEntity` directly via the manifest pipeline, so we
 /// exercise the public `ManifestEntity` shape rather than relying on a
 /// hand-rolled stub that could drift from the real builder.
-fn nestle_de_entity() -> datasynth_group::ManifestEntity {
-    let yaml = include_str!("fixtures/mini_nestle.yaml");
+fn acme_de_entity() -> datasynth_group::ManifestEntity {
+    let yaml = include_str!("fixtures/mini_acme.yaml");
     let cfg: GroupConfig =
-        serde_yaml::from_str(yaml).expect("mini_nestle.yaml must parse into GroupConfig");
+        serde_yaml::from_str(yaml).expect("mini_acme.yaml must parse into GroupConfig");
     let manifest = build_manifest(&cfg).expect("manifest builds");
     manifest
         .ownership_graph
         .entities
         .into_iter()
-        .find(|e| e.code == "NESTLE_DE")
-        .expect("NESTLE_DE must be present in the fixture")
+        .find(|e| e.code == "ACME_DE")
+        .expect("ACME_DE must be present in the fixture")
 }
 
 /// Direct constructor for tests that need to vary `consolidation_method`
@@ -69,12 +69,12 @@ fn make_entity(
 
 #[test]
 fn happy_path_eighty_percent_owned_subsidiary() {
-    // 80%-owned NESTLE_DE-style subsidiary.
+    // 80%-owned ACME_DE-style subsidiary.
     let entity = make_entity(
-        "NESTLE_DE",
+        "ACME_DE",
         ConsolidationMethod::Full,
         Some(dec!(0.80)),
-        Some("NESTLE_SA"),
+        Some("ACME_SA"),
     );
     let inputs = NciInputs {
         entity: &entity,
@@ -92,8 +92,8 @@ fn happy_path_eighty_percent_owned_subsidiary() {
     let rf = compute_nci_rollforward(&inputs).expect("must succeed");
 
     // 20% NCI share.
-    assert_eq!(rf.entity_code, "NESTLE_DE");
-    assert_eq!(rf.parent_entity_code, "NESTLE_SA");
+    assert_eq!(rf.entity_code, "ACME_DE");
+    assert_eq!(rf.parent_entity_code, "ACME_SA");
     assert_eq!(rf.ownership_percent, dec!(0.80));
     assert_eq!(rf.nci_percent, dec!(0.20));
 
@@ -113,12 +113,12 @@ fn happy_path_eighty_percent_owned_subsidiary() {
 
 #[test]
 fn from_manifest_entity_directly() {
-    // Load NESTLE_DE from the real Mini-Nestlé manifest pipeline and
+    // Load ACME_DE from the real Mini-Acme manifest pipeline and
     // verify the rollforward reads ownership_percent correctly.
-    let entity = nestle_de_entity();
+    let entity = acme_de_entity();
     assert_eq!(entity.consolidation_method, ConsolidationMethod::Full);
     assert_eq!(entity.ownership_percent, Some(dec!(0.80)));
-    assert_eq!(entity.parent_code.as_deref(), Some("NESTLE_SA"));
+    assert_eq!(entity.parent_code.as_deref(), Some("ACME_SA"));
 
     let inputs = NciInputs {
         entity: &entity,
@@ -139,12 +139,12 @@ fn from_manifest_entity_directly() {
     assert_eq!(rf.nci_percent, dec!(0.20));
     assert_eq!(rf.nci_share_of_profit, dec!(100_000.00));
     assert_eq!(rf.closing_nci, dec!(100_000.00));
-    assert_eq!(rf.parent_entity_code, "NESTLE_SA");
+    assert_eq!(rf.parent_entity_code, "ACME_SA");
 }
 
 #[test]
 fn rejects_parent_consolidation_method() {
-    let entity = make_entity("NESTLE_SA", ConsolidationMethod::Parent, None, None);
+    let entity = make_entity("ACME_SA", ConsolidationMethod::Parent, None, None);
     let inputs = NciInputs {
         entity: &entity,
         period_net_income: Decimal::ZERO,
@@ -161,7 +161,7 @@ fn rejects_parent_consolidation_method() {
     let err = compute_nci_rollforward(&inputs).expect_err("Parent must be rejected");
     match err {
         GroupError::Aggregate(msg) => {
-            assert!(msg.contains("NESTLE_SA"), "msg names entity: {msg}");
+            assert!(msg.contains("ACME_SA"), "msg names entity: {msg}");
             assert!(msg.contains("Parent"), "msg names method: {msg}");
             assert!(msg.contains("NCI"), "msg explains why: {msg}");
         }
@@ -172,10 +172,10 @@ fn rejects_parent_consolidation_method() {
 #[test]
 fn rejects_equity_method() {
     let entity = make_entity(
-        "NESTLE_JV",
+        "ACME_JV",
         ConsolidationMethod::EquityMethod,
         Some(dec!(0.50)),
-        Some("NESTLE_SA"),
+        Some("ACME_SA"),
     );
     let inputs = NciInputs {
         entity: &entity,
@@ -193,7 +193,7 @@ fn rejects_equity_method() {
     let err = compute_nci_rollforward(&inputs).expect_err("EquityMethod must be rejected");
     match err {
         GroupError::Aggregate(msg) => {
-            assert!(msg.contains("NESTLE_JV"));
+            assert!(msg.contains("ACME_JV"));
             assert!(msg.contains("EquityMethod"));
         }
         other => panic!("expected Aggregate, got {other:?}"),

@@ -30,7 +30,7 @@ use datasynth_core::models::{TaxLine, TaxReturn, TaxReturnType, TaxableDocumentT
 ///
 /// Filing behavior:
 /// - ~95% of returns are filed on time.
-/// - ~5% remain in [`TaxReturnStatus::Draft`].
+/// - ~5% remain in `TaxReturnStatus::Draft`.
 /// - ~2% of filed returns are filed late (after the deadline).
 pub struct TaxReturnGenerator {
     rng: ChaCha8Rng,
@@ -164,7 +164,6 @@ impl TaxReturnGenerator {
 // ---------------------------------------------------------------------------
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use datasynth_core::models::TaxReturnStatus;

@@ -325,7 +325,7 @@ pub fn run_ks_uniform_log(amounts: &[Decimal], significance: f64) -> Statistical
 /// Spearman rank correlation between two equal-length samples.
 ///
 /// Returns a value in `[-1, 1]`. Used by [`run_correlation_check`]
-/// and [`run_expected_correlations`].
+/// and `run_expected_correlations`.
 pub fn spearman_rank_correlation(xs: &[f64], ys: &[f64]) -> f64 {
     let n = xs.len().min(ys.len());
     if n < 2 {
@@ -541,7 +541,6 @@ fn chi_sq_critical(df: usize, alpha: f64) -> f64 {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use rand::SeedableRng;

@@ -242,7 +242,6 @@ impl Default for ICNetZeroEvaluator {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

@@ -33,22 +33,22 @@ use datasynth_group::{build_manifest, GroupConfig, IcRelationshipConfig};
 /// the test fixture in lockstep so any change to the canonical trim
 /// flows through both files.
 fn load_two_entity_manifest() -> GroupManifest {
-    let yaml = include_str!("fixtures/mini_nestle.yaml");
+    let yaml = include_str!("fixtures/mini_acme.yaml");
     let mut cfg: GroupConfig =
-        serde_yaml::from_str(yaml).expect("mini_nestle.yaml must parse into GroupConfig");
+        serde_yaml::from_str(yaml).expect("mini_acme.yaml must parse into GroupConfig");
 
     cfg.ownership
         .entities
-        .retain(|e| matches!(e.code.as_str(), "NESTLE_SA" | "NESTLE_USA"));
+        .retain(|e| matches!(e.code.as_str(), "ACME_SA" | "ACME_USA"));
 
     cfg.intercompany.relationships.retain(|r| match r {
-        IcRelationshipConfig::Explicit(e) => e.seller == "NESTLE_SA" && e.buyer == "NESTLE_USA",
+        IcRelationshipConfig::Explicit(e) => e.seller == "ACME_SA" && e.buyer == "ACME_USA",
         IcRelationshipConfig::Pattern(_) => false,
     });
     assert_eq!(
         cfg.intercompany.relationships.len(),
         1,
-        "trim must leave exactly one explicit NESTLE_SA→NESTLE_USA relationship",
+        "trim must leave exactly one explicit ACME_SA→ACME_USA relationship",
     );
 
     if let Some(p2) = cfg.tax.pillar_two.as_mut() {
@@ -60,7 +60,7 @@ fn load_two_entity_manifest() -> GroupManifest {
             .retain(|j| matches!(j.as_str(), "CH" | "US"));
     }
 
-    build_manifest(&cfg).expect("trimmed mini_nestle must still build a manifest")
+    build_manifest(&cfg).expect("trimmed mini_acme must still build a manifest")
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -69,26 +69,26 @@ fn load_two_entity_manifest() -> GroupManifest {
 fn every_emitted_je_carries_the_consolidation_contract() {
     let manifest = load_two_entity_manifest();
 
-    let sa_plans = derive_ic_pair_plans(&manifest, "NESTLE_SA");
-    let usa_plans = derive_ic_pair_plans(&manifest, "NESTLE_USA");
+    let sa_plans = derive_ic_pair_plans(&manifest, "ACME_SA");
+    let usa_plans = derive_ic_pair_plans(&manifest, "ACME_USA");
     let sa_jes = inject_ic_journal_entries(
         &sa_plans,
         &InjectionCtx {
-            entity_code: "NESTLE_SA".to_string(),
+            entity_code: "ACME_SA".to_string(),
         },
     );
     let usa_jes = inject_ic_journal_entries(
         &usa_plans,
         &InjectionCtx {
-            entity_code: "NESTLE_USA".to_string(),
+            entity_code: "ACME_USA".to_string(),
         },
     );
 
     let match_result = match_ic_pairs(
         &manifest,
         &[
-            ("NESTLE_SA".to_string(), sa_jes),
-            ("NESTLE_USA".to_string(), usa_jes),
+            ("ACME_SA".to_string(), sa_jes),
+            ("ACME_USA".to_string(), usa_jes),
         ],
     )
     .expect("match");

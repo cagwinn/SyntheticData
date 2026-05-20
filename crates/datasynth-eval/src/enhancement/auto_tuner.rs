@@ -790,7 +790,6 @@ impl Default for AutoTuner {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use crate::statistical::{BenfordAnalysis, BenfordConformity};

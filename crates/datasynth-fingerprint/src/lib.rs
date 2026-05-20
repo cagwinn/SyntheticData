@@ -1,7 +1,7 @@
 // Allow some clippy lints that are common in numerical/matrix code
 #![allow(clippy::needless_range_loop)]
 #![allow(clippy::explicit_counter_loop)]
-#![deny(clippy::unwrap_used)]
+#![cfg_attr(not(test), deny(clippy::unwrap_used))]
 
 //! DataSynth Fingerprint - Privacy-preserving synthetic data fingerprinting.
 //!
@@ -261,6 +261,7 @@
 //! [`PrivacyLevel::High`]: models::PrivacyLevel::High
 //! [`PrivacyLevel::Maximum`]: models::PrivacyLevel::Maximum
 
+pub mod aggregation;
 pub mod certificates;
 pub mod error;
 pub mod evaluation;

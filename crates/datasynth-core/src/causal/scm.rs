@@ -216,7 +216,6 @@ impl<'a> IntervenedScm<'a> {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::super::graph::CausalGraph;
     use super::*;

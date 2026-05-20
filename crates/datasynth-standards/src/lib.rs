@@ -1,4 +1,4 @@
-#![deny(clippy::unwrap_used)]
+#![cfg_attr(not(test), deny(clippy::unwrap_used))]
 //! Accounting and Audit Standards Framework for Synthetic Data Generation.
 //!
 //! This crate provides comprehensive support for major accounting and auditing

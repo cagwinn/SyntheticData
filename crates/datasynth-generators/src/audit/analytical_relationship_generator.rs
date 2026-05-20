@@ -616,7 +616,6 @@ fn build_variance_explanation(
 // ---------------------------------------------------------------------------
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use datasynth_core::models::journal_entry::{

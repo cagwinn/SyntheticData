@@ -739,7 +739,6 @@ pub fn compute_motif_features(graph: &Graph, config: &MotifConfig) -> HashMap<No
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use crate::models::{GraphEdge, GraphNode, GraphType, NodeType};

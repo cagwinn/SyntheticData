@@ -1,0 +1,270 @@
+{
+  "profile": "gl-source-tp",
+  "generator_id": "datasynth",
+  "generator_version": "5.10.0",
+  "seed": 42,
+  "generated_at": "2026-05-12T12:49:40.786289466Z",
+  "real_corpus": {
+    "path": "(in-memory)",
+    "n_rows": 1397662,
+    "n_entities_primary": 24,
+    "n_entities_secondary": 39,
+    "period_start": "2020-12-01",
+    "period_end": "2023-01-16"
+  },
+  "synthetic": {
+    "path": "(in-memory)",
+    "n_rows": 88179,
+    "n_entities_primary": 4,
+    "n_entities_secondary": 0,
+    "period_start": "2024-01-02",
+    "period_end": "2025-02-13"
+  },
+  "noise_floor": {
+    "p1_ietd_w1_days": 0.0002923011779785156,
+    "p1_autocorr_gap": 0.0030675579962894245,
+    "p2_active_lifetime_w1": 22.473735332489014,
+    "p2_burst_len_by_threshold": {
+      "1": 21.90141487121582,
+      "3": 108.30209875106812,
+      "7": 209.25734663009644
+    },
+    "p2_je_line_burst_w1": 0.015594005584716797,
+    "p3_fanout_by_attr": {
+      "CostCenter": 0.25014257431030273,
+      "GLAccount": 0.12047767639160156,
+      "ProfitCenter": 0.30734920501708984,
+      "TradingPartner": 0.5742120742797852
+    },
+    "p3_clustering_gap": 0.006528546172587579,
+    "p3_triangle_log_ratio": 0.10577365344515267,
+    "p4_mean_gap": 0.06561264822134386
+  },
+  "per_entity": {
+    "Source": {
+      "entity_column": "Source",
+      "p1_ietd": {
+        "raw": 0.01171875,
+        "baseline": 0.0002923011779785156,
+        "dr": 40.091353996737354
+      },
+      "p1_autocorr": {
+        "raw": 0.01631458200612124,
+        "baseline": 0.0030675579962894245,
+        "dr": 5.318426587486092
+      },
+      "p2_active_lifetime": {
+        "raw": 330.7422294616699,
+        "baseline": 22.473735332489014,
+        "dr": 14.716833876010567
+      },
+      "p2_burst_len_by_threshold": {
+        "1": {
+          "raw": 633.9355249404907,
+          "baseline": 21.90141487121582,
+          "dr": 28.944957605165847
+        },
+        "3": {
+          "raw": 724.8466491699219,
+          "baseline": 108.30209875106812,
+          "dr": 6.692821815355385
+        },
+        "7": {
+          "raw": 11928.096248626709,
+          "baseline": 209.25734663009644,
+          "dr": 57.002042894637135
+        }
+      },
+      "p2_je_line_burst": {
+        "raw": 2.3001551628112793,
+        "baseline": 0.015594005584716797,
+        "dr": 147.50252270433904
+      },
+      "p3_fanout_by_attr": {
+        "CostCenter": {
+          "raw": 2.4621949195861816,
+          "baseline": 0.25014257431030273,
+          "dr": 9.84316614784583
+        },
+        "GLAccount": {
+          "raw": 1.0059385299682617,
+          "baseline": 0.12047767639160156,
+          "dr": 8.349584421752553
+        },
+        "ProfitCenter": {
+          "raw": 3.165353775024414,
+          "baseline": 0.30734920501708984,
+          "dr": 10.2988838863221
+        },
+        "TradingPartner": {
+          "raw": 0.0,
+          "baseline": 0.5742120742797852,
+          "dr": 0.0
+        }
+      },
+      "p3_clustering": {
+        "raw": 0.2392400155098876,
+        "baseline": 0.006528546172587579,
+        "dr": 36.645220725315816
+      },
+      "p3_triangle_log_ratio": {
+        "raw": 4.875197323201151,
+        "baseline": 0.10577365344515267,
+        "dr": 46.09084743138906
+      },
+      "p4_rule_results": [
+        {
+          "id": "R1",
+          "trigger_rate_real": 0.9166666666666666,
+          "trigger_rate_syn": 1.0,
+          "abs_gap": 0.08333333333333337
+        },
+        {
+          "id": "R2",
+          "trigger_rate_real": 0.25,
+          "trigger_rate_syn": 1.0,
+          "abs_gap": 0.75
+        },
+        {
+          "id": "R3",
+          "trigger_rate_real": 0.8333333333333334,
+          "trigger_rate_syn": 1.0,
+          "abs_gap": 0.16666666666666663
+        },
+        {
+          "id": "R4",
+          "trigger_rate_real": 0.5416666666666666,
+          "trigger_rate_syn": 1.0,
+          "abs_gap": 0.45833333333333337
+        },
+        {
+          "id": "R5",
+          "trigger_rate_real": 0.375,
+          "trigger_rate_syn": 0.0,
+          "abs_gap": 0.375
+        },
+        {
+          "id": "R6",
+          "trigger_rate_real": 0.875,
+          "trigger_rate_syn": 1.0,
+          "abs_gap": 0.125
+        },
+        {
+          "id": "R7",
+          "trigger_rate_real": 0.4583333333333333,
+          "trigger_rate_syn": 0.5,
+          "abs_gap": 0.041666666666666685
+        },
+        {
+          "id": "R8",
+          "trigger_rate_real": 0.625,
+          "trigger_rate_syn": 0.0,
+          "abs_gap": 0.625
+        },
+        {
+          "id": "R9",
+          "trigger_rate_real": 0.0,
+          "trigger_rate_syn": 0.0,
+          "abs_gap": 0.0
+        },
+        {
+          "id": "R10",
+          "trigger_rate_real": 0.08333333333333333,
+          "trigger_rate_syn": 0.0,
+          "abs_gap": 0.08333333333333333
+        }
+      ],
+      "p4_mean_gap": {
+        "raw": 0.27083333333333337,
+        "baseline": 0.06561264822134386,
+        "dr": 4.127761044176708
+      }
+    },
+    "TradingPartner": {
+      "entity_column": "TradingPartner",
+      "p1_ietd": {
+        "raw": 0.0,
+        "baseline": 0.0,
+        "dr": 0.0
+      },
+      "p1_autocorr": {
+        "raw": 0.13558922420215777,
+        "baseline": 0.015598029558774817,
+        "dr": 8.69271491576837
+      },
+      "p2_active_lifetime": {
+        "raw": 0.0,
+        "baseline": 15.472266674041748,
+        "dr": 0.0
+      },
+      "p2_burst_len_by_threshold": {
+        "1": {
+          "raw": 0.0,
+          "baseline": 56.94118118286133,
+          "dr": 0.0
+        },
+        "3": {
+          "raw": 0.0,
+          "baseline": 39.98919677734375,
+          "dr": 0.0
+        },
+        "7": {
+          "raw": 0.0,
+          "baseline": 56.23067378997803,
+          "dr": 0.0
+        }
+      },
+      "p2_je_line_burst": {
+        "raw": 2.3001551628112793,
+        "baseline": 0.015594005584716797,
+        "dr": 147.50252270433904
+      },
+      "p3_fanout_by_attr": {
+        "CostCenter": {
+          "raw": 0.0,
+          "baseline": 0.15337324142456055,
+          "dr": 0.0
+        },
+        "GLAccount": {
+          "raw": 0.0,
+          "baseline": 0.09122180938720703,
+          "dr": 0.0
+        },
+        "ProfitCenter": {
+          "raw": 0.0,
+          "baseline": 0.22885704040527344,
+          "dr": 0.0
+        },
+        "TradingPartner": {
+          "raw": 0.0,
+          "baseline": 0.0,
+          "dr": 0.0
+        }
+      },
+      "p3_clustering": {
+        "raw": 0.9830980066445183,
+        "baseline": 0.008236838443540728,
+        "dr": 119.35380466463525
+      },
+      "p3_triangle_log_ratio": {
+        "raw": 8.973604867142505,
+        "baseline": 0.025989056581437343,
+        "dr": 345.28397900953024
+      },
+      "p4_rule_results": [],
+      "p4_mean_gap": {
+        "raw": 0.0,
+        "baseline": 0.0,
+        "dr": 0.0
+      }
+    }
+  },
+  "composite_bf_score": 37.01633730110023,
+  "intraday_structural": null,
+  "gates": {
+    "fail_if_dr_above": 1000.0,
+    "fail_if_composite_above": 1000.0,
+    "passed": true,
+    "failures": []
+  }
+}

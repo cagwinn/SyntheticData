@@ -35,7 +35,7 @@
 //!   `amount = credit_total - debit_total`
 //!
 //! Net balance per account is recomputed from
-//! [`AggregatedAccount::debit_total`] / [`AggregatedAccount::credit_total`]
+//! `AggregatedAccount::debit_total` / `AggregatedAccount::credit_total`
 //! so the sign flip is unambiguous.
 //!
 //! # Balance check
@@ -47,7 +47,7 @@
 //! total_assets = total_liabilities + total_equity + total_nci
 //! ```
 //!
-//! Mismatches surface as [`GroupError::Aggregate`].
+//! Mismatches surface as `GroupError::Aggregate`.
 //!
 //! # Determinism
 //!
@@ -116,7 +116,7 @@ pub struct ConsolidatedBalanceSheet {
 /// One balance-sheet line.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct BsLine {
-    /// GL account code (matches [`AggregatedAccount::account_code`]).
+    /// GL account code (matches `AggregatedAccount::account_code`).
     pub account_code: String,
     /// Human-readable label looked up from the canonical account
     /// dictionary, falling back to `account_code` itself when no entry
@@ -145,7 +145,7 @@ pub struct BsLine {
 ///
 /// # Errors
 ///
-/// - [`GroupError::Aggregate`] if the balance identity fails — the
+/// - `GroupError::Aggregate` if the balance identity fails — the
 ///   error message names the totals and the diff so a regression is
 ///   easy to triage.
 pub fn build_consolidated_balance_sheet(

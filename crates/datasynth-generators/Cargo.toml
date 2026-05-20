@@ -16,6 +16,8 @@ datasynth-config = { workspace = true }
 datasynth-standards = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+serde_yaml = { workspace = true }
+zip = "8.5"
 rust_decimal = { workspace = true }
 rust_decimal_macros = { workspace = true }
 chrono = { workspace = true }
@@ -24,7 +26,6 @@ thiserror = { workspace = true }
 rand = { workspace = true }
 rand_chacha = { workspace = true }
 rand_distr = { workspace = true }
-rayon = { workspace = true }
 smallvec = { workspace = true }
 tracing = { workspace = true }
 

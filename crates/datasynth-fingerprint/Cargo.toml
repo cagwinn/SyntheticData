@@ -15,7 +15,7 @@ categories = ["simulation", "cryptography"]
 [dependencies]
 # Internal crates
 datasynth-core = { workspace = true }
-datasynth-config = { workspace = true }
+datasynth-eval = { workspace = true }
 
 # Serialization
 serde = { workspace = true }
@@ -25,6 +25,10 @@ serde_yaml = { workspace = true }
 # Archive format
 zip = "8.5"
 
+# SP6.1 — multi-pattern literal matching for PiiDenylist (single-pass
+# replacement across thousands of literal proper-noun spans).
+aho-corasick = { workspace = true }
+
 # Date/Time
 chrono = { workspace = true }
 
@@ -33,7 +37,6 @@ rust_decimal = { workspace = true }
 
 # Error handling
 thiserror = { workspace = true }
-anyhow = { workspace = true }
 
 # Random & Statistics
 rand = { workspace = true }

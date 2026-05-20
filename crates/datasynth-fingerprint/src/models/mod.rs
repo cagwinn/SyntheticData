@@ -56,6 +56,7 @@
 
 mod anomaly;
 mod banking;
+pub mod behavioral;
 mod correlation;
 mod fingerprint;
 mod integrity;
@@ -67,6 +68,12 @@ mod statistics;
 
 pub use anomaly::*;
 pub use banking::*;
+pub use behavioral::{
+    ActiveLifetimePrior, BehavioralPriors, CategoricalDistribution, FanoutPrior, IetSummary,
+    LagSummary, LineCountHistogram, LinesPerJePrior, LognormalAmount, LognormalParams,
+    PerSourceAmountPrior, PerSourceAttributePrior, PerSourceIetPrior, PostingLagPrior,
+    SourceMixPrior,
+};
 pub use correlation::*;
 pub use fingerprint::*;
 pub use integrity::*;

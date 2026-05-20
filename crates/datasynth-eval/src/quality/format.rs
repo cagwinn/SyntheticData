@@ -531,7 +531,6 @@ impl Default for FormatAnalyzer {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

@@ -6,8 +6,8 @@
 //! - CTA equals total translated DR minus total translated CR.
 //! - Missing FX rate surfaces as `GroupError::Aggregate`.
 //! - Determinism — two calls produce byte-identical output.
-//! - Mini-Nestlé hand-rolled fixture: USD → CHF translation produces
-//!   the rates and amounts the Nestlé fixture documents.
+//! - Mini-Acme hand-rolled fixture: USD → CHF translation produces
+//!   the rates and amounts the Acme fixture documents.
 
 use std::collections::BTreeMap;
 
@@ -46,7 +46,7 @@ fn default_policy() -> FxPolicyConfig {
     }
 }
 
-/// Build an `FxRateMaster` for the Mini-Nestlé fixture's USD/CHF pair.
+/// Build an `FxRateMaster` for the Mini-Acme fixture's USD/CHF pair.
 ///
 /// CHF/USD rates in the fixture:
 ///   2024-01-31 → 0.8870
@@ -58,7 +58,7 @@ fn default_policy() -> FxPolicyConfig {
 ///   2024-02-29 → 1/0.8812 ≈ 1.13482...
 ///   2024-03-31 → 1/0.9012 ≈ 1.10963... (also the closing rate)
 ///   average     ≈ 1.12395...
-fn nestle_fx_master_usd_chf() -> FxRateMaster {
+fn acme_fx_master_usd_chf() -> FxRateMaster {
     // Use exact rust_decimal math so test is reproducible.
     let rates_chf_usd = vec![
         (NaiveDate::from_ymd_opt(2024, 1, 31).unwrap(), dec!(0.8870)),
@@ -239,8 +239,8 @@ fn identity_translation_yields_rate_one_and_zero_cta() {
 
 #[test]
 fn foreign_translation_picks_correct_rate_basis() {
-    let tb = build_usd_tb("NESTLE_USA");
-    let master = nestle_fx_master_usd_chf();
+    let tb = build_usd_tb("ACME_USA");
+    let master = acme_fx_master_usd_chf();
 
     let out = translate_entity_tb(
         &tb,
@@ -310,8 +310,8 @@ fn foreign_translation_picks_correct_rate_basis() {
 
 #[test]
 fn cta_equals_translated_dr_minus_cr() {
-    let tb = build_usd_tb("NESTLE_USA");
-    let master = nestle_fx_master_usd_chf();
+    let tb = build_usd_tb("ACME_USA");
+    let master = acme_fx_master_usd_chf();
 
     let out = translate_entity_tb(
         &tb,
@@ -345,7 +345,7 @@ fn cta_equals_translated_dr_minus_cr() {
 
 #[test]
 fn missing_fx_rate_returns_aggregate_error() {
-    let tb = build_usd_tb("NESTLE_USA");
+    let tb = build_usd_tb("ACME_USA");
     // Empty FX master → no rates for USD/CHF.
     let master = empty_fx_master();
 
@@ -372,8 +372,8 @@ fn missing_fx_rate_returns_aggregate_error() {
 
 #[test]
 fn determinism_two_calls_produce_byte_identical_output() {
-    let tb = build_usd_tb("NESTLE_USA");
-    let master = nestle_fx_master_usd_chf();
+    let tb = build_usd_tb("ACME_USA");
+    let master = acme_fx_master_usd_chf();
 
     let a = translate_entity_tb(
         &tb,
@@ -400,11 +400,11 @@ fn determinism_two_calls_produce_byte_identical_output() {
 }
 
 #[test]
-fn mini_nestle_usd_translation_amounts_within_expected_range() {
+fn mini_acme_usd_translation_amounts_within_expected_range() {
     // USD entity with 10,000 cash. Closing rate USD/CHF = 1/0.9012
     // ≈ 1.1096... so cash translated ≈ 11,096 CHF.
-    let tb = build_usd_tb("NESTLE_USA");
-    let master = nestle_fx_master_usd_chf();
+    let tb = build_usd_tb("ACME_USA");
+    let master = acme_fx_master_usd_chf();
 
     let out = translate_entity_tb(
         &tb,
@@ -464,7 +464,7 @@ fn hyperinflationary_status_uses_closing_rate_for_all_items() {
     use datasynth_core::models::HyperinflationStatus;
 
     let tb = build_usd_tb("HYPERINF_SUB");
-    let master = nestle_fx_master_usd_chf();
+    let master = acme_fx_master_usd_chf();
 
     let out = translate_entity_tb_with_hyperinflation(
         &tb,
@@ -510,8 +510,8 @@ fn hyperinflationary_translation_byte_identical_to_default_when_not_set() {
     // don't opt in see no behaviour change.
     use datasynth_core::models::HyperinflationStatus;
 
-    let tb = build_usd_tb("NESTLE_USA");
-    let master = nestle_fx_master_usd_chf();
+    let tb = build_usd_tb("ACME_USA");
+    let master = acme_fx_master_usd_chf();
 
     let a = translate_entity_tb(
         &tb,
@@ -648,7 +648,7 @@ fn indexed_restatement_scales_only_non_monetary_and_pl_lines() {
     use datasynth_core::models::HyperinflationStatus;
 
     let tb = build_usd_tb_mixed_classes("HYPERINF_SUB");
-    let master = nestle_fx_master_usd_chf();
+    let master = acme_fx_master_usd_chf();
     let restatement = IndexedRestatement::new(dec!(100), dec!(200), dec!(150)).unwrap();
     let nm = restatement.non_monetary_factor(); // 2
     let pl = restatement.pl_factor(); // 4/3
@@ -697,7 +697,7 @@ fn indexed_restatement_unit_factors_byte_identical_to_no_restatement() {
     use datasynth_core::models::HyperinflationStatus;
 
     let tb = build_usd_tb_mixed_classes("STABLE_SUB");
-    let master = nestle_fx_master_usd_chf();
+    let master = acme_fx_master_usd_chf();
     let unit_restatement = IndexedRestatement::new(dec!(1), dec!(1), dec!(1)).unwrap();
 
     let with_restatement = translate_entity_tb_with_indexed_restatement(
@@ -753,7 +753,7 @@ fn indexed_restatement_composes_with_closing_rate_per_ias21_para_42b() {
     use datasynth_core::models::HyperinflationStatus;
 
     let tb = build_usd_tb_mixed_classes("HYPERINF_SUB");
-    let master = nestle_fx_master_usd_chf();
+    let master = acme_fx_master_usd_chf();
     let restatement = IndexedRestatement::new(dec!(100), dec!(200), dec!(150)).unwrap();
 
     let out = translate_entity_tb_with_indexed_restatement(
@@ -796,8 +796,8 @@ fn indexed_restatement_none_byte_identical_to_with_hyperinflation_only() {
     // to `_with_indexed_restatement(.., None)` without behaviour drift.
     use datasynth_core::models::HyperinflationStatus;
 
-    let tb = build_usd_tb_mixed_classes("NESTLE_USA");
-    let master = nestle_fx_master_usd_chf();
+    let tb = build_usd_tb_mixed_classes("ACME_USA");
+    let master = acme_fx_master_usd_chf();
 
     for status in [
         HyperinflationStatus::NotHyperinflationary,

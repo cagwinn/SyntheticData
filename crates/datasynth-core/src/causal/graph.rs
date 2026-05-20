@@ -55,7 +55,7 @@ pub enum CausalMechanism {
     Linear { coefficient: f64 },
     /// Threshold: child = 1 if parent > cutoff else 0
     Threshold { cutoff: f64 },
-    /// Polynomial: child += sum(coeff[i] * parent^i)
+    /// Polynomial: child += sum(coeff\[i\] * parent^i)
     Polynomial { coefficients: Vec<f64> },
     /// Logistic: child += 1 / (1 + exp(-scale * (parent - midpoint)))
     Logistic { scale: f64, midpoint: f64 },
@@ -333,7 +333,6 @@ impl Default for CausalGraph {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

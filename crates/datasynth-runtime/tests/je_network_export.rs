@@ -96,7 +96,20 @@ fn je_network_export_end_to_end() {
     let out = tmp.path().to_path_buf();
     fs::create_dir_all(&out).unwrap();
 
-    datasynth_runtime::output_writer::write_all_output(&result, &out).expect("output writer");
+    // This test validates the Cartesian edge formula (Σ n_debit × n_credit
+    // per JE), so it must request `JeNetworkMethod::Cartesian` explicitly —
+    // the default flipped to Method A in v5.27 (one edge per 2-line JE).
+    datasynth_runtime::output_writer::write_all_output_with_layout(
+        &result,
+        &out,
+        datasynth_config::ExportLayout::Nested,
+        &[
+            datasynth_config::FileFormat::Csv,
+            datasynth_config::FileFormat::Json,
+        ],
+        datasynth_config::JeNetworkMethod::Cartesian,
+    )
+    .expect("output writer");
 
     // ── 1. Schema ────────────────────────────────────────────────────
     let net_path = out.join("graphs/je_network.csv");

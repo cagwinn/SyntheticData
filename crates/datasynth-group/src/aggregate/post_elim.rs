@@ -48,11 +48,11 @@
 //!
 //! # Determinism
 //!
-//! Output's `account_totals` is a [`BTreeMap`] keyed by GL account
+//! Output's `account_totals` is a `BTreeMap` keyed by GL account
 //! code, preserving deterministic iteration order across runs.  The
 //! `contributing_entities` and `deferred_entities` lists are passed
 //! through verbatim from the input (already sorted by
-//! [`aggregate_pre_elimination`]).
+//! `aggregate_pre_elimination`).
 //!
 //! # Errors
 //!
@@ -74,7 +74,7 @@ use crate::errors::{GroupError, GroupResult};
 // Hard-coded GL accounts for the v5.0 NCI + equity-method overlay.  Per
 // spec these will be promoted to a configurable mapping in v5.1 once
 // per-entity / per-engagement chart-of-accounts variations are wired
-// in.  For Mini-Nestlé (the only v5.0 fixture) these mirror the
+// in.  For Mini-Acme (the only v5.0 fixture) these mirror the
 // canonical IFRS / US-GAAP-aligned account ranges:
 //
 // | Code | Role                                       |

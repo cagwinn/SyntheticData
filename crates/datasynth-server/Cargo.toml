@@ -27,9 +27,7 @@ otel = [
 [dependencies]
 datasynth-core = { workspace = true }
 datasynth-config = { workspace = true }
-datasynth-generators = { workspace = true }
 datasynth-runtime = { workspace = true }
-datasynth-output = { workspace = true }
 
 # gRPC
 tonic = { workspace = true }
@@ -46,7 +44,6 @@ axum-server = { workspace = true, optional = true }
 tokio = { workspace = true }
 tokio-stream = "0.1"
 futures = { workspace = true }
-async-trait = { workspace = true }
 
 # Serialization
 serde = { workspace = true }
@@ -54,8 +51,6 @@ serde_json = { workspace = true }
 serde_yaml = { workspace = true }
 
 # Error handling
-thiserror = { workspace = true }
-anyhow = { workspace = true }
 
 # Logging
 tracing = { workspace = true }
@@ -75,7 +70,6 @@ rust_decimal = { workspace = true }
 
 # Security
 argon2 = { workspace = true }
-subtle = { workspace = true }
 
 # JWT (optional - OIDC token validation)
 jsonwebtoken = { workspace = true, optional = true }

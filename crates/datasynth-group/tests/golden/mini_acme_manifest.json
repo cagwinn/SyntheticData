@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0",
-  "group_id": "MINI_NESTLE_2024_Q1",
+  "group_id": "MINI_ACME_2024_Q1",
   "group_seed": 1311768467294899695,
   "presentation_currency": "CHF",
   "period": {
@@ -11,10 +11,10 @@
   "manifest_seed": "5b7a7ef6dc1773d458429436d6e7caea687051a9d61f5a456a961ac6fd2d4c7f",
   "aggregate_seed": "196770e47343311913d445ea37e4fbcad360423234f62dc929e096d467cb682c",
   "ownership_graph": {
-    "parent_entity_code": "NESTLE_SA",
+    "parent_entity_code": "ACME_SA",
     "entities": [
       {
-        "code": "NESTLE_SA",
+        "code": "ACME_SA",
         "name": null,
         "country": "CH",
         "functional_currency": "CHF",
@@ -26,71 +26,71 @@
         "industry": null,
         "hyperinflation_status": "not_hyperinflationary",
         "ownership_changes": [],
-        "entity_seed": "d84b0bd963ad9b7418ae934c54669ba038d55a3a26903c01a740b5a5b0178223",
+        "entity_seed": "89d3caa5ddc5c53a403c283fb87568e028ec8293ceee9c7b2d527f8e5d279d1c",
         "shard_id": "S_SIG_0001"
       },
       {
-        "code": "NESTLE_USA",
+        "code": "ACME_USA",
         "name": null,
         "country": "US",
         "functional_currency": "USD",
         "scoping_profile": "significant",
         "consolidation_method": "full",
         "ownership_percent": "1",
-        "parent_code": "NESTLE_SA",
+        "parent_code": "ACME_SA",
         "accounting_framework": "us_gaap",
         "industry": null,
         "hyperinflation_status": "not_hyperinflationary",
         "ownership_changes": [],
-        "entity_seed": "1b191d92b29e88d5d6aadf29e57286cffedb1fdb0ca0207a9488d50399dd0acf",
+        "entity_seed": "4b28e3a0762ad0ac68745bcff25e56582b7d2cc912d9a5557122376393fd63db",
         "shard_id": "S_SIG_0001"
       },
       {
-        "code": "NESTLE_DE",
+        "code": "ACME_DE",
         "name": null,
         "country": "DE",
         "functional_currency": "EUR",
         "scoping_profile": "significant",
         "consolidation_method": "full",
         "ownership_percent": "0.8",
-        "parent_code": "NESTLE_SA",
+        "parent_code": "ACME_SA",
         "accounting_framework": "hgb",
         "industry": null,
         "hyperinflation_status": "not_hyperinflationary",
         "ownership_changes": [],
-        "entity_seed": "20e7814691c6a16ad649a191c6d5cebace1e57ffbdf88b0d680d4a66c6f5a70c",
+        "entity_seed": "40a94b3f8b5578300975c4f7900b3599201b34a9123a2542b31a94b829b3d89b",
         "shard_id": "S_SIG_0001"
       },
       {
-        "code": "NESTLE_BR",
+        "code": "ACME_BR",
         "name": null,
         "country": "BR",
         "functional_currency": "BRL",
         "scoping_profile": "material",
         "consolidation_method": "full",
         "ownership_percent": "1",
-        "parent_code": "NESTLE_SA",
+        "parent_code": "ACME_SA",
         "accounting_framework": null,
         "industry": null,
         "hyperinflation_status": "not_hyperinflationary",
         "ownership_changes": [],
-        "entity_seed": "ee247c7390332f77141d292b6c1cc18e1127d3142162de798ac7851ca6edc99d",
+        "entity_seed": "976b384ddbd1672b53280f324c9c7a27818a77da5c4e02885df3cf38f80473ea",
         "shard_id": "S_MAT_0001"
       },
       {
-        "code": "NESTLE_JV",
+        "code": "ACME_JV",
         "name": null,
         "country": "CH",
         "functional_currency": "CHF",
         "scoping_profile": "material",
         "consolidation_method": "equity_method",
         "ownership_percent": "0.5",
-        "parent_code": "NESTLE_SA",
+        "parent_code": "ACME_SA",
         "accounting_framework": null,
         "industry": null,
         "hyperinflation_status": "not_hyperinflationary",
         "ownership_changes": [],
-        "entity_seed": "0829f6fe8032b4863c404efcd5306e227fc9f2d02858aeb426272c46550cc576",
+        "entity_seed": "26b61fb8ce3881a40bd7a0d1075e9767e33be8d03291ab37a06110d4984f75fd",
         "shard_id": "S_MAT_0001"
       }
     ]
@@ -125,8 +125,8 @@
     "primary_framework": "ifrs",
     "frameworks": {
       "hgb": {
-        "coa_id": "MINI_NESTLE_2024_Q1_hgb_coa",
-        "name": "MINI_NESTLE_2024_Q1 hgb chart of accounts",
+        "coa_id": "MINI_ACME_2024_Q1_hgb_coa",
+        "name": "MINI_ACME_2024_Q1 hgb chart of accounts",
         "country": "DE",
         "industry": "manufacturing",
         "accounts": [
@@ -10960,8 +10960,8 @@
         "accounting_framework": "hgb"
       },
       "ifrs": {
-        "coa_id": "MINI_NESTLE_2024_Q1_ifrs_coa",
-        "name": "MINI_NESTLE_2024_Q1 ifrs chart of accounts",
+        "coa_id": "MINI_ACME_2024_Q1_ifrs_coa",
+        "name": "MINI_ACME_2024_Q1 ifrs chart of accounts",
         "country": "CH",
         "industry": "manufacturing",
         "accounts": [
@@ -32097,8 +32097,8 @@
         "accounting_framework": "ifrs"
       },
       "us_gaap": {
-        "coa_id": "MINI_NESTLE_2024_Q1_us_gaap_coa",
-        "name": "MINI_NESTLE_2024_Q1 us_gaap chart of accounts",
+        "coa_id": "MINI_ACME_2024_Q1_us_gaap_coa",
+        "name": "MINI_ACME_2024_Q1 us_gaap chart of accounts",
         "country": "US",
         "industry": "manufacturing",
         "accounts": [
@@ -53273,9 +53273,9 @@
   },
   "ic_relationships": [
     {
-      "id": "ICR_f05692d77098881e",
-      "seller": "NESTLE_SA",
-      "buyer": "NESTLE_USA",
+      "id": "ICR_fbbffb1be8cfe311",
+      "seller": "ACME_SA",
+      "buyer": "ACME_USA",
       "types": [
         "goods_sale",
         "royalty"
@@ -53287,9 +53287,9 @@
       "pattern_index": null
     },
     {
-      "id": "ICR_804e37ee98a10f17",
-      "seller": "NESTLE_SA",
-      "buyer": "NESTLE_DE",
+      "id": "ICR_c884f86338764a0d",
+      "seller": "ACME_SA",
+      "buyer": "ACME_DE",
       "types": [
         "goods_sale",
         "management_fee"
@@ -53301,9 +53301,9 @@
       "pattern_index": null
     },
     {
-      "id": "ICR_0368700005ec0018",
-      "seller": "NESTLE_SA",
-      "buyer": "NESTLE_USA",
+      "id": "ICR_f0ad0d6a06454070",
+      "seller": "ACME_SA",
+      "buyer": "ACME_USA",
       "types": [
         "management_fee"
       ],
@@ -53314,9 +53314,9 @@
       "pattern_index": 2
     },
     {
-      "id": "ICR_32587a8aed0ad819",
-      "seller": "NESTLE_SA",
-      "buyer": "NESTLE_DE",
+      "id": "ICR_8c9955952d1f855c",
+      "seller": "ACME_SA",
+      "buyer": "ACME_DE",
       "types": [
         "management_fee"
       ],
@@ -53327,9 +53327,9 @@
       "pattern_index": 2
     },
     {
-      "id": "ICR_429aff769dc6a4f0",
-      "seller": "NESTLE_SA",
-      "buyer": "NESTLE_BR",
+      "id": "ICR_197f3742046193f8",
+      "seller": "ACME_SA",
+      "buyer": "ACME_BR",
       "types": [
         "management_fee"
       ],
@@ -53340,9 +53340,9 @@
       "pattern_index": 2
     },
     {
-      "id": "ICR_d0cd4cb6204a24eb",
-      "seller": "NESTLE_SA",
-      "buyer": "NESTLE_JV",
+      "id": "ICR_122699d3770c3a24",
+      "seller": "ACME_SA",
+      "buyer": "ACME_JV",
       "types": [
         "management_fee"
       ],
@@ -53354,7 +53354,7 @@
     }
   ],
   "audit_engagement_plan": {
-    "engagement_id": "EY_MINI_NESTLE_2024_Q1",
+    "engagement_id": "EY_MINI_ACME_2024_Q1",
     "lead_auditor": "EY_ZURICH",
     "framework": "isa",
     "fsm_blueprint": "builtin:group_fsa",
@@ -53363,31 +53363,31 @@
     "clearly_trivial": "2500000.0000",
     "component_materiality_allocations": [
       {
-        "entity_code": "NESTLE_SA",
+        "entity_code": "ACME_SA",
         "materiality": "5278640.450004210000000000",
         "scope": "Full",
         "revenue_share_estimate": "0.2"
       },
       {
-        "entity_code": "NESTLE_USA",
+        "entity_code": "ACME_USA",
         "materiality": "5278640.450004210000000000",
         "scope": "Full",
         "revenue_share_estimate": "0.2"
       },
       {
-        "entity_code": "NESTLE_DE",
+        "entity_code": "ACME_DE",
         "materiality": "5278640.450004210000000000",
         "scope": "Full",
         "revenue_share_estimate": "0.2"
       },
       {
-        "entity_code": "NESTLE_BR",
+        "entity_code": "ACME_BR",
         "materiality": "5278640.450004210000000000",
         "scope": "Full",
         "revenue_share_estimate": "0.2"
       },
       {
-        "entity_code": "NESTLE_JV",
+        "entity_code": "ACME_JV",
         "materiality": "5278640.450004210000000000",
         "scope": "Full",
         "revenue_share_estimate": "0.2"
@@ -53399,7 +53399,7 @@
         "firm": "UNDESIGNATED",
         "jurisdiction": "BR",
         "entities": [
-          "NESTLE_BR"
+          "ACME_BR"
         ]
       },
       {
@@ -53407,8 +53407,8 @@
         "firm": "UNDESIGNATED-LEAD",
         "jurisdiction": "CH",
         "entities": [
-          "NESTLE_JV",
-          "NESTLE_SA"
+          "ACME_JV",
+          "ACME_SA"
         ]
       },
       {
@@ -53416,7 +53416,7 @@
         "firm": "UNDESIGNATED",
         "jurisdiction": "DE",
         "entities": [
-          "NESTLE_DE"
+          "ACME_DE"
         ]
       },
       {
@@ -53424,7 +53424,7 @@
         "firm": "UNDESIGNATED",
         "jurisdiction": "US",
         "entities": [
-          "NESTLE_USA"
+          "ACME_USA"
         ]
       }
     ]
@@ -53437,10 +53437,10 @@
         "US"
       ],
       "entities_in_scope": [
-        "NESTLE_DE",
-        "NESTLE_JV",
-        "NESTLE_SA",
-        "NESTLE_USA"
+        "ACME_DE",
+        "ACME_JV",
+        "ACME_SA",
+        "ACME_USA"
       ]
     },
     "cbc_report": {
@@ -53471,8 +53471,8 @@
         "shard_id": "S_MAT_0001",
         "scoping_profile": "material",
         "entity_codes": [
-          "NESTLE_BR",
-          "NESTLE_JV"
+          "ACME_BR",
+          "ACME_JV"
         ],
         "estimated_rows": 2000000,
         "estimated_archive_size_mb": 1600
@@ -53481,9 +53481,9 @@
         "shard_id": "S_SIG_0001",
         "scoping_profile": "significant",
         "entity_codes": [
-          "NESTLE_DE",
-          "NESTLE_SA",
-          "NESTLE_USA"
+          "ACME_DE",
+          "ACME_SA",
+          "ACME_USA"
         ],
         "estimated_rows": 3000000,
         "estimated_archive_size_mb": 2400

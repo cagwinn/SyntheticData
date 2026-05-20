@@ -1,4 +1,4 @@
-#![deny(clippy::unwrap_used)]
+#![cfg_attr(not(test), deny(clippy::unwrap_used))]
 //! # synth-generators
 //!
 //! Data generators for journal entries, chart of accounts, ACDOCA event logs,
@@ -61,6 +61,7 @@ pub mod hr;
 pub mod kpi_generator;
 pub mod manufacturing;
 pub mod organizational_event_generator;
+pub mod priors_loader;
 pub mod process_evolution_generator;
 pub mod project_accounting;
 pub mod sales_quote_generator;
@@ -171,4 +172,7 @@ pub use prior_year_generator::*;
 //   datasynth_generators::temporal::TemporalAttributeGenerator
 //   datasynth_generators::project_accounting::{ProjectGenerator, ...}
 //   datasynth_generators::treasury::{CashPositionGenerator, ...}
+//   datasynth_generators::velocity_calibrator::{VelocityCalibrator, CalibrationStep}
 // ---------------------------------------------------------------------------
+
+pub mod velocity_calibrator;

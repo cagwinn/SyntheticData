@@ -326,7 +326,6 @@ fn low_activity_profile() -> PersonaProfile {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

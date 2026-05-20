@@ -15,8 +15,8 @@
 //!
 //! # Memory caveat — orchestrator runs are heavy
 //!
-//! [`run_shard`] drives [`datasynth_runtime::EnhancedOrchestrator::generate`]
-//! end-to-end for every entity in the shard.  Each Mini-Nestlé entity
+//! `run_shard` drives [`datasynth_runtime::EnhancedOrchestrator::generate`]
+//! end-to-end for every entity in the shard.  Each Mini-Acme entity
 //! peaks at **~17 GiB RSS** for ~15 minutes; running all five entities
 //! sequentially takes 60–90 minutes on a single host.
 //!
@@ -156,7 +156,7 @@ impl Default for StandaloneOptions {
 pub struct StandaloneSummary {
     /// Path to the persisted manifest at `{out_dir}/manifest.json`.
     pub manifest_path: PathBuf,
-    /// Per-shard summaries from [`run_shard`], one per shard in the
+    /// Per-shard summaries from `run_shard`, one per shard in the
     /// manifest's [`crate::manifest::shard_plan::ShardPlan`].
     pub shard_summaries: Vec<ShardSummary>,
     /// Aggregate-phase summary from [`run_aggregate`].
@@ -182,7 +182,7 @@ pub struct StandaloneSummary {
 ///
 /// - [`GroupError::Manifest`] / [`GroupError::Config`] propagated from
 ///   [`build_manifest`].
-/// - [`GroupError::Shard`] propagated from any [`run_shard`] failure
+/// - [`GroupError::Shard`] propagated from any `run_shard` failure
 ///   (orchestrator construction, generation, or per-entity output).
 /// - [`GroupError::Aggregate`] / [`GroupError::Io`] /
 ///   [`GroupError::Serde`] propagated from [`run_aggregate`].

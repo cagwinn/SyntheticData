@@ -1,7 +1,7 @@
 //! Task 4.2 — `build_entity_generator_config` integration tests.
 //!
 //! These tests drive `datasynth_group::shard::build_entity_generator_config`
-//! from the mini_nestle reference fixture and verify that the per-entity
+//! from the mini_acme reference fixture and verify that the per-entity
 //! [`GeneratorConfig`] it produces:
 //!
 //! - validates against the `datasynth-config` schema;
@@ -23,14 +23,14 @@ use datasynth_group::{build_manifest, GroupConfig};
 
 // ── Fixture loading ───────────────────────────────────────────────────────────
 
-/// Load the mini_nestle fixture's [`GroupManifest`] — all integration tests
+/// Load the mini_acme fixture's [`GroupManifest`] — all integration tests
 /// here drive a real manifest rather than a hand-built one because the
 /// builder relies on the `scoping_profiles` map being populated.
-fn load_mini_nestle_manifest() -> GroupManifest {
-    let yaml = include_str!("fixtures/mini_nestle.yaml");
+fn load_mini_acme_manifest() -> GroupManifest {
+    let yaml = include_str!("fixtures/mini_acme.yaml");
     let cfg: GroupConfig =
-        serde_yaml::from_str(yaml).expect("mini_nestle.yaml must parse into GroupConfig");
-    build_manifest(&cfg).expect("mini_nestle.yaml must build a manifest")
+        serde_yaml::from_str(yaml).expect("mini_acme.yaml must parse into GroupConfig");
+    build_manifest(&cfg).expect("mini_acme.yaml must build a manifest")
 }
 
 /// Look up a manifest entity by code — every integration test below starts
@@ -41,20 +41,20 @@ fn entity_by_code<'a>(manifest: &'a GroupManifest, code: &str) -> &'a ManifestEn
         .entities
         .iter()
         .find(|e| e.code == code)
-        .unwrap_or_else(|| panic!("mini_nestle fixture must carry entity {code}"))
+        .unwrap_or_else(|| panic!("mini_acme fixture must carry entity {code}"))
 }
 
 // ── Integration tests ────────────────────────────────────────────────────────
 
-/// Every entity in the mini_nestle fixture must produce a valid
+/// Every entity in the mini_acme fixture must produce a valid
 /// [`GeneratorConfig`] with a single company keyed by the entity's own
 /// code, currency, and country.
 #[test]
 fn test_builds_valid_config_for_every_entity() {
-    let manifest = load_mini_nestle_manifest();
+    let manifest = load_mini_acme_manifest();
     assert!(
         !manifest.ownership_graph.entities.is_empty(),
-        "mini_nestle fixture must have entities"
+        "mini_acme fixture must have entities"
     );
 
     for entity in &manifest.ownership_graph.entities {
@@ -97,14 +97,14 @@ fn test_builds_valid_config_for_every_entity() {
     }
 }
 
-/// NESTLE_SA is the IFRS-reporting parent; its per-entity config must
+/// ACME_SA is the IFRS-reporting parent; its per-entity config must
 /// carry the manifest's quarterly period, CHF presentation currency, and
 /// fixture seed verbatim.
 #[test]
 fn test_period_and_currency_flow_through() {
-    let manifest = load_mini_nestle_manifest();
-    let entity = entity_by_code(&manifest, "NESTLE_SA");
-    let cfg = build_entity_generator_config(&manifest, entity).expect("NESTLE_SA must build");
+    let manifest = load_mini_acme_manifest();
+    let entity = entity_by_code(&manifest, "ACME_SA");
+    let cfg = build_entity_generator_config(&manifest, entity).expect("ACME_SA must build");
 
     assert_eq!(cfg.global.start_date, "2024-01-01");
     assert_eq!(cfg.global.period_months, 3, "Quarterly → 3 months");
@@ -112,17 +112,17 @@ fn test_period_and_currency_flow_through() {
     assert_eq!(cfg.global.presentation_currency, Some("CHF".to_string()));
     assert_eq!(cfg.global.seed, Some(0x1234567890ABCDEF));
     assert_eq!(cfg.global.seed, Some(manifest.group_seed));
-    // mini_nestle's `defaults.industry = manufacturing` stamps this.
+    // mini_acme's `defaults.industry = manufacturing` stamps this.
     assert_eq!(cfg.global.industry, IndustrySector::Manufacturing);
 }
 
-/// Every mini_nestle entity inherits `defaults.industry = manufacturing`,
+/// Every mini_acme entity inherits `defaults.industry = manufacturing`,
 /// so every built config must report Manufacturing.  As a negative
 /// control, a synthetic entity with `industry: None` must still default
 /// to Manufacturing rather than erroring out.
 #[test]
 fn test_industry_mapping_defaults_to_manufacturing_when_unset() {
-    let manifest = load_mini_nestle_manifest();
+    let manifest = load_mini_acme_manifest();
 
     // Every real entity in the fixture already has `industry = Some("manufacturing")`
     // after three-level resolution, so they all map to Manufacturing.
@@ -144,23 +144,23 @@ fn test_industry_mapping_defaults_to_manufacturing_when_unset() {
     let synthetic = ManifestEntity {
         industry: None,
         hyperinflation_status: datasynth_core::models::HyperinflationStatus::NotHyperinflationary,
-        ..entity_by_code(&manifest, "NESTLE_SA").clone()
+        ..entity_by_code(&manifest, "ACME_SA").clone()
     };
     let cfg = build_entity_generator_config(&manifest, &synthetic)
         .expect("synthetic entity with industry=None must build");
     assert_eq!(cfg.global.industry, IndustrySector::Manufacturing);
 }
 
-/// `row_budget` drives [`TransactionVolume`] bucketing.  The mini_nestle
+/// `row_budget` drives [`TransactionVolume`] bucketing.  The mini_acme
 /// fixture has two profiles: `significant` (100_000 rows → `HundredK`)
 /// and `material` (25_000 rows → `HundredK`; `25_000 ≤ 100_000`).  Both
 /// should produce a company with `annual_transaction_volume == HundredK`.
 #[test]
 fn test_row_budget_controls_volume() {
-    let manifest = load_mini_nestle_manifest();
+    let manifest = load_mini_acme_manifest();
 
-    // NESTLE_SA is in `significant` (row_budget = 100_000).
-    let sig_entity = entity_by_code(&manifest, "NESTLE_SA");
+    // ACME_SA is in `significant` (row_budget = 100_000).
+    let sig_entity = entity_by_code(&manifest, "ACME_SA");
     assert_eq!(sig_entity.scoping_profile, "significant");
     let sig_cfg = build_entity_generator_config(&manifest, sig_entity).expect("must build");
     assert_eq!(
@@ -169,8 +169,8 @@ fn test_row_budget_controls_volume() {
         "significant (row_budget=100_000) → HundredK",
     );
 
-    // NESTLE_BR is in `material` (row_budget = 25_000).
-    let mat_entity = entity_by_code(&manifest, "NESTLE_BR");
+    // ACME_BR is in `material` (row_budget = 25_000).
+    let mat_entity = entity_by_code(&manifest, "ACME_BR");
     assert_eq!(mat_entity.scoping_profile, "material");
     let mat_cfg = build_entity_generator_config(&manifest, mat_entity).expect("must build");
     assert_eq!(
@@ -192,8 +192,8 @@ fn test_row_budget_controls_volume() {
 /// That's a pre-existing upstream quirk, not a defect in this builder.
 #[test]
 fn test_deterministic_across_calls() {
-    let manifest = load_mini_nestle_manifest();
-    let entity = entity_by_code(&manifest, "NESTLE_SA");
+    let manifest = load_mini_acme_manifest();
+    let entity = entity_by_code(&manifest, "ACME_SA");
 
     let a: GeneratorConfig =
         build_entity_generator_config(&manifest, entity).expect("first call must succeed");
@@ -233,20 +233,20 @@ fn test_deterministic_across_calls() {
     }
 }
 
-// ── Sanity: NESTLE_USA carries US-specific scalars ────────────────────────────
+// ── Sanity: ACME_USA carries US-specific scalars ────────────────────────────
 
-/// NESTLE_USA has `functional_currency: USD`, `country: US` in the fixture.
+/// ACME_USA has `functional_currency: USD`, `country: US` in the fixture.
 /// Even though `accounting_framework: us_gaap` is not threaded through to
 /// the v5.0 [`GeneratorConfig`] surface, the company still reflects the
 /// US scalars — that's the observable difference from the IFRS parent.
 #[test]
 fn test_us_entity_carries_us_scalars() {
-    let manifest = load_mini_nestle_manifest();
-    let entity = entity_by_code(&manifest, "NESTLE_USA");
-    let cfg = build_entity_generator_config(&manifest, entity).expect("NESTLE_USA must build");
+    let manifest = load_mini_acme_manifest();
+    let entity = entity_by_code(&manifest, "ACME_USA");
+    let cfg = build_entity_generator_config(&manifest, entity).expect("ACME_USA must build");
 
     let company = &cfg.companies[0];
-    assert_eq!(company.code, "NESTLE_USA");
+    assert_eq!(company.code, "ACME_USA");
     assert_eq!(company.country, "US");
     assert_eq!(company.currency, "USD");
     assert_eq!(company.functional_currency, Some("USD".to_string()));

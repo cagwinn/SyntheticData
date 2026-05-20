@@ -79,9 +79,9 @@ impl NlConfigGenerator {
 
     /// Generate a complete YAML configuration from a natural language description.
     ///
-    /// Unlike [`generate`], which maps to a template via structured intent, this
+    /// Unlike `generate`, which maps to a template via structured intent, this
     /// method asks the LLM to produce the full YAML directly using the complete
-    /// DataSynth config schema as guidance.  Falls back to [`generate`] if the
+    /// DataSynth config schema as guidance.  Falls back to `generate` if the
     /// LLM response is not valid YAML or does not contain expected top-level keys.
     pub fn generate_full(
         description: &str,
@@ -178,7 +178,7 @@ impl NlConfigGenerator {
 
     /// System prompt describing the full DataSynth configuration schema.
     ///
-    /// Used by [`generate_full`] so the LLM can produce a complete config.
+    /// Used by `generate_full` so the LLM can produce a complete config.
     pub fn full_schema_system_prompt() -> String {
         concat!(
             "You are a DataSynth configuration generator. Given a natural language description, ",
@@ -696,7 +696,6 @@ impl NlConfigGenerator {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use crate::llm::mock_provider::MockLlmProvider;

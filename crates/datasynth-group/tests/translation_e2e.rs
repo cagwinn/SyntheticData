@@ -1,8 +1,8 @@
-//! Mini-Nestlé translation round-trip e2e (Task 6.5).
+//! Mini-Acme translation round-trip e2e (Task 6.5).
 //!
-//! Hand-builds per-entity TBs for the four Mini-Nestlé fixtures
-//! (NESTLE_SA / parent CHF, NESTLE_USA / USD, NESTLE_DE / EUR,
-//! NESTLE_BR / BRL) and exercises the IAS 21 translation pipeline
+//! Hand-builds per-entity TBs for the four Mini-Acme fixtures
+//! (ACME_SA / parent CHF, ACME_USA / USD, ACME_DE / EUR,
+//! ACME_BR / BRL) and exercises the IAS 21 translation pipeline
 //! end-to-end without invoking the orchestrator (the orchestrator
 //! would OOM the host — see Task 4.5 and the XXL VM plan).
 //!
@@ -11,7 +11,7 @@
 //! - CTA rollforward has exactly 3 non-parent entities (USA / DE / BR;
 //!   the JV is equity-method, deferred to Chunk 7).
 //! - Each non-parent CTA is non-zero (rate bases differ).
-//! - NESTLE_SA lines are identity-translated (CHF == CHF).
+//! - ACME_SA lines are identity-translated (CHF == CHF).
 
 use std::collections::BTreeMap;
 
@@ -47,11 +47,11 @@ fn default_policy() -> FxPolicyConfig {
     }
 }
 
-/// Build the Mini-Nestlé `FxRateMaster` covering USD/CHF, EUR/CHF, BRL/CHF.
+/// Build the Mini-Acme `FxRateMaster` covering USD/CHF, EUR/CHF, BRL/CHF.
 ///
-/// Mirrors the inline rates in `fixtures/mini_nestle.yaml` after
+/// Mirrors the inline rates in `fixtures/mini_acme.yaml` after
 /// auto-inversion to canonical FUNCTIONAL/PRESENTATION direction.
-fn nestle_fx_master() -> FxRateMaster {
+fn acme_fx_master() -> FxRateMaster {
     let dates = [
         NaiveDate::from_ymd_opt(2024, 1, 31).unwrap(),
         NaiveDate::from_ymd_opt(2024, 2, 29).unwrap(),
@@ -198,16 +198,16 @@ fn make_tb(company_code: &str, currency: &str) -> TrialBalance {
 }
 
 #[test]
-fn mini_nestle_translation_e2e() {
+fn mini_acme_translation_e2e() {
     // ── 1. Build per-entity TBs for the four functional currencies. ──
     let entities = [
-        ("NESTLE_SA", "CHF"), // parent — identity translation
-        ("NESTLE_USA", "USD"),
-        ("NESTLE_DE", "EUR"),
-        ("NESTLE_BR", "BRL"),
+        ("ACME_SA", "CHF"), // parent — identity translation
+        ("ACME_USA", "USD"),
+        ("ACME_DE", "EUR"),
+        ("ACME_BR", "BRL"),
     ];
 
-    let master = nestle_fx_master();
+    let master = acme_fx_master();
     let framework = AccountingFramework::default();
 
     // ── 2. Translate each entity's TB. ───────────────────────────────
@@ -240,11 +240,11 @@ fn mini_nestle_translation_e2e() {
         assert_eq!(t.as_of_date, period_end());
     }
 
-    // ── 3. NESTLE_SA must be identity-translated. ───────────────────
+    // ── 3. ACME_SA must be identity-translated. ───────────────────
     let parent = translated
         .iter()
-        .find(|t| t.entity_code == "NESTLE_SA")
-        .expect("NESTLE_SA must be in output");
+        .find(|t| t.entity_code == "ACME_SA")
+        .expect("ACME_SA must be in output");
     assert_eq!(parent.functional_currency, "CHF");
     assert_eq!(parent.presentation_currency, "CHF");
     for line in &parent.lines {
@@ -264,7 +264,7 @@ fn mini_nestle_translation_e2e() {
     // in this fixture set, so we expect exactly 3 rollforwards.
     let rollforwards: Vec<CtaRollforward> = translated
         .iter()
-        .filter(|t| t.entity_code != "NESTLE_SA")
+        .filter(|t| t.entity_code != "ACME_SA")
         .map(|t| {
             cta_rollforward(
                 &t.entity_code,
@@ -302,7 +302,7 @@ fn mini_nestle_translation_e2e() {
         .map(|r| r.entity_code.as_str())
         .collect();
     codes.sort();
-    assert_eq!(codes, vec!["NESTLE_BR", "NESTLE_DE", "NESTLE_USA"]);
+    assert_eq!(codes, vec!["ACME_BR", "ACME_DE", "ACME_USA"]);
 
     // ── 5. Round-trip the rollforward and worksheet through disk. ───
     let tmp = tempfile::tempdir().expect("tmp dir");

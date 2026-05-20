@@ -122,7 +122,7 @@ impl JudgmentGenerator {
     /// Generate a single professional judgment enriched with real audit
     /// context.
     ///
-    /// The struct returned is identical to [`generate_judgment`]; the
+    /// The struct returned is identical to `generate_judgment`; the
     /// difference is purely narrative — the `conclusion`, `rationale`,
     /// and `information_considered` fields reference concrete materiality
     /// amounts, risk area names, finding counts, etc.
@@ -994,7 +994,6 @@ impl JudgmentGenerator {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use crate::audit::test_helpers::create_test_engagement;

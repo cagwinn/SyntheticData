@@ -1407,7 +1407,6 @@ async fn reload_config(
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

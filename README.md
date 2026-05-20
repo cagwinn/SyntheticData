@@ -86,7 +86,7 @@ cargo build --release
 
 # Group audit pipeline (multi-entity consolidation)
 ./target/release/datasynth-data group generate \
-  --config configs/examples/group/mini_nestle.yaml \
+  --config configs/examples/group/mini_acme.yaml \
   --out ./group_archive
 
 # Counterfactual scenarios
@@ -131,8 +131,8 @@ Multi-period engagements stitch opening balances + NCI + CTA + equity-method
 carryforwards forward through the chain helpers — no caller plumbing required.
 
 ```yaml
-# Excerpt — see configs/examples/group/mini_nestle.yaml for the full file
-id: "MINI_NESTLE_2024_Q1"
+# Excerpt — see configs/examples/group/mini_acme.yaml for the full file
+id: "MINI_ACME_2024_Q1"
 presentation_currency: "CHF"
 period: { start_date: "2024-01-01", length: quarterly }
 defaults:
@@ -140,25 +140,25 @@ defaults:
   industry: manufacturing
   process_models: [o2c, p2p, h2r, r2r, audit]
 ownership:
-  parent_entity_code: NESTLE_SA
+  parent_entity_code: ACME_SA
   entities:
-    - { code: NESTLE_SA, country: CH, functional_currency: CHF,
+    - { code: ACME_SA, country: CH, functional_currency: CHF,
         consolidation_method: parent }
-    - { code: NESTLE_USA, country: US, functional_currency: USD,
+    - { code: ACME_USA, country: US, functional_currency: USD,
         consolidation_method: full, ownership_percent: 1.0,
-        parent_code: NESTLE_SA }
-    - { code: NESTLE_DE, country: DE, functional_currency: EUR,
+        parent_code: ACME_SA }
+    - { code: ACME_DE, country: DE, functional_currency: EUR,
         consolidation_method: full, ownership_percent: 0.80,
-        parent_code: NESTLE_SA }
+        parent_code: ACME_SA }
 intercompany:
   relationships:
-    - { seller: NESTLE_SA, buyer: NESTLE_USA, types: [goods_sale],
+    - { seller: ACME_SA, buyer: ACME_USA, types: [goods_sale],
         annual_volume: 5_000_000, transfer_pricing: cost_plus, markup_percent: 0.08 }
 ```
 
 ```bash
 datasynth-data group generate \
-  --config configs/examples/group/mini_nestle.yaml \
+  --config configs/examples/group/mini_acme.yaml \
   --out ./group_archive
 ```
 
@@ -168,8 +168,8 @@ Output layout:
 ./group_archive/
 ├── manifest.json                       # canonical group manifest
 ├── entities/
-│   ├── NESTLE_SA/                      # full single-entity archive per shard
-│   ├── NESTLE_USA/
+│   ├── ACME_SA/                      # full single-entity archive per shard
+│   ├── ACME_USA/
 │   └── ...
 ├── consolidated/
 │   ├── consolidated_financial_statements.json
@@ -316,6 +316,31 @@ SOX 302 / 404, COSO 2013 (5 components, 17 principles). FEC, GoBD, and SAF-T
 (PT / PL / RO / NO / LU) audit-file exports plus a 27-table SAP integration
 pack (BKPF / BSEG / ACDOCA + master data + subledger).
 
+### Behavioral-fidelity evaluation (v5.11+)
+
+```bash
+datasynth-data behavioral score \
+  --real /path/to/real_je.parquet \
+  --syn  ./output \
+  --profile gl-source-tp \
+  --out  ./reports/bf
+```
+
+See [docs/behavioral-fidelity.md](docs/behavioral-fidelity.md) for the
+P1-P4 metric definitions and the canonical GL velocity rule set.
+
+### Real-world priors (v5.11+)
+
+The `datasynth-fingerprint` crate ships per-industry behavioral priors
+mined from a 45-client corpus. SP3 will consume them to drive
+entity-aware generation. See [docs/real-world-priors.md](docs/real-world-priors.md).
+
+### Entity-aware generation (v5.12+)
+
+Opt-in via `industry_profile.priors.enabled: true`. Consumes SP2 priors to
+match corpus behavioral distributions. See
+[docs/entity-aware-generation.md](docs/entity-aware-generation.md).
+
 ---
 
 ## Architecture
@@ -355,7 +380,7 @@ builds:
 |----------|-----------:|---------:|-------:|
 | Single-entity generation throughput | ~14 000 JEs/sec | — | — |
 | XXL dataset (200 K+ JEs, 3 companies, 36 months) | 20.6 s | 4.3 GB | CSV |
-| Mini-Nestlé `group generate` (5 entities, quarterly) | ~5 min | — | 1.5 GB |
+| Mini-Acme `group generate` (5 entities, quarterly) | ~5 min | — | 1.5 GB |
 | ACME 2 000-entity `group generate` | 5 min 32 s | 60 GiB | 66 GB |
 | ACME archive packed (zstd −3) | 35 s | — | 3.1 GB |
 

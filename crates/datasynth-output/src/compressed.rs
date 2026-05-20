@@ -100,7 +100,6 @@ pub fn compressed_path(path: &Path) -> PathBuf {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use std::io::Read;

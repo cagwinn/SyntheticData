@@ -561,7 +561,6 @@ fn opt_dec(opt: &Option<rust_decimal::Decimal>) -> String {
 // ---------------------------------------------------------------------------
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use chrono::NaiveDate;

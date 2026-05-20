@@ -553,7 +553,7 @@ impl HypergraphBuilder {
 
     /// Compute a budget suggestion based on actual demand per layer.
     ///
-    /// Does **not** modify the builder's budget — call [`rebalance_with_demand`]
+    /// Does **not** modify the builder's budget — call `rebalance_with_demand`
     /// to actually apply the suggestion.
     pub fn suggest_budget(&self, demand: &LayerDemand) -> NodeBudgetSuggestion {
         self.budget.suggest(demand.l1, demand.l2, demand.l3)
@@ -576,7 +576,7 @@ impl HypergraphBuilder {
     ///
     /// This is a convenience method that tallies the entities from each slice
     /// according to which layer they belong to. The returned [`LayerDemand`]
-    /// can be passed to [`suggest_budget`] or [`rebalance_with_demand`].
+    /// can be passed to `suggest_budget` or `rebalance_with_demand`.
     pub fn count_demand(input: &BuilderInput<'_>) -> LayerDemand {
         // COSO framework: 5 components + 17 principles = 22 fixed nodes.
         let coso_count = 22;
@@ -5006,7 +5006,6 @@ fn compute_je_features(entry: &JournalEntry) -> Vec<f64> {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use datasynth_core::models::{

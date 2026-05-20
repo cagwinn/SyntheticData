@@ -42,3 +42,8 @@ datasynth-core = { workspace = true }
 datasynth-runtime = { workspace = true }
 datasynth-generators = { workspace = true }
 datasynth-banking = { workspace = true }
+
+# attic crate excluded from the workspace build per Cargo.toml `exclude`.
+# datasynth-banking listed as a historical dep; not exercised in main build.
+[package.metadata.cargo-machete]
+ignored = ["datasynth-banking"]

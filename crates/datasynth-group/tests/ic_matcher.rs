@@ -6,7 +6,7 @@
 //! `entity_jes` so we can exercise both the happy path and every
 //! unmatched / corruption shape without setting up a full shard run.
 //!
-//! The fixture is the trimmed `mini_nestle.yaml` (NESTLE_SA + NESTLE_USA
+//! The fixture is the trimmed `mini_acme.yaml` (ACME_SA + ACME_USA
 //! kept, every other entity removed from the ownership graph and every
 //! relationship not strictly between those two pruned).  This keeps the
 //! plan count small but still exercises a real manifest-built path
@@ -25,27 +25,27 @@ use datasynth_group::{build_manifest, match_ic_pairs, GroupConfig, GroupError, U
 
 // ── Fixture builders ──────────────────────────────────────────────────────────
 
-/// Trim the full mini_nestle YAML to the two-entity universe we use in
-/// these tests: NESTLE_SA (the parent / seller) and NESTLE_USA (a Full
+/// Trim the full mini_acme YAML to the two-entity universe we use in
+/// these tests: ACME_SA (the parent / seller) and ACME_USA (a Full
 /// subsidiary).  Drops every other ownership-graph entity and every IC
 /// relationship that names a non-retained entity.
 fn load_two_entity_manifest() -> GroupManifest {
-    let yaml = include_str!("fixtures/mini_nestle.yaml");
+    let yaml = include_str!("fixtures/mini_acme.yaml");
     let mut cfg: GroupConfig =
-        serde_yaml::from_str(yaml).expect("mini_nestle.yaml must parse into GroupConfig");
+        serde_yaml::from_str(yaml).expect("mini_acme.yaml must parse into GroupConfig");
 
-    // Keep only NESTLE_SA and NESTLE_USA in the ownership graph.
+    // Keep only ACME_SA and ACME_USA in the ownership graph.
     cfg.ownership
         .entities
-        .retain(|e| e.code == "NESTLE_SA" || e.code == "NESTLE_USA");
+        .retain(|e| e.code == "ACME_SA" || e.code == "ACME_USA");
 
     // Trim explicit IC relationships to ones whose endpoints survived.
     cfg.intercompany.relationships.retain(|rel| {
         use datasynth_group::config::IcRelationshipConfig;
         match rel {
             IcRelationshipConfig::Explicit(e) => {
-                (e.seller == "NESTLE_SA" || e.seller == "NESTLE_USA")
-                    && (e.buyer == "NESTLE_SA" || e.buyer == "NESTLE_USA")
+                (e.seller == "ACME_SA" || e.seller == "ACME_USA")
+                    && (e.buyer == "ACME_SA" || e.buyer == "ACME_USA")
             }
             // Patterns that fan out across all entities will reduce to
             // SA<->USA pairs once entities are trimmed.  Keep them.
@@ -64,19 +64,19 @@ fn load_two_entity_manifest() -> GroupManifest {
         tp.local_files_for.retain(|j| j == "CH" || j == "US");
     }
 
-    build_manifest(&cfg).expect("trimmed mini_nestle must still build a manifest")
+    build_manifest(&cfg).expect("trimmed mini_acme must still build a manifest")
 }
 
 /// Like [`load_two_entity_manifest`] but for the no-IC case: clears
 /// `intercompany.relationships` entirely.  Used by the empty-manifest
 /// coverage test.
 fn load_two_entity_manifest_no_ic() -> GroupManifest {
-    let yaml = include_str!("fixtures/mini_nestle.yaml");
+    let yaml = include_str!("fixtures/mini_acme.yaml");
     let mut cfg: GroupConfig =
-        serde_yaml::from_str(yaml).expect("mini_nestle.yaml must parse into GroupConfig");
+        serde_yaml::from_str(yaml).expect("mini_acme.yaml must parse into GroupConfig");
     cfg.ownership
         .entities
-        .retain(|e| e.code == "NESTLE_SA" || e.code == "NESTLE_USA");
+        .retain(|e| e.code == "ACME_SA" || e.code == "ACME_USA");
     cfg.intercompany.relationships.clear();
     if let Some(p2) = cfg.tax.pillar_two.as_mut() {
         p2.jurisdictions.retain(|j| j == "CH" || j == "US");
@@ -87,24 +87,24 @@ fn load_two_entity_manifest_no_ic() -> GroupManifest {
     build_manifest(&cfg).expect("manifest with no IC relationships must still build")
 }
 
-/// Generate the seller-side (NESTLE_SA) JEs from the manifest's plans.
+/// Generate the seller-side (ACME_SA) JEs from the manifest's plans.
 fn sa_jes(manifest: &GroupManifest) -> Vec<JournalEntry> {
-    let plans = derive_ic_pair_plans(manifest, "NESTLE_SA");
+    let plans = derive_ic_pair_plans(manifest, "ACME_SA");
     inject_ic_journal_entries(
         &plans,
         &InjectionCtx {
-            entity_code: "NESTLE_SA".to_string(),
+            entity_code: "ACME_SA".to_string(),
         },
     )
 }
 
-/// Generate the buyer-side (NESTLE_USA) JEs from the manifest's plans.
+/// Generate the buyer-side (ACME_USA) JEs from the manifest's plans.
 fn usa_jes(manifest: &GroupManifest) -> Vec<JournalEntry> {
-    let plans = derive_ic_pair_plans(manifest, "NESTLE_USA");
+    let plans = derive_ic_pair_plans(manifest, "ACME_USA");
     inject_ic_journal_entries(
         &plans,
         &InjectionCtx {
-            entity_code: "NESTLE_USA".to_string(),
+            entity_code: "ACME_USA".to_string(),
         },
     )
 }
@@ -112,7 +112,7 @@ fn usa_jes(manifest: &GroupManifest) -> Vec<JournalEntry> {
 /// Number of pairs the trimmed manifest plans across both entities.
 /// Recomputed from `derive_ic_pair_plans` filtered to seller plans.
 fn expected_pair_count(manifest: &GroupManifest) -> usize {
-    [&"NESTLE_SA", &"NESTLE_USA"]
+    [&"ACME_SA", &"ACME_USA"]
         .iter()
         .map(|code| {
             derive_ic_pair_plans(manifest, code)
@@ -127,7 +127,7 @@ fn expected_pair_count(manifest: &GroupManifest) -> usize {
 /// "non-IC JEs are silently ignored" test.
 fn non_ic_je() -> JournalEntry {
     let header = JournalEntryHeader::new(
-        "NESTLE_SA".to_string(),
+        "ACME_SA".to_string(),
         NaiveDate::from_ymd_opt(2024, 6, 15).unwrap(),
     );
     let mut je = JournalEntry::new(header);
@@ -157,14 +157,14 @@ fn happy_path_full_coverage() {
     let total = expected_pair_count(&manifest);
     assert!(
         total >= 1,
-        "fixture sanity: trimmed mini_nestle must yield at least one pair"
+        "fixture sanity: trimmed mini_acme must yield at least one pair"
     );
 
     let result = match_ic_pairs(
         &manifest,
         &[
-            ("NESTLE_SA".to_string(), sa_jes(&manifest)),
-            ("NESTLE_USA".to_string(), usa_jes(&manifest)),
+            ("ACME_SA".to_string(), sa_jes(&manifest)),
+            ("ACME_USA".to_string(), usa_jes(&manifest)),
         ],
     )
     .expect("match");
@@ -181,12 +181,12 @@ fn happy_path_full_coverage() {
     // Spot-check the matched shape: seller and buyer entity codes line
     // up with the manifest's seller / buyer.
     for pair in &result.matched {
-        assert_eq!(pair.seller_entity, "NESTLE_SA");
-        assert_eq!(pair.buyer_entity, "NESTLE_USA");
+        assert_eq!(pair.seller_entity, "ACME_SA");
+        assert_eq!(pair.buyer_entity, "ACME_USA");
         assert_eq!(pair.seller_je.header.ic_pair_id, Some(pair.pair_id));
         assert_eq!(pair.buyer_je.header.ic_pair_id, Some(pair.pair_id));
-        assert_eq!(pair.seller_je.header.company_code, "NESTLE_SA");
-        assert_eq!(pair.buyer_je.header.company_code, "NESTLE_USA");
+        assert_eq!(pair.seller_je.header.company_code, "ACME_SA");
+        assert_eq!(pair.buyer_je.header.company_code, "ACME_USA");
     }
 }
 
@@ -198,16 +198,16 @@ fn missing_buyer_side_becomes_unmatched() {
     let total = expected_pair_count(&manifest);
     assert!(total >= 1, "fixture sanity");
 
-    // Note: NESTLE_SA might not be the seller for *every* relationship
+    // Note: ACME_SA might not be the seller for *every* relationship
     // in the trimmed manifest — the pattern-derived relationships could
     // produce USA→SA pairs too.  We split the SA plans into the ones
     // where SA is the seller and the ones where it's the buyer.
-    let sa_plans = derive_ic_pair_plans(&manifest, "NESTLE_SA");
+    let sa_plans = derive_ic_pair_plans(&manifest, "ACME_SA");
     let sa_seller_count = sa_plans.iter().filter(|p| p.role == IcRole::Seller).count();
     let sa_buyer_count = sa_plans.iter().filter(|p| p.role == IcRole::Buyer).count();
 
     let result =
-        match_ic_pairs(&manifest, &[("NESTLE_SA".to_string(), sa_jes(&manifest))]).expect("match");
+        match_ic_pairs(&manifest, &[("ACME_SA".to_string(), sa_jes(&manifest))]).expect("match");
 
     assert!(result.matched.is_empty(), "no matches possible without USA");
     assert_eq!(
@@ -247,15 +247,15 @@ fn missing_seller_side_becomes_unmatched() {
     let total = expected_pair_count(&manifest);
     assert!(total >= 1, "fixture sanity");
 
-    let usa_plans = derive_ic_pair_plans(&manifest, "NESTLE_USA");
+    let usa_plans = derive_ic_pair_plans(&manifest, "ACME_USA");
     let usa_seller_count = usa_plans
         .iter()
         .filter(|p| p.role == IcRole::Seller)
         .count();
     let usa_buyer_count = usa_plans.iter().filter(|p| p.role == IcRole::Buyer).count();
 
-    let result = match_ic_pairs(&manifest, &[("NESTLE_USA".to_string(), usa_jes(&manifest))])
-        .expect("match");
+    let result =
+        match_ic_pairs(&manifest, &[("ACME_USA".to_string(), usa_jes(&manifest))]).expect("match");
 
     assert!(result.matched.is_empty());
     assert_eq!(result.unmatched.len(), usa_seller_count + usa_buyer_count);
@@ -305,8 +305,8 @@ fn empty_manifest_yields_zero_coverage_not_one() {
     let result = match_ic_pairs(
         &manifest,
         &[
-            ("NESTLE_SA".to_string(), Vec::new()),
-            ("NESTLE_USA".to_string(), Vec::new()),
+            ("ACME_SA".to_string(), Vec::new()),
+            ("ACME_USA".to_string(), Vec::new()),
         ],
     )
     .expect("match");
@@ -336,8 +336,8 @@ fn non_ic_jes_are_silently_ignored() {
     let result = match_ic_pairs(
         &manifest,
         &[
-            ("NESTLE_SA".to_string(), sa_jes_with_noise),
-            ("NESTLE_USA".to_string(), usa_jes),
+            ("ACME_SA".to_string(), sa_jes_with_noise),
+            ("ACME_USA".to_string(), usa_jes),
         ],
     )
     .expect("match");
@@ -355,8 +355,8 @@ fn non_ic_jes_are_silently_ignored() {
 fn deterministic_serialisation() {
     let manifest = load_two_entity_manifest();
     let inputs = vec![
-        ("NESTLE_SA".to_string(), sa_jes(&manifest)),
-        ("NESTLE_USA".to_string(), usa_jes(&manifest)),
+        ("ACME_SA".to_string(), sa_jes(&manifest)),
+        ("ACME_USA".to_string(), usa_jes(&manifest)),
     ];
 
     let a = match_ic_pairs(&manifest, &inputs).expect("match");
@@ -375,8 +375,8 @@ fn matched_output_is_sorted_by_pair_id() {
     let result = match_ic_pairs(
         &manifest,
         &[
-            ("NESTLE_SA".to_string(), sa_jes(&manifest)),
-            ("NESTLE_USA".to_string(), usa_jes(&manifest)),
+            ("ACME_SA".to_string(), sa_jes(&manifest)),
+            ("ACME_USA".to_string(), usa_jes(&manifest)),
         ],
     )
     .expect("match");
@@ -406,7 +406,7 @@ fn duplicate_role_returns_aggregate_error() {
         .expect("at least one SA JE must have ic_pair_id");
 
     // Forge a second JE with the same pair_id but tag it as if it were
-    // posted by NESTLE_SA in the buyer role of a different relationship
+    // posted by ACME_SA in the buyer role of a different relationship
     // (we only need the matcher to see two SA-side observations of the
     // same pair_id to trigger the corruption check).  The simplest way:
     // duplicate the first JE but bump some lines so it's "different"
@@ -425,8 +425,8 @@ fn duplicate_role_returns_aggregate_error() {
     let err = match_ic_pairs(
         &manifest,
         &[
-            ("NESTLE_SA".to_string(), sa_jes_buf),
-            ("NESTLE_USA".to_string(), usa_jes),
+            ("ACME_SA".to_string(), sa_jes_buf),
+            ("ACME_USA".to_string(), usa_jes),
         ],
     );
 
@@ -461,7 +461,7 @@ fn two_sides_same_role_is_aggregate_error() {
             // Find the SA seller-side JE (some relationships might have
             // SA on the buyer side via patterns).
             je.header.ic_pair_id.is_some_and(|pid| {
-                derive_ic_pair_plans(&manifest, "NESTLE_SA")
+                derive_ic_pair_plans(&manifest, "ACME_SA")
                     .iter()
                     .find(|p| p.pair_id == pid)
                     .map(|p| p.role == IcRole::Seller)
@@ -471,14 +471,14 @@ fn two_sides_same_role_is_aggregate_error() {
         .expect("at least one SA seller-side JE in the trimmed fixture")
         .clone();
 
-    // Now duplicate this exact JE under another NESTLE_SA shard (i.e.
+    // Now duplicate this exact JE under another ACME_SA shard (i.e.
     // simulate a duplicate-seller corruption).  We pass it twice via the
-    // SAME entity_code "NESTLE_SA" so the plan-cache resolves both as
+    // SAME entity_code "ACME_SA" so the plan-cache resolves both as
     // Seller for the same pair_id.
     let result = match_ic_pairs(
         &manifest,
         &[(
-            "NESTLE_SA".to_string(),
+            "ACME_SA".to_string(),
             vec![first_seller_je.clone(), first_seller_je],
         )],
     );
@@ -524,10 +524,7 @@ fn manifest_driven_strategy_ignores_amount_drift() {
     // Default manifest = ManifestDriven, tolerance = 0.
     let result = match_ic_pairs(
         &manifest,
-        &[
-            ("NESTLE_SA".to_string(), sa),
-            ("NESTLE_USA".to_string(), usa),
-        ],
+        &[("ACME_SA".to_string(), sa), ("ACME_USA".to_string(), usa)],
     )
     .expect("match");
 
@@ -564,10 +561,7 @@ fn emergent_fuzzy_strategy_flags_drift_above_tolerance() {
 
     let result = match_ic_pairs(
         &manifest,
-        &[
-            ("NESTLE_SA".to_string(), sa),
-            ("NESTLE_USA".to_string(), usa),
-        ],
+        &[("ACME_SA".to_string(), sa), ("ACME_USA".to_string(), usa)],
     )
     .expect("match");
 
@@ -613,10 +607,7 @@ fn emergent_fuzzy_strategy_accepts_drift_within_tolerance() {
 
     let result = match_ic_pairs(
         &manifest,
-        &[
-            ("NESTLE_SA".to_string(), sa),
-            ("NESTLE_USA".to_string(), usa),
-        ],
+        &[("ACME_SA".to_string(), sa), ("ACME_USA".to_string(), usa)],
     )
     .expect("match");
 

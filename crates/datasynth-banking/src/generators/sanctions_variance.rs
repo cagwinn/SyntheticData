@@ -198,7 +198,6 @@ fn generate_name_variations(name: &str, rng: &mut ChaCha8Rng) -> Vec<String> {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use uuid::Uuid;

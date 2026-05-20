@@ -5,29 +5,29 @@ use datasynth_group::{build_manifest, GroupConfig, MANIFEST_SCHEMA_VERSION};
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-fn load_mini_nestle() -> GroupConfig {
-    let yaml = include_str!("fixtures/mini_nestle.yaml");
-    serde_yaml::from_str(yaml).expect("mini_nestle.yaml must parse into GroupConfig")
+fn load_mini_acme() -> GroupConfig {
+    let yaml = include_str!("fixtures/mini_acme.yaml");
+    serde_yaml::from_str(yaml).expect("mini_acme.yaml must parse into GroupConfig")
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
-/// Test 1: build_manifest succeeds for the mini_nestle fixture and the top-level
+/// Test 1: build_manifest succeeds for the mini_acme fixture and the top-level
 /// fields match expectations from the YAML.
 #[test]
-fn test_build_manifest_for_mini_nestle() {
-    let cfg = load_mini_nestle();
-    let manifest = build_manifest(&cfg).expect("build_manifest must succeed for mini_nestle");
+fn test_build_manifest_for_mini_acme() {
+    let cfg = load_mini_acme();
+    let manifest = build_manifest(&cfg).expect("build_manifest must succeed for mini_acme");
 
     // Schema version
     assert_eq!(manifest.schema_version, MANIFEST_SCHEMA_VERSION);
     assert_eq!(manifest.schema_version, "1.0");
 
     // Group identity
-    assert_eq!(manifest.group_id, "MINI_NESTLE_2024_Q1");
+    assert_eq!(manifest.group_id, "MINI_ACME_2024_Q1");
     assert_eq!(manifest.presentation_currency, "CHF");
 
-    // 5 entities from mini_nestle.yaml
+    // 5 entities from mini_acme.yaml
     assert_eq!(
         manifest.ownership_graph.entities.len(),
         5,
@@ -36,7 +36,7 @@ fn test_build_manifest_for_mini_nestle() {
     );
 
     // Parent entity code
-    assert_eq!(manifest.ownership_graph.parent_entity_code, "NESTLE_SA");
+    assert_eq!(manifest.ownership_graph.parent_entity_code, "ACME_SA");
 
     // Every entity has a non-empty entity_seed (64 hex chars = 32 bytes)
     for entity in &manifest.ownership_graph.entities {
@@ -75,7 +75,7 @@ fn test_build_manifest_for_mini_nestle() {
 /// appear in the output.
 #[test]
 fn test_manifest_serializes_to_json() {
-    let cfg = load_mini_nestle();
+    let cfg = load_mini_acme();
     let manifest = build_manifest(&cfg).expect("build_manifest must succeed");
 
     let json = serde_json::to_string(&manifest).expect("manifest must serialize to JSON");
@@ -93,7 +93,7 @@ fn test_manifest_serializes_to_json() {
     );
     assert!(json.contains("\"group_id\""), "JSON must contain group_id");
     assert!(
-        json.contains("\"MINI_NESTLE_2024_Q1\""),
+        json.contains("\"MINI_ACME_2024_Q1\""),
         "JSON must contain the group id value"
     );
     assert!(
@@ -125,7 +125,7 @@ fn test_manifest_serializes_to_json() {
 /// has both derives — so full round-trip is expected.
 #[test]
 fn test_manifest_round_trips_json() {
-    let cfg = load_mini_nestle();
+    let cfg = load_mini_acme();
     let manifest = build_manifest(&cfg).expect("build_manifest must succeed");
 
     let json = serde_json::to_string(&manifest).expect("must serialize");
@@ -166,7 +166,7 @@ fn test_manifest_round_trips_json() {
 /// serialized JSON (determinism guarantee).
 #[test]
 fn test_manifest_is_deterministic() {
-    let cfg = load_mini_nestle();
+    let cfg = load_mini_acme();
 
     let m1 = build_manifest(&cfg).expect("first build must succeed");
     let m2 = build_manifest(&cfg).expect("second build must succeed");
@@ -231,7 +231,7 @@ fn test_period_end_computed_correctly() {
 /// Test 6: every entity's shard_id is present in shard_plan.shards[*].entity_codes.
 #[test]
 fn test_shard_assignment_propagated_to_entities() {
-    let cfg = load_mini_nestle();
+    let cfg = load_mini_acme();
     let manifest = build_manifest(&cfg).expect("build_manifest must succeed");
 
     // Build a reverse lookup: entity_code → shard_id from the shard plan itself.
@@ -258,7 +258,7 @@ fn test_shard_assignment_propagated_to_entities() {
 /// Test 7: manifest_seed and aggregate_seed are distinct non-empty hex strings.
 #[test]
 fn test_seeds_are_distinct_and_valid_hex() {
-    let cfg = load_mini_nestle();
+    let cfg = load_mini_acme();
     let manifest = build_manifest(&cfg).expect("build_manifest must succeed");
 
     // 32 bytes = 64 hex chars

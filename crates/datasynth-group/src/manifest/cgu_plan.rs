@@ -10,7 +10,7 @@
 //! in use) live elsewhere; this module's contract is to produce a
 //! validated, deterministic, ordering-stable plan that the aggregate
 //! phase can join against per-period FV / VIU estimates to run
-//! [`datasynth_core::models::cgu::CguImpairmentTest::run`] per CGU.
+//! `datasynth_core::models::cgu::CguImpairmentTest::run` per CGU.
 //!
 //! # Validation contract
 //!
@@ -48,7 +48,7 @@ use crate::manifest::expansion::ExpandedEntity;
 /// IAS 36 § 10 CGU plan — output of [`build_cgu_plan`].
 ///
 /// Wraps the standards-domain types from
-/// [`datasynth_core::models::cgu`] so the manifest carries the same
+/// `datasynth_core::models::cgu` so the manifest carries the same
 /// shape that downstream consumers (aggregate-phase impairment-test
 /// runner, IFRS 8 segment reconciliation) operate on.  Empty when the
 /// engagement supplied no [`CguConfig`].

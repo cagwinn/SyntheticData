@@ -48,7 +48,7 @@ fn flat_layout_writes_at_root() {
 #[test]
 fn per_entity_layout_routes_under_entities_code() {
     let tmp = TempDir::new().expect("tempdir");
-    let root = OutputRootConfig::per_entity(tmp.path(), "NESTLE_SA");
+    let root = OutputRootConfig::per_entity(tmp.path(), "ACME_SA");
     let result = minimal_result();
 
     write_all_output_with_root(
@@ -59,7 +59,7 @@ fn per_entity_layout_routes_under_entities_code() {
     )
     .expect("per-entity layout should succeed");
 
-    let expected = tmp.path().join("entities").join("NESTLE_SA");
+    let expected = tmp.path().join("entities").join("ACME_SA");
     assert!(expected.exists(), "{expected:?} must exist");
     assert!(expected.is_dir());
 

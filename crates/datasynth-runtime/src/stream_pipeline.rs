@@ -195,7 +195,7 @@ impl PhaseSink for StreamPipeline {
 
 /// A rate-limited wrapper around any [`PhaseSink`].
 ///
-/// Uses a token bucket [`RateLimiter`] to control emission rate. Each call to
+/// Uses a token bucket `RateLimiter` to control emission rate. Each call to
 /// `emit()` acquires a token before forwarding to the inner sink, blocking if
 /// the rate is exceeded.
 ///
@@ -320,7 +320,6 @@ impl PhaseSink for RateLimitedPipeline {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

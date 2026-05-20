@@ -114,6 +114,8 @@ pub mod file_names {
     pub const RULES: &str = "rules.yaml";
     /// Anomalies file name.
     pub const ANOMALIES: &str = "anomalies.yaml";
+    /// Behavioral priors (SP2) — optional section.
+    pub const BEHAVIORAL: &str = "behavioral.yaml";
     /// Privacy audit file name.
     pub const PRIVACY_AUDIT: &str = "privacy_audit.json";
     /// Signature file name (optional).

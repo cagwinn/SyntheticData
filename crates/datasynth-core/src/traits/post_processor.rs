@@ -379,7 +379,6 @@ impl<R, L> Default for PipelineBuilder<R, L> {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

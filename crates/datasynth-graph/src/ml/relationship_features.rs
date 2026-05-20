@@ -516,7 +516,6 @@ pub fn compute_all_combined_features(
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use crate::test_helpers::create_relationship_test_graph;

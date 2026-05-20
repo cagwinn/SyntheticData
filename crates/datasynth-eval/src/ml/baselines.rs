@@ -550,7 +550,6 @@ impl Default for BaselineConfig {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

@@ -139,8 +139,8 @@ fn identity_no_nci_no_equity_method() {
 #[test]
 fn nci_only_moves_retained_earnings_to_nci_equity() {
     let tb = balanced_post_elim_tb();
-    // 80%-owned NESTLE_DE with 200_000 closing NCI.
-    let nci = vec![nci_rf("NESTLE_DE", dec!(200_000))];
+    // 80%-owned ACME_DE with 200_000 closing NCI.
+    let nci = vec![nci_rf("ACME_DE", dec!(200_000))];
 
     let out = apply_nci_and_equity_method(&tb, &nci, &[]).expect("must succeed");
 
@@ -170,7 +170,7 @@ fn equity_method_only_creates_investment_and_pl_lines() {
     let tb = balanced_post_elim_tb();
     // 50%-owned JV with 1.8m closing carrying value and 400k share of
     // profit.
-    let em = vec![em_inv("NESTLE_JV", dec!(1_800_000), dec!(400_000))];
+    let em = vec![em_inv("ACME_JV", dec!(1_800_000), dec!(400_000))];
 
     let out = apply_nci_and_equity_method(&tb, &[], &em).expect("must succeed");
 
@@ -217,10 +217,10 @@ fn equity_method_only_creates_investment_and_pl_lines() {
 fn both_overlays_applied_together() {
     let tb = balanced_post_elim_tb();
     let nci = vec![
-        nci_rf("NESTLE_DE", dec!(200_000)),
-        nci_rf("NESTLE_BR", dec!(50_000)),
+        nci_rf("ACME_DE", dec!(200_000)),
+        nci_rf("ACME_BR", dec!(50_000)),
     ];
-    let em = vec![em_inv("NESTLE_JV", dec!(1_800_000), dec!(400_000))];
+    let em = vec![em_inv("ACME_JV", dec!(1_800_000), dec!(400_000))];
 
     let out = apply_nci_and_equity_method(&tb, &nci, &em).expect("must succeed");
 
@@ -258,7 +258,7 @@ fn currency_mismatch_returns_aggregate_error() {
     let tb = balanced_post_elim_tb(); // CHF
                                       // NCI rollforward in EUR — caller forgot to translate.
     let bad_nci = NciRollforward {
-        entity_code: "NESTLE_DE".to_string(),
+        entity_code: "ACME_DE".to_string(),
         parent_entity_code: "PARENT".to_string(),
         ownership_percent: dec!(0.80),
         nci_percent: dec!(0.20),
@@ -278,14 +278,14 @@ fn currency_mismatch_returns_aggregate_error() {
         GroupError::Aggregate(msg) => {
             assert!(msg.contains("EUR"), "msg names src ccy: {msg}");
             assert!(msg.contains("CHF"), "msg names tb ccy: {msg}");
-            assert!(msg.contains("NESTLE_DE"), "msg names entity: {msg}");
+            assert!(msg.contains("ACME_DE"), "msg names entity: {msg}");
         }
         other => panic!("expected Aggregate, got {other:?}"),
     }
 
     // Same for equity-method investment in a different currency.
     let bad_em = EquityMethodInvestment {
-        investee_code: "NESTLE_JV".to_string(),
+        investee_code: "ACME_JV".to_string(),
         investor_entity_code: "PARENT".to_string(),
         ownership_percent: dec!(0.50),
         opening_carrying_value: Decimal::ZERO,
@@ -305,7 +305,7 @@ fn currency_mismatch_returns_aggregate_error() {
     match err {
         GroupError::Aggregate(msg) => {
             assert!(msg.contains("USD"));
-            assert!(msg.contains("NESTLE_JV"));
+            assert!(msg.contains("ACME_JV"));
         }
         other => panic!("expected Aggregate, got {other:?}"),
     }

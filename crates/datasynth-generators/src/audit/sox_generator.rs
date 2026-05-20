@@ -372,7 +372,6 @@ fn is_significant_deficiency_open(f: &AuditFinding) -> bool {
 // ---------------------------------------------------------------------------
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

@@ -18,7 +18,6 @@ datasynth-generators = { workspace = true }
 datasynth-runtime = { workspace = true }
 datasynth-standards = { workspace = true }
 datasynth-output = { workspace = true }
-datasynth-audit-fsm = { workspace = true }
 
 serde = { workspace = true }
 serde_json = { workspace = true }

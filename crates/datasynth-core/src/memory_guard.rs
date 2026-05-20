@@ -369,7 +369,6 @@ pub fn check_sufficient_memory(
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

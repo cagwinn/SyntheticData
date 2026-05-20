@@ -91,6 +91,10 @@ pub enum FingerprintError {
     /// Distribution fitting error.
     #[error("Distribution fitting error: {0}")]
     DistributionFitError(String),
+
+    /// PII denylist load or parse error (SP6 Phase B).
+    #[error("pii denylist: {0}")]
+    PiiDenylist(String),
 }
 
 impl FingerprintError {

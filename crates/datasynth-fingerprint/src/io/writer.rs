@@ -89,21 +89,25 @@ impl FingerprintWriter {
         let mut checksums = std::collections::HashMap::new();
 
         // Write all components and collect checksums (same as regular write)
-        let schema_yaml = serde_yaml::to_string(&fingerprint.schema)?;
-        checksums.insert(
-            file_names::SCHEMA.to_string(),
-            compute_checksum(schema_yaml.as_bytes()),
-        );
-        zip.start_file(file_names::SCHEMA, options)?;
-        zip.write_all(schema_yaml.as_bytes())?;
+        if !fingerprint.schema.is_empty() {
+            let schema_yaml = serde_yaml::to_string(&fingerprint.schema)?;
+            checksums.insert(
+                file_names::SCHEMA.to_string(),
+                compute_checksum(schema_yaml.as_bytes()),
+            );
+            zip.start_file(file_names::SCHEMA, options)?;
+            zip.write_all(schema_yaml.as_bytes())?;
+        }
 
-        let stats_yaml = serde_yaml::to_string(&fingerprint.statistics)?;
-        checksums.insert(
-            file_names::STATISTICS.to_string(),
-            compute_checksum(stats_yaml.as_bytes()),
-        );
-        zip.start_file(file_names::STATISTICS, options)?;
-        zip.write_all(stats_yaml.as_bytes())?;
+        if !fingerprint.statistics.is_empty() {
+            let stats_yaml = serde_yaml::to_string(&fingerprint.statistics)?;
+            checksums.insert(
+                file_names::STATISTICS.to_string(),
+                compute_checksum(stats_yaml.as_bytes()),
+            );
+            zip.start_file(file_names::STATISTICS, options)?;
+            zip.write_all(stats_yaml.as_bytes())?;
+        }
 
         if let Some(ref correlations) = fingerprint.correlations {
             let yaml = serde_yaml::to_string(correlations)?;
@@ -142,6 +146,16 @@ impl FingerprintWriter {
                 compute_checksum(yaml.as_bytes()),
             );
             zip.start_file(file_names::ANOMALIES, options)?;
+            zip.write_all(yaml.as_bytes())?;
+        }
+
+        if let Some(ref behavioral) = fingerprint.behavioral {
+            let yaml = serde_yaml::to_string(behavioral)?;
+            checksums.insert(
+                file_names::BEHAVIORAL.to_string(),
+                compute_checksum(yaml.as_bytes()),
+            );
+            zip.start_file(file_names::BEHAVIORAL, options)?;
             zip.write_all(yaml.as_bytes())?;
         }
 
@@ -203,24 +217,28 @@ impl FingerprintWriter {
         // For now, create a mutable copy
         let mut manifest = fingerprint.manifest.clone();
 
-        // Write schema
+        // Write schema — skip when empty (parquet-bypass bundles have no schema)
         // Note: serde_yaml always produces human-readable output, so pretty option has no effect
-        let schema_yaml = serde_yaml::to_string(&fingerprint.schema)?;
-        checksums.insert(
-            file_names::SCHEMA.to_string(),
-            compute_checksum(schema_yaml.as_bytes()),
-        );
-        zip.start_file(file_names::SCHEMA, options)?;
-        zip.write_all(schema_yaml.as_bytes())?;
+        if !fingerprint.schema.is_empty() {
+            let schema_yaml = serde_yaml::to_string(&fingerprint.schema)?;
+            checksums.insert(
+                file_names::SCHEMA.to_string(),
+                compute_checksum(schema_yaml.as_bytes()),
+            );
+            zip.start_file(file_names::SCHEMA, options)?;
+            zip.write_all(schema_yaml.as_bytes())?;
+        }
 
-        // Write statistics
-        let stats_yaml = serde_yaml::to_string(&fingerprint.statistics)?;
-        checksums.insert(
-            file_names::STATISTICS.to_string(),
-            compute_checksum(stats_yaml.as_bytes()),
-        );
-        zip.start_file(file_names::STATISTICS, options)?;
-        zip.write_all(stats_yaml.as_bytes())?;
+        // Write statistics — skip when empty (parquet-bypass bundles have no statistics)
+        if !fingerprint.statistics.is_empty() {
+            let stats_yaml = serde_yaml::to_string(&fingerprint.statistics)?;
+            checksums.insert(
+                file_names::STATISTICS.to_string(),
+                compute_checksum(stats_yaml.as_bytes()),
+            );
+            zip.start_file(file_names::STATISTICS, options)?;
+            zip.write_all(stats_yaml.as_bytes())?;
+        }
 
         // Write optional components
         if let Some(ref correlations) = fingerprint.correlations {
@@ -260,6 +278,16 @@ impl FingerprintWriter {
                 compute_checksum(yaml.as_bytes()),
             );
             zip.start_file(file_names::ANOMALIES, options)?;
+            zip.write_all(yaml.as_bytes())?;
+        }
+
+        if let Some(ref behavioral) = fingerprint.behavioral {
+            let yaml = serde_yaml::to_string(behavioral)?;
+            checksums.insert(
+                file_names::BEHAVIORAL.to_string(),
+                compute_checksum(yaml.as_bytes()),
+            );
+            zip.start_file(file_names::BEHAVIORAL, options)?;
             zip.write_all(yaml.as_bytes())?;
         }
 
@@ -305,14 +333,15 @@ fn compute_checksum(data: &[u8]) -> String {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
+    use crate::io::reader::FingerprintReader;
     use crate::models::{
         Manifest, PrivacyAudit, PrivacyLevel, PrivacyMetadata, SchemaFingerprint, SourceMetadata,
         StatisticsFingerprint,
     };
     use std::io::Cursor;
+    use zip::ZipArchive;
 
     #[test]
     fn test_write_fingerprint() {
@@ -333,5 +362,44 @@ mod tests {
         let data = buffer.into_inner();
         assert!(!data.is_empty());
         assert_eq!(&data[0..2], b"PK"); // ZIP magic bytes
+    }
+
+    #[test]
+    fn round_trip_skips_empty_schema_and_statistics() {
+        let source = SourceMetadata::new("test", vec![], 0);
+        let privacy = PrivacyMetadata::from_level(PrivacyLevel::Standard);
+        let manifest = Manifest::new(source, privacy);
+        let fp = Fingerprint::new(
+            manifest,
+            SchemaFingerprint::new(),
+            StatisticsFingerprint::new(),
+            PrivacyAudit::new(1.0, 5),
+        );
+
+        let mut buffer = Cursor::new(Vec::new());
+        let writer = FingerprintWriter::new();
+        writer.write(&fp, &mut buffer).unwrap();
+
+        // Inspect the ZIP — schema.yaml and statistics.yaml should be absent.
+        let data = buffer.into_inner();
+        let archive = ZipArchive::new(Cursor::new(data.clone())).unwrap();
+        let names: Vec<&str> = archive.file_names().collect();
+        assert!(
+            !names.contains(&file_names::SCHEMA),
+            "empty schema should NOT be in the ZIP, got names: {names:?}"
+        );
+        assert!(
+            !names.contains(&file_names::STATISTICS),
+            "empty statistics should NOT be in the ZIP, got names: {names:?}"
+        );
+
+        // Re-read — should produce equivalent empty defaults.
+        let reader = FingerprintReader::new();
+        let loaded = reader.read(Cursor::new(data)).unwrap();
+        assert!(loaded.schema.is_empty(), "re-read schema should be empty");
+        assert!(
+            loaded.statistics.is_empty(),
+            "re-read statistics should be empty"
+        );
     }
 }

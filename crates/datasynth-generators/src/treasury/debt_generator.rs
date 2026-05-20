@@ -312,7 +312,6 @@ fn days_in_month(year: i32, month: u32) -> u32 {
 // ---------------------------------------------------------------------------
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

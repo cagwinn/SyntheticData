@@ -378,54 +378,17 @@ pub fn standard_normal_cdf(x: f64) -> f64 {
     0.5 * (1.0 + erf(x / std::f64::consts::SQRT_2))
 }
 
-/// Standard normal quantile function (inverse CDF) approximation.
+/// Standard normal quantile function (inverse CDF).
+///
+/// Backed by `statrs` so the result is accurate across the full `(0, 1)` domain.
+/// The previous Abramowitz & Stegun rational approximation had a sign-inversion bug
+/// for `|z| > ~2.05` (both tail branches returned the wrong sign when `q` dominated
+/// the rational correction term).
 pub fn standard_normal_quantile(p: f64) -> f64 {
-    // Rational approximation (Abramowitz and Stegun)
-    if p <= 0.0 {
-        return f64::NEG_INFINITY;
-    }
-    if p >= 1.0 {
-        return f64::INFINITY;
-    }
-
-    let p_low = 0.02425;
-    let p_high = 1.0 - p_low;
-
-    if p < p_low {
-        // Lower tail
-        let q = (-2.0 * p.ln()).sqrt();
-        let c = [2.515517, 0.802853, 0.010328];
-        let d = [1.432788, 0.189269, 0.001308];
-        -(c[0] + c[1] * q + c[2] * q.powi(2))
-            / (1.0 + d[0] * q + d[1] * q.powi(2) + d[2] * q.powi(3))
-            + q
-    } else if p <= p_high {
-        // Central region
-        let q = p - 0.5;
-        let r = q * q;
-        let a = [
-            2.50662823884,
-            -18.61500062529,
-            41.39119773534,
-            -25.44106049637,
-        ];
-        let b = [
-            -8.47351093090,
-            23.08336743743,
-            -21.06224101826,
-            3.13082909833,
-        ];
-        q * (a[0] + a[1] * r + a[2] * r.powi(2) + a[3] * r.powi(3))
-            / (1.0 + b[0] * r + b[1] * r.powi(2) + b[2] * r.powi(3) + b[3] * r.powi(4))
-    } else {
-        // Upper tail
-        let q = (-2.0 * (1.0 - p).ln()).sqrt();
-        let c = [2.515517, 0.802853, 0.010328];
-        let d = [1.432788, 0.189269, 0.001308];
-        (c[0] + c[1] * q + c[2] * q.powi(2))
-            / (1.0 + d[0] * q + d[1] * q.powi(2) + d[2] * q.powi(3))
-            - q
-    }
+    use statrs::distribution::{ContinuousCDF, Normal};
+    Normal::new(0.0, 1.0)
+        .expect("standard normal distribution")
+        .inverse_cdf(p.clamp(1e-12, 1.0 - 1e-12))
 }
 
 /// Error function approximation.
@@ -471,12 +434,12 @@ fn student_t_cdf(x: f64, df: f64) -> f64 {
 /// most inputs encountered in practice (small integer or half-integer `a`/`b`
 /// values arising from low-degree-of-freedom Student-t distributions).
 ///
-/// TODO: For extreme tail probabilities (x very close to 0 or 1) or large
-/// parameter values the continued-fraction may converge slowly. A production
-/// implementation should use a dedicated numerical library (e.g. `statrs`) or
-/// the symmetry relation `I_x(a,b) = 1 − I_{1−x}(b,a)` to choose the faster
-/// path. For audit-simulation copula sampling the approximation error is
-/// negligible.
+/// LIMITATION: For extreme tail probabilities (x very close to 0 or 1) or
+/// large parameter values the continued-fraction may converge slowly. A
+/// production implementation should use a dedicated numerical library (e.g.
+/// `statrs`) or the symmetry relation `I_x(a,b) = 1 − I_{1−x}(b,a)` to
+/// choose the faster path. For audit-simulation copula sampling the
+/// approximation error is negligible and this trade-off is intentional.
 fn incomplete_beta(a: f64, b: f64, x: f64) -> f64 {
     if x <= 0.0 {
         return 0.0;
@@ -581,7 +544,6 @@ fn sample_positive_stable(rng: &mut ChaCha8Rng, alpha: f64) -> f64 {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 
@@ -737,5 +699,38 @@ mod tests {
         assert!(samples
             .iter()
             .all(|(u, v)| *u >= 0.0 && *u <= 1.0 && *v >= 0.0 && *v <= 1.0));
+    }
+
+    // --- Regression tests for the sign-inversion bug in standard_normal_quantile ---
+
+    #[test]
+    fn standard_normal_quantile_lower_tail_correct_sign() {
+        let q = standard_normal_quantile(0.025);
+        assert!(q < 0.0, "Φ⁻¹(0.025) should be negative, got {q}");
+        assert!((q + 1.96).abs() < 0.01, "expected ≈ -1.96, got {q}");
+    }
+
+    #[test]
+    fn standard_normal_quantile_upper_tail_correct_sign() {
+        let q = standard_normal_quantile(0.975);
+        assert!(q > 0.0, "Φ⁻¹(0.975) should be positive, got {q}");
+        assert!((q - 1.96).abs() < 0.01, "expected ≈ +1.96, got {q}");
+    }
+
+    #[test]
+    fn standard_normal_quantile_median_zero() {
+        assert!(standard_normal_quantile(0.5).abs() < 1e-9);
+    }
+
+    #[test]
+    fn standard_normal_quantile_extreme_tails_bounded() {
+        // p=0.001 should give roughly -3.09; p=0.999 should give roughly +3.09.
+        let q_lo = standard_normal_quantile(0.001);
+        let q_hi = standard_normal_quantile(0.999);
+        assert!(q_lo < -3.0 && q_lo > -3.2);
+        assert!(q_hi > 3.0 && q_hi < 3.2);
+        // The bug was sign-inversion for |z| > ~2.05 — assert correct signs at extremes.
+        assert!(q_lo.is_sign_negative());
+        assert!(q_hi.is_sign_positive());
     }
 }

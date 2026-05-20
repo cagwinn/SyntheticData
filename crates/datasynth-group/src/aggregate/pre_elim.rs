@@ -11,7 +11,7 @@
 //!   be denominated in the manifest's `presentation_currency`.  IAS 21
 //!   currency translation is Chunk 6 — until it lands, callers must
 //!   either configure all entities with a matching functional currency
-//!   (Mini-Nestlé fixture: every entity CHF) or run the no-op identity
+//!   (Mini-Acme fixture: every entity CHF) or run the no-op identity
 //!   translation explicitly.
 //!
 //! - **Parent + Full only.**  Equity-method, fair-value, and
@@ -68,7 +68,7 @@ pub struct AggregatedTb {
     /// [`GroupManifest::presentation_currency`] (ISO 4217).
     pub currency: String,
     /// Period end date the aggregation is as of.  Taken from
-    /// [`GroupManifest::period::end`].
+    /// `GroupManifest::period::end`.
     pub as_of_date: chrono::NaiveDate,
     /// Per-account totals across contributing entities, keyed by GL
     /// account code.  [`BTreeMap`] guarantees deterministic iteration
@@ -92,10 +92,10 @@ pub struct AggregatedTb {
 pub struct AggregatedAccount {
     /// GL account code (matches the key in [`AggregatedTb::account_totals`]).
     pub account_code: String,
-    /// Sum of [`TrialBalanceLine::debit_balance`] across contributing
+    /// Sum of `TrialBalanceLine::debit_balance` across contributing
     /// entities.
     pub debit_total: Decimal,
-    /// Sum of [`TrialBalanceLine::credit_balance`] across contributing
+    /// Sum of `TrialBalanceLine::credit_balance` across contributing
     /// entities.
     pub credit_total: Decimal,
     /// Net balance (`debit_total - credit_total`).  Sign preserved so

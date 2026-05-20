@@ -10,7 +10,7 @@
 //! Task 5.1 lays the foundation: a per-entity trial balance loader that
 //! later modules (group TB combiner, IC elimination engine, NCI roll-up,
 //! segment aggregator) will all build on. The loader's contract is
-//! deliberately narrow — open one file, deserialise one [`TrialBalance`],
+//! deliberately narrow — open one file, deserialise one `TrialBalance`,
 //! re-verify the balance invariant, return it — so the higher-level
 //! combiners can assume a clean per-entity TB or a typed
 //! [`crate::errors::GroupError::Aggregate`] failure they can attribute to

@@ -623,7 +623,6 @@ pub fn calculate_operating_margin(revenue: Decimal, operating_income: Decimal) -
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

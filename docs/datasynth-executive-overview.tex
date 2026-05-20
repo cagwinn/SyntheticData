@@ -548,8 +548,8 @@ disposals, and step-acquisition mid-period control-gained transitions
 ./group_archive/
   manifest.json                          # canonical group manifest
   entities/
-    NESTLE_SA/      (full single-entity archive per shard)
-    NESTLE_USA/     ...
+    ACME_SA/      (full single-entity archive per shard)
+    ACME_USA/     ...
   consolidated/
     consolidated_financial_statements.json
     consolidation_schedule.json
@@ -1157,12 +1157,12 @@ cargo build --release
 \begin{verbatim}
 # Single-period
 datasynth-data group generate \
-  --config configs/examples/group/mini_nestle.yaml \
+  --config configs/examples/group/mini_acme.yaml \
   --out ./group_archive
 
 # Multi-period (chained continuity)
 datasynth-data group generate-chain \
-  --config configs/examples/group/mini_nestle.yaml \
+  --config configs/examples/group/mini_acme.yaml \
   --periods 4 \
   --out ./group_archive_q1_q4
 

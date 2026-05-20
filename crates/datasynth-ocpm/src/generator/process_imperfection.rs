@@ -263,7 +263,6 @@ pub fn propagate_je_anomalies_to_ocel(
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use chrono::{NaiveDate, TimeZone, Utc};

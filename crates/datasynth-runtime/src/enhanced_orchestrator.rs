@@ -810,7 +810,7 @@ pub struct SourcingSnapshot {
 /// [`PeriodTrialBalance::into_canonical`] so the on-disk
 /// `period_close/trial_balances.json` matches what the group
 /// aggregate phase loads — see
-/// [`crate::output_writer::write_outputs`].
+/// `crate::output_writer::write_outputs`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PeriodTrialBalance {
     /// Fiscal year.
@@ -1343,6 +1343,13 @@ pub struct EnhancedGenerationResult {
     pub cross_process_links: Vec<datasynth_core::models::CrossProcessLink>,
     /// Industry-specific GL accounts and metadata.
     pub industry_output: Option<datasynth_generators::industry::factory::IndustryOutput>,
+    /// SP5.2 — CoA semantic prior snapshot. When `Some`, `write_journal_entries_csv`
+    /// builds a secondary lookup from the prior's 3,123 corpus accounts and uses
+    /// it as a fallback when the synthetic CoA index misses a line's `gl_account`
+    /// (common when SP3.7's per-source attribute conditional emits corpus account
+    /// numbers that differ from the synthetic CoA master table's number set).
+    pub coa_semantic_prior:
+        Option<datasynth_core::distributions::behavioral_priors::CoaSemanticPrior>,
     /// Compliance regulations framework data (standards, procedures, findings, filings, graph).
     pub compliance_regulations: ComplianceRegulationsSnapshot,
     /// v3.3.0: analytics-metadata snapshot (prior-year comparatives,
@@ -1493,7 +1500,7 @@ pub struct EnhancedGenerationStatistics {
     /// Number of diffusion samples generated.
     #[serde(default)]
     pub diffusion_samples_generated: usize,
-    /// Hybrid-diffusion blend weight actually applied (after clamp to [0,1]).
+    /// Hybrid-diffusion blend weight actually applied (after clamp to \[0,1\]).
     /// `None` when the neural/hybrid backend is not active.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub neural_hybrid_weight: Option<f64>,
@@ -1705,6 +1712,10 @@ pub struct EnhancedOrchestrator {
     /// Optional shard-mode context (set by group-engine shard runners).
     /// `None` preserves byte-for-byte pre-v5.0 single-entity behavior.
     shard_context: Option<crate::shard_context::ShardContext>,
+    /// SP3.12 — cached priors, shared between `generate_journal_entries` (which
+    /// loads them) and `generate_jes_from_document_flows` (which applies padding).
+    /// Set once after the SP3 opt-in block in `generate_journal_entries`.
+    cached_priors: Option<std::sync::Arc<datasynth_generators::priors_loader::LoadedPriors>>,
 }
 
 impl EnhancedOrchestrator {
@@ -1752,6 +1763,7 @@ impl EnhancedOrchestrator {
             template_provider,
             temporal_context,
             shard_context: None,
+            cached_priors: None,
         })
     }
 
@@ -2930,6 +2942,12 @@ impl EnhancedOrchestrator {
         // Emit collusion rings to stream sink
         self.emit_phase_items("collusion_rings", "CollusionRing", &collusion_rings);
 
+        // Phase 8d: W8.1 — TB drift-correction pass.  When a TB anchor prior is
+        // loaded (industry bundle with real per-account targets), emit balanced
+        // "SA" adjustment JEs to nudge the synthetic balance sheet toward the
+        // corpus-median shape before final balance validation runs.
+        self.phase_tb_drift_correction(&mut entries)?;
+
         // Phase 9: Balance Validation (after all JEs including payroll, manufacturing, IC)
         let balance_validation = self.phase_balance_validation(&entries)?;
 
@@ -3728,6 +3746,14 @@ impl EnhancedOrchestrator {
         // master data is settled so it can index stable IDs.
         let interconnectivity = self.phase_interconnectivity();
 
+        // SP5.2 — snapshot the CoA semantic prior (if any) into the result so
+        // output_writer can use it as a fallback index for account_description
+        // resolution when the synthetic CoA index misses.
+        let coa_semantic_prior = self
+            .cached_priors
+            .as_ref()
+            .and_then(|p| p.coa_semantic.clone());
+
         Ok(EnhancedGenerationResult {
             chart_of_accounts: Arc::try_unwrap(coa).unwrap_or_else(|arc| (*arc).clone()),
             master_data: std::mem::take(&mut self.master_data),
@@ -3770,6 +3796,7 @@ impl EnhancedOrchestrator {
             entity_relationship_graph,
             cross_process_links,
             industry_output,
+            coa_semantic_prior,
             compliance_regulations,
             analytics_metadata,
             statistical_validation,
@@ -4353,6 +4380,140 @@ impl EnhancedOrchestrator {
             debug!("Phase 5: Skipped (anomaly injection disabled or no entries)");
             Ok(AnomalyLabels::default())
         }
+    }
+
+    /// Phase 8d (W8.1): TB drift-correction pass.
+    ///
+    /// Builds a `RunningBalanceTracker` over all JEs assembled so far, attaches
+    /// the TB anchor prior (when available), and — if `drift_correction_needed()`
+    /// fires for any company — emits one balanced "SA" adjustment JE per company
+    /// to pull the synthetic balances toward the corpus-median targets.
+    ///
+    /// No-op when no TB anchor is loaded (backwards-compatible).
+    fn phase_tb_drift_correction(&mut self, entries: &mut Vec<JournalEntry>) -> SynthResult<()> {
+        // Only proceed when priors with a TB anchor are loaded.
+        let tb_anchor = match &self.cached_priors {
+            Some(priors) => match &priors.tb_anchor {
+                Some(anchor) => anchor.clone(),
+                None => return Ok(()),
+            },
+            None => return Ok(()),
+        };
+
+        if !tb_anchor.has_data() {
+            return Ok(());
+        }
+
+        tracing::info!(
+            target: "datasynth_runtime::tb_anchor",
+            accounts = tb_anchor.per_account.len(),
+            total_assets = tb_anchor.total_assets,
+            "W8.1 — TB anchor loaded; running drift-correction pass"
+        );
+
+        // Build a tracker over all current JEs.
+        let tracker_config = BalanceTrackerConfig {
+            validate_on_each_entry: false,
+            track_history: false,
+            fail_on_validation_error: false,
+            ..Default::default()
+        };
+        let currency = self
+            .config
+            .companies
+            .first()
+            .map(|c| c.currency.clone())
+            .unwrap_or_else(|| "USD".to_string());
+
+        let mut tracker = RunningBalanceTracker::new_with_currency(tracker_config, currency);
+        tracker.set_tb_anchor(tb_anchor.clone());
+        let _ = tracker.apply_entries(entries);
+
+        // SP5.1 — Diagnostic: log the number of accounts being tracked vs in the
+        // anchor, plus the top-5 most-drifted accounts for each company so we
+        // can distinguish "no drift" from "drift below threshold" at a glance.
+        for company in &self.config.companies {
+            let code = &company.code;
+            let drifts = tracker.account_drift(code);
+            let mut sorted_drifts = drifts.clone();
+            sorted_drifts.sort_by(|a, b| {
+                b.1.abs()
+                    .partial_cmp(&a.1.abs())
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            });
+            let aggregate_drift: f64 = drifts.iter().map(|(_, d)| d.abs()).sum();
+            let correction_needed = tracker.drift_correction_needed(code);
+            tracing::info!(
+                target: "datasynth_runtime::tb_anchor",
+                company = %code,
+                anchor_accounts = tb_anchor.per_account.len(),
+                tracked_accounts = drifts.len(),
+                aggregate_drift = aggregate_drift,
+                correction_needed = correction_needed,
+                "W8.1 SP5.1 — per-company drift summary before correction"
+            );
+            for (acc, drift) in sorted_drifts.iter().take(5) {
+                tracing::info!(
+                    target: "datasynth_runtime::tb_anchor",
+                    company = %code,
+                    account = %acc,
+                    drift = drift,
+                    "W8.1 SP5.1 — top-5 drifted accounts"
+                );
+            }
+        }
+
+        // Derive the posting date: use the last day of the simulation period.
+        let period_end = NaiveDate::parse_from_str(&self.config.global.start_date, "%Y-%m-%d")
+            .map(|d| d + chrono::Months::new(self.config.global.period_months))
+            .unwrap_or_else(|_| chrono::Utc::now().naive_utc().date());
+
+        // Distinct seed offset so drift-correction draws are independent of other phases.
+        use rand_chacha::rand_core::SeedableRng as _;
+        let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(self.seed.wrapping_add(0xD81F_C0F3));
+
+        let mut correction_count = 0usize;
+        for company in &self.config.companies {
+            let code = &company.code;
+            if !tracker.drift_correction_needed(code) {
+                tracing::debug!(
+                    target: "datasynth_runtime::tb_anchor",
+                    company = %code,
+                    "W8.1 — drift_correction_needed returned false; skipping company"
+                );
+                continue;
+            }
+            if let Some(je) = tracker.build_drift_correction_je(code, period_end, &mut rng) {
+                tracing::debug!(
+                    target: "datasynth_runtime::tb_anchor",
+                    company = %code,
+                    lines = je.lines.len(),
+                    debit = %je.total_debit(),
+                    credit = %je.total_credit(),
+                    "W8.1 — emitting drift-correction JE"
+                );
+                // Apply the correction to the tracker so the running state is current.
+                let _ = tracker.apply_entry(&je);
+                entries.push(je);
+                correction_count += 1;
+            }
+        }
+
+        if correction_count > 0 {
+            tracing::info!(
+                target: "datasynth_runtime::tb_anchor",
+                correction_count,
+                "W8.1 — drift-correction pass emitted {} JE(s)",
+                correction_count
+            );
+        } else {
+            tracing::debug!(
+                target: "datasynth_runtime::tb_anchor",
+                "W8.1 — drift-correction pass: no corrections needed"
+            );
+        }
+
+        Ok(())
     }
 
     /// Phase 6: Validate balance sheet equation on journal entries.
@@ -10484,6 +10645,56 @@ impl EnhancedOrchestrator {
                 .to_string()
             });
         }
+        // SP4.2 W8.2 + W7.1 — remap synthetic account numbers to corpus
+        // ones first (W8.2), then enrich descriptions via the overlay (W7.1).
+        // Applied before Arc::new so we only build one Arc (no clone needed).
+        if let Some(ref cached) = self.cached_priors {
+            if let Some(ref coa_prior) = cached.coa_semantic {
+                use datasynth_generators::coa_generator::{
+                    remap_account_numbers_to_prior, ChartOfAccountsGenerator,
+                };
+                // W8.2 — replace synthetic account numbers with corpus
+                // ones so the W7.1 overlay fires at ~80% instead of ~16%.
+                let mut rng =
+                    rand_chacha::ChaCha8Rng::seed_from_u64(self.seed.wrapping_add(88_200));
+                let remapped = remap_account_numbers_to_prior(&mut built, coa_prior, &mut rng);
+                tracing::info!(
+                    target: "datasynth_runtime::coa",
+                    remapped,
+                    total = built.accounts.len(),
+                    "SP4.2 W8.2 — remapped synthetic account numbers to prior-matched corpus values"
+                );
+                // W7.1 — now overlay descriptions / class metadata for the
+                // (now mostly corpus-numbered) accounts.
+                let applied =
+                    ChartOfAccountsGenerator::apply_coa_semantic_prior(&mut built, coa_prior);
+                tracing::info!(
+                    target: "datasynth_runtime::coa",
+                    applied,
+                    total = built.accounts.len(),
+                    "SP4.2 W7.1 — overlaid real CoA semantic entries onto synthetic accounts"
+                );
+            }
+            // SP6 — taxonomy overlay: run AFTER the semantic overlay so
+            // taxonomy-templated accounts take precedence over verbatim
+            // semantic descriptions.  Uses SyntheticExampleResolver because
+            // the CoA is built before master-data pools are populated (so
+            // vendor/customer names are not yet available).
+            if let Some(tx) = cached.text_taxonomy.as_ref() {
+                use datasynth_core::distributions::text_taxonomy::SyntheticExampleResolver;
+                use datasynth_generators::coa_generator::overlay_coa_taxonomy;
+                let mut resolver = SyntheticExampleResolver;
+                let mut rng =
+                    rand_chacha::ChaCha8Rng::seed_from_u64(self.seed.wrapping_add(88_201));
+                overlay_coa_taxonomy(&mut built, tx, &mut resolver, &mut rng);
+                tracing::info!(
+                    target: "datasynth_runtime::coa",
+                    total = built.accounts.len(),
+                    "SP6 — overlaid text-taxonomy templates onto CoA descriptions"
+                );
+            }
+        }
+
         let coa = Arc::new(built);
         self.coa = Some(Arc::clone(&coa));
 
@@ -10963,6 +11174,75 @@ impl EnhancedOrchestrator {
         generator
             .set_advanced_distributions(&self.config.distributions, self.seed + 400)
             .map_err(|e| SynthError::config(format!("invalid distributions config: {e}")))?;
+
+        // SP3: load and wire industry priors when the config opts in via
+        //   distributions.industry_profile.priors.enabled = true
+        // When disabled (or when using the legacy bare-name form), this block
+        // is a no-op and generation behavior is identical to v5.11.
+        if let Some(profile) = &self.config.distributions.industry_profile {
+            if let Some(priors_cfg) = profile.priors() {
+                if priors_cfg.enabled {
+                    use datasynth_config::schema::PriorsSource;
+                    use datasynth_generators::priors_loader::LoadedPriors;
+
+                    let mut priors_rng =
+                        rand_chacha::ChaCha8Rng::seed_from_u64(self.seed.wrapping_add(500));
+                    let period_days = i64::from(self.config.global.period_months) * 30;
+                    let industry_slug = profile.profile_type().slug();
+
+                    let loaded = match priors_cfg.source {
+                        PriorsSource::Bundled => {
+                            LoadedPriors::load_bundled(industry_slug, &mut priors_rng, period_days)
+                                .map_err(|e| {
+                                    SynthError::config(format!(
+                                "SP3: failed to load bundled priors for '{industry_slug}': {e}"
+                            ))
+                                })?
+                        }
+                        PriorsSource::File => {
+                            let path = priors_cfg.path.as_ref().ok_or_else(|| {
+                                SynthError::config(
+                                    "SP3: industry_profile.priors.path required when source = file"
+                                        .to_string(),
+                                )
+                            })?;
+                            LoadedPriors::load_from_path(
+                                path,
+                                &mut priors_rng,
+                                period_days,
+                                Some(industry_slug),
+                            )
+                            .map_err(|e| {
+                                SynthError::config(format!(
+                                    "SP3: failed to load priors from '{}': {e}",
+                                    path.display()
+                                ))
+                            })?
+                        }
+                    };
+
+                    // SP3.12 — cache priors in Arc so document-flow generator
+                    // can also apply lines-per-JE padding without re-loading.
+                    let loaded = std::sync::Arc::new(loaded);
+                    self.cached_priors = Some(loaded.clone());
+                    generator.loaded_priors = Some((*loaded).clone());
+
+                    // SP3.4 — instantiate VelocityCalibrator when the config
+                    // opts in.  Default target rates (R7/R9) are a sensible
+                    // baseline; they can be derived from the loaded priors in
+                    // a future hardening pass.
+                    if priors_cfg.velocity_calibration {
+                        use datasynth_generators::velocity_calibrator::VelocityCalibrator;
+                        let mut targets = std::collections::HashMap::new();
+                        targets.insert("R7".to_string(), 0.10);
+                        targets.insert("R9".to_string(), 0.10);
+                        let calibrator = VelocityCalibrator::new(targets, 10_000);
+                        generator.velocity_calibrator = Some(calibrator);
+                    }
+                }
+            }
+        }
+
         let generator = generator;
 
         // Connect generated master data to ensure JEs reference real entities
@@ -11112,6 +11392,12 @@ impl EnhancedOrchestrator {
 
         let populate_fec = je_config.populate_fec_fields;
         let mut generator = DocumentFlowJeGenerator::with_config_and_seed(je_config, self.seed);
+
+        // SP3.12 — propagate cached priors so document-flow JEs receive
+        // the same lines-per-JE padding as standalone JEs.
+        if let Some(ref priors) = self.cached_priors {
+            generator.set_loaded_priors(priors.clone());
+        }
 
         // Master-data CC / PC pools so document-flow-derived JEs
         // (P2P / O2C postings) reference IDs that join back to the
@@ -15579,7 +15865,6 @@ fn compute_trial_balance_entries(
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use datasynth_config::schema::*;

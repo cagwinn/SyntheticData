@@ -451,7 +451,6 @@ pub fn write_bsak(cfg: &SapExportConfig, invoices: &[APInvoice], path: &Path) ->
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::super::sap::SapDialect;
     use super::*;

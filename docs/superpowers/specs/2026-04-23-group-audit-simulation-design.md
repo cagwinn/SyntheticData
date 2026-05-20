@@ -3,14 +3,14 @@
 **Date:** 2026-04-23
 **Status:** Draft (post-brainstorming approval)
 **Target releases:** v5.0 → v5.3 (foundation → fleet)
-**Companion docs:** [`docs/engagements/nestle-group-audit.md`][nestle-eng] and [`docs/engagements/ds-team-work-for-big4-group-audits.md`][ds-gap] in the VynFi Python SDK repo
+**Companion docs:** [`docs/engagements/acme-group-audit.md`][acme-eng] and [`docs/engagements/ds-team-work-for-big4-group-audits.md`][ds-gap] in the VynFi Python SDK repo
 
-[nestle-eng]: file:///home/michael/DEV/Repos/VynFi-python/VynFi-python/docs/engagements/nestle-group-audit.md
+[acme-eng]: file:///home/michael/DEV/Repos/VynFi-python/VynFi-python/docs/engagements/acme-group-audit.md
 [ds-gap]: file:///home/michael/DEV/Repos/VynFi-python/VynFi-python/docs/engagements/ds-team-work-for-big4-group-audits.md
 
 ## 1. Overview
 
-DataSynth today generates high-fidelity synthetic financial data for a *single* consolidated entity (or a flat list of independent entities). Real Big-4 group audits — Nestlé, Allianz, Unilever — require a qualitatively different deliverable: a **consolidated group** of 50–2,000 legal entities with ownership hierarchies, multi-currency functional reporting, cross-entity intercompany eliminations, non-controlling interests, ISA 600 component audit coordination, and group-level tax (Pillar 2, CbCR, transfer pricing).
+DataSynth today generates high-fidelity synthetic financial data for a *single* consolidated entity (or a flat list of independent entities). Real Big-4 group audits — Acme, Allianz, Unilever — require a qualitatively different deliverable: a **consolidated group** of 50–2,000 legal entities with ownership hierarchies, multi-currency functional reporting, cross-entity intercompany eliminations, non-controlling interests, ISA 600 component audit coordination, and group-level tax (Pillar 2, CbCR, transfer pricing).
 
 This spec describes the engineering that transforms DataSynth from *entity-level synth* to **group-level synth**: a new `datasynth-group` crate that orchestrates manifest → shard → aggregate phases on top of the existing `EnhancedOrchestrator`, a `datasynth-fleet` crate for distributed execution, and the supporting config surface, artifacts, and audit-standards coverage that make the output recognizable to an audit partner on their first look.
 
@@ -109,12 +109,12 @@ Property: **adding or removing an entity, or reordering entities in YAML, does n
 
 ## 3. `group:` config schema
 
-### 3.1 Illustrative example (Nestlé-class)
+### 3.1 Illustrative example (Acme-class)
 
 ```yaml
 group:
-  id: "NESTLE_2024_Q1"
-  name: "Nestlé S.A. Consolidated"
+  id: "ACME_2024_Q1"
+  name: "Acme S.A. Consolidated"
   presentation_currency: "CHF"
   period: { start_date: "2024-01-01", length: quarterly, fiscal_year_end: "2024-12-31" }
   seed: 0xDEADBEEF
@@ -146,27 +146,27 @@ group:
       audit: { enabled: false }
 
   ownership:
-    parent_entity_code: NESTLE_SA
+    parent_entity_code: ACME_SA
     entities:                             # explicit stanzas for notable entities
-      - { code: NESTLE_SA,        country: CH, functional_currency: CHF,
+      - { code: ACME_SA,        country: CH, functional_currency: CHF,
           scoping_profile: significant, consolidation_method: parent }
       - { code: NESPRESSO_SA,     country: CH, functional_currency: CHF,
           scoping_profile: significant, consolidation_method: full,
-          ownership_percent: 1.0, parent_code: NESTLE_SA, rows: 8_000_000 }
-      - { code: NESTLE_USA,       country: US, functional_currency: USD,
+          ownership_percent: 1.0, parent_code: ACME_SA, rows: 8_000_000 }
+      - { code: ACME_USA,       country: US, functional_currency: USD,
           scoping_profile: significant, consolidation_method: full,
-          accounting_framework: us_gaap, parent_code: NESTLE_SA }
-      - { code: NESTLE_WATERS_BR, country: BR, functional_currency: BRL,
+          accounting_framework: us_gaap, parent_code: ACME_SA }
+      - { code: ACME_WATERS_BR, country: BR, functional_currency: BRL,
           scoping_profile: material, consolidation_method: full,
-          ownership_percent: 0.80, parent_code: NESTLE_SA }   # 20 % NCI
+          ownership_percent: 0.80, parent_code: ACME_SA }   # 20 % NCI
       - { code: CEREAL_PARTNERS_WW, consolidation_method: equity_method,
-          ownership_percent: 0.50, parent_code: NESTLE_SA }
+          ownership_percent: 0.50, parent_code: ACME_SA }
 
     generated:                            # bulk entity generation for scale
-      - { count: 200, code_prefix: NESTLE_EU_,    scoping_profile: material,
+      - { count: 200, code_prefix: ACME_EU_,    scoping_profile: material,
           country: [DE, FR, IT, ES, PL, NL], functional_currency: EUR,
           consolidation_method: full, ownership_percent_range: [0.85, 1.00] }
-      - { count: 1750, code_prefix: NESTLE_LOCAL_, scoping_profile: consolidation_only,
+      - { count: 1750, code_prefix: ACME_LOCAL_, scoping_profile: consolidation_only,
           country: [CN, IN, JP, BR, MX, ZA, ID, TH, VN, TR, SA, AE],
           consolidation_method: full }
 
@@ -174,7 +174,7 @@ group:
 
   intercompany:
     relationships:
-      - { seller: NESPRESSO_SA, buyer: NESTLE_USA,  types: [goods_sale, royalty],
+      - { seller: NESPRESSO_SA, buyer: ACME_USA,  types: [goods_sale, royalty],
           annual_volume: 50_000_000, transfer_pricing: cost_plus, markup_percent: 0.08 }
       - { pattern: { seller_scoping_profile: significant, buyer_scoping_profile: any },
           types: [management_fee], per_pair_volume: 1_000_000 }
@@ -189,7 +189,7 @@ group:
     policy: { balance_sheet: closing, income_statement: average, equity: historical }
 
   audit:
-    engagement_id: "EY_NESTLE_2024_Q1"
+    engagement_id: "EY_ACME_2024_Q1"
     lead_auditor: EY_ZURICH
     framework: isa
     fsm_blueprint: "builtin:group_fsa"    # v5.1: ISA 600 group audit blueprint
@@ -236,16 +236,16 @@ The manifest is the sole input handoff between phase 1 (manifest) and phases 2/3
 ```jsonc
 {
   "schema_version": "1.0",
-  "group_id": "NESTLE_2024_Q1",
+  "group_id": "ACME_2024_Q1",
   "group_seed": 16045690981371582975,
   "presentation_currency": "CHF",
   "period": {"start": "2024-01-01", "end": "2024-03-31", "length": "quarterly"},
 
   "ownership_graph": {
-    "parent_entity_code": "NESTLE_SA",
+    "parent_entity_code": "ACME_SA",
     "entities": [
       {
-        "code": "NESTLE_SA",
+        "code": "ACME_SA",
         "country": "CH",
         "functional_currency": "CHF",
         "scoping_profile": "significant",
@@ -268,7 +268,7 @@ The manifest is the sole input handoff between phase 1 (manifest) and phases 2/3
   "chart_of_accounts_master": {
     "primary_framework": "ifrs",
     "frameworks": {"ifrs": {...}, "us_gaap": {...}, "hgb": {...}, "pcg": {...}, "swiss_or": {...}},
-    "coa_id": "NESTLE_GROUP_CoA"
+    "coa_id": "ACME_GROUP_CoA"
   },
 
   "fx_rate_master": {
@@ -290,7 +290,7 @@ The manifest is the sole input handoff between phase 1 (manifest) and phases 2/3
     {
       "id": "ICR_001",
       "seller": "NESPRESSO_SA",
-      "buyer": "NESTLE_USA",
+      "buyer": "ACME_USA",
       "types": ["goods_sale", "royalty"],
       "annual_volume": 50000000,
       "transfer_pricing": "cost_plus",
@@ -300,7 +300,7 @@ The manifest is the sole input handoff between phase 1 (manifest) and phases 2/3
   ],
 
   "audit_engagement_plan": {
-    "engagement_id": "EY_NESTLE_2024_Q1",
+    "engagement_id": "EY_ACME_2024_Q1",
     "lead_auditor": "EY_ZURICH",
     "fsm_blueprint": "builtin:group_fsa",
     "group_materiality": 475000000,
@@ -308,16 +308,16 @@ The manifest is the sole input handoff between phase 1 (manifest) and phases 2/3
     "clearly_trivial": 23750000,
     "component_materiality_allocations": [
       {"entity_code": "NESPRESSO_SA", "materiality": 84000000, "scope": "full"},
-      {"entity_code": "NESTLE_USA",   "materiality": 92000000, "scope": "full"},
-      {"entity_code": "NESTLE_DE_GMBH", "materiality": 28000000, "scope": "specific",
+      {"entity_code": "ACME_USA",   "materiality": 92000000, "scope": "full"},
+      {"entity_code": "ACME_DE_GMBH", "materiality": 28000000, "scope": "specific",
        "account_areas": ["revenue", "inventory", "leases"]},
       /* <5% revenue → analytical only */
     ],
     "component_auditors": [
       {"id": "CA_EY_CH", "firm": "EY", "jurisdiction": "CH",
-       "entities": ["NESTLE_SA", "NESPRESSO_SA", ...]},
+       "entities": ["ACME_SA", "NESPRESSO_SA", ...]},
       {"id": "CA_EY_US", "firm": "EY", "jurisdiction": "US",
-       "entities": ["NESTLE_USA", ...]}
+       "entities": ["ACME_USA", ...]}
     ]
   },
 
@@ -633,7 +633,7 @@ group_archive/
 │   ├── fx_rate_master.json
 │   └── ic_relationships.json              # relationship graph (not pair instances)
 ├── entities/
-│   ├── NESTLE_SA/
+│   ├── ACME_SA/
 │   │   ├── journal_entries.json
 │   │   ├── journal_entries.csv
 │   │   ├── acdoca.csv
@@ -743,18 +743,18 @@ Incremental adoption is supported — a minimal `group:` with just `ownership.en
 
 | Kind | Coverage | Location |
 |---|---|---|
-| Golden data | 5-entity "Mini-Nestlé" reference group: IFRS, CHF/USD/EUR, 80 %-owned BR subsidiary, IFRS 11 JV (50/50), full-scope audit. Byte-identical check per release. | `crates/datasynth-group/tests/golden/` + fixture archive |
+| Golden data | 5-entity "Mini-Acme" reference group: IFRS, CHF/USD/EUR, 80 %-owned BR subsidiary, IFRS 11 JV (50/50), full-scope audit. Byte-identical check per release. | `crates/datasynth-group/tests/golden/` + fixture archive |
 | Property | IC matching coverage ≥98 % across randomized pair plans; post-elim consolidated balance `A = L + E + NCI` within ε; `sum(entity P&L) = consolidated P&L + eliminations ± ε`; NCI rollforward `opening + movements = closing` | `crates/datasynth-group/tests/properties.rs` |
 | Determinism | {in-process, subprocess, remote} dispatchers → bit-identical group archive for same seed | `crates/datasynth-fleet/tests/determinism.rs` |
 | Backward-compat | Existing `companies: [list]` configs produce byte-identical output to today | `crates/datasynth-group/tests/backcompat.rs` |
 | Scale | 100-entity group in <5 min; 500-entity in <30 min; 2,000-entity nightly only (ignored in CI) | `crates/datasynth-group/tests/scale.rs` (`--ignored` by default) |
-| End-to-end | Submit Mini-Nestlé to local `datasynth-server`, download archive, verify every expected file exists and parses | `crates/datasynth-server/tests/group_e2e.rs` |
-| Config validation | Every illustrative config in this spec validates; Mini-Nestlé config validates; invalid configs produce actionable errors | `crates/datasynth-config/tests/group_schema.rs` |
+| End-to-end | Submit Mini-Acme to local `datasynth-server`, download archive, verify every expected file exists and parses | `crates/datasynth-server/tests/group_e2e.rs` |
+| Config validation | Every illustrative config in this spec validates; Mini-Acme config validates; invalid configs produce actionable errors | `crates/datasynth-config/tests/group_schema.rs` |
 
 Reference artifacts:
-- `configs/examples/group/mini_nestle.yaml` — 5-entity reference config
+- `configs/examples/group/mini_acme.yaml` — 5-entity reference config
 - `configs/examples/group/mid_market.yaml` — 20-entity mid-market group
-- `configs/examples/group/nestle_class.yaml` — 100-entity stress test (CI), 2000-entity nightly
+- `configs/examples/group/acme_class.yaml` — 100-entity stress test (CI), 2000-entity nightly
 
 ## 13. Phased rollout
 
@@ -772,7 +772,7 @@ Four releases, each shippable independently, sequenced strictly serially: **v5.0
 - Per-entity output subtree
 - Determinism across in-process execution modes
 - New CLI: `datasynth-data group {manifest,shard,aggregate,generate}`
-- Mini-Nestlé reference config + golden fixture
+- Mini-Acme reference config + golden fixture
 
 **Unlocks:** real group simulation ≤50 entities with full consolidation machinery.
 
@@ -813,7 +813,7 @@ Four releases, each shippable independently, sequenced strictly serially: **v5.0
 - Emergent-fuzzy IC matching as opt-in strategy
 - Distributed aggregate (optional — can also run locally on collected shards)
 
-**Unlocks:** Nestlé-scale 2,000-entity engagements; distributed generation; multi-machine throughput.
+**Unlocks:** Acme-scale 2,000-entity engagements; distributed generation; multi-machine throughput.
 
 ### Aggregate estimate
 
@@ -837,19 +837,19 @@ Four releases, each shippable independently, sequenced strictly serially: **v5.0
 ### 14.2 Open questions
 
 1. **Shared-master pool sizing** — when two entities both draw from a 50 k vendor pool, what's the overlap target? (Too much overlap = unrealistic; too little = not really shared.) Suggest configurable via `shared_masters.vendors.per_entity_draw: 1000` with deterministic sampling.
-2. **Reference Mini-Nestlé config** — exact entity composition for the golden fixture. Propose: NESTLE_SA (parent, CH, IFRS), NESTLE_USA (US, US GAAP, full), NESTLE_DE (DE, IFRS + HGB bridge, full, 80 %-owned), NESTLE_BR (BR, IFRS, full, 100 %-owned), NESTLE_JV (CH, IFRS, equity method, 50 %).
+2. **Reference Mini-Acme config** — exact entity composition for the golden fixture. Propose: ACME_SA (parent, CH, IFRS), ACME_USA (US, US GAAP, full), ACME_DE (DE, IFRS + HGB bridge, full, 80 %-owned), ACME_BR (BR, IFRS, full, 100 %-owned), ACME_JV (CH, IFRS, equity method, 50 %).
 3. **Group FSA blueprint scope** — should `builtin:group_fsa` model the full ISA 600 lifecycle as a single blueprint, or be composable from the existing `builtin:fsa` + a thin "group overlay"? Leaning toward separate blueprint for clarity.
 4. **Nightly 2,000-entity scale test cost** — needs a dedicated CI machine budget. Gate behind a manual workflow dispatch rather than daily schedule until we have data on wall-clock + compute cost.
 5. **`entities_from: .csv` column contract** — exact column headers (`code`, `name`, `country`, `functional_currency`, `scoping_profile`, `consolidation_method`, `ownership_percent`, `parent_code`, `industry`, `accounting_framework`). Document and version this contract separately.
 
-## 15. Appendix A — Reference Mini-Nestlé config
+## 15. Appendix A — Reference Mini-Acme config
 
 Smallest viable group config exercising every v5.0 feature.
 
 ```yaml
 group:
-  id: "MINI_NESTLE_2024_Q1"
-  name: "Mini Nestlé Reference Group"
+  id: "MINI_ACME_2024_Q1"
+  name: "Mini Acme Reference Group"
   presentation_currency: "CHF"
   period: { start_date: "2024-01-01", length: quarterly }
   seed: 0x1234567890ABCDEF
@@ -870,32 +870,32 @@ group:
       audit: { generate_workpapers: true, min_team_size: 2, max_team_size: 4 }
 
   ownership:
-    parent_entity_code: NESTLE_SA
+    parent_entity_code: ACME_SA
     entities:
-      - { code: NESTLE_SA, country: CH, functional_currency: CHF,
+      - { code: ACME_SA, country: CH, functional_currency: CHF,
           scoping_profile: significant, consolidation_method: parent }
-      - { code: NESTLE_USA, country: US, functional_currency: USD,
+      - { code: ACME_USA, country: US, functional_currency: USD,
           scoping_profile: significant, consolidation_method: full,
-          ownership_percent: 1.0, parent_code: NESTLE_SA,
+          ownership_percent: 1.0, parent_code: ACME_SA,
           accounting_framework: us_gaap }
-      - { code: NESTLE_DE, country: DE, functional_currency: EUR,
+      - { code: ACME_DE, country: DE, functional_currency: EUR,
           scoping_profile: significant, consolidation_method: full,
-          ownership_percent: 0.80, parent_code: NESTLE_SA,
+          ownership_percent: 0.80, parent_code: ACME_SA,
           accounting_framework: hgb }      # bridges HGB → IFRS at aggregate
-      - { code: NESTLE_BR, country: BR, functional_currency: BRL,
+      - { code: ACME_BR, country: BR, functional_currency: BRL,
           scoping_profile: material, consolidation_method: full,
-          ownership_percent: 1.0, parent_code: NESTLE_SA }
-      - { code: NESTLE_JV, country: CH, functional_currency: CHF,
+          ownership_percent: 1.0, parent_code: ACME_SA }
+      - { code: ACME_JV, country: CH, functional_currency: CHF,
           scoping_profile: material, consolidation_method: equity_method,
-          ownership_percent: 0.50, parent_code: NESTLE_SA }
+          ownership_percent: 0.50, parent_code: ACME_SA }
 
   intercompany:
     relationships:
-      - { seller: NESTLE_SA, buyer: NESTLE_USA, types: [goods_sale, royalty],
+      - { seller: ACME_SA, buyer: ACME_USA, types: [goods_sale, royalty],
           annual_volume: 5_000_000, transfer_pricing: cost_plus, markup_percent: 0.08 }
-      - { seller: NESTLE_SA, buyer: NESTLE_DE, types: [goods_sale, management_fee],
+      - { seller: ACME_SA, buyer: ACME_DE, types: [goods_sale, management_fee],
           annual_volume: 3_000_000, transfer_pricing: cost_plus, markup_percent: 0.06 }
-      - { pattern: { seller: NESTLE_SA, buyer_scoping_profile: any },
+      - { pattern: { seller: ACME_SA, buyer_scoping_profile: any },
           types: [management_fee], per_pair_volume: 200_000 }
     matching: { strategy: manifest_driven, coverage_target: 0.98 }
 
@@ -909,7 +909,7 @@ group:
     policy: { balance_sheet: closing, income_statement: average, equity: historical }
 
   audit:
-    engagement_id: "EY_MINI_NESTLE_2024_Q1"
+    engagement_id: "EY_MINI_ACME_2024_Q1"
     lead_auditor: EY_ZURICH
     framework: isa
     fsm_blueprint: "builtin:group_fsa"

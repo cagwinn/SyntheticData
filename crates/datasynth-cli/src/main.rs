@@ -14,6 +14,9 @@ use datasynth_config::schema::AccountingFrameworkConfig;
 use datasynth_config::{presets, GeneratorConfig};
 use datasynth_core::memory_guard::{MemoryGuard, MemoryGuardConfig};
 use datasynth_core::models::{CoAComplexity, IndustrySector};
+use datasynth_eval::behavioral_fidelity::{
+    self as behavioral_fidelity, BehavioralFidelityConfig, GateThresholds,
+};
 use datasynth_fingerprint::{
     evaluation::FidelityEvaluator,
     extraction::{CsvDataSource, DataSource, ExtractionConfig, FingerprintExtractor},
@@ -258,6 +261,18 @@ enum Commands {
     Audit {
         #[command(subcommand)]
         command: AuditCommands,
+    },
+
+    /// Behavioral-fidelity evaluation against a corpus reference (SP1).
+    ///
+    /// Scores a synthetic GL dataset against a corpus file using the
+    /// Sajja (2026) P1–P4 framework: inter-event time distributions (P1),
+    /// entity burst / JE-line-burst (P2), graph fanout + clustering (P3),
+    /// and canonical R1..R10 velocity rules (P4). Writes report.json,
+    /// report.md, and metrics.csv to `--out`.
+    Behavioral {
+        #[command(subcommand)]
+        command: BehavioralCommands,
     },
 
     /// Template pack management (v3.2.0+)
@@ -828,6 +843,26 @@ enum FingerprintCommands {
         /// Key identifier stored alongside the signature (defaults to "default").
         #[arg(long, default_value = "default")]
         sign_key_id: String,
+
+        /// Also extract behavioral priors (SP2). Requires --industry.
+        #[arg(long, default_value_t = false)]
+        behavioral: bool,
+        /// Industry slug ("health", "life_sciences", ...) -- required when --behavioral.
+        #[arg(long)]
+        industry: Option<String>,
+
+        /// Path to a private PII denylist (TSV: literal-or-/regex/\tkind).
+        ///
+        /// SP6 Phase B: applied AFTER PlaceholderGrammar's automated structural
+        /// tokenization. The file is PII-derived — never commit to a public repo.
+        /// When present, `extract_text_taxonomy_from_records` is called to populate
+        /// `BehavioralPriors.text_taxonomy` in the output bundle. When absent, only
+        /// Phase A (structural) tokenization runs; bundles MAY carry fuzzy proper
+        /// nouns that the build-time audit gate will reject.
+        ///
+        /// Requires --behavioral.
+        #[arg(long, value_name = "PATH")]
+        pii_denylist: Option<std::path::PathBuf>,
     },
 
     /// Validate a fingerprint file
@@ -842,6 +877,10 @@ enum FingerprintCommands {
         /// Fingerprint file
         #[arg(required = true)]
         file: PathBuf,
+
+        /// Also print the behavioral-priors section (SP2) if present.
+        #[arg(long, default_value_t = false)]
+        behavioral: bool,
 
         /// Show detailed statistics
         #[arg(long)]
@@ -904,6 +943,25 @@ enum FingerprintCommands {
         #[arg(short, long, default_value = "42")]
         seed: u64,
     },
+
+    /// Aggregate per-client behavioral fingerprints into one industry-level bundle.
+    AggregateIndustry {
+        /// Industry slug ("health", "life_sciences", ...).
+        #[arg(long)]
+        industry: String,
+        /// Paths to per-client .dsf files.
+        #[arg(long, num_args = 1..)]
+        inputs: Vec<PathBuf>,
+        /// Output .dsf path.
+        #[arg(long)]
+        output: PathBuf,
+        /// Allow aggregation from fewer than 3 inputs.
+        #[arg(long, default_value_t = false)]
+        allow_single_client: bool,
+        /// Allow inputs with different industry tags.
+        #[arg(long, default_value_t = false)]
+        allow_cross_industry: bool,
+    },
 }
 
 #[derive(Subcommand)]
@@ -958,6 +1016,50 @@ enum AuditCommands {
         /// Random seed for deterministic generation
         #[arg(long, default_value = "42")]
         seed: u64,
+    },
+}
+
+/// SP1: behavioral-fidelity subcommands.
+#[derive(Subcommand)]
+#[allow(clippy::large_enum_variant)]
+enum BehavioralCommands {
+    /// Score a synthetic GL dataset against a corpus reference.
+    ///
+    /// Loads both files (CSV or Parquet; or a directory containing one),
+    /// runs the full P1–P4 Sajja (2026) framework, and writes three
+    /// report artefacts to `--out`:
+    ///
+    ///   report.json  — machine-readable full report
+    ///   report.md    — human-readable Markdown summary
+    ///   metrics.csv  — flat metric table for spreadsheet / CI
+    ///
+    /// Exit codes: 0 = gate passed, 2 = gate failed.
+    Score {
+        /// Path to the corpus CSV or Parquet file (or a directory
+        /// containing one such file).
+        #[arg(long)]
+        real: PathBuf,
+        /// Path to the synthetic-output CSV or Parquet file (or a
+        /// directory containing one such file).
+        #[arg(long)]
+        syn: PathBuf,
+        /// Entity profile preset.  SP1 ships `gl-source-tp` only.
+        #[arg(long, default_value = "gl-source-tp")]
+        profile: String,
+        /// Output directory (writes report.json, report.md, metrics.csv).
+        #[arg(long)]
+        out: PathBuf,
+        /// Seed for the deterministic 50/50 split of the corpus.
+        #[arg(long, default_value_t = 42)]
+        seed: u64,
+        /// Gate: fail (exit 2) if any sub-metric degradation-ratio exceeds
+        /// this value.
+        #[arg(long, default_value_t = 2.0)]
+        fail_on_dr_above: f64,
+        /// Gate: fail (exit 2) if the composite BF score exceeds this
+        /// value.
+        #[arg(long, default_value_t = 1.5)]
+        fail_on_composite_above: f64,
     },
 }
 
@@ -3350,6 +3452,11 @@ fn run_main() -> Result<()> {
         Commands::Optimizer { command } => handle_optimizer(command),
 
         Commands::Group { command } => handle_group(command),
+
+        Commands::Behavioral { command } => {
+            let exit_code = handle_behavioral(command)?;
+            std::process::exit(exit_code);
+        }
     }
 }
 
@@ -3528,6 +3635,67 @@ fn handle_group(command: GroupCommands) -> Result<()> {
             cgu_test_inputs.as_deref(),
             cpi_series.as_deref(),
         ),
+    }
+}
+
+/// SP1: `datasynth-data behavioral score` dispatcher.
+///
+/// Calls [`datasynth_eval::behavioral_fidelity::compute_report_from_paths`],
+/// writes the three report artefacts, and returns the exit code (0 = gate
+/// passed, 2 = gate failed) so the caller can `std::process::exit` it.
+fn handle_behavioral(command: BehavioralCommands) -> Result<i32> {
+    match command {
+        BehavioralCommands::Score {
+            real,
+            syn,
+            profile,
+            out,
+            seed,
+            fail_on_dr_above,
+            fail_on_composite_above,
+        } => {
+            if profile != "gl-source-tp" {
+                anyhow::bail!("unknown profile {:?}; SP1 ships gl-source-tp only", profile);
+            }
+            let mut cfg = BehavioralFidelityConfig::gl_default();
+            cfg.seed = seed;
+            cfg.fail_thresholds = GateThresholds {
+                fail_if_dr_above: fail_on_dr_above,
+                fail_if_composite_above: fail_on_composite_above,
+            };
+
+            std::fs::create_dir_all(&out)?;
+
+            let report = behavioral_fidelity::compute_report_from_paths(&cfg, &real, &syn)
+                .map_err(|e| anyhow::anyhow!("behavioral score: compute_report failed: {e}"))?;
+
+            let json_path = out.join("report.json");
+            let md_path = out.join("report.md");
+            let csv_path = out.join("metrics.csv");
+
+            report
+                .write_json(&json_path)
+                .map_err(|e| anyhow::anyhow!("behavioral score: json write failed: {e}"))?;
+            report
+                .write_markdown(&md_path)
+                .map_err(|e| anyhow::anyhow!("behavioral score: md write failed: {e}"))?;
+            report
+                .write_csv(&csv_path)
+                .map_err(|e| anyhow::anyhow!("behavioral score: csv write failed: {e}"))?;
+
+            eprintln!("composite BF score: {:.3}", report.composite_bf_score);
+            eprintln!(
+                "gate: {}",
+                if report.gates.passed { "PASS" } else { "FAIL" }
+            );
+            if !report.gates.passed {
+                for f in &report.gates.failures {
+                    eprintln!("  - {f}");
+                }
+            }
+
+            Ok(if report.gates.passed { 0 } else { 2 })
+        }
     }
 }
 
@@ -4420,6 +4588,9 @@ fn handle_fingerprint_command(command: FingerprintCommands) -> Result<()> {
             sign_key_hex,
             sign_key_file,
             sign_key_id,
+            behavioral,
+            industry,
+            pii_denylist,
         } => {
             tracing::info!("Extracting fingerprint from: {}", input.display());
 
@@ -4449,29 +4620,227 @@ fn handle_fingerprint_command(command: FingerprintCommands) -> Result<()> {
                 ..Default::default()
             };
 
-            // Create data source
-            let data_source = if input.is_file() {
-                DataSource::Csv(CsvDataSource::new(input.clone()))
+            // Detect parquet input — the legacy CSV extractor can't handle it,
+            // and the SP2 behavioral extractor handles parquet natively. When
+            // --behavioral is set with a parquet input, skip the CSV path and
+            // build a minimal Fingerprint shell whose only populated section
+            // is the behavioral one.
+            let is_parquet_input = input.is_file()
+                && input
+                    .extension()
+                    .is_some_and(|e| e.eq_ignore_ascii_case("parquet"));
+
+            let mut fingerprint = if behavioral && is_parquet_input {
+                tracing::info!(
+                    "Parquet input + --behavioral: skipping CSV-based extraction, \
+                     building behavioral-only fingerprint"
+                );
+                use datasynth_fingerprint::models::{
+                    Fingerprint, Manifest, PrivacyAudit, PrivacyMetadata, SchemaFingerprint,
+                    SourceMetadata, StatisticsFingerprint,
+                };
+                let source = SourceMetadata::new(format!("parquet:{}", input.display()), vec![], 0);
+                let privacy_meta = PrivacyMetadata::from_level(level);
+                let manifest = Manifest::new(source, privacy_meta);
+                let schema = SchemaFingerprint::new();
+                let statistics = StatisticsFingerprint::new();
+                let privacy_audit = PrivacyAudit::new(
+                    extraction_config.privacy.epsilon,
+                    extraction_config.privacy.k_anonymity,
+                );
+                Fingerprint::new(manifest, schema, statistics, privacy_audit)
             } else {
-                // For directories, find CSV files
-                let csv_files: Vec<_> = std::fs::read_dir(&input)?
-                    .filter_map(std::result::Result::ok)
-                    .filter(|e| e.path().extension().is_some_and(|ext| ext == "csv"))
-                    .collect();
-
-                if csv_files.is_empty() {
-                    anyhow::bail!("No CSV files found in directory: {}", input.display());
-                }
-
-                // Use first CSV file for now (multi-table support would require more logic)
-                let first_csv = csv_files[0].path();
-                tracing::info!("Using CSV file: {}", first_csv.display());
-                DataSource::Csv(CsvDataSource::new(first_csv))
+                // Create data source for legacy CSV-based extraction.
+                let data_source = if input.is_file() {
+                    DataSource::Csv(CsvDataSource::new(input.clone()))
+                } else {
+                    let csv_files: Vec<_> = std::fs::read_dir(&input)?
+                        .filter_map(std::result::Result::ok)
+                        .filter(|e| e.path().extension().is_some_and(|ext| ext == "csv"))
+                        .collect();
+                    if csv_files.is_empty() {
+                        anyhow::bail!("No CSV files found in directory: {}", input.display());
+                    }
+                    let first_csv = csv_files[0].path();
+                    tracing::info!("Using CSV file: {}", first_csv.display());
+                    DataSource::Csv(CsvDataSource::new(first_csv))
+                };
+                let extractor = FingerprintExtractor::with_config(extraction_config);
+                extractor.extract(&data_source)?
             };
 
-            // Extract fingerprint
-            let extractor = FingerprintExtractor::with_config(extraction_config);
-            let fingerprint = extractor.extract(&data_source)?;
+            if behavioral {
+                let ind = industry
+                    .as_ref()
+                    .ok_or_else(|| anyhow::anyhow!("--behavioral requires --industry"))?;
+                use datasynth_fingerprint::extraction::behavioral_extractor::extract_behavioral_priors_from_path;
+                let mut bp = extract_behavioral_priors_from_path(&input, ind)
+                    .map_err(|e| anyhow::anyhow!("behavioral extraction failed: {e}"))?;
+
+                // SP4.2 — adjacent COA file enrichment.
+                // When input is a JE_XXX.parquet file, look for a COA_XXX.parquet
+                // in the same directory and attach CoA semantic content.
+                if is_parquet_input {
+                    if let Some(file_name) = input.file_name().and_then(|n| n.to_str()) {
+                        if file_name.starts_with("JE_") {
+                            let coa_file_name = file_name.replacen("JE_", "COA_", 1);
+                            let coa_path = input
+                                .parent()
+                                .unwrap_or(std::path::Path::new("."))
+                                .join(&coa_file_name);
+                            if coa_path.exists() {
+                                use datasynth_fingerprint::extraction::extract_coa_semantic_from_parquet;
+                                match extract_coa_semantic_from_parquet(&coa_path) {
+                                    Ok(coa_prior) => {
+                                        tracing::info!(
+                                            "SP4.2: extracted CoA semantic from {} ({} accounts)",
+                                            coa_path.display(),
+                                            coa_prior.accounts.len()
+                                        );
+                                        bp.coa_semantic = Some(coa_prior);
+                                    }
+                                    Err(e) => {
+                                        tracing::warn!(
+                                            "SP4.2: COA parquet extraction failed for {}: {e}",
+                                            coa_path.display()
+                                        );
+                                    }
+                                }
+                            } else {
+                                tracing::debug!(
+                                    "SP4.2: no adjacent COA file found at {}",
+                                    coa_path.display()
+                                );
+                            }
+                        }
+                    }
+                }
+
+                // W7.2 — adjacent TB file enrichment (SP4.1 completion).
+                // When input is a JE_XXX.parquet file, look for a TB_XXX.parquet
+                // in the same directory and extract the trial-balance anchor priors.
+                if is_parquet_input {
+                    if let Some(file_name) = input.file_name().and_then(|n| n.to_str()) {
+                        if file_name.starts_with("JE_") {
+                            let tb_file_name = file_name.replacen("JE_", "TB_", 1);
+                            let tb_path = input
+                                .parent()
+                                .unwrap_or(std::path::Path::new("."))
+                                .join(&tb_file_name);
+                            if tb_path.exists() {
+                                use datasynth_fingerprint::extraction::extract_tb_anchor_from_parquet;
+                                match extract_tb_anchor_from_parquet(&tb_path) {
+                                    Ok(anchor) => {
+                                        tracing::info!(
+                                            target: "datasynth_data::fingerprint",
+                                            "W7.2 — extracted TB anchor from {}: {} accounts, \
+                                             total_assets={:.2}",
+                                            tb_path.display(),
+                                            anchor.per_account.len(),
+                                            anchor.total_assets
+                                        );
+                                        bp.tb_anchor = Some(anchor);
+                                    }
+                                    Err(e) => {
+                                        tracing::warn!(
+                                            target: "datasynth_data::fingerprint",
+                                            "W7.2 — TB file {:?} present but extraction failed: {}",
+                                            tb_path,
+                                            e
+                                        );
+                                    }
+                                }
+                            } else {
+                                tracing::debug!(
+                                    "W7.2: no adjacent TB file found at {}",
+                                    tb_path.display()
+                                );
+                            }
+                        }
+                    }
+                }
+
+                // SP6 — Phase B PII denylist + text_taxonomy extraction.
+                // When --pii-denylist is supplied, load the denylist and call
+                // extract_text_taxonomy_from_records to populate bp.text_taxonomy.
+                // When absent, warn and leave text_taxonomy as None so the caller
+                // knows Phase B was skipped.
+                if is_parquet_input {
+                    use datasynth_eval::behavioral_fidelity::loader::load_parquet_records;
+                    use datasynth_fingerprint::extraction::extract_text_taxonomy_from_records;
+                    use datasynth_fingerprint::extraction::PiiDenylist;
+
+                    let denylist: Option<PiiDenylist> = if let Some(ref dl_path) = pii_denylist {
+                        Some(PiiDenylist::load(dl_path).map_err(|e| {
+                            anyhow::anyhow!("loading --pii-denylist {}: {e}", dl_path.display())
+                        })?)
+                    } else {
+                        eprintln!(
+                            "warning: --pii-denylist not supplied; Phase B (fuzzy \
+                                 proper-noun generalization) is skipped. Bundles built \
+                                 without it may carry residual fuzzy PII that the audit \
+                                 gate will reject."
+                        );
+                        None
+                    };
+
+                    // Load records for text taxonomy (reloads the parquet; acceptable
+                    // for the CLI path — this is a batch offline operation).
+                    //
+                    // Failure handling: if `--pii-denylist` was supplied the caller
+                    // EXPECTS SP6 extraction to succeed — any error here (parquet
+                    // reload, residual-PII hit at extraction) is a HARD FAIL so the
+                    // build-time gate cannot be silently bypassed. When the denylist
+                    // is absent (Phase A only), extraction failures fall back to
+                    // logged warnings — the missing text_taxonomy will be caught by
+                    // the post-build `bundle_pii_audit` test.
+                    let strict = pii_denylist.is_some();
+                    let records_opt = match load_parquet_records(&input) {
+                        Ok(r) => Some(r),
+                        Err(e) => {
+                            let msg =
+                                format!("SP6: could not reload parquet for text_taxonomy: {e}");
+                            if strict {
+                                return Err(anyhow::anyhow!(msg));
+                            }
+                            tracing::warn!("{msg}");
+                            None
+                        }
+                    };
+                    if let Some(records) = records_opt {
+                        const TEXT_TAXONOMY_MIN_OCCURRENCES: usize = 3;
+                        match extract_text_taxonomy_from_records(
+                            &records,
+                            bp.coa_semantic.as_ref(),
+                            denylist.as_ref(),
+                            TEXT_TAXONOMY_MIN_OCCURRENCES,
+                        ) {
+                            Ok(taxonomy) => {
+                                tracing::info!(
+                                    "SP6: extracted text_taxonomy ({} line pools, \
+                                     {} header pools, {} CoA pools)",
+                                    taxonomy.line_pools.len(),
+                                    taxonomy.header_pools.len(),
+                                    taxonomy.coa_pools.len(),
+                                );
+                                bp.text_taxonomy = Some(taxonomy);
+                            }
+                            Err(e) => {
+                                let msg = format!("SP6: text_taxonomy extraction failed: {e}");
+                                if strict {
+                                    return Err(anyhow::anyhow!(msg));
+                                }
+                                tracing::warn!(
+                                    "{msg} (bundle written without text_taxonomy; \
+                                     bundle_pii_audit will reject if it ships)"
+                                );
+                            }
+                        }
+                    }
+                }
+
+                fingerprint.behavioral = Some(bp);
+            }
 
             // Write fingerprint (signed if --sign).
             let writer = FingerprintWriter::new();
@@ -4537,7 +4906,11 @@ fn handle_fingerprint_command(command: FingerprintCommands) -> Result<()> {
             Ok(())
         }
 
-        FingerprintCommands::Info { file, detailed } => {
+        FingerprintCommands::Info {
+            file,
+            behavioral,
+            detailed,
+        } => {
             let reader = FingerprintReader::new();
             let fingerprint = reader.read_from_file(&file)?;
 
@@ -4610,6 +4983,56 @@ fn handle_fingerprint_command(command: FingerprintCommands) -> Result<()> {
                 fingerprint.privacy_audit.total_epsilon_spent
             );
             println!("  Warnings: {}", fingerprint.privacy_audit.warnings.len());
+
+            if behavioral {
+                if let Some(bp) = &fingerprint.behavioral {
+                    println!("\nBehavioral priors (industry={})", bp.industry);
+                    println!(
+                        "  schema_version: {}, generator_version: {}",
+                        bp.schema_version, bp.generator_version
+                    );
+                    println!(
+                        "  n_client_inputs: {}, n_rows_aggregated: {}",
+                        bp.n_client_inputs, bp.n_rows_aggregated
+                    );
+                    println!("  source_mix (top 5):");
+                    let mut sorted: Vec<(&String, &f64)> =
+                        bp.source_mix.probabilities.iter().collect();
+                    sorted
+                        .sort_by(|a, b| b.1.partial_cmp(a.1).unwrap_or(std::cmp::Ordering::Equal));
+                    for (s, p) in sorted.iter().take(5) {
+                        println!("    {} {:.1}%", s, **p * 100.0);
+                    }
+                    println!("    (+other {:.1}%)", bp.source_mix.other_fraction * 100.0);
+                    println!(
+                        "  per_source_iet: {} sources with IET summaries",
+                        bp.per_source_iet.by_source.len()
+                    );
+                    println!(
+                        "  lines_per_je: median bucket {}",
+                        bp.lines_per_je.overall.median_bucket()
+                    );
+                    println!(
+                        "  active_lifetime: median bucket {}d",
+                        bp.active_lifetime.overall.median_bucket()
+                    );
+                    println!("  fanout (attribute -> median fan-out):");
+                    for (attr, hist) in &bp.fanout.by_attribute {
+                        println!("    {}: {}", attr, hist.median_bucket());
+                    }
+                    if let Some(lag) = &bp.posting_lag {
+                        let n_sources = lag.by_source.len();
+                        let mean_all: f64 = lag.by_source.values().map(|s| s.mean).sum::<f64>()
+                            / n_sources.max(1) as f64;
+                        println!(
+                            "  posting_lag: {} sources; overall mean {:.1} days",
+                            n_sources, mean_all
+                        );
+                    }
+                } else {
+                    println!("\n(No behavioral section in this .dsf)");
+                }
+            }
 
             Ok(())
         }
@@ -4932,6 +5355,70 @@ fn handle_fingerprint_command(command: FingerprintCommands) -> Result<()> {
                 );
             }
 
+            Ok(())
+        }
+
+        FingerprintCommands::AggregateIndustry {
+            industry,
+            inputs,
+            output,
+            allow_single_client,
+            allow_cross_industry,
+        } => {
+            if inputs.len() < 3 && !allow_single_client {
+                anyhow::bail!(
+                    "aggregate-industry needs >=3 inputs (got {}); pass --allow-single-client to override",
+                    inputs.len()
+                );
+            }
+            // Read inputs.
+            let reader = FingerprintReader::new();
+            let mut bundles: Vec<datasynth_fingerprint::models::Fingerprint> = Vec::new();
+            for path in &inputs {
+                let fp = reader
+                    .read_from_file(path)
+                    .map_err(|e| anyhow::anyhow!("read {} failed: {e}", path.display()))?;
+                bundles.push(fp);
+            }
+            // Collect behavioral sections.
+            let mut priors: Vec<&datasynth_fingerprint::models::behavioral::BehavioralPriors> =
+                Vec::new();
+            for (idx, fp) in bundles.iter().enumerate() {
+                match &fp.behavioral {
+                    Some(bp) => {
+                        if !allow_cross_industry && bp.industry != industry {
+                            anyhow::bail!(
+                                "input #{} has industry {:?}, expected {:?} (use --allow-cross-industry)",
+                                idx,
+                                bp.industry,
+                                industry
+                            );
+                        }
+                        priors.push(bp);
+                    }
+                    None => anyhow::bail!(
+                        "input #{} ({}) has no behavioral section",
+                        idx,
+                        inputs[idx].display()
+                    ),
+                }
+            }
+            let aggregated =
+                datasynth_fingerprint::aggregation::industry_aggregator::aggregate_industry_priors(
+                    &priors, &industry,
+                )
+                .map_err(|e| anyhow::anyhow!("aggregation failed: {e}"))?;
+            // Use the first input as a template, replace behavioral with the aggregate.
+            let mut template = bundles
+                .into_iter()
+                .next()
+                .ok_or_else(|| anyhow::anyhow!("no inputs after read"))?;
+            template.behavioral = Some(aggregated);
+            let writer = FingerprintWriter::new();
+            writer
+                .write_to_file(&template, &output)
+                .map_err(|e| anyhow::anyhow!("write {} failed: {e}", output.display()))?;
+            eprintln!("Wrote industry-aggregated bundle to {}", output.display());
             Ok(())
         }
     }

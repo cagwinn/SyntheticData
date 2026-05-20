@@ -46,7 +46,6 @@ pub async fn request_logging_middleware(request: Request<Body>, next: Next) -> R
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use axum::{routing::get, Router};

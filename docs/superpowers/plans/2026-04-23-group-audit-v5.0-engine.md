@@ -18,7 +18,7 @@
 
 ## Chunk 1 — Crate scaffolding & configuration types
 
-Goal: land a new `datasynth-group` crate in the workspace with the full `group:` config surface deserializing from YAML, the three-level inheritance resolver, and tests demonstrating the spec's Mini-Nestlé config parses cleanly. After this chunk `cargo test -p datasynth-group` passes and the crate exposes `GroupConfig` + `ResolvedEntity` + `ResolvedScopingProfile` as its public surface.
+Goal: land a new `datasynth-group` crate in the workspace with the full `group:` config surface deserializing from YAML, the three-level inheritance resolver, and tests demonstrating the spec's Mini-Acme config parses cleanly. After this chunk `cargo test -p datasynth-group` passes and the crate exposes `GroupConfig` + `ResolvedEntity` + `ResolvedScopingProfile` as its public surface.
 
 ### Task 1.1 — Create `datasynth-group` crate
 
@@ -189,23 +189,23 @@ Create `crates/datasynth-group/tests/config_parse.rs`:
 use datasynth_group::GroupConfig;
 
 #[test]
-fn test_mini_nestle_parses() {
-    let yaml = include_str!("fixtures/mini_nestle_minimal.yaml");
+fn test_mini_acme_parses() {
+    let yaml = include_str!("fixtures/mini_acme_minimal.yaml");
     let cfg: GroupConfig = serde_yaml::from_str(yaml)
-        .expect("mini_nestle fixture must parse");
+        .expect("mini_acme fixture must parse");
 
-    assert_eq!(cfg.id, "MINI_NESTLE_2024_Q1");
+    assert_eq!(cfg.id, "MINI_ACME_2024_Q1");
     assert_eq!(cfg.presentation_currency, "CHF");
-    assert_eq!(cfg.ownership.parent_entity_code, "NESTLE_SA");
+    assert_eq!(cfg.ownership.parent_entity_code, "ACME_SA");
     assert!(!cfg.ownership.entities.is_empty());
 }
 ```
 
-Create fixture `crates/datasynth-group/tests/fixtures/mini_nestle_minimal.yaml`:
+Create fixture `crates/datasynth-group/tests/fixtures/mini_acme_minimal.yaml`:
 
 ```yaml
-id: "MINI_NESTLE_2024_Q1"
-name: "Mini Nestlé Reference Group"
+id: "MINI_ACME_2024_Q1"
+name: "Mini Acme Reference Group"
 presentation_currency: "CHF"
 period:
   start_date: "2024-01-01"
@@ -214,9 +214,9 @@ period:
 seed: 0x1234567890ABCDEF
 
 ownership:
-  parent_entity_code: NESTLE_SA
+  parent_entity_code: ACME_SA
   entities:
-    - code: NESTLE_SA
+    - code: ACME_SA
       country: CH
       functional_currency: CHF
       scoping_profile: significant
@@ -614,7 +614,7 @@ pub use config::{
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cargo test -p datasynth-group --test config_parse test_mini_nestle_parses`
+Run: `cargo test -p datasynth-group --test config_parse test_mini_acme_parses`
 Expected: PASS.
 
 - [ ] **Step 5: Run clippy**
@@ -628,7 +628,7 @@ Expected: no warnings.
 git add crates/datasynth-group/src/config.rs \
        crates/datasynth-group/src/lib.rs \
        crates/datasynth-group/tests/config_parse.rs \
-       crates/datasynth-group/tests/fixtures/mini_nestle_minimal.yaml
+       crates/datasynth-group/tests/fixtures/mini_acme_minimal.yaml
 git commit -m "feat(group): define GroupConfig types matching spec §3
 
 Full YAML surface for group: section, including ownership, IC
@@ -638,15 +638,15 @@ plan, tax group plan, and output layout. Minimal fixture parses."
 
 ---
 
-### Task 1.3 — Full Mini-Nestlé config parses (spec §15)
+### Task 1.3 — Full Mini-Acme config parses (spec §15)
 
 **Files:**
 - Modify: `crates/datasynth-group/tests/config_parse.rs`
-- Create: `crates/datasynth-group/tests/fixtures/mini_nestle.yaml`
+- Create: `crates/datasynth-group/tests/fixtures/mini_acme.yaml`
 
-- [ ] **Step 1: Copy Mini-Nestlé config from spec**
+- [ ] **Step 1: Copy Mini-Acme config from spec**
 
-Create `crates/datasynth-group/tests/fixtures/mini_nestle.yaml` with the full appendix A config from the spec (spec §15, Mini-Nestlé reference config — copy verbatim, including `defaults`, `scoping_profiles`, `ownership`, `intercompany`, `fx`, `audit`, `tax`, `output`).
+Create `crates/datasynth-group/tests/fixtures/mini_acme.yaml` with the full appendix A config from the spec (spec §15, Mini-Acme reference config — copy verbatim, including `defaults`, `scoping_profiles`, `ownership`, `intercompany`, `fx`, `audit`, `tax`, `output`).
 
 - [ ] **Step 2: Add test for the full fixture**
 
@@ -654,13 +654,13 @@ Append to `crates/datasynth-group/tests/config_parse.rs`:
 
 ```rust
 #[test]
-fn test_full_mini_nestle_parses() {
-    let yaml = include_str!("fixtures/mini_nestle.yaml");
+fn test_full_mini_acme_parses() {
+    let yaml = include_str!("fixtures/mini_acme.yaml");
     let cfg: datasynth_group::GroupConfig = serde_yaml::from_str(yaml)
-        .expect("full mini_nestle must parse");
+        .expect("full mini_acme must parse");
 
     // Spot-check all sections are present.
-    assert_eq!(cfg.id, "MINI_NESTLE_2024_Q1");
+    assert_eq!(cfg.id, "MINI_ACME_2024_Q1");
     assert_eq!(cfg.scoping_profiles.len(), 2, "significant + material");
     assert_eq!(cfg.ownership.entities.len(), 5, "parent + 4 subsidiaries/JV");
 
@@ -689,7 +689,7 @@ fn test_full_mini_nestle_parses() {
     assert_eq!(cfg.fx.rates.len(), 3);
 
     // Audit + tax both configured
-    assert_eq!(cfg.audit.engagement_id.as_deref(), Some("EY_MINI_NESTLE_2024_Q1"));
+    assert_eq!(cfg.audit.engagement_id.as_deref(), Some("EY_MINI_ACME_2024_Q1"));
     assert!(cfg.tax.pillar_two.as_ref().map(|p| p.enabled).unwrap_or(false));
 }
 ```
@@ -702,9 +702,9 @@ Expected: both tests PASS.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add crates/datasynth-group/tests/fixtures/mini_nestle.yaml \
+git add crates/datasynth-group/tests/fixtures/mini_acme.yaml \
        crates/datasynth-group/tests/config_parse.rs
-git commit -m "test(group): full Mini-Nestlé config from spec §15 parses"
+git commit -m "test(group): full Mini-Acme config from spec §15 parses"
 ```
 
 ---
@@ -1063,7 +1063,7 @@ Detailed TDD steps authored at execution time.
 - Create: `crates/datasynth-group/tests/expansion.rs`
 
 **Acceptance criteria:**
-- `GeneratedEntityBlock { count: 200, code_prefix: "NESTLE_EU_", country: [DE, FR, IT], ... }` expands to 200 `ResolvedEntity` instances with deterministic codes (`NESTLE_EU_0000001`..`NESTLE_EU_0000200`), country sampled with `manifest_seed`.
+- `GeneratedEntityBlock { count: 200, code_prefix: "ACME_EU_", country: [DE, FR, IT], ... }` expands to 200 `ResolvedEntity` instances with deterministic codes (`ACME_EU_0000001`..`ACME_EU_0000200`), country sampled with `manifest_seed`.
 - `ownership_percent_range: [0.85, 1.00]` → uniform sampling within the range (8-dp precision).
 - Generated entities must not collide with explicit entities (validate; fail with useful error).
 - Stable across reordering of `generated:` blocks.
@@ -1156,14 +1156,14 @@ Detailed TDD steps authored at execution time.
 - Serializes to JSON via serde; JSON schema available via `schemars` if we bring it in (otherwise manual roundtrip test).
 - Roundtrip property: `build_manifest(cfg)` twice with the same config produces byte-identical JSON.
 
-### Task 2.10 — Mini-Nestlé manifest golden test
+### Task 2.10 — Mini-Acme manifest golden test
 
 **Files:**
-- Create: `crates/datasynth-group/tests/golden/mini_nestle_manifest.json` (generated, committed)
+- Create: `crates/datasynth-group/tests/golden/mini_acme_manifest.json` (generated, committed)
 - Create: `crates/datasynth-group/tests/manifest_golden.rs`
 
 **Acceptance criteria:**
-- Generated manifest from `mini_nestle.yaml` (Task 1.3 fixture) matches the committed golden JSON byte-for-byte.
+- Generated manifest from `mini_acme.yaml` (Task 1.3 fixture) matches the committed golden JSON byte-for-byte.
 - Test command to regenerate golden: `cargo test -p datasynth-group --test manifest_golden -- --ignored regenerate_golden`.
 
 ---
@@ -1285,7 +1285,7 @@ Goal: given a manifest + shard spec, produce per-entity archives by invoking the
 - Create: `crates/datasynth-group/tests/shard_e2e.rs`
 
 **Acceptance criteria:**
-- Build Mini-Nestlé manifest.
+- Build Mini-Acme manifest.
 - Run shard containing 2 entities (one as seller, one as buyer of a goods_sale IC relationship).
 - Verify: `entities/{code}/journal_entries.json` exists for each entity, has JEs with `ic_pair_id` populated, pair IDs mirror across entities.
 - Verify: `shard_summary.json` has both entities.
@@ -1430,7 +1430,7 @@ Goal: translate each entity's post-elimination TB from functional to presentatio
 - Line-by-line: `account_code, local_amount, ccy_pair, rate, rate_basis, translated_amount`.
 - Human-readable for audit traceability.
 
-### Task 6.5 — Integration test: Mini-Nestlé translation round-trip
+### Task 6.5 — Integration test: Mini-Acme translation round-trip
 
 **Files:**
 - Create: `crates/datasynth-group/tests/translation_e2e.rs`
@@ -1643,19 +1643,19 @@ Goal: new `datasynth-data group` subcommand with 4 actions: `manifest`, `shard`,
 **Files:** `crates/datasynth-cli/tests/group_cli.rs`
 
 **Acceptance criteria:**
-- Each of the 4 actions runs against Mini-Nestlé config and produces expected output files.
+- Each of the 4 actions runs against Mini-Acme config and produces expected output files.
 - Exit codes match spec.
 
 ---
 
 ## Chunk 11 — Property tests + golden fixture
 
-Goal: multiple property tests proving the core guarantees of spec §5 and §10, plus a committed golden archive for the Mini-Nestlé fixture.
+Goal: multiple property tests proving the core guarantees of spec §5 and §10, plus a committed golden archive for the Mini-Acme fixture.
 
-### Task 11.1 — Mini-Nestlé golden archive generation + check
+### Task 11.1 — Mini-Acme golden archive generation + check
 
 **Files:**
-- Create: `crates/datasynth-group/tests/golden/mini_nestle/` (directory, committed — use tarball or directory)
+- Create: `crates/datasynth-group/tests/golden/mini_acme/` (directory, committed — use tarball or directory)
 - Create: `crates/datasynth-group/tests/golden_archive.rs`
 
 **Acceptance criteria:**
@@ -1677,7 +1677,7 @@ Goal: multiple property tests proving the core guarantees of spec §5 and §10, 
 
 **Acceptance criteria:**
 - For 10 randomized configs: post-elim consolidated BS balances within ε.
-- For the Mini-Nestlé fixture: balances to the cent.
+- For the Mini-Acme fixture: balances to the cent.
 
 ### Task 11.4 — Determinism: in-process vs subprocess
 
@@ -1721,9 +1721,9 @@ Goal: CLAUDE.md / README updates, example configs, CHANGELOG, workspace version 
 ### Task 12.2 — Update `README.md`
 
 **Acceptance criteria:**
-- Add a "Group audit simulation" section with a 20-line Mini-Nestlé snippet + expected output layout.
+- Add a "Group audit simulation" section with a 20-line Mini-Acme snippet + expected output layout.
 
-### Task 12.3 — Add `configs/examples/group/mini_nestle.yaml`
+### Task 12.3 — Add `configs/examples/group/mini_acme.yaml`
 
 **Acceptance criteria:**
 - Exact copy of the spec §15 appendix.
@@ -1753,7 +1753,7 @@ Goal: CLAUDE.md / README updates, example configs, CHANGELOG, workspace version 
 - [ ] Run: `cargo test --workspace -- --test-threads=4`
 - [ ] Run: `cargo clippy --workspace -- -D warnings`
 - [ ] Run: `cargo fmt --check`
-- [ ] Generate Mini-Nestlé: `cargo run -p datasynth-cli --release -- group generate --config configs/examples/group/mini_nestle.yaml --out /tmp/v5.0-test/`
+- [ ] Generate Mini-Acme: `cargo run -p datasynth-cli --release -- group generate --config configs/examples/group/mini_acme.yaml --out /tmp/v5.0-test/`
 - [ ] Inspect `/tmp/v5.0-test/`: confirm all expected directories and files exist.
 
 ### Task 12.7 — Release commit + tag
@@ -1767,10 +1767,10 @@ Goal: CLAUDE.md / README updates, example configs, CHANGELOG, workspace version 
 
 ## Final verification
 
-- [ ] Demo Mini-Nestlé: `datasynth-data group generate --config configs/examples/group/mini_nestle.yaml --out ./v5.0-mini-nestle/`
+- [ ] Demo Mini-Acme: `datasynth-data group generate --config configs/examples/group/mini_acme.yaml --out ./v5.0-mini-acme/`
 - [ ] Verify output layout matches spec §9 (spot-check each top-level directory exists).
-- [ ] Verify IC matching coverage in `./v5.0-mini-nestle/ic_eliminations/ic_matching_coverage.json`: `coverage >= 0.98`.
-- [ ] Verify consolidated BS balances in `./v5.0-mini-nestle/consolidated/consolidated_financial_statements.json`.
+- [ ] Verify IC matching coverage in `./v5.0-mini-acme/ic_eliminations/ic_matching_coverage.json`: `coverage >= 0.98`.
+- [ ] Verify consolidated BS balances in `./v5.0-mini-acme/consolidated/consolidated_financial_statements.json`.
 - [ ] Verify backward-compat: pick a representative existing `configs/examples/*.yaml` without `group:`, run `datasynth-data generate --config it.yaml --out ./back/`, confirm output matches pre-v5.0 shape.
 - [ ] Run: `cargo test --workspace -- --test-threads=4`
 - [ ] Run: `cargo clippy --workspace -- -D warnings`
@@ -1780,7 +1780,7 @@ Goal: CLAUDE.md / README updates, example configs, CHANGELOG, workspace version 
 
 ## Plan self-review
 
-1. **Spec coverage** — every v5.0 scope item from spec §13 has a task: `datasynth-group` crate (Ch 1), manifest/shard/aggregate (Ch 2/4/5-9), `group:` config (Ch 1), `scoping_profiles` (Ch 1/Task 1.4), IC manifest-driven matching (Ch 3/5), elimination → GL JE (Ch 5), IAS 21 + CTA (Ch 6), NCI rollforward (Ch 7), consolidated FS + schedule (Ch 8), per-entity subtree (Ch 4/Task 4.4), determinism (Ch 11), new CLI (Ch 10), Mini-Nestlé reference + golden (Ch 11 + Ch 12/Task 12.3).
+1. **Spec coverage** — every v5.0 scope item from spec §13 has a task: `datasynth-group` crate (Ch 1), manifest/shard/aggregate (Ch 2/4/5-9), `group:` config (Ch 1), `scoping_profiles` (Ch 1/Task 1.4), IC manifest-driven matching (Ch 3/5), elimination → GL JE (Ch 5), IAS 21 + CTA (Ch 6), NCI rollforward (Ch 7), consolidated FS + schedule (Ch 8), per-entity subtree (Ch 4/Task 4.4), determinism (Ch 11), new CLI (Ch 10), Mini-Acme reference + golden (Ch 11 + Ch 12/Task 12.3).
 2. **Placeholders** — no "TBD"/"TODO"/"fill in details" left. Chunks 2-12 use task-level granularity with explicit file paths and acceptance criteria per plan convention; detailed TDD is appended at execution time (matches this repo's v1.3.0 pattern).
 3. **Type consistency** — `ResolvedEntity`, `GroupManifest`, `ShardContext`, `IcPairId`, `IcPairPlan`, `AggregatedTb`, `NciRollforward`, `CtaRollforward` — referenced names are consistent across chunks.
 4. **v5.0 scope discipline** — GAAP bridges, ISA 600 component auditor *generation*, Pillar 2 *calculation*, segment reporting, notes-to-FS full content are all explicitly deferred to v5.1/v5.2 per spec §13. v5.0 emits the PLAN for audit + tax but not the artifacts.

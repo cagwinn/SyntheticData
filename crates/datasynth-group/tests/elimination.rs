@@ -1,6 +1,6 @@
 //! Task 5.4 — `EliminationEntry` generation integration tests.
 //!
-//! These tests reuse the same trimmed `mini_nestle.yaml` two-entity
+//! These tests reuse the same trimmed `mini_acme.yaml` two-entity
 //! fixture as the IC matcher tests so the elimination engine sees a
 //! realistic SA→USA goods/royalty + management-fee pattern.  Fixture
 //! builders are deliberately copy-paste from `ic_matcher.rs` rather
@@ -21,18 +21,18 @@ use datasynth_group::{build_manifest, generate_eliminations, match_ic_pairs, Gro
 // ── Fixture builders ──────────────────────────────────────────────────────────
 
 fn load_two_entity_manifest() -> GroupManifest {
-    let yaml = include_str!("fixtures/mini_nestle.yaml");
+    let yaml = include_str!("fixtures/mini_acme.yaml");
     let mut cfg: GroupConfig =
-        serde_yaml::from_str(yaml).expect("mini_nestle.yaml must parse into GroupConfig");
+        serde_yaml::from_str(yaml).expect("mini_acme.yaml must parse into GroupConfig");
 
     cfg.ownership
         .entities
-        .retain(|e| e.code == "NESTLE_SA" || e.code == "NESTLE_USA");
+        .retain(|e| e.code == "ACME_SA" || e.code == "ACME_USA");
 
     cfg.intercompany.relationships.retain(|rel| match rel {
         IcRelationshipConfig::Explicit(e) => {
-            (e.seller == "NESTLE_SA" || e.seller == "NESTLE_USA")
-                && (e.buyer == "NESTLE_SA" || e.buyer == "NESTLE_USA")
+            (e.seller == "ACME_SA" || e.seller == "ACME_USA")
+                && (e.buyer == "ACME_SA" || e.buyer == "ACME_USA")
         }
         IcRelationshipConfig::Pattern(_) => true,
     });
@@ -44,16 +44,16 @@ fn load_two_entity_manifest() -> GroupManifest {
         tp.local_files_for.retain(|j| j == "CH" || j == "US");
     }
 
-    build_manifest(&cfg).expect("trimmed mini_nestle must still build a manifest")
+    build_manifest(&cfg).expect("trimmed mini_acme must still build a manifest")
 }
 
 fn load_two_entity_manifest_no_ic() -> GroupManifest {
-    let yaml = include_str!("fixtures/mini_nestle.yaml");
+    let yaml = include_str!("fixtures/mini_acme.yaml");
     let mut cfg: GroupConfig =
-        serde_yaml::from_str(yaml).expect("mini_nestle.yaml must parse into GroupConfig");
+        serde_yaml::from_str(yaml).expect("mini_acme.yaml must parse into GroupConfig");
     cfg.ownership
         .entities
-        .retain(|e| e.code == "NESTLE_SA" || e.code == "NESTLE_USA");
+        .retain(|e| e.code == "ACME_SA" || e.code == "ACME_USA");
     cfg.intercompany.relationships.clear();
     if let Some(p2) = cfg.tax.pillar_two.as_mut() {
         p2.jurisdictions.retain(|j| j == "CH" || j == "US");
@@ -65,27 +65,27 @@ fn load_two_entity_manifest_no_ic() -> GroupManifest {
 }
 
 fn sa_jes(manifest: &GroupManifest) -> Vec<JournalEntry> {
-    let plans = derive_ic_pair_plans(manifest, "NESTLE_SA");
+    let plans = derive_ic_pair_plans(manifest, "ACME_SA");
     inject_ic_journal_entries(
         &plans,
         &InjectionCtx {
-            entity_code: "NESTLE_SA".to_string(),
+            entity_code: "ACME_SA".to_string(),
         },
     )
 }
 
 fn usa_jes(manifest: &GroupManifest) -> Vec<JournalEntry> {
-    let plans = derive_ic_pair_plans(manifest, "NESTLE_USA");
+    let plans = derive_ic_pair_plans(manifest, "ACME_USA");
     inject_ic_journal_entries(
         &plans,
         &InjectionCtx {
-            entity_code: "NESTLE_USA".to_string(),
+            entity_code: "ACME_USA".to_string(),
         },
     )
 }
 
 fn expected_pair_count(manifest: &GroupManifest) -> usize {
-    [&"NESTLE_SA", &"NESTLE_USA"]
+    [&"ACME_SA", &"ACME_USA"]
         .iter()
         .map(|code| {
             derive_ic_pair_plans(manifest, code)
@@ -114,8 +114,8 @@ fn happy_path_emits_two_entries_per_pair() {
     let match_result = match_ic_pairs(
         &manifest,
         &[
-            ("NESTLE_SA".to_string(), sa_jes(&manifest)),
-            ("NESTLE_USA".to_string(), usa_jes(&manifest)),
+            ("ACME_SA".to_string(), sa_jes(&manifest)),
+            ("ACME_USA".to_string(), usa_jes(&manifest)),
         ],
     )
     .expect("match_ic_pairs");
@@ -123,7 +123,7 @@ fn happy_path_emits_two_entries_per_pair() {
     let elim_result =
         generate_eliminations(&match_result.matched, &manifest).expect("generate_eliminations");
 
-    // Trimmed mini_nestle has no LoanInterest / Dividend pairs after
+    // Trimmed mini_acme has no LoanInterest / Dividend pairs after
     // pruning, so every matched pair contributes exactly 2 entries
     // (ICBalances + ICRevenueExpense).
     assert_eq!(
@@ -153,8 +153,8 @@ fn every_entry_is_balanced() {
     let match_result = match_ic_pairs(
         &manifest,
         &[
-            ("NESTLE_SA".to_string(), sa_jes(&manifest)),
-            ("NESTLE_USA".to_string(), usa_jes(&manifest)),
+            ("ACME_SA".to_string(), sa_jes(&manifest)),
+            ("ACME_USA".to_string(), usa_jes(&manifest)),
         ],
     )
     .expect("match");
@@ -180,8 +180,8 @@ fn aggregate_totals_balance() {
     let match_result = match_ic_pairs(
         &manifest,
         &[
-            ("NESTLE_SA".to_string(), sa_jes(&manifest)),
-            ("NESTLE_USA".to_string(), usa_jes(&manifest)),
+            ("ACME_SA".to_string(), sa_jes(&manifest)),
+            ("ACME_USA".to_string(), usa_jes(&manifest)),
         ],
     )
     .expect("match");
@@ -201,8 +201,8 @@ fn by_type_counts_reflect_emitted() {
     let match_result = match_ic_pairs(
         &manifest,
         &[
-            ("NESTLE_SA".to_string(), sa_jes(&manifest)),
-            ("NESTLE_USA".to_string(), usa_jes(&manifest)),
+            ("ACME_SA".to_string(), sa_jes(&manifest)),
+            ("ACME_USA".to_string(), usa_jes(&manifest)),
         ],
     )
     .expect("match");
@@ -214,7 +214,7 @@ fn by_type_counts_reflect_emitted() {
     }
     assert_eq!(elim_result.by_type_counts, hand_counted);
 
-    // Trimmed mini_nestle is goods_sale/royalty/management_fee only, so:
+    // Trimmed mini_acme is goods_sale/royalty/management_fee only, so:
     // - ICBalances and ICRevenueExpense should be present.
     // - ICDividends, ICInterest, etc. should NOT be present.
     assert!(elim_result
@@ -259,8 +259,8 @@ fn deterministic_output() {
     let match_result = match_ic_pairs(
         &manifest,
         &[
-            ("NESTLE_SA".to_string(), sa_jes(&manifest)),
-            ("NESTLE_USA".to_string(), usa_jes(&manifest)),
+            ("ACME_SA".to_string(), sa_jes(&manifest)),
+            ("ACME_USA".to_string(), usa_jes(&manifest)),
         ],
     )
     .expect("match");
@@ -287,8 +287,8 @@ fn account_codes_match_ic_injector() {
     let match_result = match_ic_pairs(
         &manifest,
         &[
-            ("NESTLE_SA".to_string(), sa_jes(&manifest)),
-            ("NESTLE_USA".to_string(), usa_jes(&manifest)),
+            ("ACME_SA".to_string(), sa_jes(&manifest)),
+            ("ACME_USA".to_string(), usa_jes(&manifest)),
         ],
     )
     .expect("match");
@@ -322,7 +322,7 @@ fn account_codes_match_ic_injector() {
                 );
             }
             other => panic!(
-                "trimmed mini_nestle should not produce {:?}; got entry {}",
+                "trimmed mini_acme should not produce {:?}; got entry {}",
                 other, entry.entry_id
             ),
         }
@@ -337,8 +337,8 @@ fn currency_consistency() {
     let match_result = match_ic_pairs(
         &manifest,
         &[
-            ("NESTLE_SA".to_string(), sa_jes(&manifest)),
-            ("NESTLE_USA".to_string(), usa_jes(&manifest)),
+            ("ACME_SA".to_string(), sa_jes(&manifest)),
+            ("ACME_USA".to_string(), usa_jes(&manifest)),
         ],
     )
     .expect("match");
@@ -369,8 +369,8 @@ fn output_is_sorted_by_type_then_entry_id() {
     let match_result = match_ic_pairs(
         &manifest,
         &[
-            ("NESTLE_SA".to_string(), sa_jes(&manifest)),
-            ("NESTLE_USA".to_string(), usa_jes(&manifest)),
+            ("ACME_SA".to_string(), sa_jes(&manifest)),
+            ("ACME_USA".to_string(), usa_jes(&manifest)),
         ],
     )
     .expect("match");
@@ -405,8 +405,8 @@ fn fiscal_period_format() {
     let match_result = match_ic_pairs(
         &manifest,
         &[
-            ("NESTLE_SA".to_string(), sa_jes(&manifest)),
-            ("NESTLE_USA".to_string(), usa_jes(&manifest)),
+            ("ACME_SA".to_string(), sa_jes(&manifest)),
+            ("ACME_USA".to_string(), usa_jes(&manifest)),
         ],
     )
     .expect("match");
@@ -434,8 +434,8 @@ fn entry_id_format() {
     let match_result = match_ic_pairs(
         &manifest,
         &[
-            ("NESTLE_SA".to_string(), sa_jes(&manifest)),
-            ("NESTLE_USA".to_string(), usa_jes(&manifest)),
+            ("ACME_SA".to_string(), sa_jes(&manifest)),
+            ("ACME_USA".to_string(), usa_jes(&manifest)),
         ],
     )
     .expect("match");
@@ -468,8 +468,8 @@ fn consolidation_entity_is_group_id() {
     let match_result = match_ic_pairs(
         &manifest,
         &[
-            ("NESTLE_SA".to_string(), sa_jes(&manifest)),
-            ("NESTLE_USA".to_string(), usa_jes(&manifest)),
+            ("ACME_SA".to_string(), sa_jes(&manifest)),
+            ("ACME_USA".to_string(), usa_jes(&manifest)),
         ],
     )
     .expect("match");
@@ -492,8 +492,8 @@ fn related_companies_and_ic_references() {
     let match_result = match_ic_pairs(
         &manifest,
         &[
-            ("NESTLE_SA".to_string(), sa_jes(&manifest)),
-            ("NESTLE_USA".to_string(), usa_jes(&manifest)),
+            ("ACME_SA".to_string(), sa_jes(&manifest)),
+            ("ACME_USA".to_string(), usa_jes(&manifest)),
         ],
     )
     .expect("match");
@@ -501,8 +501,8 @@ fn related_companies_and_ic_references() {
 
     for entry in &elim_result.entries {
         assert_eq!(entry.related_companies.len(), 2);
-        assert!(entry.related_companies.contains(&"NESTLE_SA".to_string()));
-        assert!(entry.related_companies.contains(&"NESTLE_USA".to_string()));
+        assert!(entry.related_companies.contains(&"ACME_SA".to_string()));
+        assert!(entry.related_companies.contains(&"ACME_USA".to_string()));
         // ic_references carries the pair_id traceability link to the
         // matched pair so the consolidation report can drill back.
         assert!(

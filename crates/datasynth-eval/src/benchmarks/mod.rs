@@ -774,7 +774,6 @@ pub fn get_benchmark(id: &str) -> Option<BenchmarkSuite> {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

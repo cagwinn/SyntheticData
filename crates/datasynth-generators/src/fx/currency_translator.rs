@@ -267,7 +267,7 @@ impl CurrencyTranslator {
     /// Translates a single amount.
     ///
     /// For equity accounts, this method will use historical equity rates set
-    /// via [`set_historical_equity_rates`] if available, falling back to
+    /// via `set_historical_equity_rates` if available, falling back to
     /// `Decimal::ONE` when no historical rate is found.
     pub fn translate_amount(
         &self,
@@ -662,7 +662,6 @@ impl TranslatedTrialBalanceLine {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use datasynth_core::models::balance::{

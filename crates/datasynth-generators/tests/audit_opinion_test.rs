@@ -9,7 +9,6 @@
 //! - Batch generation across multiple entities
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod audit_opinion_integration_tests {
     use chrono::NaiveDate;
     use datasynth_core::models::audit::{AuditFinding, FindingStatus, FindingType};
@@ -333,7 +332,6 @@ mod audit_opinion_integration_tests {
 // ---------------------------------------------------------------------------
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod sox_integration_tests {
     use chrono::NaiveDate;
     use datasynth_core::models::audit::{AuditFinding, FindingStatus, FindingType};

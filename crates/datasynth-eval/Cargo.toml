@@ -11,8 +11,6 @@ categories.workspace = true
 [dependencies]
 # Internal crates
 datasynth-core = { workspace = true }
-datasynth-config = { workspace = true }
-datasynth-generators = { workspace = true }
 
 # Numeric
 rust_decimal = { workspace = true }
@@ -35,7 +33,12 @@ thiserror = { workspace = true }
 tracing = { workspace = true }
 
 # Parallel processing
-rayon = { workspace = true }
+
+# Behavioral fidelity
+arrow = { workspace = true }
+parquet = { workspace = true }
+petgraph = { workspace = true }
+csv = { workspace = true }
 
 [features]
 adversarial = ["dep:ort", "dep:rand", "dep:rand_chacha", "dep:rand_distr"]

@@ -193,7 +193,7 @@ pub fn run_shard_with_opening_balances(
 /// Split out from [`run_shard`] so each step has a clean error surface and
 /// the multi-entity loop body stays linear.  Every failure path here wraps
 /// into [`GroupError::Shard`] with the entity code prepended so the caller
-/// sees `"shard error: NESTLE_USA: orchestrator setup: …"` rather than
+/// sees `"shard error: ACME_USA: orchestrator setup: …"` rather than
 /// having to map error origins back to entities themselves.
 fn run_one_entity(
     manifest: &GroupManifest,

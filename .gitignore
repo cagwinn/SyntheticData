@@ -86,3 +86,21 @@ models/ml/
 *.pt
 *.pkl
 .gnn-venv/
+
+# Superpowers brainstorming session artifacts (visual companion mockups)
+.superpowers/
+
+# Per-project Claude Code state (settings, transcripts) — local-only
+.claude/
+
+# Playwright MCP capture artifacts
+.playwright-mcp/
+
+# Hugging Face dataset staging + output dirs (regenerable, large)
+hf_*_staging/
+hf_*_output/
+hf_staging/
+hf_je_output/
+
+# Browser-captured preview screenshots from spaces/* (regenerable)
+spaces/*/preview-live.png

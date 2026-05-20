@@ -236,7 +236,6 @@ impl CguImpairmentTest {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use rust_decimal_macros::dec;
@@ -357,7 +356,7 @@ mod tests {
         let cgu = CashGeneratingUnit::new(
             "CGU-EMEA",
             "EMEA Consumer",
-            vec!["NESTLE_DE".to_string(), "NESTLE_FR".to_string()],
+            vec!["ACME_DE".to_string(), "ACME_FR".to_string()],
         )
         .with_segment("SEG-CONSUMER");
         assert_eq!(cgu.segment_code.as_deref(), Some("SEG-CONSUMER"));

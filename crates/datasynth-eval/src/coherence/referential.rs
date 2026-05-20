@@ -239,7 +239,6 @@ impl Default for ReferentialIntegrityEvaluator {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

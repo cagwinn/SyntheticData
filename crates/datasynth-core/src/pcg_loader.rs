@@ -187,7 +187,6 @@ pub fn build_chart_of_accounts_from_pcg_2024(
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

@@ -18,7 +18,7 @@ use serde::{Deserialize, Serialize};
 /// and pattern-derived relationships land here as a flat list.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ResolvedIcRelationship {
-    /// Stable id: blake3("icr" || group_seed || seller || buyer || types[0] (as snake_case)).
+    /// Stable id: blake3("icr" || group_seed || seller || buyer || types\[0\] (as snake_case)).
     /// Written lowercase hex so JSON round-trips cleanly.
     pub id: String,
     pub seller: String,

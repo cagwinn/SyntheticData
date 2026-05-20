@@ -485,7 +485,6 @@ fn compute_window_features(
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use crate::test_helpers::create_temporal_test_graph;

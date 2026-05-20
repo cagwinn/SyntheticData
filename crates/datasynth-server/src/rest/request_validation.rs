@@ -48,7 +48,6 @@ pub async fn request_validation_middleware(request: Request<Body>, next: Next) -
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use axum::{routing::post, Router};

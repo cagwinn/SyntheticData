@@ -105,11 +105,13 @@ impl FingerprintReader {
         }
 
         // Read components (same as regular read)
-        let schema: SchemaFingerprint =
-            self.read_yaml_component(&mut archive, file_names::SCHEMA, &manifest.checksums)?;
+        let schema: SchemaFingerprint = self
+            .try_read_yaml_component(&mut archive, file_names::SCHEMA, &manifest.checksums)?
+            .unwrap_or_default();
 
-        let statistics: StatisticsFingerprint =
-            self.read_yaml_component(&mut archive, file_names::STATISTICS, &manifest.checksums)?;
+        let statistics: StatisticsFingerprint = self
+            .try_read_yaml_component(&mut archive, file_names::STATISTICS, &manifest.checksums)?
+            .unwrap_or_default();
 
         let privacy_audit: PrivacyAudit =
             self.read_json_component(&mut archive, file_names::PRIVACY_AUDIT, &manifest.checksums)?;
@@ -129,6 +131,12 @@ impl FingerprintReader {
         let anomalies: Option<AnomalyFingerprint> =
             self.try_read_yaml_component(&mut archive, file_names::ANOMALIES, &manifest.checksums)?;
 
+        let behavioral: Option<crate::models::BehavioralPriors> = self.try_read_yaml_component(
+            &mut archive,
+            file_names::BEHAVIORAL,
+            &manifest.checksums,
+        )?;
+
         Ok(Fingerprint {
             manifest,
             schema,
@@ -138,6 +146,7 @@ impl FingerprintReader {
             rules,
             anomalies,
             banking: None,
+            behavioral,
             privacy_audit,
         })
     }
@@ -178,13 +187,15 @@ impl FingerprintReader {
             }
         }
 
-        // Read schema (required)
-        let schema: SchemaFingerprint =
-            self.read_yaml_component(&mut archive, file_names::SCHEMA, &manifest.checksums)?;
+        // Read schema (optional — empty bundles omit this file)
+        let schema: SchemaFingerprint = self
+            .try_read_yaml_component(&mut archive, file_names::SCHEMA, &manifest.checksums)?
+            .unwrap_or_default();
 
-        // Read statistics (required)
-        let statistics: StatisticsFingerprint =
-            self.read_yaml_component(&mut archive, file_names::STATISTICS, &manifest.checksums)?;
+        // Read statistics (optional — empty bundles omit this file)
+        let statistics: StatisticsFingerprint = self
+            .try_read_yaml_component(&mut archive, file_names::STATISTICS, &manifest.checksums)?
+            .unwrap_or_default();
 
         // Read privacy audit (required)
         let privacy_audit: PrivacyAudit =
@@ -206,6 +217,12 @@ impl FingerprintReader {
         let anomalies: Option<AnomalyFingerprint> =
             self.try_read_yaml_component(&mut archive, file_names::ANOMALIES, &manifest.checksums)?;
 
+        let behavioral: Option<crate::models::BehavioralPriors> = self.try_read_yaml_component(
+            &mut archive,
+            file_names::BEHAVIORAL,
+            &manifest.checksums,
+        )?;
+
         Ok(Fingerprint {
             manifest,
             schema,
@@ -215,39 +232,9 @@ impl FingerprintReader {
             rules,
             anomalies,
             banking: None,
+            behavioral,
             privacy_audit,
         })
-    }
-
-    /// Read a required YAML component.
-    fn read_yaml_component<R: Read + Seek, T: serde::de::DeserializeOwned>(
-        &self,
-        archive: &mut ZipArchive<R>,
-        name: &str,
-        checksums: &std::collections::HashMap<String, String>,
-    ) -> FingerprintResult<T> {
-        let mut file = archive
-            .by_name(name)
-            .map_err(|_| FingerprintError::MissingComponent(name.to_string()))?;
-
-        let mut contents = String::new();
-        file.read_to_string(&mut contents)?;
-
-        // Verify checksum if enabled
-        if self.options.verify_checksums {
-            if let Some(expected) = checksums.get(name) {
-                let actual = compute_checksum(contents.as_bytes());
-                if &actual != expected {
-                    return Err(FingerprintError::ChecksumMismatch {
-                        file: name.to_string(),
-                        expected: expected.clone(),
-                        actual,
-                    });
-                }
-            }
-        }
-
-        Ok(serde_yaml::from_str(&contents)?)
     }
 
     /// Read a required JSON component.
@@ -358,7 +345,6 @@ fn compute_checksum(data: &[u8]) -> String {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

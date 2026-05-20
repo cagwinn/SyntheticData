@@ -98,10 +98,10 @@ pub struct IcMatchedPair {
     /// 32-byte deterministic pair identifier shared by both sides.
     pub pair_id: IcPairId,
     /// Seller-side entity code (matches
-    /// [`JournalEntry::header::company_code`] on `seller_je`).
+    /// `JournalEntry::header::company_code` on `seller_je`).
     pub seller_entity: String,
     /// Buyer-side entity code (matches
-    /// [`JournalEntry::header::company_code`] on `buyer_je`).
+    /// `JournalEntry::header::company_code` on `buyer_je`).
     pub buyer_entity: String,
     /// The seller-side journal entry, verbatim from `entity_jes`.
     pub seller_je: JournalEntry,

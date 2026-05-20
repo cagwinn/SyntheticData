@@ -248,7 +248,6 @@ impl Default for ICEliminationEvaluator {
 // ─── Unit tests ──────────────────────────────────────────────────────────────
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

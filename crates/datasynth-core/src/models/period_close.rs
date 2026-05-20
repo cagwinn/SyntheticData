@@ -226,9 +226,12 @@ impl FiscalCalendar {
                 }
             }
             FiscalCalendarType::ThirteenPeriod(_) => {
-                // TODO: Simplified — assumes 28 calendar days per period (13 × 28 = 364).
-                // A precise implementation would use the actual week-based boundaries
-                // derived from the configured year-start anchor.
+                // LIMITATION: Simplified — assumes 28 calendar days per period
+                // (13 × 28 = 364, ignoring the 365th day). A precise implementation
+                // would use the actual week-based boundaries derived from the
+                // configured year-start anchor. Sufficient for simulation; not
+                // appropriate for production period-close where day-365 placement
+                // matters.
                 let day_of_year = date.ordinal();
                 ((day_of_year - 1) / 28 + 1).min(13) as u8
             }
@@ -1186,7 +1189,6 @@ impl PeriodCloseRun {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

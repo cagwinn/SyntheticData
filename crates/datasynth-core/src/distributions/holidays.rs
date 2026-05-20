@@ -166,7 +166,7 @@ impl HolidayCalendar {
         self.holidays.iter().map(|h| h.date).collect()
     }
 
-    /// Build a holiday calendar from a [`CountryPack`].
+    /// Build a holiday calendar from a `CountryPack`.
     ///
     /// Resolves fixed, easter-relative, nth-weekday, last-weekday, and
     /// lunar holiday types defined in the pack's `holidays` section.
@@ -1522,13 +1522,14 @@ impl HolidayCalendar {
 
     /// Approximate Chinese New Year date.
     ///
-    /// TODO: This is a simplified approximation that propagates the 2000 anchor
-    /// date using an average lunar month length (29.5306 days). The true date
-    /// requires a full lunisolar calendar computation (Metonic cycle, leap-month
-    /// intercalation). The approximation can be off by a day or two and should
-    /// not be used for applications requiring exact public-holiday compliance.
-    /// Use a dedicated calendar library (e.g. `chinese-lunisolar-calendar`) for
-    /// precision. For activity-pattern simulation the error is acceptable.
+    /// LIMITATION: This is a simplified approximation that propagates the 2000
+    /// anchor date using an average lunar month length (29.5306 days). The true
+    /// date requires a full lunisolar calendar computation (Metonic cycle,
+    /// leap-month intercalation). The approximation can be off by a day or two
+    /// and should not be used for applications requiring exact public-holiday
+    /// compliance. Use a dedicated calendar library (e.g.
+    /// `chinese-lunisolar-calendar`) for precision. For activity-pattern
+    /// simulation the error is acceptable and this trade-off is intentional.
     fn approximate_chinese_new_year(year: i32) -> NaiveDate {
         // Chinese New Year falls between Jan 21 and Feb 20
         let base_year = 2000;
@@ -1729,7 +1730,6 @@ impl CustomHolidayConfig {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

@@ -452,7 +452,6 @@ fn company_to_auditor_id(country: &str, country_to_auditor_id: &HashMap<String, 
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use datasynth_config::schema::{CompanyConfig, TransactionVolume};

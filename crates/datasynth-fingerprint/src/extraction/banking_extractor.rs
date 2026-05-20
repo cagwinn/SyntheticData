@@ -199,7 +199,6 @@ pub fn decimal_to_f64(d: rust_decimal::Decimal) -> f64 {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

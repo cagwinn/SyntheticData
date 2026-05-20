@@ -466,7 +466,6 @@ impl Default for ConsistencyAnalyzer {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

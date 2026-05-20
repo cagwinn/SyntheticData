@@ -22,10 +22,10 @@
 //!
 //! # Why `#[ignore]`?
 //!
-//! Each test sequences the **full** Mini-Nestlé pipeline at least
+//! Each test sequences the **full** Mini-Acme pipeline at least
 //! once; `subprocess_pipeline_matches_standalone` runs it twice (in
 //! both modes).  Each entity peaks at ~17 GiB RSS for ~15 minutes — a
-//! full Mini-Nestlé run is ~85 GiB peak / 60+ min.  Running on the
+//! full Mini-Acme run is ~85 GiB peak / 60+ min.  Running on the
 //! workstation OOMs the host.  The XXL Azure VM verification harness
 //! (`docs/superpowers/plans/2026-04-23-group-audit-v5.0-xxl-verification.md`
 //! §3.2.b) is the canonical place to exercise these tests.
@@ -112,10 +112,10 @@ fn diff_archives(a: &Path, b: &Path) -> Vec<String> {
     diffs
 }
 
-/// Load and parse the canonical Mini-Nestlé fixture.
-fn load_mini_nestle_config() -> GroupConfig {
-    let yaml = include_str!("fixtures/mini_nestle.yaml");
-    serde_yaml::from_str(yaml).expect("mini_nestle.yaml must parse")
+/// Load and parse the canonical Mini-Acme fixture.
+fn load_mini_acme_config() -> GroupConfig {
+    let yaml = include_str!("fixtures/mini_acme.yaml");
+    serde_yaml::from_str(yaml).expect("mini_acme.yaml must parse")
 }
 
 fn deterministic_opts() -> StandaloneOptions {
@@ -177,7 +177,7 @@ fn run_cli(args: &[&str]) {
 #[test]
 #[ignore = "drives 2× full standalone runs (~170 GiB peak, 2+ hours combined) — XXL VM only"]
 fn generate_standalone_twice_byte_identical() {
-    let cfg = load_mini_nestle_config();
+    let cfg = load_mini_acme_config();
 
     let tmp1 = TempDir::new().expect("tempdir 1");
     let tmp2 = TempDir::new().expect("tempdir 2");
@@ -206,7 +206,7 @@ fn generate_standalone_twice_byte_identical() {
 #[test]
 #[ignore = "drives subprocess + standalone pipelines (~170 GiB peak, 2+ hours combined) — XXL VM only"]
 fn subprocess_pipeline_matches_standalone() {
-    let cfg = load_mini_nestle_config();
+    let cfg = load_mini_acme_config();
 
     // ── In-process baseline ─────────────────────────────────────────────
     let standalone_dir = TempDir::new().expect("standalone tempdir");

@@ -200,7 +200,7 @@ impl AnalyticalProcedureGenerator {
 
     /// Generate analytical procedures anchored to real account balances.
     ///
-    /// Behaves identically to [`generate_procedures`] except that, for each
+    /// Behaves identically to `generate_procedures` except that, for each
     /// procedure, `actual_value` is set to the account's real balance (looked
     /// up in `account_balances`) and `expectation` is derived as
     /// `actual_value * (1 + noise)` so the variance is small and realistic.
@@ -394,7 +394,6 @@ impl AnalyticalProcedureGenerator {
 // =============================================================================
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use crate::audit::test_helpers::create_test_engagement;

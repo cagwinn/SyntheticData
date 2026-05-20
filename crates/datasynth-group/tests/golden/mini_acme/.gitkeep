@@ -1,4 +1,4 @@
-Placeholder: the Mini-Nestlé golden archive is produced by running
+Placeholder: the Mini-Acme golden archive is produced by running
 
     cargo test -p datasynth-group --test golden_archive -- --ignored regenerate_golden
 

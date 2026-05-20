@@ -155,7 +155,6 @@ fn silu(x: &Tensor) -> CandleResult<Tensor> {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use candle_nn::VarMap;

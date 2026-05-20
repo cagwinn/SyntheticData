@@ -59,6 +59,15 @@ impl StatisticsFingerprint {
     pub fn add_account_class_stats(&mut self, stats: AccountClassStats) {
         self.account_class_stats.push(stats);
     }
+
+    /// Returns true when all column maps are empty and there is no Benford analysis.
+    pub fn is_empty(&self) -> bool {
+        self.numeric_columns.is_empty()
+            && self.categorical_columns.is_empty()
+            && self.temporal_columns.is_empty()
+            && self.benford_analysis.is_none()
+            && self.account_class_stats.is_empty()
+    }
 }
 
 impl Default for StatisticsFingerprint {

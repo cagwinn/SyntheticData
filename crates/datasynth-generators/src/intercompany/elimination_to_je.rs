@@ -87,7 +87,6 @@ pub fn elimination_to_journal_entries(entries: &[EliminationEntry]) -> Vec<Journ
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use chrono::NaiveDate;

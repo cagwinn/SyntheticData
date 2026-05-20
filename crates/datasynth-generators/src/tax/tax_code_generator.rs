@@ -524,7 +524,7 @@ impl TaxCodeGenerator {
     // Country-pack-driven generation
     // -----------------------------------------------------------------------
 
-    /// Generates tax jurisdictions and tax codes from a [`CountryPack`].
+    /// Generates tax jurisdictions and tax codes from a `CountryPack`.
     ///
     /// This is an **alternative** to [`generate()`](Self::generate) that reads
     /// tax rates and sub-national jurisdictions from a country pack instead of
@@ -881,7 +881,6 @@ fn format_rate_pct(rate: Decimal) -> String {
 // ---------------------------------------------------------------------------
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     #[test]

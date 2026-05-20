@@ -17,7 +17,7 @@ use super::mixture::{
 use super::pareto::{ParetoConfig, ParetoSampler};
 
 /// Advanced amount sampler wrapping one of the supported distribution
-/// families. Callers keep their existing legacy [`AmountSampler`](super::
+/// families. Callers keep their existing legacy `AmountSampler`(super::
 /// AmountSampler) and only consult this wrapper when
 /// `distributions.amounts.enabled` (or another advanced sub-block like
 /// `distributions.pareto.enabled`) is true.
@@ -128,7 +128,6 @@ pub fn gaussian_config_from_components(
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

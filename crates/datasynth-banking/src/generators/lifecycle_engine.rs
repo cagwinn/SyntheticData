@@ -29,7 +29,6 @@ pub fn activity_multiplier_for_date(account: &BankAccount, current_date: NaiveDa
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use uuid::Uuid;

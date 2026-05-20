@@ -231,7 +231,7 @@ impl AccountType {
     /// Determine account type using framework-aware classification.
     ///
     /// `framework` is the framework string (e.g. `"us_gaap"`, `"french_gaap"`,
-    /// `"german_gaap"`, `"ifrs"`). Uses [`FrameworkAccounts`] internally.
+    /// `"german_gaap"`, `"ifrs"`). Uses `FrameworkAccounts` internally.
     pub fn from_account_code_with_framework(code: &str, framework: &str) -> Self {
         crate::framework_accounts::FrameworkAccounts::for_framework(framework)
             .classify_account_type(code)
@@ -611,7 +611,6 @@ pub fn compare_snapshots(
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

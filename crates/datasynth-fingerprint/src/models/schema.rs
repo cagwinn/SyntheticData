@@ -38,6 +38,11 @@ impl SchemaFingerprint {
     pub fn get_table(&self, name: &str) -> Option<&TableSchema> {
         self.tables.get(name)
     }
+
+    /// Returns true when there are no tables (and therefore no relationships).
+    pub fn is_empty(&self) -> bool {
+        self.tables.is_empty()
+    }
 }
 
 impl Default for SchemaFingerprint {

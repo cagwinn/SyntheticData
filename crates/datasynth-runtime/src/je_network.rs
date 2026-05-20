@@ -1,6 +1,6 @@
 //! Shared Method-A / Method-B/C edge-list builder for the JE network export.
 //!
-//! v5.10: extracted from [`output_writer::write_je_network_csv`] so the
+//! v5.10: extracted from `output_writer::write_je_network_csv` so the
 //! same logic can be reused by the `datasynth-group` aggregate emitter,
 //! which builds both per-entity and consolidated edge lists from many
 //! per-entity JE batches.

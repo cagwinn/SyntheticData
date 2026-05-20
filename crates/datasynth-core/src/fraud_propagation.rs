@@ -150,7 +150,6 @@ pub fn build_entry_fraud_map(entries: &[JournalEntry]) -> HashMap<String, FraudT
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use crate::models::documents::{DocumentHeader, DocumentStatus, DocumentType};

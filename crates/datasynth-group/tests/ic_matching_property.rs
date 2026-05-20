@@ -1,6 +1,6 @@
 //! Task 3.4 — cross-entity determinism property test.
 //!
-//! Runs [`derive_ic_pair_plans`] for every entity in a 5-entity Mini-Nestlé
+//! Runs [`derive_ic_pair_plans`] for every entity in a 5-entity Mini-Acme
 //! manifest and asserts that every seller-side plan has a buyer-side mirror
 //! with the same `pair_id`, `amount`, `date`, `transaction_type`, and
 //! `ic_relationship_id` — and an opposite `role`.
@@ -19,10 +19,10 @@ use datasynth_group::shard::{derive_ic_pair_plans, IcPairPlan, IcRole};
 use datasynth_group::{build_manifest, GroupConfig};
 
 fn load_manifest() -> GroupManifest {
-    let yaml = include_str!("fixtures/mini_nestle.yaml");
+    let yaml = include_str!("fixtures/mini_acme.yaml");
     let cfg: GroupConfig =
-        serde_yaml::from_str(yaml).expect("mini_nestle.yaml must parse into GroupConfig");
-    build_manifest(&cfg).expect("mini_nestle.yaml must build a manifest")
+        serde_yaml::from_str(yaml).expect("mini_acme.yaml must parse into GroupConfig");
+    build_manifest(&cfg).expect("mini_acme.yaml must build a manifest")
 }
 
 /// Lookup key used to mirror-match plans across shards. Two plans with

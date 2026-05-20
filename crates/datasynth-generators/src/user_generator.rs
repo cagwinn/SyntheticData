@@ -70,7 +70,7 @@ impl UserGenerator {
     /// Create a new user generator with a pre-built name generator.
     ///
     /// This is useful when the name generator has been constructed from a
-    /// [`CountryPack`] and the caller wants full control over its pools
+    /// `CountryPack` and the caller wants full control over its pools
     /// and distribution weights.
     pub fn with_name_generator(
         seed: u64,
@@ -286,7 +286,6 @@ impl UserGenerator {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

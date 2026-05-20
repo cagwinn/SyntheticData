@@ -1614,7 +1614,6 @@ pub fn infer_judgment_level(command: &str) -> &'static str {
 // ---------------------------------------------------------------------------
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

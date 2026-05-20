@@ -177,7 +177,7 @@ impl GoingConcernGenerator {
     ///
     /// # Conclusion
     /// 0 indicators → `NoMaterialUncertainty`, 1–2 → `MaterialUncertaintyExists`,
-    /// 3+ → `GoingConcernDoubt` (same rule as [`generate_for_entity`]).
+    /// 3+ → `GoingConcernDoubt` (same rule as `generate_for_entity`).
     pub fn generate_for_entity_with_input(
         &mut self,
         input: &GoingConcernInput,
@@ -491,7 +491,6 @@ impl GoingConcernGenerator {
 // ---------------------------------------------------------------------------
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use datasynth_core::models::audit::going_concern::GoingConcernConclusion;

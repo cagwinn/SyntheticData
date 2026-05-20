@@ -67,7 +67,6 @@ pub fn auth_interceptor(config: &GrpcAuthConfig, request: &Request<()>) -> Resul
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

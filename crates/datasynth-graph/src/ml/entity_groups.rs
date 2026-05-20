@@ -689,7 +689,6 @@ fn find_hub_node(graph: &Graph, members: &[NodeId]) -> NodeId {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use crate::models::{GraphEdge, GraphNode, GraphType, NodeType};

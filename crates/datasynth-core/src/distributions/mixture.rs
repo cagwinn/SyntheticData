@@ -625,7 +625,6 @@ fn erf(x: f64) -> f64 {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

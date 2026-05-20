@@ -293,6 +293,20 @@ pub struct JournalEntryHeader {
     /// Transaction source (manual vs automated)
     pub source: TransactionSource,
 
+    /// SP3.6 — canonical SAP source code drawn from industry priors
+    /// (`KR`, `RV`, `DZ`, `SA`, …).  `Some` only when priors are loaded;
+    /// `None` on the priors-disabled path (in which case the CSV `source`
+    /// column falls back to the `TransactionSource` debug label).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sap_source_code: Option<String>,
+
+    /// SP3.9 — JE-level trading partner. When priors are loaded, drawn
+    /// once per JE from `per_source_attribute[sap_source_code]["trading_partner"]`
+    /// and inherited by all lines. Matches corpus SAP semantics
+    /// (one TP per document).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub trading_partner: Option<String>,
+
     /// Business process reference
     pub business_process: Option<BusinessProcess>,
 
@@ -441,6 +455,8 @@ impl JournalEntryHeader {
             created_by: "SYSTEM".to_string(),
             user_persona: "automated_system".to_string(),
             source: TransactionSource::Automated,
+            sap_source_code: None,
+            trading_partner: None,
             business_process: Some(BusinessProcess::R2R),
             ledger: "0L".to_string(),
             is_fraud: false,
@@ -506,6 +522,8 @@ impl JournalEntryHeader {
             created_by: "SYSTEM".to_string(),
             user_persona: "automated_system".to_string(),
             source: TransactionSource::Automated,
+            sap_source_code: None,
+            trading_partner: None,
             business_process: Some(BusinessProcess::R2R),
             ledger: "0L".to_string(),
             is_fraud: false,
@@ -1078,7 +1096,6 @@ impl JournalEntry {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

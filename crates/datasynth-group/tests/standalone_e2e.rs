@@ -1,7 +1,7 @@
 //! Task 9.2 — standalone `generate_standalone` end-to-end smoke test.
 //!
 //! Drives [`datasynth_group::generate_standalone`] against a trimmed
-//! Mini-Nestlé fixture (NESTLE_SA + NESTLE_USA, single explicit
+//! Mini-Acme fixture (ACME_SA + ACME_USA, single explicit
 //! `goods_sale` IC relationship — same trim
 //! `tests/shard_e2e.rs::load_two_entity_manifest` uses).  The test
 //! verifies that the standalone driver:
@@ -41,26 +41,26 @@ use datasynth_group::{
 
 // ── Fixture helpers ───────────────────────────────────────────────────────────
 
-/// Trim the Mini-Nestlé fixture down to NESTLE_SA + NESTLE_USA so the
+/// Trim the Mini-Acme fixture down to ACME_SA + ACME_USA so the
 /// test exercises a single shard with a single IC relationship — the
 /// minimum that drives the full pipeline.  Mirrors
 /// `tests/shard_e2e.rs::load_two_entity_manifest`'s trim logic.
 fn trimmed_two_entity_config() -> GroupConfig {
-    let yaml = include_str!("fixtures/mini_nestle.yaml");
-    let mut cfg: GroupConfig = serde_yaml::from_str(yaml).expect("mini_nestle.yaml must parse");
+    let yaml = include_str!("fixtures/mini_acme.yaml");
+    let mut cfg: GroupConfig = serde_yaml::from_str(yaml).expect("mini_acme.yaml must parse");
 
     cfg.ownership
         .entities
-        .retain(|e| matches!(e.code.as_str(), "NESTLE_SA" | "NESTLE_USA"));
+        .retain(|e| matches!(e.code.as_str(), "ACME_SA" | "ACME_USA"));
 
     cfg.intercompany.relationships.retain(|r| match r {
-        IcRelationshipConfig::Explicit(e) => e.seller == "NESTLE_SA" && e.buyer == "NESTLE_USA",
+        IcRelationshipConfig::Explicit(e) => e.seller == "ACME_SA" && e.buyer == "ACME_USA",
         IcRelationshipConfig::Pattern(_) => false,
     });
     assert_eq!(
         cfg.intercompany.relationships.len(),
         1,
-        "trim must leave exactly one explicit NESTLE_SA→NESTLE_USA relationship",
+        "trim must leave exactly one explicit ACME_SA→ACME_USA relationship",
     );
 
     if let Some(p2) = cfg.tax.pillar_two.as_mut() {
@@ -109,7 +109,7 @@ fn generate_standalone_produces_full_archive() {
     assert_eq!(summary.manifest_path, manifest_path);
 
     // ── 2. Per-entity shard archives present ─────────────────────────
-    for code in ["NESTLE_SA", "NESTLE_USA"] {
+    for code in ["ACME_SA", "ACME_USA"] {
         let je_path = out_dir
             .join("entities")
             .join(code)
@@ -157,11 +157,11 @@ fn generate_standalone_produces_full_archive() {
     assert!(summary
         .aggregate
         .entities_processed
-        .contains(&"NESTLE_SA".to_string()));
+        .contains(&"ACME_SA".to_string()));
     assert!(summary
         .aggregate
         .entities_processed
-        .contains(&"NESTLE_USA".to_string()));
+        .contains(&"ACME_USA".to_string()));
     assert!(summary.aggregate.entities_missing.is_empty());
     assert!(
         (summary.aggregate.coverage - 1.0).abs() < 1e-9,

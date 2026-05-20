@@ -1,7 +1,7 @@
 //! Task 4.5 — multi-entity shard end-to-end smoke test with IC mirror checks.
 //!
 //! Drives [`datasynth_group::shard::run_shard`] with a manifest scoped down
-//! to **two** entities — `NESTLE_SA` (seller) and `NESTLE_USA` (buyer) —
+//! to **two** entities — `ACME_SA` (seller) and `ACME_USA` (buyer) —
 //! linked by a single explicit `goods_sale` IC relationship.  This is the
 //! smallest configuration that lets us assert the v5.0 shard runner's
 //! crown-jewel invariant: every IC pair the runner emits is **mirrored**
@@ -12,11 +12,11 @@
 //!
 //! Same reasoning as `tests/shard_runner.rs::load_single_entity_manifest`:
 //! we mutate the parsed [`GroupConfig`] (rather than maintain a separate
-//! two-entity fixture) so the test stays in lockstep with `mini_nestle.yaml`.
+//! two-entity fixture) so the test stays in lockstep with `mini_acme.yaml`.
 //! Every change to the canonical fixture flows through here automatically.
 //!
 //! The trim retains exactly:
-//! - Two ownership entities: `NESTLE_SA` (parent, CH) and `NESTLE_USA` (US).
+//! - Two ownership entities: `ACME_SA` (parent, CH) and `ACME_USA` (US).
 //! - One IC relationship (the explicit `SA → USA` entry, `types:
 //!   [goods_sale, royalty]`) — the second explicit pair (SA → DE) and the
 //!   trailing pattern entry are dropped along with the entities they
@@ -26,7 +26,7 @@
 //!
 //! # Why `#[ignore]`?
 //!
-//! Each [`datasynth_runtime::EnhancedOrchestrator`] run on a `mini_nestle`
+//! Each [`datasynth_runtime::EnhancedOrchestrator`] run on a `mini_acme`
 //! entity peaks at ~17 GiB RSS and takes 15+ minutes (see
 //! `tests/shard_runner.rs` for the same caveat).  This test sequences
 //! **two** orchestrator runs back-to-back inside one process — RSS
@@ -49,45 +49,45 @@ use datasynth_group::{build_manifest, GroupConfig, IcRelationshipConfig};
 
 // ── Fixture helpers ───────────────────────────────────────────────────────────
 
-/// Load the full `mini_nestle` fixture and trim it down to a two-entity
-/// IC pair (`NESTLE_SA` ↔ `NESTLE_USA`).
+/// Load the full `mini_acme` fixture and trim it down to a two-entity
+/// IC pair (`ACME_SA` ↔ `ACME_USA`).
 ///
 /// See the module docs for the trim rationale.  After mutation the
 /// manifest builder must still accept the config — the `expect` on
 /// [`build_manifest`] catches any drift in fixture invariants the next
-/// time `mini_nestle.yaml` changes.
+/// time `mini_acme.yaml` changes.
 fn load_two_entity_manifest() -> GroupManifest {
-    let yaml = include_str!("fixtures/mini_nestle.yaml");
+    let yaml = include_str!("fixtures/mini_acme.yaml");
     let mut cfg: GroupConfig =
-        serde_yaml::from_str(yaml).expect("mini_nestle.yaml must parse into GroupConfig");
+        serde_yaml::from_str(yaml).expect("mini_acme.yaml must parse into GroupConfig");
 
-    // Retain NESTLE_SA + NESTLE_USA — drop NESTLE_DE, NESTLE_BR, NESTLE_JV
+    // Retain ACME_SA + ACME_USA — drop ACME_DE, ACME_BR, ACME_JV
     // so the resulting shard plan puts exactly these two entities into
     // their respective shards (both share the `significant` profile, so
     // the shard packer batches them into one shard ≤ 10 B-row cap).
     cfg.ownership
         .entities
-        .retain(|e| matches!(e.code.as_str(), "NESTLE_SA" | "NESTLE_USA"));
+        .retain(|e| matches!(e.code.as_str(), "ACME_SA" | "ACME_USA"));
 
     // The fixture has three IC entries: explicit SA→USA, explicit SA→DE,
     // and a pattern targeting any `significant`-profile buyer.  We need
     // only the explicit SA→USA one — drop the SA→DE entry (refs dropped
-    // NESTLE_DE) and the pattern entry (which would otherwise expand
+    // ACME_DE) and the pattern entry (which would otherwise expand
     // against the trimmed entity list and produce an unwanted SA→USA
     // management_fee leg).
     //
     // Filter explicitly by seller/buyer rather than `truncate(1)` so a
-    // future reorder of `intercompany.relationships` in mini_nestle.yaml
+    // future reorder of `intercompany.relationships` in mini_acme.yaml
     // can't silently change which pair this test exercises.
     cfg.intercompany.relationships.retain(|r| match r {
-        IcRelationshipConfig::Explicit(e) => e.seller == "NESTLE_SA" && e.buyer == "NESTLE_USA",
+        IcRelationshipConfig::Explicit(e) => e.seller == "ACME_SA" && e.buyer == "ACME_USA",
         IcRelationshipConfig::Pattern(_) => false,
     });
     assert_eq!(
         cfg.intercompany.relationships.len(),
         1,
-        "trim must leave exactly one explicit NESTLE_SA→NESTLE_USA relationship; \
-         got {} — has the mini_nestle.yaml fixture been restructured?",
+        "trim must leave exactly one explicit ACME_SA→ACME_USA relationship; \
+         got {} — has the mini_acme.yaml fixture been restructured?",
         cfg.intercompany.relationships.len()
     );
 
@@ -105,7 +105,7 @@ fn load_two_entity_manifest() -> GroupManifest {
             .retain(|j| matches!(j.as_str(), "CH" | "US"));
     }
 
-    build_manifest(&cfg).expect("trimmed mini_nestle must still build a manifest")
+    build_manifest(&cfg).expect("trimmed mini_acme must still build a manifest")
 }
 
 /// Read every JE the orchestrator emitted for `entity_code` from
@@ -146,21 +146,21 @@ fn run_shard_two_entities_mirrors_ic_pair_ids() {
     // format refactors.  Asserting equality double-checks the shard
     // packer's batching invariant for this size config.
     let entities = &manifest.ownership_graph.entities;
-    let nestle_sa = entities
+    let acme_sa = entities
         .iter()
-        .find(|e| e.code == "NESTLE_SA")
-        .expect("NESTLE_SA must remain after trimming");
-    let nestle_usa = entities
+        .find(|e| e.code == "ACME_SA")
+        .expect("ACME_SA must remain after trimming");
+    let acme_usa = entities
         .iter()
-        .find(|e| e.code == "NESTLE_USA")
-        .expect("NESTLE_USA must remain after trimming");
+        .find(|e| e.code == "ACME_USA")
+        .expect("ACME_USA must remain after trimming");
     assert_eq!(
-        nestle_sa.shard_id, nestle_usa.shard_id,
-        "NESTLE_SA and NESTLE_USA must land in the same shard under the trimmed `significant` profile; \
+        acme_sa.shard_id, acme_usa.shard_id,
+        "ACME_SA and ACME_USA must land in the same shard under the trimmed `significant` profile; \
          got SA={} vs USA={}",
-        nestle_sa.shard_id, nestle_usa.shard_id,
+        acme_sa.shard_id, acme_usa.shard_id,
     );
-    let shard_id = nestle_sa.shard_id.clone();
+    let shard_id = acme_sa.shard_id.clone();
 
     let summary = run_shard(&manifest, &shard_id, out_dir).expect("run_shard must succeed");
 
@@ -177,7 +177,7 @@ fn run_shard_two_entities_mirrors_ic_pair_ids() {
         .iter()
         .map(|s| s.entity_code.as_str())
         .collect();
-    for expected in ["NESTLE_SA", "NESTLE_USA"] {
+    for expected in ["ACME_SA", "ACME_USA"] {
         assert!(
             summary_codes.contains(&expected),
             "{expected} missing from entity_summaries; got {summary_codes:?}",
@@ -217,8 +217,8 @@ fn run_shard_two_entities_mirrors_ic_pair_ids() {
     // counterparty (`ic_partner_entity`) referencing the *other* entity's
     // code, and a matching `posting_date`.  Use `BTreeMap` for
     // deterministic iteration order in any failure messages.
-    let sa_jes = read_entity_journal_entries(out_dir, "NESTLE_SA");
-    let usa_jes = read_entity_journal_entries(out_dir, "NESTLE_USA");
+    let sa_jes = read_entity_journal_entries(out_dir, "ACME_SA");
+    let usa_jes = read_entity_journal_entries(out_dir, "ACME_USA");
 
     type PairSides<'a> = (Vec<&'a JournalEntry>, Vec<&'a JournalEntry>);
     let mut by_pair: BTreeMap<IcPairId, PairSides> = BTreeMap::new();
@@ -242,13 +242,13 @@ fn run_shard_two_entities_mirrors_ic_pair_ids() {
         assert_eq!(
             sa_sides.len(),
             1,
-            "pair {pair_id} must have exactly one NESTLE_SA leg; got {}",
+            "pair {pair_id} must have exactly one ACME_SA leg; got {}",
             sa_sides.len()
         );
         assert_eq!(
             usa_sides.len(),
             1,
-            "pair {pair_id} must have exactly one NESTLE_USA leg; got {}",
+            "pair {pair_id} must have exactly one ACME_USA leg; got {}",
             usa_sides.len()
         );
 
@@ -257,13 +257,13 @@ fn run_shard_two_entities_mirrors_ic_pair_ids() {
 
         assert_eq!(
             sa_je.header.ic_partner_entity.as_deref(),
-            Some("NESTLE_USA"),
-            "pair {pair_id}: NESTLE_SA leg's ic_partner_entity must reference NESTLE_USA"
+            Some("ACME_USA"),
+            "pair {pair_id}: ACME_SA leg's ic_partner_entity must reference ACME_USA"
         );
         assert_eq!(
             usa_je.header.ic_partner_entity.as_deref(),
-            Some("NESTLE_SA"),
-            "pair {pair_id}: NESTLE_USA leg's ic_partner_entity must reference NESTLE_SA"
+            Some("ACME_SA"),
+            "pair {pair_id}: ACME_USA leg's ic_partner_entity must reference ACME_SA"
         );
 
         assert_eq!(
@@ -277,12 +277,12 @@ fn run_shard_two_entities_mirrors_ic_pair_ids() {
         // ic_je_injector::build_je_for_plan.  This guards against a
         // regression that swaps seller/buyer routing inside the runner.
         assert_eq!(
-            sa_je.header.company_code, "NESTLE_SA",
-            "pair {pair_id}: SA leg.company_code must be NESTLE_SA"
+            sa_je.header.company_code, "ACME_SA",
+            "pair {pair_id}: SA leg.company_code must be ACME_SA"
         );
         assert_eq!(
-            usa_je.header.company_code, "NESTLE_USA",
-            "pair {pair_id}: USA leg.company_code must be NESTLE_USA"
+            usa_je.header.company_code, "ACME_USA",
+            "pair {pair_id}: USA leg.company_code must be ACME_USA"
         );
     }
 

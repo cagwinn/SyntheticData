@@ -84,7 +84,7 @@ use crate::errors::{GroupError, GroupResult};
 
 /// Maximum number of unmatched sides included in
 /// [`CoverageReport::unmatched_sample`].  Mirrors the spec §5.4
-/// "[:100]" semantics.
+/// "\[:100\]" semantics.
 pub const UNMATCHED_SAMPLE_CAP: usize = 100;
 
 /// Subdirectory within the group output root where the coverage report

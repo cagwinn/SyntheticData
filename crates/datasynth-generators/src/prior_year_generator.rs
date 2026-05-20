@@ -481,7 +481,6 @@ fn f64_to_decimal(v: f64) -> Decimal {
 // ---------------------------------------------------------------------------
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use rust_decimal_macros::dec;

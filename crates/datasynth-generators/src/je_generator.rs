@@ -31,6 +31,66 @@ use datasynth_core::CountryPack;
 use crate::company_selector::WeightedCompanySelector;
 use crate::user_generator::{UserGenerator, UserGeneratorConfig};
 
+use datasynth_core::distributions::text_taxonomy::{PiiPlaceholderKind, PlaceholderResolver};
+
+/// SP6 — Resolves PII placeholders to concrete values drawn from the run's
+/// synthetic master data. `{company}` <- vendor/customer names, `{person}` <-
+/// user display names, `{street}` <- addresses (empty pool for now — no
+/// address master entity), `{patient}` <- a synthetic-person pool (no master
+/// entity exists for patients). Empty pools fall back to obviously-synthetic
+/// constants so output never carries an empty span or a literal `{…}` token.
+#[derive(Debug, Default)]
+pub struct MasterDataResolver {
+    pub companies: Vec<String>,
+    pub persons: Vec<String>,
+    pub streets: Vec<String>,
+    pub patients: Vec<String>,
+}
+
+impl PlaceholderResolver for MasterDataResolver {
+    fn resolve(&mut self, kind: PiiPlaceholderKind, rng: &mut dyn rand::Rng) -> String {
+        use rand::RngExt;
+        let (pool, fallback): (&Vec<String>, &str) = match kind {
+            PiiPlaceholderKind::Company => (&self.companies, "Synthetic Company AG"),
+            PiiPlaceholderKind::Person => (&self.persons, "Synthetic Person"),
+            PiiPlaceholderKind::Street => (&self.streets, "Synthetic Street 1"),
+            PiiPlaceholderKind::Patient => (&self.patients, "Synthetic Patient"),
+        };
+        if pool.is_empty() {
+            return fallback.to_string();
+        }
+        let idx = rng.random_range(0..pool.len());
+        pool[idx].clone()
+    }
+}
+
+/// A small static pool of obviously-synthetic person names for `{patient}`
+/// filling. No master entity exists for patients. Locale is a hint; for SP6
+/// a single neutral set is sufficient.
+///
+/// **Shape invariant:** every entry must avoid the `<initial>. <surname>` and
+/// `<surname> <initial>.` shapes, because the SP6 `residual_pii_scan` flags
+/// those as `initial_surname` / `surname_initial` PII patterns. The smoke
+/// test asserts the canonical `*{patient} G:…` template fills to a scan-clean
+/// string; an entry like `"B. Muster"` would regress that. Prefer two-word
+/// `<First> <Last>` shapes with no periods (covered by
+/// `synthetic_patient_pool_entries_pass_residual_scan`).
+fn synthetic_patient_pool(_locale: &str) -> Vec<String> {
+    [
+        "Alex Beispiel",
+        "Bea Muster",
+        "Cleo Synthetic",
+        "Demo Example",
+        "Erik Probe",
+        "Fred Testperson",
+        "Gerda Platzhalter",
+        "Hans Demo",
+    ]
+    .iter()
+    .map(|s| s.to_string())
+    .collect()
+}
+
 /// Generator for realistic journal entries.
 pub struct JournalEntryGenerator {
     rng: ChaCha8Rng,
@@ -106,6 +166,25 @@ pub struct JournalEntryGenerator {
     // the upper/lower end of its range. Produces observable Spearman
     // correlation without rewiring existing samplers for inverse-CDF.
     correlation_copula: Option<datasynth_core::distributions::BivariateCopulaSampler>,
+    /// SP3 — opt-in industry priors. When `Some`, je_generator routes
+    /// timing/lines-per-JE/fanout/active-window through prior-driven samplers.
+    /// When `None`, behavior is identical to v5.11.
+    pub loaded_priors: Option<crate::priors_loader::LoadedPriors>,
+    /// SP3 T11 — accumulated IET days per document-type code.  Only used when
+    /// `loaded_priors.is_some()`.  Tracks the running day offset so
+    /// consecutive calls for the same source produce IET-spaced posting dates.
+    iet_day_accum: std::collections::HashMap<String, f64>,
+    /// SP3.12 — last TP value drawn per SAP source code.  Used by the TP motif
+    /// sampler to bias the next TP draw toward cluster-mates of the previous TP
+    /// on the same source, building triangle structure in the TP co-occurrence graph.
+    last_tp_by_source: std::collections::HashMap<String, String>,
+    /// SP3.4 — when Some, observes each emitted line and applies calibration
+    /// steps to the generator's tunable parameters.
+    pub velocity_calibrator: Option<crate::velocity_calibrator::VelocityCalibrator>,
+    /// SP6 — PII placeholder resolver populated from the run's synthetic master
+    /// data (vendors, customers, users). Rebuilt once via
+    /// [`refresh_md_resolver`] before JE generation begins.
+    md_resolver: MasterDataResolver,
 }
 
 const DEFAULT_BUSINESS_PROCESS_WEIGHTS: [(BusinessProcess, f64); 5] = [
@@ -387,6 +466,11 @@ impl JournalEntryGenerator {
             advanced_amount_sampler: None,
             conditional_amount_override: None,
             correlation_copula: None,
+            loaded_priors: None,
+            iet_day_accum: std::collections::HashMap::new(),
+            last_tp_by_source: std::collections::HashMap::new(),
+            velocity_calibrator: None,
+            md_resolver: MasterDataResolver::default(),
         }
     }
 
@@ -471,10 +555,12 @@ impl JournalEntryGenerator {
 
         match config.amounts.distribution_type {
             MixtureDistributionType::LogNormal => {
-                let lognormal_cfg = config
-                    .amounts
-                    .to_log_normal_config()
-                    .or_else(|| config.industry_profile.map(industry_profile_to_log_normal));
+                let lognormal_cfg = config.amounts.to_log_normal_config().or_else(|| {
+                    config
+                        .industry_profile
+                        .as_ref()
+                        .map(|p| industry_profile_to_log_normal(p.profile_type()))
+                });
                 if let Some(cfg) = lognormal_cfg {
                     self.advanced_amount_sampler =
                         Some(AdvancedAmountSampler::new_log_normal(seed, cfg)?);
@@ -603,7 +689,7 @@ impl JournalEntryGenerator {
 
     /// Configure temporal patterns using a [`CountryPack`] for the holiday calendar.
     ///
-    /// This is an alternative to [`with_temporal_patterns`] that derives the
+    /// This is an alternative to `with_temporal_patterns` that derives the
     /// holiday calendar from a country-pack definition rather than the built-in
     /// region-based calendars.  All other temporal behaviour (business-day
     /// adjustment, processing lags, period-end dynamics) is configured
@@ -856,6 +942,37 @@ impl JournalEntryGenerator {
             .with_materials(materials)
     }
 
+    /// SP6 — Build a [`MasterDataResolver`] from the run's master data and
+    /// store it in `self.md_resolver`. Call once before JE generation begins
+    /// (the entry method `generate` calls this lazily on the first entry when
+    /// the resolver pools are empty). Pools are cheap `Vec<String>` snapshots
+    /// of names already held in the generator's vendor/customer/user pools.
+    fn refresh_md_resolver(&mut self) {
+        let companies: Vec<String> = self
+            .vendor_pool
+            .vendors
+            .iter()
+            .map(|v| v.name.clone())
+            .chain(self.customer_pool.customers.iter().map(|c| c.name.clone()))
+            .collect();
+
+        let persons: Vec<String> = self
+            .user_pool
+            .as_ref()
+            .map(|p| p.users.iter().map(|u| u.display_name.clone()).collect())
+            .unwrap_or_default();
+
+        let streets: Vec<String> = Vec::new(); // No address master entity in this generator.
+        let patients = synthetic_patient_pool("de_CH");
+
+        self.md_resolver = MasterDataResolver {
+            companies,
+            persons,
+            streets,
+            patients,
+        };
+    }
+
     /// Set the cost-center pool used by line-item enrichment.
     ///
     /// The orchestrator wires this from the generated cost-centers
@@ -871,7 +988,7 @@ impl JournalEntryGenerator {
 
     /// Set the profit-center pool used by line-item enrichment.
     ///
-    /// Same semantics as [`with_cost_center_pool`] but for the
+    /// Same semantics as `with_cost_center_pool` but for the
     /// profit-centers master.  Without this, the legacy
     /// `PC-{company_code}-{P2P|O2C|R2R|H2R}` derivation is used —
     /// which is consistent within a generation run but does not
@@ -886,7 +1003,7 @@ impl JournalEntryGenerator {
     /// The orchestrator builds a [`UserPool`] from the generated
     /// employee master ([`UserPool::from_employees`]) and passes it
     /// here, so `JE.created_by` joins back to `employees.user_id`.
-    /// Without this call, [`with_country_pack_names`] generates its
+    /// Without this call, `with_country_pack_names` generates its
     /// own user pool whose ids are disjoint from the employee
     /// master.
     pub fn with_user_pool(mut self, pool: UserPool) -> Self {
@@ -899,7 +1016,7 @@ impl JournalEntryGenerator {
     /// This is an alternative to the default name-culture distribution that
     /// derives name pools and weights from the country-pack's `names` section.
     /// The existing user pool (if any) is discarded and regenerated using
-    /// [`MultiCultureNameGenerator::from_country_pack`].
+    /// `MultiCultureNameGenerator::from_country_pack`.
     pub fn with_country_pack_names(mut self, pack: &CountryPack) -> Self {
         let name_gen =
             datasynth_core::templates::MultiCultureNameGenerator::from_country_pack(pack);
@@ -1175,11 +1292,39 @@ impl JournalEntryGenerator {
     ///
     /// This populates the sparse optional fields that `JournalEntryLine::debit()`
     /// and `::credit()` leave as `None`.
-    fn enrich_line_items(&self, entry: &mut JournalEntry) {
+    ///
+    /// SP3 T13: changed to `&mut self` so `loaded_priors` fanout samplers
+    /// can be driven for CostCenter and ProfitCenter when priors are loaded.
+    fn enrich_line_items(&mut self, entry: &mut JournalEntry) {
         let posting_date = entry.header.posting_date;
         let company_code = &entry.header.company_code;
         let header_text = entry.header.header_text.clone();
         let business_process = entry.header.business_process;
+        // SP3 T13 — document-type code used as the entity_id for fanout
+        // samplers.  Derived from the header field set during generate().
+        let doc_type_key = entry.header.document_type.clone();
+
+        // SP3.7 — capture the SAP source code as an owned Option<String> so it
+        // can be passed to `sample_attribute_for_source` as a `&str` inside the
+        // line loop without keeping a borrow on `entry`.
+        let header_sap_code: Option<String> = entry.header.sap_source_code.clone();
+
+        // SP3.3 — resolve cross-entity motif neighbors once before the line
+        // loop.  Owned Vec avoids holding a shared borrow on `self.loaded_priors`
+        // across the subsequent `&mut` fanout-sampler calls.
+        let (cc_pc_neighbor_vec, cc_pc_share_prob): (Vec<String>, f64) =
+            if let Some(priors) = &self.loaded_priors {
+                if let Some(motifs) = &priors.cross_entity_motifs {
+                    (
+                        motifs.neighbors(&doc_type_key).to_vec(),
+                        motifs.should_share(&doc_type_key),
+                    )
+                } else {
+                    (Vec::new(), 0.0)
+                }
+            } else {
+                (Vec::new(), 0.0)
+            };
 
         // Derive a deterministic index from the document_id for cost center selection
         let doc_id_bytes = entry.header.document_id.as_bytes();
@@ -1199,6 +1344,12 @@ impl JournalEntryGenerator {
 
             // 2. cost_center: assign to expense accounts (5xxx/6xxx)
             //
+            // SP3 T13: when priors are loaded, the CostCenter fanout
+            // sampler overrides the pool/legacy path.  This block runs
+            // before the existing logic; if the sampler fires, `line.cost_center`
+            // is set and the legacy block below is skipped via the
+            // `line.cost_center.is_none()` guard.
+            //
             // When the orchestrator has provided a master-data-sourced
             // pool (`with_cost_center_pool`), pick from it so the value
             // joins back to `cost_centers.id`.  Otherwise fall back to
@@ -1209,6 +1360,29 @@ impl JournalEntryGenerator {
             // the `CC-{company}-...` convention) so cross-company
             // contamination is avoided; if no pool entry matches the
             // company we fall through to the full pool.
+            if line.cost_center.is_none() {
+                // SP3 T13 — prior-driven CostCenter fanout.
+                // SP3.3: prefer neighbor-used buckets when motifs are available.
+                // SP3.7: try per-source conditional cost_center first; fall back
+                //        to the fanout sampler when the conditional is absent.
+                let priors_opt = &mut self.loaded_priors;
+                let rng_ref = &mut self.rng;
+                if let Some(priors) = priors_opt {
+                    let sp37_cc = header_sap_code.as_deref().and_then(|code| {
+                        priors.sample_attribute_for_source(code, "cost_center", rng_ref)
+                    });
+                    if sp37_cc.is_some() {
+                        line.cost_center = sp37_cc;
+                    } else if let Some(sampler) = priors.fanout_samplers.get_mut("CostCenter") {
+                        line.cost_center = Some(sampler.pick_for_with_neighbors(
+                            &doc_type_key,
+                            &cc_pc_neighbor_vec,
+                            cc_pc_share_prob,
+                            rng_ref,
+                        ));
+                    }
+                }
+            }
             if line.cost_center.is_none() {
                 let first_char = line.gl_account.chars().next().unwrap_or('0');
                 if first_char == '5' || first_char == '6' {
@@ -1237,6 +1411,32 @@ impl JournalEntryGenerator {
             // (`with_profit_center_pool`); otherwise derive from
             // company code + business process (legacy behaviour, which
             // does not match the master-data PC ID format).
+            //
+            // SP3 T13: prior-driven ProfitCenter fanout override fires first
+            // (same pattern as CostCenter above).
+            if line.profit_center.is_none() {
+                // SP3 T13 — prior-driven ProfitCenter fanout.
+                // SP3.3: prefer neighbor-used buckets when motifs are available.
+                // SP3.7: try per-source conditional profit_center first; fall back
+                //        to the fanout sampler when the conditional is absent.
+                let priors_opt = &mut self.loaded_priors;
+                let rng_ref = &mut self.rng;
+                if let Some(priors) = priors_opt {
+                    let sp37_pc = header_sap_code.as_deref().and_then(|code| {
+                        priors.sample_attribute_for_source(code, "profit_center", rng_ref)
+                    });
+                    if sp37_pc.is_some() {
+                        line.profit_center = sp37_pc;
+                    } else if let Some(sampler) = priors.fanout_samplers.get_mut("ProfitCenter") {
+                        line.profit_center = Some(sampler.pick_for_with_neighbors(
+                            &doc_type_key,
+                            &cc_pc_neighbor_vec,
+                            cc_pc_share_prob,
+                            rng_ref,
+                        ));
+                    }
+                }
+            }
             if line.profit_center.is_none() {
                 if !self.profit_center_pool.is_empty() {
                     let needle = format!("-{company_code}-");
@@ -1264,19 +1464,28 @@ impl JournalEntryGenerator {
                 }
             }
 
-            // 4. line_text: fall back to header_text if not already set
+            // 4. trading_partner: SP3.9 — inherit JE-level trading_partner from
+            // the header. The header was populated once per JE in generate();
+            // all lines share the same value to match corpus SAP semantics.
+            // The is_none() guard preserves TP values already set by the P2P/O2C
+            // document chain manager (also JE-level, different code path).
+            if line.trading_partner.is_none() {
+                line.trading_partner = entry.header.trading_partner.clone();
+            }
+
+            // 5. line_text: fall back to header_text if not already set
             if line.line_text.is_none() {
                 line.line_text = header_text.clone();
             }
 
-            // 5. value_date: set to posting_date for AR/AP accounts
+            // 6. value_date: set to posting_date for AR/AP accounts
             if line.value_date.is_none()
                 && (line.gl_account.starts_with("1100") || line.gl_account.starts_with("2000"))
             {
                 line.value_date = Some(posting_date);
             }
 
-            // 6. assignment: set to vendor/customer reference for AP/AR lines
+            // 7. assignment: set to vendor/customer reference for AP/AR lines
             if line.assignment.is_none() {
                 if line.gl_account.starts_with("2000") {
                     // AP line - use vendor reference from header
@@ -1325,27 +1534,54 @@ impl JournalEntryGenerator {
             }
         }
 
+        // SP6 — Lazy-init the MD resolver on the first call. Rebuilding once
+        // per run is sufficient; pools are stable after master-data generation.
+        if self.md_resolver.companies.is_empty()
+            && self.md_resolver.persons.is_empty()
+            && self.md_resolver.patients.is_empty()
+        {
+            self.refresh_md_resolver();
+        }
+
         self.count += 1;
 
         // Generate deterministic document ID
         let document_id = self.generate_deterministic_uuid();
 
-        // Sample posting date
-        let mut posting_date = self
-            .temporal_sampler
-            .sample_date(self.start_date, self.end_date);
-
-        // Adjust posting date to be a business day if business day calculator is configured
-        if let Some(ref calc) = self.business_day_calculator {
-            if !calc.is_business_day(posting_date) {
-                // Move to next business day
-                posting_date = calc.next_business_day(posting_date, false);
-                // Ensure we don't exceed end_date
-                if posting_date > self.end_date {
-                    posting_date = calc.prev_business_day(self.end_date, true);
+        // SP3.5c — Lazy temporal-sampler date draw.
+        //
+        // When priors are loaded the IET path (SP3 T11) will immediately replace
+        // this value, so drawing from the temporal sampler here wastes one RNG
+        // advance on the sampler's internal stream AND makes the temporal-sampler
+        // variance contribute to the merged date sequence even though the IET
+        // sampler is meant to dominate.
+        //
+        // Fix: only draw from the temporal sampler now when no priors are loaded.
+        // The IET block sets `posting_date` unconditionally when priors are Some;
+        // the active-window fallback (SP3 T14) has its own sample_date call and is
+        // unaffected by this change.
+        //
+        // Priors-absent path: byte-identical to v5.13 — the draw and business-day
+        // snap are performed exactly as before.
+        let mut posting_date = if self.loaded_priors.is_none() {
+            let mut d = self
+                .temporal_sampler
+                .sample_date(self.start_date, self.end_date);
+            // Adjust posting date to be a business day if business day calculator is configured
+            if let Some(ref calc) = self.business_day_calculator {
+                if !calc.is_business_day(d) {
+                    d = calc.next_business_day(d, false);
+                    if d > self.end_date {
+                        d = calc.prev_business_day(self.end_date, true);
+                    }
                 }
             }
-        }
+            d
+        } else {
+            // Priors-loaded path: IET block (below) will set the real date.
+            // Use start_date as a zero-cost placeholder — it is always overwritten.
+            self.start_date
+        };
 
         // Select company using weighted selector
         let company_code = self.company_selector.select(&mut self.rng).to_string();
@@ -1385,8 +1621,126 @@ impl JournalEntryGenerator {
             TransactionSource::Automated | TransactionSource::Recurring
         );
 
+        // SP3.6 — when priors are loaded, sample a canonical SAP source code
+        // from the bundle's source-mix distribution.  This is independent of
+        // the `TransactionSource` enum (which controls manual/automated semantics)
+        // and is written to `header.sap_source_code`, then emitted in the CSV
+        // `source` column in place of the generic label.
+        let sap_source_code: Option<String> = self
+            .loaded_priors
+            .as_ref()
+            .map(|p| p.source_mix.sample(&mut self.rng));
+
         // Select business process
         let business_process = self.select_business_process();
+
+        // SP3 T11 — IET-driven posting-date override.
+        //
+        // When priors are loaded, replace the uniform temporal-sampler date
+        // with one derived from the per-Source inter-event-time prior.  We
+        // accumulate IET samples (in fractional days) per document-type code
+        // and map the accumulated offset onto [start_date, end_date].
+        //
+        // The None path is untouched: `posting_date` from the temporal sampler
+        // above is used as-is.
+        {
+            // Split-borrow: three distinct struct fields accessed simultaneously.
+            let priors_opt = &mut self.loaded_priors;
+            let rng_ref = &mut self.rng;
+            let iet_accum_ref = &mut self.iet_day_accum;
+            if let Some(priors) = priors_opt {
+                let doc_type = Self::document_type_for_process(business_process).to_string();
+                let period_days = (self.end_date - self.start_date).num_days().max(1) as f64;
+                let iet = priors
+                    .iet_sampler
+                    .sample_next(&doc_type, rng_ref)
+                    .max(0.001);
+                let accum = iet_accum_ref.entry(doc_type).or_insert(0.0);
+                *accum += iet;
+                // Wrap within period so we never exceed the generation window.
+                if *accum >= period_days {
+                    *accum %= period_days;
+                }
+                let day_offset =
+                    (*accum as i64).clamp(0, (self.end_date - self.start_date).num_days());
+                posting_date = self.start_date + chrono::Duration::days(day_offset);
+                // Re-apply business-day snap so the IET date still lands on a
+                // working day (matches the business_day_calculator logic above).
+                if let Some(ref calc) = self.business_day_calculator {
+                    if !calc.is_business_day(posting_date) {
+                        posting_date = calc.next_business_day(posting_date, false);
+                        if posting_date > self.end_date {
+                            posting_date = calc.prev_business_day(self.end_date, true);
+                        }
+                    }
+                }
+            } // end if let Some(priors)
+        } // end split-borrow scope
+
+        // SP3 T14 — active-window gating.
+        //
+        // After the IET-driven date is computed, check whether this Source is
+        // still in its active window for the resulting day.  If the prior says
+        // the Source has "gone quiet" (e.g. a vendor that stopped trading), we
+        // fall back to the temporal-sampler date so the JE still emits but is
+        // no longer anchored to the IET timeline for this source.
+        //
+        // In a day-loop architecture this would be a `continue`; here, the
+        // equivalent is to revert `posting_date` to the original temporal-
+        // sampler sample so downstream logic sees a plausible date.
+        //
+        // The None path is untouched.
+        if let Some(ref priors) = self.loaded_priors {
+            let doc_type = Self::document_type_for_process(business_process);
+            let day_in_period = (posting_date - self.start_date).num_days();
+            let active = match &priors.multi_segment_window {
+                Some(msw) => msw.is_active(doc_type, day_in_period),
+                None => priors.active_window.is_active(doc_type, day_in_period),
+            };
+            if !active {
+                // Source is outside its active window: fall back to a fresh
+                // temporal-sampler draw.  (SP3.5c: the up-front temporal draw
+                // is skipped when priors are loaded, so we always re-sample
+                // here in the fallback path rather than reusing a cached value.)
+                posting_date = self
+                    .temporal_sampler
+                    .sample_date(self.start_date, self.end_date);
+                if let Some(ref calc) = self.business_day_calculator {
+                    if !calc.is_business_day(posting_date) {
+                        posting_date = calc.next_business_day(posting_date, false);
+                        if posting_date > self.end_date {
+                            posting_date = calc.prev_business_day(self.end_date, true);
+                        }
+                    }
+                }
+            }
+        }
+
+        // SP3 T12 — lines-per-JE override from prior histogram.
+        //
+        // When priors are loaded, replace `line_spec` totals with a sample
+        // drawn from the Source-conditional histogram (falling back to the
+        // overall histogram when the document-type is unknown).  `.max(2)`
+        // guarantees every JE has at least one debit + one credit line.
+        // The None path leaves `line_spec` from the copula / line-sampler
+        // cascade above completely unchanged.
+        if let Some(ref priors) = self.loaded_priors {
+            let doc_type = Self::document_type_for_process(business_process);
+            let hist = priors
+                .lines_per_je
+                .by_source
+                .get(doc_type)
+                .unwrap_or(&priors.lines_per_je.overall);
+            let n_total = (hist.sample_bucket(&mut self.rng) as usize).max(2);
+            let old_debit = line_spec.debit_count.max(1);
+            let old_credit = line_spec.credit_count.max(1);
+            let new_debit = (n_total as f64 * old_debit as f64 / (old_debit + old_credit) as f64)
+                .round() as usize;
+            let new_debit = new_debit.clamp(1, n_total - 1);
+            line_spec.total_count = n_total;
+            line_spec.debit_count = new_debit;
+            line_spec.credit_count = n_total - new_debit;
+        }
 
         // Determine if this is a fraudulent transaction
         let fraud_type = self.determine_fraud();
@@ -1404,7 +1758,127 @@ impl JournalEntryGenerator {
             JournalEntryHeader::with_deterministic_id(company_code, posting_date, document_id);
         header.created_at = created_at;
         header.source = source;
+        header.sap_source_code = sap_source_code;
+
+        // SP3.9 — JE-level trading partner. Draw once per JE; all lines
+        // inherit. corpus SAP semantics is one TP per document.
+        // SP3.12 — TP motif sampler: bias toward cluster-mates of the
+        // previously-drawn TP on the same source to build triangle structure.
+        // Split-borrow: sap_source_code was moved into header above, so clone
+        // the code out before the mutable borrow on self.loaded_priors.
+        // (sap_source_code is cloned again below for the SP4.5 user-persona lookup)
+        {
+            let code_opt = header.sap_source_code.clone();
+            if let Some(ref code) = code_opt {
+                let rng_ref = &mut self.rng;
+                // SP3.12: resolve TP motif neighbors from the last TP on this source.
+                // We read last_tp_by_source (shared ref) before the mutable borrow
+                // on loaded_priors.  The update happens after the block.
+                let tp_neighbors: Vec<String> = if let Some(ref priors) = self.loaded_priors {
+                    if let Some(ref motifs) = priors.tp_motif_sampler {
+                        if let Some(last_tp) = self.last_tp_by_source.get(code.as_str()) {
+                            motifs.neighbors(last_tp).to_vec()
+                        } else {
+                            Vec::new()
+                        }
+                    } else {
+                        Vec::new()
+                    }
+                } else {
+                    Vec::new()
+                };
+                let tp_share_prob: f64 = if let Some(ref priors) = self.loaded_priors {
+                    if let Some(ref motifs) = priors.tp_motif_sampler {
+                        if let Some(last_tp) = self.last_tp_by_source.get(code.as_str()) {
+                            motifs.should_share(last_tp)
+                        } else {
+                            0.0
+                        }
+                    } else {
+                        0.0
+                    }
+                } else {
+                    0.0
+                };
+
+                if let Some(ref mut priors) = self.loaded_priors {
+                    // SP3.12: if the motif roll fires AND the distribution
+                    // supports one of the neighbor TP values, draw from that
+                    // restricted set.  Otherwise fall through to the marginal.
+                    let tp = if !tp_neighbors.is_empty()
+                        && tp_share_prob > 0.0
+                        && rng_ref.random_range(0.0..1.0) < tp_share_prob
+                    {
+                        // Find a neighbor that the per-source TP distribution
+                        // actually knows about.  Sample from the full marginal
+                        // weighted by the neighbor-filtered subset.
+                        use datasynth_core::distributions::behavioral_priors::CategoricalDistribution;
+                        let filtered: std::collections::BTreeMap<String, f64> = priors
+                            .per_source_attribute
+                            .as_ref()
+                            .and_then(|psa| psa.conditional(code, "trading_partner"))
+                            .map(|dist| {
+                                dist.probabilities
+                                    .iter()
+                                    .filter(|(v, _)| tp_neighbors.contains(v))
+                                    .map(|(v, p)| (v.clone(), *p))
+                                    .collect()
+                            })
+                            .unwrap_or_default();
+                        if filtered.is_empty() {
+                            priors.sample_attribute_for_source(code, "trading_partner", rng_ref)
+                        } else {
+                            let neighbour_dist = CategoricalDistribution {
+                                probabilities: filtered,
+                                n: 0, // unused in sample()
+                            };
+                            neighbour_dist.sample(rng_ref).or_else(|| {
+                                priors.sample_attribute_for_source(code, "trading_partner", rng_ref)
+                            })
+                        }
+                    } else {
+                        priors.sample_attribute_for_source(code, "trading_partner", rng_ref)
+                    };
+                    header.trading_partner = tp;
+                }
+                // SP3.12: record the drawn TP so the next JE on this source
+                // can use it as the motif anchor.
+                if let Some(ref tp) = header.trading_partner {
+                    self.last_tp_by_source.insert(code.clone(), tp.clone());
+                }
+            }
+        }
+
+        // SP4.5 — user-persona prior: when a corpus prior with user data is
+        // loaded, override `created_by` with a user characteristic of the drawn
+        // source, and bias `created_at` hour-of-day from the user's density.
+        // Falls back transparently to `created_by` / `created_at` already set above.
+        let (created_by, created_at) = {
+            let sap_code_for_user = header.sap_source_code.clone();
+            if let (Some(ref code), Some(ref priors)) = (sap_code_for_user, &self.loaded_priors) {
+                if let Some(uid) = priors.sample_user_for_source(code, &mut self.rng) {
+                    let new_created_at = if let Some((hour, _)) =
+                        priors.sample_timestamp_for_user(&uid, &mut self.rng)
+                    {
+                        let base = header.created_at;
+                        base.date_naive()
+                            .and_hms_opt(hour, 0, 0)
+                            .map(|naive| naive.and_utc())
+                            .unwrap_or(base)
+                    } else {
+                        header.created_at
+                    };
+                    (uid, new_created_at)
+                } else {
+                    (created_by, header.created_at)
+                }
+            } else {
+                (created_by, header.created_at)
+            }
+        };
+
         header.created_by = created_by;
+        header.created_at = created_at;
         header.user_persona = user_persona;
         header.business_process = Some(business_process);
         header.document_type = Self::document_type_for_process(business_process).to_string();
@@ -1473,21 +1947,45 @@ impl JournalEntryGenerator {
             _ => {}
         }
 
-        // Generate header text if enabled
+        // Generate header text if enabled.
+        // SP6 — Try text-taxonomy prior (sample_header_template) first,
+        // then the built-in DescriptionGenerator.
         if self.template_config.descriptions.generate_header_text {
-            header.header_text = Some(self.description_generator.generate_header_text(
-                business_process,
-                &context,
-                &mut self.rng,
-            ));
+            let priors_header = if let Some(src) = header.sap_source_code.as_deref() {
+                if let Some(p) = self.loaded_priors.as_ref() {
+                    // SP6: text-taxonomy header pool
+                    p.sample_header_template(src, &mut self.md_resolver, &mut self.rng)
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+            header.header_text = Some(priors_header.unwrap_or_else(|| {
+                self.description_generator.generate_header_text(
+                    business_process,
+                    &context,
+                    &mut self.rng,
+                )
+            }));
         }
 
-        // Generate reference if enabled
+        // Generate reference if enabled.
+        // SP4.7 — when priors are loaded and the bundle carries a reference-format
+        // template for the current SAP source code, sample from that distribution
+        // instead of the fixed `ReferenceGenerator` template.  The priors path is
+        // preferred because it produces corpus format patterns; the existing
+        // generator is the fallback for sources not covered by the bundle.
         if self.template_config.references.generate_references {
-            header.reference = Some(
+            let priors_ref = header.sap_source_code.as_deref().and_then(|src| {
+                self.loaded_priors
+                    .as_ref()
+                    .and_then(|p| p.sample_reference(src, &mut self.rng))
+            });
+            header.reference = Some(priors_ref.unwrap_or_else(|| {
                 self.reference_generator
-                    .generate_for_process_year(business_process, posting_date.year()),
-            );
+                    .generate_for_process_year(business_process, posting_date.year())
+            }));
         }
 
         // Derive typed source document from reference prefix
@@ -1531,6 +2029,62 @@ impl JournalEntryGenerator {
             let input = self.conditional_input_value(posting_date);
             if let Some(ref mut cond) = self.conditional_amount_override {
                 cond.sample_decimal(input)
+            } else {
+                base_amount
+            }
+        } else {
+            base_amount
+        };
+
+        // SP4.3 — when priors are loaded, try to replace the base_amount with
+        // a draw from the per-source log-normal conditional.  This step only
+        // fires for non-fraud JEs (fraud entries must preserve fraud-pattern
+        // semantics).  We use the source-marginal (gl_prefix = "") as the
+        // initial lookup; per-class refinement requires knowing the GL account
+        // which is sampled after the amount in some paths, so we defer that
+        // to a follow-up sprint.  Balance preservation is maintained because
+        // the splitter below uses `total_amount` unchanged.
+        //
+        // W7.M — autocorr mitigation: ~30 % of priors-enabled draws bypass the
+        // per-source conditional and draw from the global marginal sampler.
+        // This loosens the per-source amount-sequence correlation that SP4.3's
+        // conditional was over-tightening (v5.23 baseline: Source P1 Autocorr
+        // +750 %, TP P1 Autocorr +101 %).  Proven pattern from SP3.12 W2
+        // TP-clustering mitigation.
+        //
+        // Split-borrow: `loaded_priors` and `rng` are distinct struct fields so
+        // the compiler allows simultaneous mutable borrows.
+        // SP5.3 — intermediate tune from 0.20 to 0.25 between v5.24 (0.30 →
+        // autocorr 1.53, over-corrected) and v5.25 (0.20 → autocorr 3.74,
+        // under-corrected). Targets the trade-off sweet spot.
+        const PRIORS_AMOUNT_BYPASS_SHARE: f64 = 0.25;
+        let base_amount = if fraud_type.is_none() {
+            if let Some(src) = entry.header.sap_source_code.as_deref() {
+                let src_owned = src.to_string();
+                // Gate: skip the conditional ~25 % of the time to loosen
+                // per-source amount sequence correlation without overshooting.
+                let use_conditional = self.loaded_priors.is_some()
+                    && self.rng.random_range(0.0..1.0) >= PRIORS_AMOUNT_BYPASS_SHARE;
+                if use_conditional {
+                    let priors_ref = &mut self.loaded_priors;
+                    let rng_ref = &mut self.rng;
+                    if let Some(priors) = priors_ref {
+                        priors
+                            .sample_amount_for_source(&src_owned, "", rng_ref)
+                            .and_then(|v| {
+                                if v.is_finite() && v > 0.0 {
+                                    Decimal::from_f64_retain(v)
+                                } else {
+                                    None
+                                }
+                            })
+                            .unwrap_or(base_amount)
+                    } else {
+                        base_amount
+                    }
+                } else {
+                    base_amount
+                }
             } else {
                 base_amount
             }
@@ -1584,12 +2138,80 @@ impl JournalEntryGenerator {
             self.apply_human_variation(drift_adjusted_amount)
         };
 
+        // SP3 T13 — derive the document-type key once for use in all
+        // fanout-sampler lookups below.  Computed unconditionally so it is
+        // available for both debit and credit loops without re-deriving.
+        let doc_type_for_fanout = Self::document_type_for_process(business_process).to_string();
+
+        // SP3.3 — resolve cross-entity motif neighbors for this fanout entity.
+        // We capture an owned Vec<String> here so that the shared borrow on
+        // `self.loaded_priors` is released before the subsequent `&mut` borrow
+        // on `fanout_samplers`.
+        let (gl_neighbor_vec, gl_share_prob): (Vec<String>, f64) =
+            if let Some(priors) = &self.loaded_priors {
+                if let Some(motifs) = &priors.cross_entity_motifs {
+                    (
+                        motifs.neighbors(&doc_type_for_fanout).to_vec(),
+                        motifs.should_share(&doc_type_for_fanout),
+                    )
+                } else {
+                    (Vec::new(), 0.0)
+                }
+            } else {
+                (Vec::new(), 0.0)
+            };
+
         // Generate debit lines
         let debit_amounts = self
             .amount_sampler
             .sample_summing_to(line_spec.debit_count, total_amount);
         for (i, amount) in debit_amounts.into_iter().enumerate() {
-            let account_number = self.select_debit_account().account_number.clone();
+            // SP3 T13 — GL Account fanout: when priors are loaded, pick the
+            // account from the BipartiteFanoutSampler keyed "GLAccount" for
+            // this Source.  Split-borrows let us hold &mut loaded_priors and
+            // &mut rng at the same time (distinct struct fields).
+            // SP3 T13 — GL Account fanout for debit lines.
+            // Pre-compute the fallback before the split-borrow scope so that
+            // `select_debit_account` (which takes `&mut self`) does not conflict
+            // with the concurrent borrow of `loaded_priors` and `rng`.
+            let debit_fallback = self.select_debit_account().account_number.clone();
+            let account_number = {
+                let priors_opt = &mut self.loaded_priors;
+                let rng_ref = &mut self.rng;
+                if let Some(priors) = priors_opt {
+                    // SP4.6 — role-aware GL account selection: try (source, "DR")
+                    // conditional first, then fall back to SP3.7 source-marginal,
+                    // then to the fanout sampler, then to the default debit account.
+                    let sp46_gl = entry
+                        .header
+                        .sap_source_code
+                        .as_deref()
+                        .and_then(|code| priors.sample_gl_for_source_role(code, "DR", rng_ref));
+                    if let Some(gl) = sp46_gl {
+                        gl
+                    } else {
+                        // SP3.7 — try per-source marginal GL account.
+                        let sp37_gl = entry.header.sap_source_code.as_deref().and_then(|code| {
+                            priors.sample_attribute_for_source(code, "gl_account", rng_ref)
+                        });
+                        if let Some(gl) = sp37_gl {
+                            gl
+                        } else if let Some(sampler) = priors.fanout_samplers.get_mut("GLAccount") {
+                            // SP3.3: prefer neighbor-used buckets when motifs are available.
+                            sampler.pick_for_with_neighbors(
+                                &doc_type_for_fanout,
+                                &gl_neighbor_vec,
+                                gl_share_prob,
+                                rng_ref,
+                            )
+                        } else {
+                            debit_fallback
+                        }
+                    }
+                } else {
+                    debit_fallback
+                }
+            };
             let mut line = JournalEntryLine::debit(
                 entry.header.document_id,
                 (i + 1) as u32,
@@ -1597,13 +2219,40 @@ impl JournalEntryGenerator {
                 amount,
             );
 
-            // Generate line text if enabled
+            // Generate line text if enabled.
+            // SP6 — Try text-taxonomy (account-class cascade), then DescriptionGenerator.
             if self.template_config.descriptions.generate_line_text {
-                line.line_text = Some(self.description_generator.generate_line_text(
-                    &account_number,
-                    &context,
-                    &mut self.rng,
-                ));
+                let src = entry.header.sap_source_code.as_deref();
+                let priors_line = if let Some(s) = src {
+                    if let Some(p) = self.loaded_priors.as_ref() {
+                        let account_class = p
+                            .coa_semantic
+                            .as_ref()
+                            .and_then(|c| c.accounts.get(&account_number))
+                            .and_then(|a| a.account_class.as_deref())
+                            .unwrap_or(
+                                datasynth_core::distributions::text_taxonomy::TextTaxonomyPrior::UNKNOWN_CLASS,
+                            );
+                        // SP6 text_taxonomy cascade
+                        p.sample_line_template(
+                            s,
+                            account_class,
+                            &mut self.md_resolver,
+                            &mut self.rng,
+                        )
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                };
+                line.line_text = Some(priors_line.unwrap_or_else(|| {
+                    self.description_generator.generate_line_text(
+                        &account_number,
+                        &context,
+                        &mut self.rng,
+                    )
+                }));
             }
 
             entry.add_line(line);
@@ -1614,7 +2263,45 @@ impl JournalEntryGenerator {
             .amount_sampler
             .sample_summing_to(line_spec.credit_count, total_amount);
         for (i, amount) in credit_amounts.into_iter().enumerate() {
-            let account_number = self.select_credit_account().account_number.clone();
+            // SP3 T13 — GL Account fanout for credit lines.
+            let credit_fallback = self.select_credit_account().account_number.clone();
+            let account_number = {
+                let priors_opt = &mut self.loaded_priors;
+                let rng_ref = &mut self.rng;
+                if let Some(priors) = priors_opt {
+                    // SP4.6 — role-aware GL account selection: try (source, "CR")
+                    // conditional first, then fall back to SP3.7 source-marginal,
+                    // then to the fanout sampler, then to the default credit account.
+                    let sp46_gl = entry
+                        .header
+                        .sap_source_code
+                        .as_deref()
+                        .and_then(|code| priors.sample_gl_for_source_role(code, "CR", rng_ref));
+                    if let Some(gl) = sp46_gl {
+                        gl
+                    } else {
+                        // SP3.7 — try per-source marginal GL account.
+                        let sp37_gl = entry.header.sap_source_code.as_deref().and_then(|code| {
+                            priors.sample_attribute_for_source(code, "gl_account", rng_ref)
+                        });
+                        if let Some(gl) = sp37_gl {
+                            gl
+                        } else if let Some(sampler) = priors.fanout_samplers.get_mut("GLAccount") {
+                            // SP3.3: prefer neighbor-used buckets when motifs are available.
+                            sampler.pick_for_with_neighbors(
+                                &doc_type_for_fanout,
+                                &gl_neighbor_vec,
+                                gl_share_prob,
+                                rng_ref,
+                            )
+                        } else {
+                            credit_fallback
+                        }
+                    }
+                } else {
+                    credit_fallback
+                }
+            };
             let mut line = JournalEntryLine::credit(
                 entry.header.document_id,
                 (line_spec.debit_count + i + 1) as u32,
@@ -1622,13 +2309,40 @@ impl JournalEntryGenerator {
                 amount,
             );
 
-            // Generate line text if enabled
+            // Generate line text if enabled.
+            // SP6 — Try text-taxonomy (account-class cascade), then DescriptionGenerator.
             if self.template_config.descriptions.generate_line_text {
-                line.line_text = Some(self.description_generator.generate_line_text(
-                    &account_number,
-                    &context,
-                    &mut self.rng,
-                ));
+                let src = entry.header.sap_source_code.as_deref();
+                let priors_line = if let Some(s) = src {
+                    if let Some(p) = self.loaded_priors.as_ref() {
+                        let account_class = p
+                            .coa_semantic
+                            .as_ref()
+                            .and_then(|c| c.accounts.get(&account_number))
+                            .and_then(|a| a.account_class.as_deref())
+                            .unwrap_or(
+                                datasynth_core::distributions::text_taxonomy::TextTaxonomyPrior::UNKNOWN_CLASS,
+                            );
+                        // SP6 text_taxonomy cascade
+                        p.sample_line_template(
+                            s,
+                            account_class,
+                            &mut self.md_resolver,
+                            &mut self.rng,
+                        )
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                };
+                line.line_text = Some(priors_line.unwrap_or_else(|| {
+                    self.description_generator.generate_line_text(
+                        &account_number,
+                        &context,
+                        &mut self.rng,
+                    )
+                }));
             }
 
             entry.add_line(line);
@@ -1653,7 +2367,48 @@ impl JournalEntryGenerator {
         // Maybe start a batch of similar entries for realism
         self.maybe_start_batch(&entry);
 
+        // SP3.4 + SP3.5b — observe each line through the velocity calibrator and
+        // apply each returned CalibrationStep to the relevant tunable parameter.
+        if self.velocity_calibrator.is_some() {
+            let mut pending: Vec<crate::velocity_calibrator::CalibrationStep> = Vec::new();
+            for line in &entry.lines {
+                if let Some(step) = self
+                    .velocity_calibrator
+                    .as_mut()
+                    .and_then(|cal| cal.observe_line(line))
+                {
+                    pending.push(step);
+                }
+            }
+            for step in pending {
+                self.apply_calibration_step(&step);
+            }
+        }
+
         entry
+    }
+
+    /// SP3.5b — Apply a CalibrationStep from the velocity calibrator to the
+    /// affected tunable parameter on this generator.
+    ///
+    /// Only `amounts.lognormal_sigma` (R6) and `amounts.round_dollar_share`
+    /// (R9) are plumbed in v5.14. R7/R8/R10 parameters (off_hours_share,
+    /// post_close_share, backdating_share) are observed by the calibrator
+    /// but not yet consumed on the generator side — see v5.15 for plumbing.
+    fn apply_calibration_step(&mut self, step: &crate::velocity_calibrator::CalibrationStep) {
+        match step.parameter.as_str() {
+            "amounts.lognormal_sigma" => {
+                self.amount_sampler.set_lognormal_sigma(step.new_value);
+            }
+            "amounts.round_dollar_share" => {
+                self.amount_sampler
+                    .set_round_number_probability(step.new_value);
+            }
+            _ => {
+                // Unknown / not-yet-plumbed parameter — calibrator records it
+                // in `adjustments` for inspection; no mutation here.
+            }
+        }
     }
 
     /// Enable or disable persona-based error injection.
@@ -1774,6 +2529,12 @@ impl JournalEntryGenerator {
         // Batched entries are always manual
         let source = TransactionSource::Manual;
 
+        // SP3.6 — sample SAP source code for the batch entry when priors loaded.
+        let sap_source_code: Option<String> = self
+            .loaded_priors
+            .as_ref()
+            .map(|p| p.source_mix.sample(&mut self.rng));
+
         // Use the batch's business process
         let business_process = batch.base_business_process.unwrap_or(BusinessProcess::R2R);
 
@@ -1789,7 +2550,108 @@ impl JournalEntryGenerator {
             JournalEntryHeader::with_deterministic_id(company_code, posting_date, document_id);
         header.created_at = created_at;
         header.source = source;
+        header.sap_source_code = sap_source_code;
+
+        // SP3.9 — JE-level trading partner for batched entries (same pattern as
+        // the primary generate() path).
+        // SP3.12 — TP motif biasing also applies to batched entries.
+        {
+            let code_opt = header.sap_source_code.clone();
+            if let Some(ref code) = code_opt {
+                let rng_ref = &mut self.rng;
+                let tp_neighbors: Vec<String> = if let Some(ref priors) = self.loaded_priors {
+                    if let Some(ref motifs) = priors.tp_motif_sampler {
+                        if let Some(last_tp) = self.last_tp_by_source.get(code.as_str()) {
+                            motifs.neighbors(last_tp).to_vec()
+                        } else {
+                            Vec::new()
+                        }
+                    } else {
+                        Vec::new()
+                    }
+                } else {
+                    Vec::new()
+                };
+                let tp_share_prob: f64 = if let Some(ref priors) = self.loaded_priors {
+                    if let Some(ref motifs) = priors.tp_motif_sampler {
+                        if let Some(last_tp) = self.last_tp_by_source.get(code.as_str()) {
+                            motifs.should_share(last_tp)
+                        } else {
+                            0.0
+                        }
+                    } else {
+                        0.0
+                    }
+                } else {
+                    0.0
+                };
+                if let Some(ref mut priors) = self.loaded_priors {
+                    use datasynth_core::distributions::behavioral_priors::CategoricalDistribution;
+                    let tp = if !tp_neighbors.is_empty()
+                        && tp_share_prob > 0.0
+                        && rng_ref.random_range(0.0..1.0) < tp_share_prob
+                    {
+                        let filtered: std::collections::BTreeMap<String, f64> = priors
+                            .per_source_attribute
+                            .as_ref()
+                            .and_then(|psa| psa.conditional(code, "trading_partner"))
+                            .map(|dist| {
+                                dist.probabilities
+                                    .iter()
+                                    .filter(|(v, _)| tp_neighbors.contains(v))
+                                    .map(|(v, p)| (v.clone(), *p))
+                                    .collect()
+                            })
+                            .unwrap_or_default();
+                        if filtered.is_empty() {
+                            priors.sample_attribute_for_source(code, "trading_partner", rng_ref)
+                        } else {
+                            let neighbour_dist = CategoricalDistribution {
+                                probabilities: filtered,
+                                n: 0,
+                            };
+                            neighbour_dist.sample(rng_ref).or_else(|| {
+                                priors.sample_attribute_for_source(code, "trading_partner", rng_ref)
+                            })
+                        }
+                    } else {
+                        priors.sample_attribute_for_source(code, "trading_partner", rng_ref)
+                    };
+                    header.trading_partner = tp;
+                }
+                if let Some(ref tp) = header.trading_partner {
+                    self.last_tp_by_source.insert(code.clone(), tp.clone());
+                }
+            }
+        }
+
+        // SP4.5 — user-persona prior for batched entries (same pattern as primary path).
+        let (created_by, created_at) = {
+            let sap_code_for_user = header.sap_source_code.clone();
+            if let (Some(ref code), Some(ref priors)) = (sap_code_for_user, &self.loaded_priors) {
+                if let Some(uid) = priors.sample_user_for_source(code, &mut self.rng) {
+                    let new_created_at = if let Some((hour, _)) =
+                        priors.sample_timestamp_for_user(&uid, &mut self.rng)
+                    {
+                        let base = header.created_at;
+                        base.date_naive()
+                            .and_hms_opt(hour, 0, 0)
+                            .map(|naive| naive.and_utc())
+                            .unwrap_or(base)
+                    } else {
+                        header.created_at
+                    };
+                    (uid, new_created_at)
+                } else {
+                    (created_by, header.created_at)
+                }
+            } else {
+                (created_by, header.created_at)
+            }
+        };
+
         header.created_by = created_by;
+        header.created_at = created_at;
         header.user_persona = user_persona;
         header.business_process = Some(business_process);
         header.document_type = Self::document_type_for_process(business_process).to_string();
@@ -1828,8 +2690,36 @@ impl JournalEntryGenerator {
         );
         entry.add_line(debit_line);
 
-        // Select a credit account
-        let credit_account = self.select_credit_account().account_number.clone();
+        // SP3.12 W3 — Select a credit account for the batched entry.
+        // When priors are loaded and this entry has a SAP source code, use the
+        // per-source GL-account conditional (same as the primary generate() path).
+        // This prevents batched entries from adding legacy-CoA accounts to the
+        // Source-Source projection graph, which was inflating graph density and
+        // driving the P3 ClusteringGap metric above 30× DR.
+        let credit_fallback = self.select_credit_account().account_number.clone();
+        let credit_account = {
+            let priors_opt = &mut self.loaded_priors;
+            let rng_ref = &mut self.rng;
+            if let Some(priors) = priors_opt {
+                // SP4.6 — role-aware GL for the batched-entry credit line.
+                // Try (source, "CR") first, then source-marginal, then fallback.
+                let sp46_gl = entry
+                    .header
+                    .sap_source_code
+                    .as_deref()
+                    .and_then(|code| priors.sample_gl_for_source_role(code, "CR", rng_ref));
+                if let Some(gl) = sp46_gl {
+                    gl
+                } else {
+                    let sp37_gl = entry.header.sap_source_code.as_deref().and_then(|code| {
+                        priors.sample_attribute_for_source(code, "gl_account", rng_ref)
+                    });
+                    sp37_gl.unwrap_or(credit_fallback)
+                }
+            } else {
+                credit_fallback
+            }
+        };
         let credit_line =
             JournalEntryLine::credit(entry.header.document_id, 2, credit_account, total_amount);
         entry.add_line(credit_line);
@@ -2689,6 +3579,23 @@ impl ParallelGenerator for JournalEntryGenerator {
                     gen.drift_controller = Some(dc.clone());
                 }
 
+                // SP3: share Arc-wrapped priors with all sub-generators.
+                // Clone is O(1) — increments the reference count only.
+                gen.loaded_priors = self.loaded_priors.clone();
+
+                // SP3.4: each partition starts with a fresh calibrator so
+                // observations are partition-local (avoids cross-partition
+                // state contamination).  Target rates and window size are
+                // cloned from the parent; accumulated state is not.
+                if let Some(ref cal) = self.velocity_calibrator {
+                    let mut fresh = crate::velocity_calibrator::VelocityCalibrator::new(
+                        cal.target_trigger_rates.clone(),
+                        cal.n_lines_between_calibrations,
+                    );
+                    fresh.current_values = cal.current_values.clone();
+                    gen.velocity_calibrator = Some(fresh);
+                }
+
                 gen
             })
             .collect()
@@ -2696,7 +3603,6 @@ impl ParallelGenerator for JournalEntryGenerator {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use crate::ChartOfAccountsGenerator;
@@ -3497,6 +4403,145 @@ mod tests {
                     entry.header.posting_date,
                 );
             }
+        }
+    }
+
+    /// SP3.5b — verify that `apply_calibration_step` mutates the generator's
+    /// amount_sampler when a `"amounts.lognormal_sigma"` step is applied, and
+    /// that `"amounts.round_dollar_share"` likewise updates the probability.
+    #[test]
+    fn apply_calibration_step_updates_lognormal_sigma() {
+        let mut coa_gen =
+            ChartOfAccountsGenerator::new(CoAComplexity::Small, IndustrySector::Manufacturing, 42);
+        let coa = Arc::new(coa_gen.generate());
+
+        let mut gen = JournalEntryGenerator::new_with_params(
+            TransactionConfig::default(),
+            coa,
+            vec!["1000".to_string()],
+            NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
+            NaiveDate::from_ymd_opt(2024, 12, 31).unwrap(),
+            42,
+        );
+
+        let baseline_sigma = gen.amount_sampler.lognormal_sigma();
+
+        let step_sigma = crate::velocity_calibrator::CalibrationStep {
+            rule_id: "R6".to_string(),
+            parameter: "amounts.lognormal_sigma".to_string(),
+            delta: 0.01,
+            new_value: baseline_sigma + 0.01,
+        };
+        gen.apply_calibration_step(&step_sigma);
+        assert!(
+            (gen.amount_sampler.lognormal_sigma() - (baseline_sigma + 0.01)).abs() < 1e-9,
+            "lognormal_sigma should be updated to {}",
+            baseline_sigma + 0.01
+        );
+
+        let baseline_round = gen.amount_sampler.round_number_probability();
+        let step_round = crate::velocity_calibrator::CalibrationStep {
+            rule_id: "R9".to_string(),
+            parameter: "amounts.round_dollar_share".to_string(),
+            delta: -0.005,
+            new_value: (baseline_round - 0.005).max(0.0),
+        };
+        gen.apply_calibration_step(&step_round);
+        let expected = (baseline_round - 0.005).max(0.0).clamp(0.0, 1.0);
+        assert!(
+            (gen.amount_sampler.round_number_probability() - expected).abs() < 1e-9,
+            "round_number_probability should be updated to {}",
+            expected
+        );
+    }
+
+    #[test]
+    fn master_data_resolver_fills_every_pii_kind() {
+        use datasynth_core::distributions::text_taxonomy::{
+            PiiPlaceholderKind, PlaceholderResolver,
+        };
+        let mut r = MasterDataResolver {
+            companies: vec!["Acme AG".to_string()],
+            persons: vec!["Hans Muster".to_string()],
+            streets: vec!["Hauptstrasse 1".to_string()],
+            patients: vec!["Patient X".to_string()],
+        };
+        let mut rng = rand::rng();
+        assert_eq!(r.resolve(PiiPlaceholderKind::Company, &mut rng), "Acme AG");
+        assert_eq!(
+            r.resolve(PiiPlaceholderKind::Person, &mut rng),
+            "Hans Muster"
+        );
+        assert_eq!(
+            r.resolve(PiiPlaceholderKind::Street, &mut rng),
+            "Hauptstrasse 1"
+        );
+        assert_eq!(
+            r.resolve(PiiPlaceholderKind::Patient, &mut rng),
+            "Patient X"
+        );
+    }
+
+    #[test]
+    fn master_data_resolver_empty_pool_falls_back() {
+        use datasynth_core::distributions::text_taxonomy::{
+            PiiPlaceholderKind, PlaceholderResolver,
+        };
+        let mut r = MasterDataResolver::default();
+        let mut rng = rand::rng();
+        let v = r.resolve(PiiPlaceholderKind::Company, &mut rng);
+        assert!(!v.is_empty());
+    }
+
+    /// Pin the shape invariant on `synthetic_patient_pool`: each entry, once
+    /// filled into the canonical `*{patient} G:{date}…` template the corpus
+    /// DZ/RG/RS classes use, must not introduce a *structural* residual-PII
+    /// shape. Regression guard for the JE_79-class smoke failure: the old pool
+    /// (`"B. Muster"`, `"A. Beispiel"`, …) shaped each fill as
+    /// `<initial>. <surname>` which `RE_INITIAL_SURNAME` flags.
+    ///
+    /// NB: the `given_name` pattern is deliberately EXCLUDED here. These are
+    /// synthetic *fill* values that are name-shaped by design (they fill
+    /// `{patient}`); `given_name` is a template-scan signal for un-tokenized
+    /// corpus names, not a check on legitimate synthetic output.
+    #[test]
+    fn synthetic_patient_pool_entries_pass_residual_scan() {
+        use datasynth_core::distributions::text_taxonomy::PlaceholderGrammar;
+        for name in synthetic_patient_pool("de_CH") {
+            let filled = format!("*{name} G:2024-01-15 E:2024-01-20 A:2024-02-01");
+            let structural: Vec<_> = PlaceholderGrammar::residual_pii_scan(&filled)
+                .into_iter()
+                .filter(|h| h.pattern != "given_name")
+                .collect();
+            assert!(
+                structural.is_empty(),
+                "synthetic patient name {name:?} fills to PII-shaped {filled:?}: {structural:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn master_data_resolver_fallbacks_are_non_empty_and_placeholder_free() {
+        use datasynth_core::distributions::text_taxonomy::{
+            PiiPlaceholderKind, PlaceholderResolver,
+        };
+        // Verify fallback constants for every kind are non-empty and contain
+        // no `{…}` literal placeholders (the resolver must never leak the
+        // unfilled placeholder token into emitted text).
+        let mut r = MasterDataResolver::default();
+        let mut rng = rand::rng();
+        for kind in [
+            PiiPlaceholderKind::Company,
+            PiiPlaceholderKind::Person,
+            PiiPlaceholderKind::Street,
+            PiiPlaceholderKind::Patient,
+        ] {
+            let v = r.resolve(kind, &mut rng);
+            assert!(!v.is_empty(), "fallback for {kind:?} must be non-empty");
+            assert!(
+                !v.contains('{'),
+                "fallback for {kind:?} must not contain a placeholder token"
+            );
         }
     }
 }

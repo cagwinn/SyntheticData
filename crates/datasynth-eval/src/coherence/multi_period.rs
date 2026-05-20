@@ -15,7 +15,7 @@ pub struct PeriodData {
 /// Configurable thresholds for multi-period coherence checks.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MultiPeriodThresholds {
-    /// Minimum acceptable balance continuity rate (opening[i] == closing[i-1]).
+    /// Minimum acceptable balance continuity rate (opening\[i\] == closing[i-1]).
     /// Default: 1.0 (exact match).
     pub min_balance_continuity: f64,
     /// Maximum coefficient of variation for transaction volumes across periods.
@@ -39,7 +39,7 @@ impl Default for MultiPeriodThresholds {
 /// Result of multi-period coherence analysis.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MultiPeriodAnalysis {
-    /// Fraction of consecutive period pairs where opening_balance[i] == closing_balance[i-1].
+    /// Fraction of consecutive period pairs where opening_balance\[i\] == closing_balance[i-1].
     pub balance_continuity_rate: f64,
     /// Coefficient of variation of transaction counts across periods.
     pub volume_variance_cv: f64,

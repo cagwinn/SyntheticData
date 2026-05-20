@@ -460,7 +460,7 @@ pub struct CguConfig {
 }
 
 /// One CGU definition entry.  Mirrors
-/// [`datasynth_core::models::cgu::CashGeneratingUnit`] so the manifest
+/// `datasynth_core::models::cgu::CashGeneratingUnit` so the manifest
 /// builder can lift it directly into the manifest plan.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct CguDefinitionEntry {
@@ -508,7 +508,7 @@ pub struct CguGoodwillAllocationEntry {
 /// `entity_code` and `parent_entity_code` are NOT carried here — the
 /// manifest builder fills them from the host [`EntityConfig::code`]
 /// and [`EntityConfig::parent_code`] respectively when lifting this
-/// entry into a [`datasynth_core::models::OwnershipChangeEvent`].
+/// entry into a `datasynth_core::models::OwnershipChangeEvent`.
 /// The host entity must therefore have `parent_code` set.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct OwnershipChangeEntry {

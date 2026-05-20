@@ -317,14 +317,14 @@ fx:
 }
 
 // ---------------------------------------------------------------------------
-// Positive test — full mini_nestle.yaml must pass validation
+// Positive test — full mini_acme.yaml must pass validation
 // ---------------------------------------------------------------------------
 
 #[test]
 fn test_valid_config_passes() {
-    let yaml = include_str!("fixtures/mini_nestle.yaml");
+    let yaml = include_str!("fixtures/mini_acme.yaml");
     let cfg: GroupConfig = serde_yaml::from_str(yaml).expect("fixture must parse");
-    validate(&cfg).expect("mini_nestle.yaml must pass validation");
+    validate(&cfg).expect("mini_acme.yaml must pass validation");
 }
 
 // ---------------------------------------------------------------------------

@@ -4,8 +4,8 @@
 //! which entity is in scope, which financial statement areas are covered,
 //! and what the applicable materiality threshold is.
 //!
-//! Each scope record links to an [`AuditEngagement`] and is referenced
-//! by [`CombinedRiskAssessment`] records to indicate the planning boundary.
+//! Each scope record links to an `AuditEngagement` and is referenced
+//! by `CombinedRiskAssessment` records to indicate the planning boundary.
 
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};

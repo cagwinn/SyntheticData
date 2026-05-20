@@ -1,12 +1,12 @@
-//! Task 11.1 — Mini-Nestlé golden archive harness.
+//! Task 11.1 — Mini-Acme golden archive harness.
 //!
 //! Two `#[ignore]`d tests that anchor the v5.0 standalone pipeline to a
-//! committed Mini-Nestlé reference archive at
-//! `tests/golden/mini_nestle/`:
+//! committed Mini-Acme reference archive at
+//! `tests/golden/mini_acme/`:
 //!
 //! 1. **`check_against_golden`** — runs [`generate_standalone`] over the
-//!    Mini-Nestlé fixture, then walks the freshly generated archive
-//!    side-by-side with `tests/golden/mini_nestle/` and asserts every
+//!    Mini-Acme fixture, then walks the freshly generated archive
+//!    side-by-side with `tests/golden/mini_acme/` and asserts every
 //!    file matches byte-for-byte.  Mismatches are dumped to
 //!    `target/golden_diff.txt` (a list of paths and the per-file
 //!    expected-vs-actual length so the regen workflow has something to
@@ -15,7 +15,7 @@
 //!    empty — run regenerate_golden first" message.
 //!
 //! 2. **`regenerate_golden`** — same setup, but copies the freshly
-//!    generated archive into `tests/golden/mini_nestle/` (overwriting),
+//!    generated archive into `tests/golden/mini_acme/` (overwriting),
 //!    so a future `check_against_golden` will pass.  Run with:
 //!
 //!    ```text
@@ -36,7 +36,7 @@
 //!
 //! # `#[ignore]` rationale
 //!
-//! [`generate_standalone`] over Mini-Nestlé sequences five full
+//! [`generate_standalone`] over Mini-Acme sequences five full
 //! [`datasynth_runtime::EnhancedOrchestrator`] runs back-to-back inside
 //! one process; each entity peaks at ~17 GiB RSS for ~15 minutes, so
 //! the combined archive run is ~85 GiB peak / 60+ min total.  Running
@@ -138,21 +138,21 @@ fn diff_archives(generated: &Path, golden: &Path) -> Vec<String> {
     diffs
 }
 
-/// Load and parse the canonical Mini-Nestlé fixture.  Trim only when
+/// Load and parse the canonical Mini-Acme fixture.  Trim only when
 /// the trim is itself part of the test (this harness uses the full
 /// 5-entity fixture).
-fn load_mini_nestle_config() -> GroupConfig {
-    let yaml = include_str!("fixtures/mini_nestle.yaml");
-    serde_yaml::from_str(yaml).expect("mini_nestle.yaml must parse into GroupConfig")
+fn load_mini_acme_config() -> GroupConfig {
+    let yaml = include_str!("fixtures/mini_acme.yaml");
+    serde_yaml::from_str(yaml).expect("mini_acme.yaml must parse into GroupConfig")
 }
 
 /// Path to the committed golden archive under
-/// `crates/datasynth-group/tests/golden/mini_nestle/`.
+/// `crates/datasynth-group/tests/golden/mini_acme/`.
 fn golden_archive_path() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("tests")
         .join("golden")
-        .join("mini_nestle")
+        .join("mini_acme")
 }
 
 /// Standalone options for golden-archive runs: sequential shards so
@@ -185,16 +185,16 @@ fn copy_dir_recursive(src: &Path, dst: &Path) {
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
-/// Runs `generate_standalone` over the Mini-Nestlé fixture and
+/// Runs `generate_standalone` over the Mini-Acme fixture and
 /// byte-compares the resulting archive against the committed golden at
-/// `tests/golden/mini_nestle/`.
+/// `tests/golden/mini_acme/`.
 ///
 /// On mismatch, dumps the per-file diff list to `target/golden_diff.txt`
 /// (relative to `CARGO_TARGET_DIR`) and panics with the path so the
 /// failure is greppable from CI logs.
 ///
 /// **First-run bootstrap:** until `regenerate_golden` is run on the
-/// XXL VM, `tests/golden/mini_nestle/` contains only a `.gitkeep`
+/// XXL VM, `tests/golden/mini_acme/` contains only a `.gitkeep`
 /// placeholder.  This test fails with `"golden archive is empty — run
 /// regenerate_golden first"` so the gap is explicit rather than a
 /// false-positive `ok`.
@@ -215,12 +215,12 @@ fn check_against_golden() {
         );
     }
 
-    let cfg = load_mini_nestle_config();
+    let cfg = load_mini_acme_config();
     let tmp = TempDir::new().expect("tempdir");
     let out_dir = tmp.path();
 
     let _summary = generate_standalone(&cfg, out_dir, &deterministic_opts())
-        .expect("generate_standalone must succeed for Mini-Nestlé");
+        .expect("generate_standalone must succeed for Mini-Acme");
 
     let diffs = diff_archives(out_dir, &golden);
     if !diffs.is_empty() {
@@ -247,7 +247,7 @@ fn check_against_golden() {
 }
 
 /// Same as `check_against_golden`, but copies the freshly generated
-/// archive INTO `tests/golden/mini_nestle/` (overwriting any existing
+/// archive INTO `tests/golden/mini_acme/` (overwriting any existing
 /// content).  Use this after intentional schema or determinism changes
 /// that move the canonical output.
 ///
@@ -255,12 +255,12 @@ fn check_against_golden() {
 #[test]
 #[ignore = "regenerate"]
 fn regenerate_golden() {
-    let cfg = load_mini_nestle_config();
+    let cfg = load_mini_acme_config();
     let tmp = TempDir::new().expect("tempdir");
     let out_dir = tmp.path();
 
     let _summary = generate_standalone(&cfg, out_dir, &deterministic_opts())
-        .expect("generate_standalone must succeed for Mini-Nestlé");
+        .expect("generate_standalone must succeed for Mini-Acme");
 
     let golden = golden_archive_path();
     // Wipe everything except .gitkeep so a stale layout doesn't survive.

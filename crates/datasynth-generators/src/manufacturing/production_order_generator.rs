@@ -458,7 +458,6 @@ fn next_month_start(date: NaiveDate) -> NaiveDate {
 // ---------------------------------------------------------------------------
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

@@ -1,5 +1,5 @@
-id: "MINI_NESTLE_2024_Q1"
-name: "Mini Nestlé Reference Group"
+id: "MINI_ACME_2024_Q1"
+name: "Mini Acme Reference Group"
 presentation_currency: "CHF"
 period: { start_date: "2024-01-01", length: quarterly }
 seed: 0x1234567890ABCDEF
@@ -20,32 +20,32 @@ scoping_profiles:
     audit: { generate_workpapers: true, min_team_size: 2, max_team_size: 4 }
 
 ownership:
-  parent_entity_code: NESTLE_SA
+  parent_entity_code: ACME_SA
   entities:
-    - { code: NESTLE_SA, country: CH, functional_currency: CHF,
+    - { code: ACME_SA, country: CH, functional_currency: CHF,
         scoping_profile: significant, consolidation_method: parent }
-    - { code: NESTLE_USA, country: US, functional_currency: USD,
+    - { code: ACME_USA, country: US, functional_currency: USD,
         scoping_profile: significant, consolidation_method: full,
-        ownership_percent: 1.0, parent_code: NESTLE_SA,
+        ownership_percent: 1.0, parent_code: ACME_SA,
         accounting_framework: us_gaap }
-    - { code: NESTLE_DE, country: DE, functional_currency: EUR,
+    - { code: ACME_DE, country: DE, functional_currency: EUR,
         scoping_profile: significant, consolidation_method: full,
-        ownership_percent: 0.80, parent_code: NESTLE_SA,
+        ownership_percent: 0.80, parent_code: ACME_SA,
         accounting_framework: hgb }      # bridges HGB → IFRS at aggregate
-    - { code: NESTLE_BR, country: BR, functional_currency: BRL,
+    - { code: ACME_BR, country: BR, functional_currency: BRL,
         scoping_profile: material, consolidation_method: full,
-        ownership_percent: 1.0, parent_code: NESTLE_SA }
-    - { code: NESTLE_JV, country: CH, functional_currency: CHF,
+        ownership_percent: 1.0, parent_code: ACME_SA }
+    - { code: ACME_JV, country: CH, functional_currency: CHF,
         scoping_profile: material, consolidation_method: equity_method,
-        ownership_percent: 0.50, parent_code: NESTLE_SA }
+        ownership_percent: 0.50, parent_code: ACME_SA }
 
 intercompany:
   relationships:
-    - { seller: NESTLE_SA, buyer: NESTLE_USA, types: [goods_sale, royalty],
+    - { seller: ACME_SA, buyer: ACME_USA, types: [goods_sale, royalty],
         annual_volume: 5_000_000, transfer_pricing: cost_plus, markup_percent: 0.08 }
-    - { seller: NESTLE_SA, buyer: NESTLE_DE, types: [goods_sale, management_fee],
+    - { seller: ACME_SA, buyer: ACME_DE, types: [goods_sale, management_fee],
         annual_volume: 3_000_000, transfer_pricing: cost_plus, markup_percent: 0.06 }
-    - { pattern: { seller: NESTLE_SA, buyer_scoping_profile: any },
+    - { pattern: { seller: ACME_SA, buyer_scoping_profile: any },
         types: [management_fee], per_pair_volume: 200_000 }
   matching: { strategy: manifest_driven, coverage_target: 0.98 }
 
@@ -59,7 +59,7 @@ fx:
   policy: { balance_sheet: closing, income_statement: average, equity: historical }
 
 audit:
-  engagement_id: "EY_MINI_NESTLE_2024_Q1"
+  engagement_id: "EY_MINI_ACME_2024_Q1"
   lead_auditor: EY_ZURICH
   framework: isa
   fsm_blueprint: "builtin:group_fsa"

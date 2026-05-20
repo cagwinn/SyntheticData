@@ -1,15 +1,15 @@
-//! Regression test — manifest generated from Mini-Nestlé fixture must match
+//! Regression test — manifest generated from Mini-Acme fixture must match
 //! the committed golden JSON. Run `cargo test -p datasynth-group --test
 //! manifest_golden regenerate_golden -- --ignored` to update the golden
 //! when a change is intentional.
 
 use datasynth_group::{build_manifest, GroupConfig};
 
-const FIXTURE_PATH: &str = "tests/fixtures/mini_nestle.yaml";
-const GOLDEN_PATH: &str = "tests/golden/mini_nestle_manifest.json";
+const FIXTURE_PATH: &str = "tests/fixtures/mini_acme.yaml";
+const GOLDEN_PATH: &str = "tests/golden/mini_acme_manifest.json";
 
 #[test]
-fn test_mini_nestle_manifest_matches_golden() {
+fn test_mini_acme_manifest_matches_golden() {
     let yaml = std::fs::read_to_string(FIXTURE_PATH).expect("fixture readable");
     let cfg: GroupConfig = serde_yaml::from_str(&yaml).expect("fixture parses");
     let manifest = build_manifest(&cfg).expect("manifest builds");

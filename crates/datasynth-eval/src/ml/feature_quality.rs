@@ -224,7 +224,6 @@ impl Default for FeatureQualityAnalyzer {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

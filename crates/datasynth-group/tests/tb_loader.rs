@@ -100,7 +100,7 @@ fn loads_balanced_single_tb() {
     let tmp = TempDir::new().expect("tempdir");
     let entity_dir = tmp.path();
 
-    let original = balanced_tb("TB-NESTLE_SA-2025-12", "NESTLE_SA");
+    let original = balanced_tb("TB-ACME_SA-2025-12", "ACME_SA");
     // Capture identity-bearing fields before we move `original` into the
     // serialised array — the asserts compare loaded values against these
     // captured copies, avoiding a `.clone()` on the whole TB.
@@ -166,7 +166,7 @@ fn corrupt_json_is_serde_error() {
 #[test]
 fn empty_array_is_aggregate_error() {
     let tmp = TempDir::new().expect("tempdir");
-    let entity_subdir = tmp.path().join("NESTLE_SA");
+    let entity_subdir = tmp.path().join("ACME_SA");
     fs::create_dir_all(&entity_subdir).expect("create entity subdir");
     write_tb_file(&entity_subdir, b"[]");
 
@@ -175,7 +175,7 @@ fn empty_array_is_aggregate_error() {
     match err {
         GroupError::Aggregate(msg) => {
             assert!(
-                msg.contains("NESTLE_SA"),
+                msg.contains("ACME_SA"),
                 "error message must name the entity, got {msg:?}"
             );
             assert!(
@@ -195,13 +195,13 @@ fn empty_array_is_aggregate_error() {
 #[test]
 fn multi_period_archive_picks_latest_period() {
     let tmp = TempDir::new().expect("tempdir");
-    let entity_subdir = tmp.path().join("NESTLE_USA");
+    let entity_subdir = tmp.path().join("ACME_USA");
     fs::create_dir_all(&entity_subdir).expect("create entity subdir");
 
-    let mut tb1 = balanced_tb("TB-NESTLE_USA-2025-11", "NESTLE_USA");
+    let mut tb1 = balanced_tb("TB-ACME_USA-2025-11", "ACME_USA");
     tb1.fiscal_year = 2025;
     tb1.fiscal_period = 11;
-    let mut tb2 = balanced_tb("TB-NESTLE_USA-2025-12", "NESTLE_USA");
+    let mut tb2 = balanced_tb("TB-ACME_USA-2025-12", "ACME_USA");
     tb2.fiscal_year = 2025;
     tb2.fiscal_period = 12;
     write_tb_array(&entity_subdir, &[tb1, tb2]);
@@ -210,7 +210,7 @@ fn multi_period_archive_picks_latest_period() {
         load_entity_trial_balance(&entity_subdir).expect("multi-period archive must succeed");
 
     assert_eq!(
-        loaded.trial_balance_id, "TB-NESTLE_USA-2025-12",
+        loaded.trial_balance_id, "TB-ACME_USA-2025-12",
         "loader must pick the latest fiscal_period (December over November)"
     );
     assert_eq!(loaded.fiscal_year, 2025);
@@ -222,11 +222,11 @@ fn multi_period_archive_picks_latest_period() {
 #[test]
 fn unbalanced_tb_is_aggregate_error() {
     let tmp = TempDir::new().expect("tempdir");
-    let entity_subdir = tmp.path().join("NESTLE_DE");
+    let entity_subdir = tmp.path().join("ACME_DE");
     fs::create_dir_all(&entity_subdir).expect("create entity subdir");
 
     // Force imbalance by adding a large debit without a matching credit.
-    let mut tb = balanced_tb("TB-NESTLE_DE-2025-12", "NESTLE_DE");
+    let mut tb = balanced_tb("TB-ACME_DE-2025-12", "ACME_DE");
     tb.add_line(TrialBalanceLine {
         account_code: "1200".to_string(),
         account_description: "Receivables".to_string(),
@@ -269,13 +269,13 @@ fn unbalanced_tb_is_aggregate_error() {
 #[test]
 fn corrupt_balanced_flag_is_aggregate_error() {
     let tmp = TempDir::new().expect("tempdir");
-    let entity_subdir = tmp.path().join("NESTLE_SA");
+    let entity_subdir = tmp.path().join("ACME_SA");
     fs::create_dir_all(&entity_subdir).expect("create entity subdir");
 
     // Build a balanced TB, then mutate the totals to lie about the
     // balance.  Bypasses `add_line` so `recalculate` never fires —
     // simulating a hand-edited file.
-    let mut tb = balanced_tb("TB-NESTLE_SA-2025-12", "NESTLE_SA");
+    let mut tb = balanced_tb("TB-ACME_SA-2025-12", "ACME_SA");
     tb.total_debits = dec!(10000);
     tb.total_credits = dec!(9000);
     // Leave is_balanced = true on purpose — that's the corruption.

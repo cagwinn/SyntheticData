@@ -84,7 +84,7 @@ pub struct GroupManifest {
     /// Output layout config forwarded verbatim from [`GroupConfig::output`].
     pub output: OutputLayoutConfig,
     /// **v5.3** — IC matching strategy + tolerance.  Forwarded
-    /// verbatim from [`GroupConfig::intercompany::matching`].  v5.2
+    /// verbatim from `GroupConfig::intercompany::matching`.  v5.2
     /// archives that don't carry this field deserialise to the
     /// `Default` (`ManifestDriven`, `tolerance = 0`) — exact-match
     /// behaviour preserved byte-for-byte.

@@ -421,7 +421,6 @@ fn assumption_templates(estimate_type: EstimateType) -> Vec<(&'static str, u32)>
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

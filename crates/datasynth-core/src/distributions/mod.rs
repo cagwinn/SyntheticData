@@ -28,19 +28,24 @@
 //! - **market_drift**: Economic cycles, commodities, price shocks
 //! - **event_timeline**: Event timeline orchestrator
 //! - **drift_recorder**: Ground truth drift label recorder
+//! - **text_taxonomy**: SP6 PII-safe placeholder grammar + conditional template pools
 
 mod advanced_amount;
 mod amount;
 mod behavioral_drift;
+pub mod behavioral_priors;
 mod benford;
 mod beta;
 mod business_day;
 mod conditional;
+pub mod conditional_iet;
 mod copula;
 mod correlation;
+pub mod cross_entity_motifs;
 mod drift;
 mod drift_recorder;
 mod event_timeline;
+pub mod fanout_sampler;
 mod holidays;
 mod industry_profiles;
 mod line_item;
@@ -50,8 +55,10 @@ mod pareto;
 mod period_end;
 mod processing_lag;
 mod seasonality;
+pub mod source_active_window;
 mod temporal;
 mod temporal_context;
+pub mod text_taxonomy;
 mod timezone;
 mod validation;
 mod weibull;
@@ -60,15 +67,23 @@ mod zero_inflated;
 pub use advanced_amount::*;
 pub use amount::*;
 pub use behavioral_drift::*;
+pub use behavioral_priors::{
+    ActiveLifetimePrior, BehavioralPriors, EmpiricalCdf, FanoutPrior, IetSummary, LagSummary,
+    LineCountHistogram, LinesPerJePrior, LognormalParams, PerSourceIetPrior, PostingLagPrior,
+    SourceMixPrior, ACTIVE_LIFETIME_DAY_BUCKETS, FANOUT_BUCKETS, LINE_COUNT_BUCKETS,
+};
 pub use benford::*;
 pub use beta::*;
 pub use business_day::*;
 pub use conditional::*;
+pub use conditional_iet::{ConditionalIETSampler, SourceIetState};
 pub use copula::*;
 pub use correlation::*;
+pub use cross_entity_motifs::CrossEntityMotifSampler;
 pub use drift::*;
 pub use drift_recorder::*;
 pub use event_timeline::*;
+pub use fanout_sampler::{AttributeBucket, BipartiteFanoutSampler};
 pub use holidays::*;
 pub use industry_profiles::*;
 pub use line_item::*;
@@ -78,8 +93,13 @@ pub use pareto::*;
 pub use period_end::*;
 pub use processing_lag::*;
 pub use seasonality::*;
+pub use source_active_window::{ActiveWindow, MultiSegmentActiveWindow, SourceActiveWindow};
 pub use temporal::*;
 pub use temporal_context::*;
+pub use text_taxonomy::{
+    PiiHit, PiiPlaceholderKind, PlaceholderResolver, SyntheticExampleResolver, TaxonomyMeta,
+    TemplateEntry, TemplatePool, TextTaxonomyPrior,
+};
 pub use timezone::*;
 pub use validation::*;
 pub use weibull::*;

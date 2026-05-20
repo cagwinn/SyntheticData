@@ -232,7 +232,6 @@ impl Default for UniquenessAnalyzer {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use std::collections::hash_map::DefaultHasher;

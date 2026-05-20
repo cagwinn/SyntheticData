@@ -220,7 +220,6 @@ impl Default for LineItemAnalyzer {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

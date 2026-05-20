@@ -156,7 +156,6 @@ impl Default for FalsePositiveAnalyzer {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

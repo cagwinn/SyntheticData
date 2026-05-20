@@ -1236,7 +1236,6 @@ fn cost_center_category_to_kosar(category: &datasynth_core::models::CostCenterCa
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::super::sap::SapDialect;
     use super::*;

@@ -630,7 +630,6 @@ pub fn base_rates_usd() -> HashMap<String, Decimal> {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

@@ -472,7 +472,6 @@ fn skr04_classify(account: &str) -> AccountCategory {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

@@ -17,22 +17,22 @@ use datasynth_group::{build_manifest, GroupConfig};
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
-fn load_mini_nestle_manifest() -> GroupManifest {
-    let yaml = include_str!("fixtures/mini_nestle.yaml");
+fn load_mini_acme_manifest() -> GroupManifest {
+    let yaml = include_str!("fixtures/mini_acme.yaml");
     let cfg: GroupConfig =
-        serde_yaml::from_str(yaml).expect("mini_nestle.yaml must parse into GroupConfig");
-    build_manifest(&cfg).expect("mini_nestle.yaml must build a manifest")
+        serde_yaml::from_str(yaml).expect("mini_acme.yaml must parse into GroupConfig");
+    build_manifest(&cfg).expect("mini_acme.yaml must build a manifest")
 }
 
-/// Mirror of `ic_plan.rs::load_manifest_without_ic` — build the mini_nestle
+/// Mirror of `ic_plan.rs::load_manifest_without_ic` — build the mini_acme
 /// manifest with every IC relationship stripped so `derive_ic_pair_plans`
 /// is guaranteed to return an empty list for every entity.
 fn load_manifest_without_ic() -> GroupManifest {
-    let yaml = include_str!("fixtures/mini_nestle.yaml");
+    let yaml = include_str!("fixtures/mini_acme.yaml");
     let mut cfg: GroupConfig =
-        serde_yaml::from_str(yaml).expect("mini_nestle.yaml must parse into GroupConfig");
+        serde_yaml::from_str(yaml).expect("mini_acme.yaml must parse into GroupConfig");
     cfg.intercompany.relationships.clear();
-    build_manifest(&cfg).expect("mutated mini_nestle must still build a manifest")
+    build_manifest(&cfg).expect("mutated mini_acme must still build a manifest")
 }
 
 /// Look up an entity's hex `entity_seed` from the manifest and decode it
@@ -58,22 +58,19 @@ fn expected_entity_seed(manifest: &GroupManifest, entity_code: &str) -> [u8; 32]
 /// `entity_code` and the per-entity seed decoded from the manifest.
 #[test]
 fn test_context_for_known_entity_has_correct_code_and_seed() {
-    let manifest = load_mini_nestle_manifest();
-    let ctx = build_shard_context(&manifest, "NESTLE_SA")
-        .expect("NESTLE_SA is in the mini_nestle fixture");
+    let manifest = load_mini_acme_manifest();
+    let ctx =
+        build_shard_context(&manifest, "ACME_SA").expect("ACME_SA is in the mini_acme fixture");
 
-    assert_eq!(ctx.entity_code, "NESTLE_SA");
-    assert_eq!(
-        ctx.entity_seed,
-        expected_entity_seed(&manifest, "NESTLE_SA")
-    );
+    assert_eq!(ctx.entity_code, "ACME_SA");
+    assert_eq!(ctx.entity_seed, expected_entity_seed(&manifest, "ACME_SA"));
 }
 
 /// Error path: an unknown entity code produces a `GroupError::Config` whose
 /// message names the bad code so caller-side logs pinpoint the typo.
 #[test]
 fn test_context_for_unknown_entity_errors() {
-    let manifest = load_mini_nestle_manifest();
+    let manifest = load_mini_acme_manifest();
     let err = build_shard_context(&manifest, "NOT_REAL")
         .expect_err("unknown entity must produce an error");
     let msg = err.to_string();
@@ -83,20 +80,20 @@ fn test_context_for_unknown_entity_errors() {
     );
 }
 
-/// NESTLE_SA is the common seller in the mini_nestle fixture — it
+/// ACME_SA is the common seller in the mini_acme fixture — it
 /// participates in both explicit relationships *and* the
 /// `buyer_scoping_profile: any` pattern.  It must therefore have at least
 /// one IC JE in the context, every IC JE must be tagged with the pair /
 /// partner metadata, post against its own company code, and balance.
 #[test]
 fn test_context_includes_ic_journal_entries_for_seller() {
-    let manifest = load_mini_nestle_manifest();
-    let ctx = build_shard_context(&manifest, "NESTLE_SA")
-        .expect("NESTLE_SA is in the mini_nestle fixture");
+    let manifest = load_mini_acme_manifest();
+    let ctx =
+        build_shard_context(&manifest, "ACME_SA").expect("ACME_SA is in the mini_acme fixture");
 
     assert!(
         !ctx.extra_journal_entries.is_empty(),
-        "NESTLE_SA is a common seller in the mini_nestle fixture — \
+        "ACME_SA is a common seller in the mini_acme fixture — \
          must produce at least one IC JE; got 0"
     );
 
@@ -110,8 +107,8 @@ fn test_context_includes_ic_journal_entries_for_seller() {
             "JE at position {i} must carry an ic_partner_entity"
         );
         assert_eq!(
-            je.header.company_code, "NESTLE_SA",
-            "JE at position {i} must post against NESTLE_SA"
+            je.header.company_code, "ACME_SA",
+            "JE at position {i} must post against ACME_SA"
         );
         assert!(
             je.is_balanced(),
@@ -133,13 +130,7 @@ fn test_context_for_non_participant_has_no_extra_jes() {
         "fixture wiring: manifest.ic_relationships must be empty for this test"
     );
 
-    for entity_code in [
-        "NESTLE_SA",
-        "NESTLE_USA",
-        "NESTLE_DE",
-        "NESTLE_BR",
-        "NESTLE_JV",
-    ] {
+    for entity_code in ["ACME_SA", "ACME_USA", "ACME_DE", "ACME_BR", "ACME_JV"] {
         let ctx = build_shard_context(&manifest, entity_code)
             .unwrap_or_else(|e| panic!("{entity_code} must build successfully: {e}"));
         assert!(
@@ -162,9 +153,9 @@ fn test_context_for_non_participant_has_no_extra_jes() {
 /// deterministic surface (IC header fields + line accounts / amounts).
 #[test]
 fn test_deterministic_across_calls() {
-    let manifest = load_mini_nestle_manifest();
-    let a = build_shard_context(&manifest, "NESTLE_SA").expect("first call must succeed");
-    let b = build_shard_context(&manifest, "NESTLE_SA").expect("second call must succeed");
+    let manifest = load_mini_acme_manifest();
+    let a = build_shard_context(&manifest, "ACME_SA").expect("first call must succeed");
+    let b = build_shard_context(&manifest, "ACME_SA").expect("second call must succeed");
 
     // Scalar deterministic surface.
     assert_eq!(a.entity_code, b.entity_code);

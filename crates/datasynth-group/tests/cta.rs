@@ -56,9 +56,9 @@ fn compute_cta_returns_dr_minus_cr() {
 #[test]
 fn rollforward_math_closing_equals_opening_plus_period() {
     // Standard rollforward: opening 500 + period 1500 = closing 2000.
-    let r = cta_rollforward("NESTLE_USA", "USD", "CHF", dec!(500), dec!(1500));
+    let r = cta_rollforward("ACME_USA", "USD", "CHF", dec!(500), dec!(1500));
 
-    assert_eq!(r.entity_code, "NESTLE_USA");
+    assert_eq!(r.entity_code, "ACME_USA");
     assert_eq!(r.functional_currency, "USD");
     assert_eq!(r.presentation_currency, "CHF");
     assert_eq!(r.opening_cta, dec!(500));
@@ -67,11 +67,11 @@ fn rollforward_math_closing_equals_opening_plus_period() {
     assert_eq!(r.closing_cta, r.opening_cta + r.period_cta);
 
     // Negative period CTA.
-    let r_neg = cta_rollforward("NESTLE_DE", "EUR", "CHF", dec!(0), dec!(-300));
+    let r_neg = cta_rollforward("ACME_DE", "EUR", "CHF", dec!(0), dec!(-300));
     assert_eq!(r_neg.closing_cta, dec!(-300));
 
     // Zero opening (first period).
-    let r_first = cta_rollforward("NESTLE_BR", "BRL", "CHF", Decimal::ZERO, dec!(750));
+    let r_first = cta_rollforward("ACME_BR", "BRL", "CHF", Decimal::ZERO, dec!(750));
     assert_eq!(r_first.closing_cta, dec!(750));
 }
 
@@ -81,8 +81,8 @@ fn write_cta_rollforward_creates_file_and_round_trips() {
     let out_dir = tmp.path();
 
     let rollforwards = vec![
-        cta_rollforward("NESTLE_USA", "USD", "CHF", dec!(100), dec!(900)),
-        cta_rollforward("NESTLE_DE", "EUR", "CHF", dec!(50), dec!(-150)),
+        cta_rollforward("ACME_USA", "USD", "CHF", dec!(100), dec!(900)),
+        cta_rollforward("ACME_DE", "EUR", "CHF", dec!(50), dec!(-150)),
     ];
 
     let path = write_cta_rollforward(&rollforwards, out_dir).expect("write must succeed");
@@ -125,9 +125,9 @@ fn determinism_two_calls_produce_byte_identical_files() {
     let tmp_b = tempfile::tempdir().expect("tmp b");
 
     let rollforwards = vec![
-        cta_rollforward("NESTLE_USA", "USD", "CHF", dec!(100), dec!(900)),
-        cta_rollforward("NESTLE_DE", "EUR", "CHF", dec!(50), dec!(-150)),
-        cta_rollforward("NESTLE_BR", "BRL", "CHF", Decimal::ZERO, dec!(220)),
+        cta_rollforward("ACME_USA", "USD", "CHF", dec!(100), dec!(900)),
+        cta_rollforward("ACME_DE", "EUR", "CHF", dec!(50), dec!(-150)),
+        cta_rollforward("ACME_BR", "BRL", "CHF", Decimal::ZERO, dec!(220)),
     ];
 
     let p_a = write_cta_rollforward(&rollforwards, tmp_a.path()).expect("write a");

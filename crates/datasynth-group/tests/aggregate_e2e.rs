@@ -1,7 +1,7 @@
 //! Task 9.1 — Aggregate phase driver end-to-end.
 //!
 //! Exercises [`datasynth_group::run_aggregate`] against a hand-built
-//! Mini-Nestlé shard archive — no orchestrator runs.  We synthesise
+//! Mini-Acme shard archive — no orchestrator runs.  We synthesise
 //! per-entity TBs and JEs by writing them to disk in the same shape the
 //! shard runner emits, then drive the aggregate phase against the
 //! synthesised tree.
@@ -41,24 +41,24 @@ use datasynth_group::{
 // ── Fixture helpers ───────────────────────────────────────────────────────────
 
 /// Mirror of `tests/elimination_to_je.rs::load_two_entity_manifest`.
-/// Keep the trim in lockstep so any mini_nestle.yaml change flows
+/// Keep the trim in lockstep so any mini_acme.yaml change flows
 /// through both files.
 fn load_two_entity_manifest() -> GroupManifest {
-    let yaml = include_str!("fixtures/mini_nestle.yaml");
-    let mut cfg: GroupConfig = serde_yaml::from_str(yaml).expect("mini_nestle.yaml must parse");
+    let yaml = include_str!("fixtures/mini_acme.yaml");
+    let mut cfg: GroupConfig = serde_yaml::from_str(yaml).expect("mini_acme.yaml must parse");
 
     cfg.ownership
         .entities
-        .retain(|e| matches!(e.code.as_str(), "NESTLE_SA" | "NESTLE_USA"));
+        .retain(|e| matches!(e.code.as_str(), "ACME_SA" | "ACME_USA"));
 
     cfg.intercompany.relationships.retain(|r| match r {
-        IcRelationshipConfig::Explicit(e) => e.seller == "NESTLE_SA" && e.buyer == "NESTLE_USA",
+        IcRelationshipConfig::Explicit(e) => e.seller == "ACME_SA" && e.buyer == "ACME_USA",
         IcRelationshipConfig::Pattern(_) => false,
     });
     assert_eq!(
         cfg.intercompany.relationships.len(),
         1,
-        "trim must leave exactly one explicit NESTLE_SA→NESTLE_USA relationship",
+        "trim must leave exactly one explicit ACME_SA→ACME_USA relationship",
     );
 
     if let Some(p2) = cfg.tax.pillar_two.as_mut() {
@@ -81,7 +81,7 @@ fn period_end() -> NaiveDate {
 /// the IC posting effects so the consolidated BS identity holds after
 /// IC eliminations are applied.
 ///
-/// The trimmed Mini-Nestlé fixture's explicit SA→USA `goods_sale`
+/// The trimmed Mini-Acme fixture's explicit SA→USA `goods_sale`
 /// relationship resolves to `annual_volume / avg_amount(GoodsSale)`
 /// = `5_000_000 / 50_000` = **100 pairs**.  Each side's IC JEs total
 /// `5,000,000` on the IC clearing accounts (`1150` for seller AR,
@@ -101,7 +101,7 @@ fn period_end() -> NaiveDate {
 ///
 /// # Layout (per entity)
 ///
-/// **Seller (NESTLE_SA)**:
+/// **Seller (ACME_SA)**:
 /// ```text
 /// DR cash                 10,000
 /// DR AR                    5,000
@@ -111,7 +111,7 @@ fn period_end() -> NaiveDate {
 /// CR retained earnings 5,009,000   ← closed-period RE incl. IC sales
 /// ```
 ///
-/// **Buyer (NESTLE_USA)**:
+/// **Buyer (ACME_USA)**:
 /// ```text
 /// DR cash                 10,000
 /// DR AR                    5,000
@@ -195,7 +195,7 @@ fn make_balanced_tb(entity_code: &str) -> TrialBalance {
     // balanced and the consolidated BS identity honest after IC
     // eliminations.  Total IC volume = 100 pairs × 50_000 each =
     // 5_000_000, mirroring the trimmed manifest's resolved IC plan.
-    if entity_code == "NESTLE_SA" {
+    if entity_code == "ACME_SA" {
         // Seller — IC AR (1150) booked, revenue closed into RE.
         push_dr(
             &mut tb,
@@ -262,7 +262,7 @@ fn write_entity_archive(root: &Path, entity_code: &str, tb: &TrialBalance, jes: 
         .expect("write journal_entries.json");
 }
 
-/// Materialise the full Mini-Nestlé two-entity shard archive in `root`.
+/// Materialise the full Mini-Acme two-entity shard archive in `root`.
 /// Each entity gets:
 /// - one balanced TB at `period_close/trial_balances.json`,
 /// - the IC JE legs the manifest derives for that entity at
@@ -308,13 +308,13 @@ fn run_aggregate_writes_full_artifact_set_in_emission_order() {
     assert_eq!(summary.as_of_date, manifest.period.end);
     assert_eq!(
         summary.entities_processed,
-        vec!["NESTLE_SA".to_string(), "NESTLE_USA".to_string()],
+        vec!["ACME_SA".to_string(), "ACME_USA".to_string()],
         "both entities present, sorted lexicographically",
     );
     assert!(summary.entities_missing.is_empty());
     assert!(
         summary.deferred_entities.is_empty(),
-        "trimmed Mini-Nestlé has no equity-method investees",
+        "trimmed Mini-Acme has no equity-method investees",
     );
     assert!(
         summary.matched_pairs > 0,
@@ -374,7 +374,7 @@ fn run_aggregate_writes_full_artifact_set_in_emission_order() {
 
     // ── v5.10 je_network artefacts ─────────────────────────────────
     // Per-entity files
-    for entity in ["NESTLE_SA", "NESTLE_USA"] {
+    for entity in ["ACME_SA", "ACME_USA"] {
         let entity_csv = root
             .join("entities")
             .join(entity)
@@ -435,7 +435,7 @@ fn run_aggregate_writes_full_artifact_set_in_emission_order() {
         );
     }
 
-    // At least one row should have is_eliminated=true (Mini-Nestlé has
+    // At least one row should have is_eliminated=true (Mini-Acme has
     // matched IC pairs that produce eliminations).
     let has_elim = consol_body.lines().skip(1).any(|l| {
         // find `,true,` in the right column position is fragile; just
@@ -468,16 +468,16 @@ fn run_aggregate_strict_mode_errors_on_missing_shard() {
     let tmp = TempDir::new().expect("tempdir");
     let root = tmp.path();
 
-    // Materialise only NESTLE_SA — leave NESTLE_USA missing.
-    let plans = derive_ic_pair_plans(&manifest, "NESTLE_SA");
+    // Materialise only ACME_SA — leave ACME_USA missing.
+    let plans = derive_ic_pair_plans(&manifest, "ACME_SA");
     let jes = inject_ic_journal_entries(
         &plans,
         &InjectionCtx {
-            entity_code: "NESTLE_SA".to_string(),
+            entity_code: "ACME_SA".to_string(),
         },
     );
-    let tb = make_balanced_tb("NESTLE_SA");
-    write_entity_archive(root, "NESTLE_SA", &tb, &jes);
+    let tb = make_balanced_tb("ACME_SA");
+    write_entity_archive(root, "ACME_SA", &tb, &jes);
 
     let opts = AggregateOptions {
         prior_period_aggregate: None,
@@ -489,7 +489,7 @@ fn run_aggregate_strict_mode_errors_on_missing_shard() {
     match err {
         GroupError::Aggregate(msg) => {
             assert!(
-                msg.contains("NESTLE_USA"),
+                msg.contains("ACME_USA"),
                 "error must name the missing entity: {msg}",
             );
             assert!(
@@ -507,16 +507,16 @@ fn run_aggregate_tolerate_missing_shards_continues_on_partial_archive() {
     let tmp = TempDir::new().expect("tempdir");
     let root = tmp.path();
 
-    // Materialise only NESTLE_SA — leave NESTLE_USA missing.
-    let plans = derive_ic_pair_plans(&manifest, "NESTLE_SA");
+    // Materialise only ACME_SA — leave ACME_USA missing.
+    let plans = derive_ic_pair_plans(&manifest, "ACME_SA");
     let jes = inject_ic_journal_entries(
         &plans,
         &InjectionCtx {
-            entity_code: "NESTLE_SA".to_string(),
+            entity_code: "ACME_SA".to_string(),
         },
     );
-    let tb = make_balanced_tb("NESTLE_SA");
-    write_entity_archive(root, "NESTLE_SA", &tb, &jes);
+    let tb = make_balanced_tb("ACME_SA");
+    write_entity_archive(root, "ACME_SA", &tb, &jes);
 
     let opts = AggregateOptions {
         prior_period_aggregate: None,
@@ -527,8 +527,8 @@ fn run_aggregate_tolerate_missing_shards_continues_on_partial_archive() {
     let summary =
         run_aggregate(&manifest, root, root, &opts).expect("tolerate-missing must succeed");
 
-    assert_eq!(summary.entities_processed, vec!["NESTLE_SA".to_string()]);
-    assert_eq!(summary.entities_missing, vec!["NESTLE_USA".to_string()]);
+    assert_eq!(summary.entities_processed, vec!["ACME_SA".to_string()]);
+    assert_eq!(summary.entities_missing, vec!["ACME_USA".to_string()]);
     // No counterpart for SA's IC legs ⇒ all unmatched, zero matched.
     assert_eq!(
         summary.matched_pairs, 0,
@@ -563,7 +563,7 @@ fn run_aggregate_empty_archive_with_tolerate_missing_produces_zero_summary() {
     assert!(summary.entities_processed.is_empty());
     assert_eq!(
         summary.entities_missing,
-        vec!["NESTLE_SA".to_string(), "NESTLE_USA".to_string()],
+        vec!["ACME_SA".to_string(), "ACME_USA".to_string()],
     );
     assert_eq!(summary.matched_pairs, 0);
     assert_eq!(summary.coverage, 0.0);

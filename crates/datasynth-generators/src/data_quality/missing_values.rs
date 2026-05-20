@@ -413,7 +413,6 @@ pub fn random_missing_representation<R: Rng>(rng: &mut R) -> MissingValue {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use rand::SeedableRng;

@@ -477,7 +477,6 @@ fn trim_slice(sorted: &[f64], count: usize) -> &[f64] {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

@@ -210,7 +210,6 @@ fn fresh_device(rng: &mut ChaCha8Rng, is_mobile: bool) -> DeviceFingerprint {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

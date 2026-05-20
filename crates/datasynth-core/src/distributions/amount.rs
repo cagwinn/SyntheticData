@@ -372,6 +372,37 @@ impl AmountSampler {
     pub fn reset(&mut self, seed: u64) {
         self.rng = ChaCha8Rng::seed_from_u64(seed);
     }
+
+    /// SP3.5b — Update the log-normal sigma parameter.
+    ///
+    /// Also rebuilds the internal `LogNormal` distribution so that subsequent
+    /// `sample_lognormal()` calls reflect the new sigma. No-op if `sigma` is
+    /// not positive (guard against calibrator edge-cases).
+    pub fn set_lognormal_sigma(&mut self, sigma: f64) {
+        if sigma > 0.0 {
+            self.config.lognormal_sigma = sigma;
+            if let Ok(dist) = LogNormal::new(self.config.lognormal_mu, sigma) {
+                self.lognormal = dist;
+            }
+        }
+    }
+
+    /// SP3.5b — Update the round-number probability parameter.
+    ///
+    /// Clamped to [0, 1] for safety.
+    pub fn set_round_number_probability(&mut self, p: f64) {
+        self.config.round_number_probability = p.clamp(0.0, 1.0);
+    }
+
+    /// Return the current log-normal sigma (for testing).
+    pub fn lognormal_sigma(&self) -> f64 {
+        self.config.lognormal_sigma
+    }
+
+    /// Return the current round-number probability (for testing).
+    pub fn round_number_probability(&self) -> f64 {
+        self.config.round_number_probability
+    }
 }
 
 /// Sampler for currency exchange rates.
@@ -424,7 +455,6 @@ impl ExchangeRateSampler {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

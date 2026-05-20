@@ -139,6 +139,8 @@ datasynth-group           → Group audit simulation engine (manifest / shard / 
 | audit/ | engagement, workpaper, evidence, risk, finding, judgment generators |
 | relationships/ | entity_graph_generator for cross-process links and relationship strength |
 
+- priors_loader.rs: SP3 — loads industry-priors `.dsf` bundle into runtime samplers (`ConditionalIETSampler`, `BipartiteFanoutSampler`, `MultiSegmentActiveWindow`, `CrossEntityMotifSampler`, optional `VelocityCalibrator`). Opt-in via `industry_profile.priors.enabled: true`. The shipped bundles are **behavioral-only** — they carry `behavioral.yaml` + `privacy_audit.json` only; `schema.yaml`/`statistics.yaml` are intentionally absent on the parquet-extraction path. See [docs/real-world-priors.md](docs/real-world-priors.md) for the full layout.
+
 ### Server (datasynth-server/src/)
 
 - REST: `/api/config`, `/api/stream/{start|stop|pause|resume}`, `/api/stream/trigger/{pattern}`
@@ -168,6 +170,8 @@ datasynth-data fingerprint validate ./fp.dsf
 datasynth-data fingerprint evaluate --fingerprint ./fp.dsf --synthetic ./synthetic/
 ```
 
+- behavioral: per-industry behavioral priors (SP2) — source-mix, per-Source IET, lines-per-JE, active lifetime, fan-out, posting-lag. Bundles in `crates/datasynth-generators/resources/priors/`. CLI: `datasynth-data fingerprint extract --behavioral --industry X` / `aggregate-industry` / `info --behavioral`. Bundles are behavioral-only — see [docs/real-world-priors.md](docs/real-world-priors.md).
+
 ### Evaluation Module (datasynth-eval/src/)
 
 - statistical/: Benford's Law, distributions, temporal patterns
@@ -175,6 +179,7 @@ datasynth-data fingerprint evaluate --fingerprint ./fp.dsf --synthetic ./synthet
 - quality/: Completeness, duplicates, format validation
 - ml/: Feature distributions, label quality, splits
 - enhancement/: AutoTuner generates config patches from evaluation gaps
+- behavioral_fidelity/: Sajja 2026 P1-P4 metrics adapted to GL (Source / TP entity profile) with degradation-ratio noise-floor normalisation. CLI: `datasynth-data behavioral score`.
 
 ### COSO Framework (datasynth-core/src/models/coso.rs)
 

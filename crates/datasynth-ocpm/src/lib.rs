@@ -1,4 +1,4 @@
-#![deny(clippy::unwrap_used)]
+#![cfg_attr(not(test), deny(clippy::unwrap_used))]
 //! Object-Centric Process Mining (OCPM) module for synthetic data generation.
 //!
 //! This crate provides OCPM data structures compatible with the OCEL 2.0 standard,

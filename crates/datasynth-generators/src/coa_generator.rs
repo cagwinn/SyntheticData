@@ -1,5 +1,6 @@
 //! Chart of Accounts generator.
 
+use rand::RngExt;
 use tracing::debug;
 
 use datasynth_core::accounts::{
@@ -40,6 +41,187 @@ pub struct ChartOfAccountsGenerator {
     /// specific 6-digit sub-accounts using the embedded packs in
     /// [`datasynth_core::industry_packs`]. Default: `false`.
     expand_industry_subaccounts: bool,
+}
+
+// ---------------------------------------------------------------------------
+// SP4.2 W7.1 — Public free function for CoA semantic overlay
+// ---------------------------------------------------------------------------
+
+/// SP4.2 W7.1 — Overlay corpus account semantics from the bundled prior.
+///
+/// For each `GLAccount` in `coa` whose `account_number` appears in `prior`,
+/// overwrite `short_description`, `long_description`, `account_class`,
+/// `account_class_name`, `account_sub_class`, and `account_sub_class_name`
+/// with values from the prior.  Accounts not in the prior keep their
+/// synthetic defaults so structural consistency is preserved.
+///
+/// Returns the number of accounts that were enriched.
+pub fn overlay_coa_semantic(
+    coa: &mut ChartOfAccounts,
+    prior: &datasynth_core::distributions::behavioral_priors::CoaSemanticPrior,
+) -> usize {
+    let mut applied = 0usize;
+    for account in coa.accounts.iter_mut() {
+        if let Some(sem) = prior.accounts.get(&account.account_number) {
+            if !sem.description.is_empty() {
+                account.short_description.clone_from(&sem.description);
+                account.long_description.clone_from(&sem.description);
+            }
+            if let Some(ref cls) = sem.account_class {
+                if !cls.is_empty() {
+                    account.account_class.clone_from(cls);
+                }
+            }
+            if let Some(ref cls_name) = sem.account_class_name {
+                if !cls_name.is_empty() {
+                    account.account_class_name.clone_from(cls_name);
+                }
+            }
+            if let Some(ref sub) = sem.account_sub_class {
+                if !sub.is_empty() {
+                    account.account_sub_class.clone_from(sub);
+                }
+            }
+            if let Some(ref sub_name) = sem.account_sub_class_name {
+                if !sub_name.is_empty() {
+                    account.account_sub_class_name.clone_from(sub_name);
+                }
+            }
+            applied += 1;
+        }
+    }
+    applied
+}
+
+// ---------------------------------------------------------------------------
+// SP4.2 W8.2 — Remap synthetic account numbers to prior-matched corpus ones
+// ---------------------------------------------------------------------------
+
+/// SP4.2 W8.2 — Replace synthetic account numbers with corpus ones from
+/// the prior, preserving each account's `account_type`.  Call this BEFORE
+/// [`overlay_coa_semantic`] so the W7.1 overlay fires at high rate (~80 %).
+///
+/// ### Algorithm
+/// 1. Bucket every prior account by a normalised type string derived from
+///    `AccountSemantic::account_type` (case-insensitive, handles
+///    `"Assets"`/`"Asset"` etc.).
+/// 2. Walk every `GLAccount` in `coa`.  With probability `remap_share`
+///    (default 0.80) replace `account_number` with a uniformly-random prior
+///    account number that shares the same normalised type.  The remaining
+///    20 % keep their synthetic number unchanged so structural variety is
+///    preserved.
+/// 3. Accounts whose type has no prior candidates (e.g. `Statistical`) are
+///    left unchanged regardless of `remap_share`.
+///
+/// Returns the count of accounts whose `account_number` was changed.
+pub fn remap_account_numbers_to_prior<R: rand::Rng>(
+    coa: &mut ChartOfAccounts,
+    prior: &datasynth_core::distributions::behavioral_priors::CoaSemanticPrior,
+    rng: &mut R,
+) -> usize {
+    use std::collections::HashMap;
+
+    /// Normalise the free-text `account_type` string from the prior to match
+    /// the five canonical `AccountType` variants.  Returns `""` for unknown.
+    fn normalise_type(s: &str) -> &'static str {
+        match s.trim().to_lowercase().as_str() {
+            "asset" | "assets" => "asset",
+            "liability" | "liabilities" => "liability",
+            "equity" => "equity",
+            "revenue" | "revenues" | "income" => "revenue",
+            "expense" | "expenses" | "cost" => "expense",
+            _ => "",
+        }
+    }
+
+    // Bucket prior account numbers by normalised type.
+    let mut by_type: HashMap<&'static str, Vec<&String>> = HashMap::new();
+    for (account_number, semantic) in &prior.accounts {
+        let type_key = match &semantic.account_type {
+            Some(t) => normalise_type(t),
+            None => "",
+        };
+        if type_key.is_empty() {
+            continue;
+        }
+        by_type.entry(type_key).or_default().push(account_number);
+    }
+
+    // Also build a fallback bucket with all prior account numbers (used when
+    // the per-type bucket is empty).
+    let all_prior: Vec<&String> = prior.accounts.keys().collect();
+
+    const REMAP_SHARE: f64 = 0.80;
+    let mut remapped = 0usize;
+
+    for account in coa.accounts.iter_mut() {
+        if rng.random_range(0.0..1.0_f64) >= REMAP_SHARE {
+            continue;
+        }
+
+        // Map the GLAccount's AccountType to the normalised type key.
+        let type_key: &'static str = match account.account_type {
+            AccountType::Asset => "asset",
+            AccountType::Liability => "liability",
+            AccountType::Equity => "equity",
+            AccountType::Revenue => "revenue",
+            AccountType::Expense => "expense",
+            AccountType::Statistical => "",
+        };
+
+        // Pick candidates: prefer same-type bucket, fall back to all prior.
+        let candidates: &[&String] = if !type_key.is_empty() {
+            by_type.get(type_key).map(|v| v.as_slice()).unwrap_or(&[])
+        } else {
+            &[]
+        };
+
+        let chosen = if !candidates.is_empty() {
+            let idx = rng.random_range(0..candidates.len());
+            Some(candidates[idx].clone())
+        } else if !all_prior.is_empty() {
+            // Fallback: use any prior number when the type bucket is empty.
+            let idx = rng.random_range(0..all_prior.len());
+            Some(all_prior[idx].clone())
+        } else {
+            None
+        };
+
+        if let Some(new_number) = chosen {
+            account.account_number = new_number;
+            remapped += 1;
+        }
+    }
+
+    remapped
+}
+
+// ---------------------------------------------------------------------------
+// SP6 — CoA description taxonomy overlay
+// ---------------------------------------------------------------------------
+
+/// SP6 — Overlay CoA descriptions from the text-taxonomy prior. For each
+/// account with a `coa_pools` template, fill the template ONCE (stable per
+/// account for this run) and write it to `short_description` +
+/// `long_description`. Accounts without a taxonomy template are left untouched
+/// (the caller still runs `overlay_coa_semantic` for those). Mirrors
+/// `overlay_coa_semantic`'s field-write pattern and iteration form.
+pub fn overlay_coa_taxonomy<R: rand::Rng>(
+    coa: &mut ChartOfAccounts,
+    taxonomy: &datasynth_core::distributions::text_taxonomy::TextTaxonomyPrior,
+    resolver: &mut dyn datasynth_core::distributions::text_taxonomy::PlaceholderResolver,
+    rng: &mut R,
+) {
+    use datasynth_core::distributions::text_taxonomy::PlaceholderGrammar;
+    for account in coa.accounts.iter_mut() {
+        if let Some(entry) = taxonomy.coa_pools.get(&account.account_number) {
+            let filled = PlaceholderGrammar::fill(&entry.template, resolver, rng);
+            if !filled.is_empty() {
+                account.short_description.clone_from(&filled);
+                account.long_description = filled;
+            }
+        }
+    }
 }
 
 impl ChartOfAccountsGenerator {
@@ -113,6 +295,35 @@ impl ChartOfAccountsGenerator {
             account.accounting_framework = Some(framework_label.to_string());
         }
         coa
+    }
+
+    /// SP4.2 — Post-process a generated CoA with corpus semantic content.
+    ///
+    /// For each `GLAccount` in `coa` whose `account_number` appears in the
+    /// prior, overwrite:
+    /// - `short_description` and `long_description` with the real description
+    /// - `account_class` / `account_class_name` with the prior's values (when non-empty)
+    /// - `account_sub_class` / `account_sub_class_name` with the prior's values
+    ///
+    /// Account numbers not in the prior are left unchanged so the structural
+    /// consistency expected by downstream generators is preserved.
+    ///
+    /// Returns the number of accounts enriched.
+    pub fn apply_coa_semantic_prior(
+        coa: &mut ChartOfAccounts,
+        prior: &datasynth_core::distributions::behavioral_priors::CoaSemanticPrior,
+    ) -> usize {
+        let enriched = overlay_coa_semantic(coa, prior);
+        tracing::debug!(
+            enriched_accounts = enriched,
+            total_accounts = coa.accounts.len(),
+            "SP4.2 CoA semantic prior applied"
+        );
+        // SP6 wiring complete: overlay_coa_taxonomy is now called at the
+        // orchestrator level in `EnhancedOrchestrator::generate_coa`, right
+        // after this method returns, using SyntheticExampleResolver and a
+        // dedicated seeded RNG.  No changes needed here.
+        enriched
     }
 
     /// Generate default (US-style) chart of accounts.
@@ -1805,7 +2016,6 @@ impl Generator for ChartOfAccountsGenerator {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 
@@ -1879,5 +2089,74 @@ mod tests {
             "PCG account numbers must be in classes 1–8, got first digits: {:?}",
             first_digits
         );
+    }
+
+    /// SP6 T11 — `overlay_coa_taxonomy` fills a template once per account and
+    /// leaves accounts without a template entry untouched.
+    #[test]
+    fn overlay_coa_taxonomy_fills_template_once_per_account() {
+        use datasynth_core::distributions::text_taxonomy::{
+            SyntheticExampleResolver, TemplateEntry, TextTaxonomyPrior,
+        };
+        use rand::SeedableRng;
+
+        // Build a small CoA. The US-GAAP generator seeds "2000" (AP_CONTROL)
+        // as a canonical account — use that as our taxonomy key.
+        let mut gen =
+            ChartOfAccountsGenerator::new(CoAComplexity::Small, IndustrySector::Manufacturing, 1);
+        let mut coa = gen.generate();
+
+        // Confirm the account is present before wiring the taxonomy.
+        assert!(
+            coa.accounts.iter().any(|a| a.account_number == "2000"),
+            "canonical AP_CONTROL account '2000' expected in small CoA"
+        );
+
+        let mut tx = TextTaxonomyPrior::default();
+        tx.coa_pools.insert(
+            "2000".to_string(),
+            TemplateEntry {
+                template: "Kreditoren {company}".to_string(),
+                probability: 1.0,
+                synthetic_example: "Kreditoren Example GmbH".to_string(),
+            },
+        );
+        let mut resolver = SyntheticExampleResolver;
+        let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(9);
+        overlay_coa_taxonomy(&mut coa, &tx, &mut resolver, &mut rng);
+
+        let acct = coa
+            .accounts
+            .iter()
+            .find(|a| a.account_number == "2000")
+            .expect("account '2000' present after overlay");
+        assert!(
+            acct.short_description.starts_with("Kreditoren "),
+            "expected 'Kreditoren …', got '{}'",
+            acct.short_description
+        );
+        assert!(
+            !acct.short_description.contains('{'),
+            "template placeholder left unfilled: '{}'",
+            acct.short_description
+        );
+        assert_eq!(
+            acct.short_description, acct.long_description,
+            "short and long descriptions should be identical after taxonomy overlay"
+        );
+
+        // SP6 stability invariant (spec §5.3): once overlay_coa_taxonomy fires
+        // for an account, subsequent reads must return the byte-identical
+        // description — the fill happens ONCE per account per run, not per
+        // access. (No second overlay call; this asserts the stored state is
+        // stable across reads on the same CoA.)
+        let first = acct.short_description.clone();
+        let acct_again = coa
+            .accounts
+            .iter()
+            .find(|a| a.account_number == "2000")
+            .expect("account '2000' still present");
+        assert_eq!(acct_again.short_description, first);
+        assert_eq!(acct_again.long_description, first);
     }
 }

@@ -168,7 +168,7 @@ impl SubsequentEventGenerator {
 
     /// Generate subsequent events with real financial context.
     ///
-    /// Unlike [`generate_for_entity`], this method:
+    /// Unlike `generate_for_entity`, this method:
     /// - Scales financial impact as 0.5–5% of the larger of `total_revenue` and
     ///   `total_assets`, producing amounts proportional to entity size.
     /// - Biases event type selection toward risk areas present in the CRA
@@ -408,7 +408,6 @@ impl SubsequentEventGenerator {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

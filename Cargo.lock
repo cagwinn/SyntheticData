@@ -1215,15 +1215,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "crossbeam-channel"
-version = "0.5.15"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "82b8f8f868b36967f9606790d1903570de9ceaf870a7bf9fbbd3016d636a2cb2"
-dependencies = [
- "crossbeam-utils",
-]
-
-[[package]]
 name = "crossbeam-deque"
 version = "0.8.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1445,12 +1436,10 @@ dependencies = [
  "proptest",
  "rand 0.10.1",
  "rand_chacha 0.10.0",
- "rand_distr 0.6.0",
  "rust_decimal",
  "rust_decimal_macros",
  "serde",
  "serde_json",
- "thiserror 2.0.18",
  "tracing",
  "uuid",
 ]
@@ -1471,25 +1460,19 @@ dependencies = [
  "datasynth-eval",
  "datasynth-fingerprint",
  "datasynth-generators",
- "datasynth-graph",
  "datasynth-group",
  "datasynth-output",
  "datasynth-runtime",
- "indicatif",
- "itoa",
  "num_cpus",
  "predicates",
  "rand 0.10.1",
  "rand_chacha 0.10.0",
  "rayon",
  "reqwest",
- "ryu",
- "serde",
  "serde_json",
  "serde_yaml",
  "signal-hook",
  "tempfile",
- "tokio",
  "tracing",
  "tracing-subscriber",
 ]
@@ -1523,6 +1506,7 @@ dependencies = [
  "rand 0.10.1",
  "rand_chacha 0.10.0",
  "rand_distr 0.6.0",
+ "regex",
  "reqwest",
  "rust_decimal",
  "rust_decimal_macros",
@@ -1532,6 +1516,7 @@ dependencies = [
  "serde_yaml",
  "sha2 0.11.0",
  "smallvec",
+ "statrs",
  "tempfile",
  "thiserror 2.0.18",
  "tracing",
@@ -1542,17 +1527,18 @@ dependencies = [
 name = "datasynth-eval"
 version = "5.10.0"
 dependencies = [
+ "arrow",
  "chrono",
- "datasynth-config",
+ "csv",
  "datasynth-core",
- "datasynth-generators",
  "datasynth-test-utils",
  "ort",
+ "parquet",
+ "petgraph",
  "proptest",
  "rand 0.10.1",
  "rand_chacha 0.10.0",
  "rand_distr 0.6.0",
- "rayon",
  "rust_decimal",
  "rust_decimal_macros",
  "serde",
@@ -1567,12 +1553,12 @@ dependencies = [
 name = "datasynth-fingerprint"
 version = "5.10.0"
 dependencies = [
- "anyhow",
+ "aho-corasick",
  "arrow",
  "chrono",
  "csv",
- "datasynth-config",
  "datasynth-core",
+ "datasynth-eval",
  "hex",
  "parquet",
  "proptest",
@@ -1604,16 +1590,17 @@ dependencies = [
  "rand 0.10.1",
  "rand_chacha 0.10.0",
  "rand_distr 0.6.0",
- "rayon",
  "rust_decimal",
  "rust_decimal_macros",
  "serde",
  "serde_json",
+ "serde_yaml",
  "smallvec",
  "tempfile",
  "thiserror 2.0.18",
  "tracing",
  "uuid",
+ "zip 8.6.0",
 ]
 
 [[package]]
@@ -1643,7 +1630,6 @@ dependencies = [
  "assert_cmd",
  "blake3",
  "chrono",
- "datasynth-audit-fsm",
  "datasynth-config",
  "datasynth-core",
  "datasynth-generators",
@@ -1682,7 +1668,6 @@ dependencies = [
  "rust_decimal",
  "serde",
  "serde_json",
- "thiserror 2.0.18",
  "uuid",
 ]
 
@@ -1692,7 +1677,6 @@ version = "5.10.0"
 dependencies = [
  "arrow",
  "chrono",
- "crossbeam-channel",
  "csv",
  "datasynth-core",
  "itoa",
@@ -1704,9 +1688,6 @@ dependencies = [
  "serde",
  "serde_json",
  "tempfile",
- "thiserror 2.0.18",
- "tokio",
- "uuid",
  "zstd",
 ]
 
@@ -1715,7 +1696,6 @@ name = "datasynth-runtime"
 version = "5.10.0"
 dependencies = [
  "chrono",
- "crossbeam-channel",
  "csv",
  "datasynth-audit-fsm",
  "datasynth-banking",
@@ -1745,7 +1725,6 @@ dependencies = [
  "smallvec",
  "tempfile",
  "thiserror 2.0.18",
- "tokio",
  "tracing",
  "uuid",
 ]
@@ -1754,17 +1733,13 @@ dependencies = [
 name = "datasynth-server"
 version = "5.10.0"
 dependencies = [
- "anyhow",
  "argon2",
- "async-trait",
  "axum",
  "axum-server",
  "chrono",
  "clap",
  "datasynth-config",
  "datasynth-core",
- "datasynth-generators",
- "datasynth-output",
  "datasynth-runtime",
  "futures",
  "http-body-util",
@@ -1782,9 +1757,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml",
- "subtle",
  "tempfile",
- "thiserror 2.0.18",
  "tokio",
  "tokio-stream",
  "tokio-test",
@@ -1825,14 +1798,10 @@ dependencies = [
  "datasynth-config",
  "datasynth-core",
  "proptest",
- "rand 0.10.1",
- "rand_chacha 0.10.0",
  "reqwest",
  "rust_decimal",
  "serde",
- "serde_json",
  "smallvec",
- "tempfile",
  "thiserror 2.0.18",
  "tokio",
  "tracing",

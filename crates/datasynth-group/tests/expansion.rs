@@ -65,11 +65,11 @@ fn test_expands_explicit_first_then_generated() {
 
 #[test]
 fn test_generated_codes_are_zero_padded() {
-    let ownership = base_cfg_with_generated(vec![block(3, "NESTLE_EU_", &["DE"])]);
+    let ownership = base_cfg_with_generated(vec![block(3, "ACME_EU_", &["DE"])]);
     let out = expand_ownership(&ownership, 42, d(2024, 1, 1)).unwrap();
-    assert_eq!(out[1].code, "NESTLE_EU_0000001");
-    assert_eq!(out[2].code, "NESTLE_EU_0000002");
-    assert_eq!(out[3].code, "NESTLE_EU_0000003");
+    assert_eq!(out[1].code, "ACME_EU_0000001");
+    assert_eq!(out[2].code, "ACME_EU_0000002");
+    assert_eq!(out[3].code, "ACME_EU_0000003");
 }
 
 #[test]

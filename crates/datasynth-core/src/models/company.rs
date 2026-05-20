@@ -349,7 +349,6 @@ impl From<&CompanyCode> for Company {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

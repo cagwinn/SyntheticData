@@ -387,7 +387,6 @@ fn seeded_randn(
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

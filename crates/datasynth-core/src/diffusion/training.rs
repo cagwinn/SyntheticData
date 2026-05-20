@@ -356,7 +356,6 @@ pub struct FitReport {
 // ---------------------------------------------------------------------------
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::super::backend::NoiseScheduleType;
     use super::*;
