@@ -200,6 +200,25 @@ with st.sidebar:
     with col_b:
         anomaly_only = st.checkbox("Anomaly only", value=False)
 
+    # Fine-grained fraud-typology filter (v5.27 — `fraud_type` on each edge).
+    # Defensive: only render if the column is present (older parquet snapshots
+    # lack it). Selecting a typology implies fraud-only.
+    fraud_types = (
+        sorted(t for t in edges_raw["fraud_type"].dropna().unique().tolist() if t)
+        if "fraud_type" in edges_raw.columns
+        else []
+    )
+    selected_fraud_types = (
+        st.multiselect(
+            "Fraud type",
+            fraud_types,
+            default=[],
+            help="Show only edges of the selected fraud typologies (implies fraud).",
+        )
+        if fraud_types
+        else []
+    )
+
     st.divider()
 
     min_amount_log = st.slider(
@@ -235,6 +254,8 @@ if fraud_only:
     filt = filt[filt["is_fraud"]]
 if anomaly_only:
     filt = filt[filt["is_anomaly"]]
+if selected_fraud_types:
+    filt = filt[filt["fraud_type"].isin(selected_fraud_types)]
 
 if filt.empty:
     st.warning("No edges match the current filter combination — relax the filters.")
@@ -455,7 +476,8 @@ on 1 M JEs) that the legacy `cartesian` method produced, and gives
 a clean topology for graph-ML training.
 
 **Edge attributes.**  `business_process` (P2P / O2C / R2R / H2R / A2R),
-`is_fraud`, `is_anomaly`, `posting_date`, `amount`, `confidence`,
+`is_fraud`, `is_anomaly`, `fraud_type` (fine-grained typology — v5.27,
+filterable in the sidebar), `posting_date`, `amount`, `confidence`,
 `predecessor_edge_id` (chains 2-line JEs into longer document flows).
 
 **Drill-down.**  Click any class node to see the underlying Level-3
