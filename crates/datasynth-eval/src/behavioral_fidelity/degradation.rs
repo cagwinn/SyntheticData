@@ -213,8 +213,16 @@ mod tests {
         }
         let out = subsample_to_je_cap(&rs, 30, 42);
         let jes: std::collections::HashSet<_> = out.iter().map(|x| x.je_number.clone()).collect();
-        assert!(jes.len() <= 30, "capped to <=30 distinct JEs, got {}", jes.len());
-        assert!(jes.len() >= 18, "hash-uniform keep should be near 30, got {}", jes.len());
+        assert!(
+            jes.len() <= 30,
+            "capped to <=30 distinct JEs, got {}",
+            jes.len()
+        );
+        assert!(
+            jes.len() >= 18,
+            "hash-uniform keep should be near 30, got {}",
+            jes.len()
+        );
         // Whole JEs kept together — each surviving JE keeps both lines.
         for je in &jes {
             let c = out.iter().filter(|x| &x.je_number == je).count();

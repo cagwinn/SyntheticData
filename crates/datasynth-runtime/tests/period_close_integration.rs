@@ -307,10 +307,15 @@ fn test_period_close_amount_consistency() {
             (tax_amount * Decimal::new(100, 0) / Decimal::new(21, 0)).round_dp(2);
         let expected_close = (expected_pre_tax - tax_amount).round_dp(2);
 
-        // Allow small rounding tolerance (1 cent)
+        // Tolerance: the back-computation `pre_tax = tax / 0.21` amplifies the
+        // tax's half-cent rounding by ~1/0.21 ≈ 4.76×, so the achievable bound
+        // is a few cents (~0.04), independent of the (here multi-million-dollar)
+        // amount magnitude — not 1 cent (which only passed by luck before the
+        // amount/line re-calibration shifted the RNG stream). 5 cents is safely
+        // above the bound while keeping this a tight relative identity check.
         let diff = (close_amount - expected_close).abs();
         assert!(
-            diff <= Decimal::new(1, 2),
+            diff <= Decimal::new(5, 2),
             "Closing amount {} should be approximately {} (pre_tax={}, tax={}), diff={}",
             close_amount,
             expected_close,
