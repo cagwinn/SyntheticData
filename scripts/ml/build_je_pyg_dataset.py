@@ -233,6 +233,7 @@ class BuildResult:
     node_feature_scaler: StandardScaler
     feature_columns: dict[str, list[str]]
     raw_edges_kept: pd.DataFrame
+    fraud_type_vocab: dict[str, int]
 
 
 def build(seed: int = 20260509) -> BuildResult:
@@ -244,6 +245,19 @@ def build(seed: int = 20260509) -> BuildResult:
     print(f"kept edges: {len(kept_edges):,} of {len(edges_df):,} (dropped any with unmapped accounts)")
     print(f"fraud rate: {y_np.mean():.4f} ({int(y_np.sum())} fraud / {len(y_np)})")
     print(f"anomaly rate: {is_anomaly_np.mean():.4f}")
+
+    # Multi-class fraud typology (v5.27 `fraud_type` column; empty on non-fraud
+    # edges). Index 0 is the reserved "<none>" class so the tensor stays dense
+    # and joinable to `y`; the typology trainer masks to fraud edges (idx > 0).
+    if "fraud_type" in kept_edges.columns:
+        ft_raw = kept_edges["fraud_type"].fillna("").astype(str).to_numpy()
+    else:
+        ft_raw = np.array([""] * len(kept_edges))
+    fraud_type_names = sorted({t for t in ft_raw if t})
+    ft_vocab = {"<none>": 0}
+    ft_vocab.update({t: i + 1 for i, t in enumerate(fraud_type_names)})
+    fraud_type_idx_np = np.array([ft_vocab.get(t, 0) for t in ft_raw], dtype=np.int64)
+    print(f"fraud typologies: {len(fraud_type_names)} classes over {int((fraud_type_idx_np > 0).sum())} fraud edges")
 
     # Scale features (fit on train indices only — done after split)
     train_idx, val_idx, test_idx = stratified_split(len(y_np), y_np, seed=seed)
@@ -279,6 +293,7 @@ def build(seed: int = 20260509) -> BuildResult:
         edge_attr=torch.from_numpy(edge_attr_scaled),
         y=torch.from_numpy(y_np),
         is_anomaly=torch.from_numpy(is_anomaly_np),
+        fraud_type_idx=torch.from_numpy(fraud_type_idx_np),
         train_mask=torch.from_numpy(train_mask),
         val_mask=torch.from_numpy(val_mask),
         test_mask=torch.from_numpy(test_mask),
@@ -327,6 +342,7 @@ def build(seed: int = 20260509) -> BuildResult:
         node_feature_scaler=node_scaler,
         feature_columns=feature_columns,
         raw_edges_kept=kept_edges,
+        fraud_type_vocab=ft_vocab,
     )
 
 
@@ -347,7 +363,8 @@ def main() -> None:
         "node_feature_scaler_mean": res.node_feature_scaler.mean_,
         "node_feature_scaler_scale": res.node_feature_scaler.scale_,
         "feature_columns": res.feature_columns,
-        "schema_version": 1,
+        "fraud_type_vocab": res.fraud_type_vocab,
+        "schema_version": 2,
         "build_seed": args.seed,
     }
     torch.save(payload, args.output)
