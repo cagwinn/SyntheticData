@@ -323,9 +323,11 @@ impl IndustryAmountProfile {
                     // Standard procedures (35%)
                     LogNormalComponent::with_label(0.35, 7.0, 1.5, "procedures"),
                     // Specialist services (20%)
-                    LogNormalComponent::with_label(0.20, 9.0, 1.2, "specialist"),
-                    // Major treatments (5%)
-                    LogNormalComponent::with_label(0.05, 11.0, 1.0, "major"),
+                    LogNormalComponent::with_label(0.20, 8.5, 1.0, "specialist"),
+                    // Major treatments (5%) — tail tamed toward the corpus p99
+                    // (~$33k); the old mu=11/σ=1.0 produced a ~$500k+ p99
+                    // (16× the health corpus, per experiments/ml/FINDINGS.md §1).
+                    LogNormalComponent::with_label(0.05, 9.5, 0.6, "major"),
                 ],
                 min_value: 10.0,
                 max_value: Some(1_000_000.0),
@@ -336,9 +338,9 @@ impl IndustryAmountProfile {
                     // Consumable supplies (45%)
                     LogNormalComponent::with_label(0.45, 6.0, 1.2, "consumables"),
                     // Pharmaceuticals (35%)
-                    LogNormalComponent::with_label(0.35, 8.0, 1.5, "pharma"),
-                    // Medical equipment (20%)
-                    LogNormalComponent::with_label(0.20, 10.0, 1.0, "equipment"),
+                    LogNormalComponent::with_label(0.35, 8.0, 1.2, "pharma"),
+                    // Medical equipment (20%) — tail tamed (was mu=10/σ=1.0).
+                    LogNormalComponent::with_label(0.20, 9.5, 0.8, "equipment"),
                 ],
                 min_value: 50.0,
                 max_value: Some(5_000_000.0),
@@ -529,6 +531,24 @@ mod tests {
         let profile = IndustryAmountProfile::healthcare();
         assert_eq!(profile.industry, IndustryType::Healthcare);
         assert!(profile.sales_amounts.validate().is_ok());
+    }
+
+    #[test]
+    fn healthcare_sales_amount_tail_is_realistic() {
+        use crate::distributions::mixture::LogNormalMixtureSampler;
+        let profile = IndustryAmountProfile::healthcare();
+        let mut s = LogNormalMixtureSampler::new(7, profile.sales_amounts.clone())
+            .expect("healthcare sales mixture valid");
+        let mut v = s.sample_n(20_000);
+        v.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        let p99 = v[(0.99 * v.len() as f64) as usize];
+        // Health corpus p99 ≈ $33k (experiments/ml/FINDINGS.md §1). The re-tuned
+        // tail must stay well below the old mu=11/σ=1.0 overshoot (~$500k+),
+        // guarding against a future re-fattening of the heavy components.
+        assert!(
+            p99 < 150_000.0,
+            "healthcare sales p99 should be realistic vs the corpus, got {p99:.0}"
+        );
     }
 
     #[test]

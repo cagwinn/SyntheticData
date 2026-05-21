@@ -25,6 +25,16 @@ the amount + lines-per-JE gaps.
   noise floor at any corpus size. No-op at or below the cap, so existing
   baselines (≈0.3M JEs) are unaffected. Unblocks re-baselining at corpus scale.
 
+### Changed
+
+- **Healthcare amount mixtures re-tuned toward the corpus tail.** The healthcare
+  profile's `sales` (`major`: mu 11→9.5, σ 1.0→0.6; `specialist`: 9→8.5) and
+  `purchase` (`equipment`: mu 10→9.5, σ 1.0→0.8; `pharma`: σ 1.5→1.2) heavy
+  components produced a ~$500k+ p99 — roughly 16× the health corpus's ~$33k
+  (FINDINGS §1). Tamed to a realistic tail; pinned by
+  `healthcare_sales_amount_tail_is_realistic`. Other industries' profiles are
+  left unchanged (no corpus to ground them — a broader calibration follow-up).
+
 ## v5.27 (SP6 — corpus text taxonomy + PII-safe placeholder grammar)
 
 Replaces the SP4.4 `TextTemplate*` path with a structured, PII-safe text-taxonomy pipeline keyed by `(source × ISO-21378-account-class)`. Every synthetic header, line, and CoA description is now coherent with the account class it posts to AND carries zero residual corpus PII. Two privacy gates protect the public bundles: a build-time residual-PII audit on every regen, and a CI `bundle_pii_audit` test over the committed `.dsf` bundles.
