@@ -41,7 +41,7 @@ DATASET_REPO = "VynFi/vynfi-journal-entries-1m"
 CATEGORICAL = [
     "business_process", "source", "document_type", "ledger", "currency",
     "account_class", "account_sub_class", "financial_statement_category",
-    "gl_account", "cost_center", "profit_center",
+    "cost_center", "profit_center",
 ]
 _ROUND_LEVELS = np.array([1_000.0, 5_000.0, 10_000.0, 25_000.0, 50_000.0, 100_000.0])
 
@@ -84,10 +84,20 @@ def engineer(df: pd.DataFrame) -> pd.DataFrame:
             out[c] = df[c].astype("boolean").fillna(False).astype(np.int8)
     if "line_number" in df:
         out["line_number"] = pd.to_numeric(df["line_number"], errors="coerce").fillna(0).clip(0, 100).astype(np.int16)
+    # gl_account is high-cardinality (~445) and its NUMBER is semantic — the
+    # account ranges encode asset/liability/revenue/expense — so use it numeric.
+    if "gl_account" in df:
+        out["gl_account_num"] = pd.to_numeric(df["gl_account"], errors="coerce").fillna(-1).astype(np.float32)
     # Categoricals → pandas category dtype (HistGBM reads codes natively).
+    # HistGBM caps native categoricals at 255; frequency-encode anything above.
     for c in CATEGORICAL:
-        if c in df:
-            out[c] = df[c].astype(str).fillna("NA").astype("category")
+        if c not in df:
+            continue
+        s = df[c].astype(str).fillna("NA")
+        if s.nunique() > 255:
+            out[f"{c}_freq"] = s.map(s.value_counts(normalize=True)).astype(np.float32)
+        else:
+            out[c] = s.astype("category")
     return out
 
 
