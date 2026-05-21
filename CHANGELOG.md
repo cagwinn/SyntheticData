@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v5.28 (corpus-fidelity round — BF eval scale fix + sampler re-fits)
+
+Grounded in the A100 corpus→synthetic gap study (`experiments/ml/FINDINGS.md`):
+the measured gaps are amount tail ~16×, lines-per-JE ~2.3×, IET-variance ~60×,
+source-mix breadth. This round closes the eval-methodology blocker first, then
+the amount + lines-per-JE gaps.
+
+### Fixed
+
+- **BF degradation-ratio noise floor degenerated at large corpus scale.** The
+  single 50/50 corpus split converges at multi-million-JE scale — both halves
+  become statistically identical, so every per-metric baseline drops below
+  `DEGENERATE_BASELINE_EPS` and *every* DR saturates at the 100 cap, leaving the
+  composite uninformative (observed scoring against a 53.4M-line corpus).
+  `compute_report` now bounds the corpus to `NOISE_FLOOR_JE_CAP` (500 000
+  distinct JEs, hash-uniform, whole multi-line JEs kept together) before the
+  noise-floor split *and* the raw comparison, restoring a well-defined sampling
+  noise floor at any corpus size. No-op at or below the cap, so existing
+  baselines (≈0.3M JEs) are unaffected. Unblocks re-baselining at corpus scale.
+
 ## v5.27 (SP6 — corpus text taxonomy + PII-safe placeholder grammar)
 
 Replaces the SP4.4 `TextTemplate*` path with a structured, PII-safe text-taxonomy pipeline keyed by `(source × ISO-21378-account-class)`. Every synthetic header, line, and CoA description is now coherent with the account class it posts to AND carries zero residual corpus PII. Two privacy gates protect the public bundles: a build-time residual-PII audit on every regen, and a CI `bundle_pii_audit` test over the committed `.dsf` bundles.

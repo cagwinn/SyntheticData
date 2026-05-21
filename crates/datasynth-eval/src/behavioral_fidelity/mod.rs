@@ -55,6 +55,14 @@ pub fn compute_report(
     real: &[Record],
     syn: &[Record],
 ) -> BehavioralFidelityResult<BehavioralFidelityReport> {
+    // Bound the corpus to a fixed effective scale so the 50/50 noise-floor
+    // split stays non-degenerate — a full multi-million-JE corpus splits into
+    // statistically identical halves and every DR saturates. No-op at or below
+    // the cap (existing baselines unaffected); applied to the raw comparison
+    // too, so raw + baseline share the same scale.
+    let real_capped =
+        degradation::subsample_to_je_cap(real, degradation::NOISE_FLOOR_JE_CAP, cfg.seed);
+    let real: &[Record] = &real_capped;
     let (real_a, real_b) = degradation::split_5050(real, cfg.seed);
 
     let mut per_entity = BTreeMap::new();

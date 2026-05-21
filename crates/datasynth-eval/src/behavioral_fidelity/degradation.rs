@@ -26,6 +26,50 @@ fn hash_to_bucket(key: &str, seed: u64) -> bool {
     (h.finish() & 1) == 0
 }
 
+/// Effective distinct-JE cap applied to the corpus before the noise-floor
+/// split + raw comparison.
+///
+/// At very large corpus scale a single 50/50 split converges — both halves
+/// become statistically identical (law of large numbers), so every per-metric
+/// baseline drops below [`DEGENERATE_BASELINE_EPS`] and *every* DR saturates at
+/// [`DEGENERATE_BASELINE_CAP`], making the composite uninformative (observed on
+/// a 53.4M-line corpus: all metrics degenerate). Bounding the corpus to this
+/// many distinct JEs restores a well-defined sampling noise floor while staying
+/// representative of the corpus distribution. Corpora at or below this size are
+/// returned unchanged, so existing baselines (≈0.3M JEs) are unaffected.
+pub const NOISE_FLOOR_JE_CAP: usize = 500_000;
+
+/// Deterministically subsample `records` down to at most `cap_jes` distinct JEs
+/// (whole multi-line JEs kept together), so the noise-floor split is computed
+/// at a bounded scale where it stays non-degenerate. Hash-uniform selection on
+/// `je_number` (stable across the raw + baseline paths). Returns the input
+/// unchanged when it already has ≤ `cap_jes` JEs, or when `cap_jes == 0`.
+pub fn subsample_to_je_cap(records: &[Record], cap_jes: usize, seed: u64) -> Vec<Record> {
+    if cap_jes == 0 {
+        return records.to_vec();
+    }
+    let mut seen = std::collections::HashSet::new();
+    for r in records {
+        seen.insert(r.je_number.as_str());
+    }
+    let n_jes = seen.len();
+    if n_jes <= cap_jes {
+        return records.to_vec();
+    }
+    let n = n_jes as u64;
+    let keep_below = cap_jes as u64;
+    records
+        .iter()
+        .filter(|r| {
+            let mut h = DefaultHasher::new();
+            seed.hash(&mut h);
+            r.je_number.hash(&mut h);
+            (h.finish() % n) < keep_below
+        })
+        .cloned()
+        .collect()
+}
+
 /// Maximum DR returned when the baseline is degenerate (≈ 0).  Picked
 /// large enough to surface a real signal in dashboards but small enough
 /// that one degenerate metric can't overwhelm a composite average.
@@ -156,5 +200,30 @@ mod tests {
         // Large finite ratio passes through
         let dr = degradation_ratio(100.0, 1.0);
         assert_eq!(dr, 100.0);
+    }
+
+    #[test]
+    fn subsample_caps_distinct_jes_and_keeps_jes_whole() {
+        // 100 distinct 2-line JEs; cap to 30.
+        let mut rs = Vec::new();
+        for i in 0..100 {
+            let je = format!("J{i}");
+            rs.push(r(&je, "001"));
+            rs.push(r(&je, "002"));
+        }
+        let out = subsample_to_je_cap(&rs, 30, 42);
+        let jes: std::collections::HashSet<_> = out.iter().map(|x| x.je_number.clone()).collect();
+        assert!(jes.len() <= 30, "capped to <=30 distinct JEs, got {}", jes.len());
+        assert!(jes.len() >= 18, "hash-uniform keep should be near 30, got {}", jes.len());
+        // Whole JEs kept together — each surviving JE keeps both lines.
+        for je in &jes {
+            let c = out.iter().filter(|x| &x.je_number == je).count();
+            assert_eq!(c, 2, "JE {je} should keep both lines");
+        }
+        // Deterministic.
+        assert_eq!(out.len(), subsample_to_je_cap(&rs, 30, 42).len());
+        // No-op when under the cap, and when cap == 0.
+        assert_eq!(subsample_to_je_cap(&rs, 1000, 42).len(), rs.len());
+        assert_eq!(subsample_to_je_cap(&rs, 0, 42).len(), rs.len());
     }
 }
