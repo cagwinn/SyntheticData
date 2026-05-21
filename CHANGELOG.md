@@ -34,6 +34,16 @@ the amount + lines-per-JE gaps.
   (FINDINGS §1). Tamed to a realistic tail; pinned by
   `healthcare_sales_amount_tail_is_realistic`. Other industries' profiles are
   left unchanged (no corpus to ground them — a broader calibration follow-up).
+- **Default lines-per-JE distribution re-calibrated to the corpus scale.** The
+  original Table III default had a mean of ~11 lines/JE — the heavy bins
+  (10-99 @ 6.33%, 100-999 @ 0.76%, 1000+) dominated the mean despite ~60% of
+  JEs being 2-line; the corpus is ~4.5 (FINDINGS §1). Thinned the heavy bins
+  (10-99 → 2.4%, 100-999 → 0.08%, 1000+ → 0.002%), preserving the 2-/4-line
+  shape (~62% / ~16%); mean now ~4.6. Pinned by `default_line_count_mean_is_
+  corpus_scale`. The priors path (`BehavioralPriors.lines_per_je`) still
+  overrides per-industry; this is the non-priors fallback. (Deviates from the
+  paper's Table III toward observed data — revert if the cited reference should
+  be preserved.)
 
 ## v5.27 (SP6 — corpus text taxonomy + PII-safe placeholder grammar)
 

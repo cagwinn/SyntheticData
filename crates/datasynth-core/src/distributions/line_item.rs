@@ -44,19 +44,26 @@ pub struct LineItemDistributionConfig {
 
 impl Default for LineItemDistributionConfig {
     fn default() -> Self {
-        // Values from Table III of the paper
+        // Re-calibrated toward the observed corpus mean (~4.5 lines/JE) by
+        // thinning the heavy tail bins. The original Table III values gave a
+        // mean of ~11 — the 10-99 bin at 6.33% (plus 100-999 / 1000+) dominated
+        // the mean even though ~60% of JEs are 2-line (corpus is ~4.5; see
+        // experiments/ml/FINDINGS.md §1). The 2-/4-line shape is preserved
+        // (~62% / ~16%). NB: the priors path (`BehavioralPriors.lines_per_je`)
+        // overrides this with per-industry corpus values — this is the
+        // non-priors fallback default.
         Self {
-            two_items: 0.6068,
-            three_items: 0.0577,
-            four_items: 0.1663,
-            five_items: 0.0306,
-            six_items: 0.0332,
-            seven_items: 0.0113,
-            eight_items: 0.0188,
-            nine_items: 0.0042,
-            ten_to_ninety_nine: 0.0633,
-            hundred_to_nine_ninety_nine: 0.0076,
-            thousand_plus: 0.0002,
+            two_items: 0.62,
+            three_items: 0.10,
+            four_items: 0.16,
+            five_items: 0.04,
+            six_items: 0.025,
+            seven_items: 0.012,
+            eight_items: 0.012,
+            nine_items: 0.006,
+            ten_to_ninety_nine: 0.024,
+            hundred_to_nine_ninety_nine: 0.0008,
+            thousand_plus: 0.00002,
         }
     }
 }
@@ -384,6 +391,21 @@ mod tests {
             four_count > 0.13 && four_count < 0.20,
             "Expected ~16% 4-item entries, got {}%",
             four_count * 100.0
+        );
+    }
+
+    #[test]
+    fn default_line_count_mean_is_corpus_scale() {
+        let mut sampler = LineItemSampler::new(7);
+        let n = 200_000;
+        let sum: usize = (0..n).map(|_| sampler.sample_count()).sum();
+        let mean = sum as f64 / n as f64;
+        // Corpus ~4.5 lines/JE (experiments/ml/FINDINGS.md §1). The re-calibrated
+        // default must land in a realistic band, not the old heavy-tail-dominated
+        // mean of ~11 — guards against re-fattening the 10-99/100-999/1000+ bins.
+        assert!(
+            (3.0..=6.5).contains(&mean),
+            "default line-count mean should be corpus-scale (~4.5), got {mean:.2}"
         );
     }
 
