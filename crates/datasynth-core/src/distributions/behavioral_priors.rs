@@ -308,7 +308,9 @@ impl SourceMixPrior {
             ("DG", 0.04),
             ("KG", 0.035),
             ("WA", 0.03),
-            ("AB", 0.03),
+            // "AB" (accounting/allocation doc) is intentionally omitted: it is
+            // reserved for the SOTA-6 allocation-batch process so synthetic "AB"
+            // JEs carry the corpus's large lines-per-JE (~52), not a small mix.
             ("WL", 0.025),
             ("ZP", 0.02),
             ("SK", 0.018),

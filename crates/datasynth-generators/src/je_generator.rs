@@ -44,6 +44,17 @@ static DEFAULT_SOURCE_MIX: LazyLock<
 /// `transactions.reversal_rate` is unset (corpus reversal-proxy ~10%).
 const DEFAULT_REVERSAL_RATE: f64 = 0.04;
 
+/// SOTA-6: default fraction of JEs that are allocation/assessment batches when
+/// `transactions.allocation_batch_rate` is unset. Small (each batch carries
+/// ~30-80 lines), so the resulting line-share (~8%) and lines-per-JE tail match
+/// the corpus's large-batch postings (FINDINGS §8: AB docs ~52 lines drive the
+/// lpje std). `0.0` disables.
+const DEFAULT_ALLOCATION_RATE: f64 = 0.008;
+/// SOTA-6: inclusive bounds for the number of target (cost-center) lines an
+/// allocation batch explodes into — centred near the corpus AB mean (~52).
+const ALLOCATION_MIN_TARGETS: u32 = 30;
+const ALLOCATION_MAX_TARGETS: u32 = 80;
+
 /// SOTA-2: Zipf exponent for the hot-account power-law. At s=2.0 the top-10%
 /// of accounts in a pool carry ~92-96% of that pool's lines across realistic
 /// pool sizes (N≈60-150) — matching the corpus account-activity Pareto (~0.95).
@@ -146,10 +157,14 @@ pub struct JournalEntryGenerator {
     /// without perturbing the main `rng` (normal JEs stay byte-identical).
     reversal_rng: ChaCha8Rng,
     /// SOTA-2: independent RNG for the hot-account power-law override, so the
-    /// account-activity Pareto (a few accounts carry most lines, like real GLs)
-    /// is concentrated without perturbing the main `rng` — the uniform
+    /// account-activity Pareto (a few accounts carry most lines, as in the
+    /// corpus) is concentrated without perturbing the main `rng` — the uniform
     /// `.choose` draw is still consumed, only its *result* is replaced.
     account_rng: ChaCha8Rng,
+    /// SOTA-6: independent RNG for the allocation/assessment-batch process, so
+    /// the large 1-to-many postings (the corpus's lines-per-JE tail) intersperse
+    /// without perturbing the main `rng` (normal JEs stay byte-identical).
+    allocation_rng: ChaCha8Rng,
     seed: u64,
     config: TransactionConfig,
     coa: Arc<ChartOfAccounts>,
@@ -477,6 +492,7 @@ impl JournalEntryGenerator {
             reversal_buffer: Vec::new(),
             reversal_rng: seeded_rng(seed, 90_017),
             account_rng: seeded_rng(seed, 60_071),
+            allocation_rng: seeded_rng(seed, 80_023),
             seed,
             config: config.clone(),
             coa,
@@ -1279,7 +1295,10 @@ impl JournalEntryGenerator {
             return None;
         }
         let pick = (self.reversal_rng.random::<u32>() as usize) % self.reversal_buffer.len();
-        let mut entry = self.reversal_buffer[pick].clone();
+        // Consume the entry so the same original is never reversed twice — that
+        // would mint the same derived id (`orig ^ salt`) and produce duplicate
+        // document IDs (regression caught by `test_document_reference_integrity`).
+        let mut entry = self.reversal_buffer.remove(pick);
         let orig_id = entry.header.document_id;
         // Reversal posts a few business days after the original.
         let offset = 1 + (self.reversal_rng.random::<u32>() % 7) as i64;
@@ -1312,11 +1331,17 @@ impl JournalEntryGenerator {
         Some(entry)
     }
 
-    /// SOTA-5: remember a (complete) JE so a later reversal can offset it.
+    /// SOTA-5/6: remember a (complete) JE so a later reversal (SOTA-5) or
+    /// allocation batch (SOTA-6) can reuse it. Populated when either process is
+    /// enabled, so disabling reversals doesn't starve the allocation batches.
     fn record_for_reversal(&mut self, entry: &JournalEntry) {
-        if self.config.reversal_rate.unwrap_or(DEFAULT_REVERSAL_RATE) <= 0.0
-            || entry.lines.is_empty()
-        {
+        let reversal_on = self.config.reversal_rate.unwrap_or(DEFAULT_REVERSAL_RATE) > 0.0;
+        let allocation_on = self
+            .config
+            .allocation_batch_rate
+            .unwrap_or(DEFAULT_ALLOCATION_RATE)
+            > 0.0;
+        if (!reversal_on && !allocation_on) || entry.lines.is_empty() {
             return;
         }
         const CAP: usize = 64;
@@ -1324,6 +1349,126 @@ impl JournalEntryGenerator {
             self.reversal_buffer.remove(0);
         }
         self.reversal_buffer.push(entry.clone());
+    }
+
+    /// SOTA-6: split `total` into `n` positive cent-precise parts summing
+    /// **exactly** to `total` (so the JE stays balanced), with random weights so
+    /// the allocation isn't perfectly even. Each part is ≥ 1 cent. Returns a
+    /// single `[total]` when the amount is too small to split into `n` parts.
+    fn split_amount(total: Decimal, n: usize, rng: &mut ChaCha8Rng) -> Vec<Decimal> {
+        let n = n.max(1);
+        let total_cents = (total.round_dp(2) * Decimal::from(100))
+            .to_i64()
+            .unwrap_or(0);
+        if n == 1 || total_cents < n as i64 {
+            return vec![total];
+        }
+        let weights: Vec<f64> = (0..n).map(|_| 0.5 + rng.random::<f64>()).collect();
+        let sumw: f64 = weights.iter().sum::<f64>().max(f64::EPSILON);
+        let spare = total_cents - n as i64; // ≥ 0; each part keeps a 1-cent floor
+        let mut cents: Vec<i64> = weights
+            .iter()
+            .map(|w| 1 + (spare as f64 * w / sumw).floor() as i64)
+            .collect();
+        // dump the (small, < n) flooring leftover onto the largest part
+        let assigned: i64 = cents.iter().sum();
+        let leftover = total_cents - assigned;
+        if let Some(maxp) = cents.iter_mut().max_by_key(|c| **c) {
+            *maxp += leftover;
+        }
+        cents.into_iter().map(|c| Decimal::new(c, 2)).collect()
+    }
+
+    /// SOTA-6: with probability `transactions.allocation_batch_rate` (default
+    /// ~0.8%), emit an allocation/assessment batch instead of a fresh JE — the
+    /// large 1-to-many posting that drives the corpus lines-per-JE tail (AB docs
+    /// ~52 lines). Reuses a buffered JE for a valid header (no main-RNG / uuid
+    /// advance), then explodes its largest debit line into ~30-80 cost-center-
+    /// spread sub-lines summing to the same amount, so balance is preserved and
+    /// the cost-center dimension breadth rises. Tagged source `AB`.
+    fn maybe_generate_allocation_batch(&mut self) -> Option<JournalEntry> {
+        let rate = self
+            .config
+            .allocation_batch_rate
+            .unwrap_or(DEFAULT_ALLOCATION_RATE);
+        if rate <= 0.0 || self.reversal_buffer.is_empty() {
+            return None;
+        }
+        if self.allocation_rng.random::<f64>() >= rate {
+            return None;
+        }
+        let pick = (self.allocation_rng.random::<u32>() as usize) % self.reversal_buffer.len();
+        // Consume the entry (same reason as the reversal path: a reused base
+        // would mint a duplicate derived id `base ^ salt`).
+        let mut entry = self.reversal_buffer.remove(pick);
+        // Explode the largest debit line across cost centers.
+        let idx = entry
+            .lines
+            .iter()
+            .enumerate()
+            .filter(|(_, l)| l.debit_amount > Decimal::ZERO)
+            .max_by(|a, b| a.1.debit_amount.cmp(&b.1.debit_amount))
+            .map(|(i, _)| i)?;
+        let template = entry.lines[idx].clone();
+        let n = self
+            .allocation_rng
+            .random_range(ALLOCATION_MIN_TARGETS..=ALLOCATION_MAX_TARGETS) as usize;
+        let parts = Self::split_amount(template.debit_amount, n, &mut self.allocation_rng);
+        if parts.len() < ALLOCATION_MIN_TARGETS as usize {
+            // amount too small to make a meaningful batch — leave it a normal JE
+            return None;
+        }
+        // Valid cost-center candidates for this company (joins back to master).
+        let company_code = entry.header.company_code.clone();
+        let cc_pool: Vec<String> = if self.cost_center_pool.is_empty() {
+            Self::COST_CENTER_POOL
+                .iter()
+                .map(|s| s.to_string())
+                .collect()
+        } else {
+            let needle = format!("-{company_code}-");
+            let filtered: Vec<String> = self
+                .cost_center_pool
+                .iter()
+                .filter(|id| id.contains(&needle))
+                .cloned()
+                .collect();
+            if filtered.is_empty() {
+                self.cost_center_pool.clone()
+            } else {
+                filtered
+            }
+        };
+        let mut new_lines: Vec<JournalEntryLine> =
+            Vec::with_capacity(entry.lines.len() + parts.len() - 1);
+        for (j, line) in entry.lines.iter().enumerate() {
+            if j == idx {
+                for (k, part) in parts.iter().enumerate() {
+                    let mut nl = template.clone();
+                    nl.debit_amount = *part;
+                    nl.credit_amount = Decimal::ZERO;
+                    nl.cost_center = Some(cc_pool[k % cc_pool.len()].clone());
+                    new_lines.push(nl);
+                }
+            } else {
+                new_lines.push(line.clone());
+            }
+        }
+        // Derived id (distinct from the reversal salt); retag as an allocation.
+        let base_id = entry.header.document_id;
+        let alloc_id =
+            uuid::Uuid::from_u128(base_id.as_u128() ^ 0xA110_CA70_A110_CA70_A110_CA70_A110_CA70);
+        entry.header.document_id = alloc_id;
+        entry.header.sap_source_code = Some("AB".to_string());
+        entry.header.header_text = Some("Allocation/assessment cycle".to_string());
+        entry.header.reference = Some(format!("ALLOC-{base_id}"));
+        entry.header.batch_id = None;
+        for (i, line) in new_lines.iter_mut().enumerate() {
+            line.line_number = (i + 1) as u32;
+            line.document_id = alloc_id;
+        }
+        entry.lines = new_lines.into();
+        Some(entry)
     }
 
     fn determine_fraud(&mut self) -> Option<FraudType> {
@@ -1743,6 +1888,12 @@ impl JournalEntryGenerator {
         // recent JE instead of a fresh one (a process auditors look for).
         if let Some(rev) = self.maybe_generate_reversal() {
             return rev;
+        }
+
+        // SOTA-6: with a small probability, emit a large allocation/assessment
+        // batch (the corpus lines-per-JE tail) instead of a fresh JE.
+        if let Some(alloc) = self.maybe_generate_allocation_batch() {
+            return alloc;
         }
 
         // SP6 — Lazy-init the MD resolver on the first call. Rebuilding once
@@ -3745,6 +3896,7 @@ impl Generator for JournalEntryGenerator {
         self.reversal_rng = seeded_rng(self.seed, 90_017);
         self.reversal_buffer.clear();
         self.account_rng = seeded_rng(self.seed, 60_071);
+        self.allocation_rng = seeded_rng(self.seed, 80_023);
         self.line_sampler.reset(self.seed + 1);
         self.amount_sampler.reset(self.seed + 2);
         self.temporal_sampler.reset(self.seed + 3);
@@ -4912,6 +5064,110 @@ mod tests {
             share_on > 0.50,
             "hot accounts should dominate: top-10% line share {share_on:.3}"
         );
+    }
+
+    #[test]
+    fn test_allocation_batch_emits_large_balanced_postings() {
+        // SOTA-6: with allocation_batch_rate > 0, some JEs are large 1-to-many
+        // allocation batches (source "AB", many cost-center-spread lines, still
+        // balanced); rate 0.0 emits none. Reversals are disabled to isolate the
+        // allocation process (which shares the recent-JE buffer).
+        fn run(rate: Option<f64>) -> (usize, bool, usize) {
+            let mut coa_gen = ChartOfAccountsGenerator::new(
+                CoAComplexity::Small,
+                IndustrySector::Manufacturing,
+                23,
+            );
+            let coa = Arc::new(coa_gen.generate());
+            let cfg = TransactionConfig {
+                allocation_batch_rate: rate,
+                reversal_rate: Some(0.0),
+                ..TransactionConfig::default()
+            };
+            let mut g = JournalEntryGenerator::new_with_params(
+                cfg,
+                coa,
+                vec!["1000".to_string()],
+                NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
+                NaiveDate::from_ymd_opt(2024, 12, 31).unwrap(),
+                23,
+            )
+            .with_persona_errors(false)
+            .with_batching(false);
+            let mut batches = 0usize;
+            let mut balanced = true;
+            let mut max_distinct_cc = 0usize;
+            for _ in 0..2000 {
+                let e = g.generate();
+                if !e.is_balanced() {
+                    balanced = false;
+                }
+                if e.header.sap_source_code.as_deref() == Some("AB") {
+                    batches += 1;
+                    assert!(
+                        e.lines.len() >= ALLOCATION_MIN_TARGETS as usize,
+                        "allocation batch should be large, got {} lines",
+                        e.lines.len()
+                    );
+                    let ccs: std::collections::HashSet<String> = e
+                        .lines
+                        .iter()
+                        .filter_map(|l| l.cost_center.clone())
+                        .collect();
+                    max_distinct_cc = max_distinct_cc.max(ccs.len());
+                }
+            }
+            (batches, balanced, max_distinct_cc)
+        }
+        let (on, bal_on, cc) = run(Some(0.10));
+        let (off, bal_off, _) = run(Some(0.0));
+        assert!(
+            bal_on && bal_off,
+            "all entries balanced incl. allocation batches"
+        );
+        assert_eq!(off, 0, "rate 0.0 emits no allocation batches, got {off}");
+        assert!(on > 0, "rate 0.10 should emit allocation batches, got {on}");
+        assert!(
+            cc > 1,
+            "allocation should spread across multiple cost centers, got {cc}"
+        );
+    }
+
+    #[test]
+    fn test_derived_id_processes_keep_document_ids_unique() {
+        // SOTA-5/6 regression: reversals and allocation batches mint derived ids
+        // (`base ^ salt`). Reusing the same base would duplicate an id — the
+        // failure `test_document_reference_integrity` caught. With both processes
+        // at high rates, every emitted document id must still be unique.
+        let mut coa_gen =
+            ChartOfAccountsGenerator::new(CoAComplexity::Small, IndustrySector::Manufacturing, 31);
+        let coa = Arc::new(coa_gen.generate());
+        let cfg = TransactionConfig {
+            reversal_rate: Some(0.15),
+            allocation_batch_rate: Some(0.10),
+            ..TransactionConfig::default()
+        };
+        let mut g = JournalEntryGenerator::new_with_params(
+            cfg,
+            coa,
+            vec!["1000".to_string()],
+            NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
+            NaiveDate::from_ymd_opt(2024, 12, 31).unwrap(),
+            31,
+        )
+        .with_persona_errors(false)
+        .with_batching(false);
+        let mut ids = std::collections::HashSet::new();
+        let n = 3000;
+        for _ in 0..n {
+            let e = g.generate();
+            assert!(
+                ids.insert(e.header.document_id),
+                "duplicate document id {} (derived-id collision)",
+                e.header.document_id
+            );
+        }
+        assert_eq!(ids.len(), n, "all {n} document ids unique");
     }
 
     #[test]

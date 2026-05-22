@@ -39,8 +39,21 @@ realism gain costs no determinism churn on the non-account fields.
   `header_text` "Reversal of {id}", `reference` "REV-{id}", deterministically
   derived id) — a process auditors specifically look for and largely absent from
   the engine (FINDINGS §8: corpus reversal-proxy ~10% vs synthetic ~0.2%). Built
-  by cloning a buffered JE so the reversal inherits its source code, line text
-  and audit flags; interspersed via a separate `reversal_rng`. `0.0` disables it.
+  from a buffered JE so the reversal inherits its source code, line text and
+  audit flags; interspersed via a separate `reversal_rng`. The original is
+  consumed when reversed, so the derived id (`orig ^ salt`) is never minted
+  twice. `0.0` disables it.
+- **Allocation / assessment-batch process (`transactions.allocation_batch_rate`,
+  default ~0.008).** A small fraction of JEs are large 1-to-many allocation
+  batches — the corpus's lines-per-JE tail (FINDINGS §8: AB docs ~52 lines drive
+  the lpje std, vs the engine's ~4.6 mean with no large-batch process). Reuses a
+  buffered JE for a valid header, then explodes its largest debit line into
+  ~30-80 cost-center-spread sub-lines summing to the same amount (balance and
+  the main RNG preserved; the cost-center dimension breadth rises). Tagged
+  source `AB`, which is now **reserved** for this process — removed from the
+  default source-mix so synthetic `AB` lines-per-JE matches the corpus rather
+  than blending with small manual postings. Separate `allocation_rng`; `0.0`
+  disables it.
 
 ## v5.28 (corpus-fidelity round — BF eval scale fix + sampler re-fits)
 

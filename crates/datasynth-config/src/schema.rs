@@ -1689,6 +1689,16 @@ pub struct TransactionConfig {
     /// uniform-over-pool selection. Default-on when unset.
     #[serde(default)]
     pub account_concentration: Option<bool>,
+    /// **SOTA-6** Fraction of journal entries that are allocation/assessment
+    /// batches — large 1-to-many postings (one cost pool spread across many
+    /// cost centers) that drive the corpus lines-per-JE tail (FINDINGS.md
+    /// sec.8: AB docs ~52 lines vs the engine's ~4.6 mean with no large-batch
+    /// process). Each batch carries ~30-80 cost-center-spread sub-lines and
+    /// stays balanced. Unset → a small default (~0.008, ≈8% of lines); `0.0`
+    /// disables. Interspersed without perturbing the normal JEs (separate RNG +
+    /// derived id, reusing a recent JE's header).
+    #[serde(default)]
+    pub allocation_batch_rate: Option<f64>,
     /// Seasonality configuration
     #[serde(default)]
     pub seasonality: SeasonalityConfig,
