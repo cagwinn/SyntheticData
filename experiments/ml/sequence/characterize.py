@@ -81,9 +81,9 @@ def main(argv: list[str] | None = None) -> None:
         print(f"{f:<16}{tf_nll[f]:>14.4f}{marg_nll[f]:>16.4f}{lift:>14.4f}")
     print("-" * 60)
     print(f"{'TOTAL/token':<16}{tf_tot:>14.4f}{marg_tot:>16.4f}{marg_tot - tf_tot:>14.4f}")
-    print(f"\nInterpretation: positive lift = the AR model predicts events better "
-          f"than drawing each field iid from its marginal — i.e. it captures the "
-          f"joint/temporal structure the per-event marginal sampler discards.")
+    print("\nInterpretation: positive lift = the AR model predicts events better "
+          "than drawing each field iid from its marginal — i.e. it captures the "
+          "joint/temporal structure the per-event marginal sampler discards.")
 
 
 if __name__ == "__main__":

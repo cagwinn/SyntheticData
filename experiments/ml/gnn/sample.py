@@ -23,7 +23,7 @@ def main(argv: list[str] | None = None) -> None:
     ap.add_argument("--target-sparsity", type=float, default=None,
                     help="calibrated edge density; default = corpus density")
     ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
-    args = ap.parse_args(argv)
+    ap.parse_args(argv)  # validate args; sampler body is a scaffold TODO below
 
     raise NotImplementedError(
         "TODO(gnn): load GAE, encode nodes, draw a degree sequence from the "

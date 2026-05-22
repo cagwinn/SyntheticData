@@ -217,3 +217,57 @@ vs the full-corpus 0.015) is partly a scale artifact (the synthetic run is 86k
 lines / 1 yr / 417 sources vs the corpus's 104M / multi-year / 4,504). A dedicated
 over-dispersion mechanism could close the remainder but isn't warranted for the
 modest residual — the "AR event-scheduler" turned out to be the source long tail.
+
+## 8. Structural / process gaps — the SOTA roadmap (#123, 2026-05-22)
+
+Closing the §1 marginals (amount, lines-per-JE, source, IET) was necessary but
+left the inverse posterior **degenerate on the corpus** (§6/§7) even after
+source-mix closed — because the binding gap is the **joint / structural
+manifold**, not the marginals. A structural fingerprint (`corpus_structure.py`:
+JE archetypes, GL-flow graph, dimensions, multi-currency, account Pareto,
+reversal/recurring proxies) run identically on the corpus (health, 300k JEs) and
+a T2 synthetic generate (manufacturing/medium, ~18k JEs):
+
+| dimension | corpus | synthetic (T2) | gap |
+|---|--:|--:|---|
+| archetypes / 1k JEs | 47 | 758 | synthetic JEs ~16x too *unique* |
+| top-50 archetype coverage | 65% | 19% | corpus reuses standard postings |
+| recurring-archetype share | **97%** | 28% | recurring/standard journals missing |
+| account top-10% line share | **95%** | 21% | account-activity Pareto missing |
+| business_unit | 11 codes / 82% fill | **absent** | dimension missing entirely |
+| distinct currencies | 2 (3.5% func!=rep) | 1 | multi-currency / FX postings missing |
+| reversal proxy | 10% | 0.2% | reversal / correction process missing |
+| cost_center distinct | 527 | 42 | breadth gap (cf. source-mix) |
+| GL-flow edge entropy | 5.9 | 10.7 | posting graph too diffuse |
+| profit_center fill | 19% | 93% | synthetic *over*-fills the dimension |
+
+**Headline: real GLs are heavily TEMPLATED; the engine is too "creative."** A
+real ERP posts the same standard journals repeatedly (recurring entries,
+standard postings) — 97% of corpus JEs use an archetype recurring across periods
+and the top-50 archetypes cover 65% of all JEs. The engine builds each JE
+near-independently from its process logic, so 758/1k archetypes are unique and
+only 28% recur. This one axis (templating / recurring-entry reuse) also drives
+the diffuse flow graph and the too-flat account distribution.
+
+**SOTA roadmap (ranked by structural leverage):**
+1. **Recurring / standard-journal templates** — a templated posting process: a
+   per-(entity, source) library of standard JE archetypes drawn repeatedly so
+   reuse + recurring share approach the corpus. The biggest gap.
+2. **Account-activity Pareto** — concentrate postings on a hot subset (top-10%
+   -> ~95% of lines) instead of spreading evenly across the CoA.
+3. **Business Unit dimension** — add a BU field (absent today; 82% corpus fill).
+4. **Multi-currency / FX line postings** — functional + reporting amounts with a
+   small func!=rep share (intercompany / foreign-currency transactions).
+5. **Reversal / correction process** — emit reversal JEs offsetting prior ones
+   at a realistic rate (~10% account-amount sign overlap).
+6. **Dimensional discipline** — wider cost-center vocabulary, but *sparser*
+   profit-center fill (the engine over-populates dimensions the corpus leaves
+   blank).
+
+These are the missing **processes** (not marginals) separating the engine from a
+SOTA, corpus-indistinguishable GL — and precisely what would pull the corpus
+back inside the inverse manifold (§6/§7).
+
+*Method/caveats:* aggregate stats only (privacy); corpus health subset vs
+manufacturing synthetic (cross-industry, so dimensional vocabularies differ —
+the structural *ratios* are the signal); 300k-JE deterministic sample each.
