@@ -138,3 +138,56 @@ join the line table.
 - **Lines per JE**: synthetic JEs are ~2× too large — the lines-per-JE prior
   needs down-weighting toward the corpus mean of ~4.5.
 - **Eval**: fix the DR noise-floor degeneracy at corpus scale before re-baselining.
+
+## 6. v5.28 re-run — does closing lines-per-JE fix the inverse? (2026-05-22)
+
+T1 landed three gap-closers in v5.28: amount tail (#114), **lines-per-JE prior
+~10.3 → ~4.6** (#115, now matching the corpus's 4.5), and the DR noise-floor cap
+(#113). Re-running the inverse capstone on the v5.28 engine isolates #115's
+effect on backward identifiability: the forward sim θ-controls amounts in both
+v5.27 and v5.28, and does **not** override `line_item_distribution`, so the only
+moved axis is the default lines-per-JE. The (previously ad-hoc, lost) corpus →
+canonical-summary converter is now committed and reproducible
+(`inverse/corpus_x.py`); it reproduces §1 exactly (lpje 4.51, log-amt-mean 3.92,
+src-entropy 3.37 on the health subset).
+
+**Result: closing lines-per-JE alone does NOT make the corpus identifiable.**
+The synthetic-trained posterior (N=1000 and a less-overfit N=2000 retrain; SBC
+90%-coverage ≈0.80 on held-out synthetic — an identifiability ceiling for these
+three knobs, not an overfit artifact, since 2× data didn't move it) collapses to
+**prior-box corners with zero-width (over-confident) CIs** on the corpus —
+*everywhere*: pooled health, pooled full corpus (45 clients / 104.5M lines), all
+**8 industries**, and **45/45 individual clients**. The collapse corner varies
+run-to-run (`amount_mu`→3.0 or 10.0; `sigma`→0.5 or 2.6) — the signature of a
+flow extrapolating off-manifold, not a recovered θ. A handful of clients (e.g.
+two health GLs) momentarily recovered `amount_mu`≈6.2–6.4 under the noisier
+N=1000 posterior, but the cleaner N=2000 posterior collapsed even those.
+
+**Why one axis is insufficient — the corpus is OOD on several axes at once:**
+
+| feature | corpus (full) | synthetic forward-sim | gap after #115 |
+|---|--:|--:|---|
+| lines-per-JE *mean* | 4.95 | ~4.6 | **closed** (#115) |
+| lines-per-JE *std* | ~100 | small | open (heavy tail) |
+| source entropy | **3.91** | ≤2.72 (priors) / 0.75 (default) | open (the #1 lever) |
+| n_lines (log) | 18.5 | ~8 | open (GL-scale mismatch) |
+| IET std (days) | 0.015 | near-0 | open |
+
+This **strengthens** the §3 capstone thesis empirically: valid backward
+inference on out-of-sample GLs requires closing **multiple** forward-fidelity
+axes simultaneously; lines-per-JE was necessary but nowhere near sufficient.
+
+**Sharpened roadmap — source-mix (T2-D) is the top remaining lever**, decomposed
+here: the emitted `source` column is `sap_source_code` when industry priors are
+loaded (opt-in) — else it falls back to the coarse `TransactionSource` enum
+(`csv_sink.rs`), which is why the *default* engine measures entropy 0.75 (~4
+values). Loading priors lifts it to the bundle's 25-code `source_mix`
+(entropy 2.72); the corpus is 4,504 codes (entropy 3.91). So: (1) populate
+`sap_source_code` by default (0.75 → 2.72, cheap, all output), then (2) extend
+the bundle vocabulary with a privacy-safe synthetic long tail (2.72 → ~3.9).
+
+*Privacy/method notes:* apply emits only parameter posteriors, never row content;
+corpus dates are European `%d.%m.%Y` (the summary now parses `dayfirst=True` —
+prior runs' lag/weekend features were unreliable, but scale + source dominate the
+OOD regardless); GL-scale (n_lines) OOD is constant across the v5.27↔v5.28
+comparison so it does not confound the #115 isolation.

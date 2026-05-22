@@ -101,7 +101,10 @@ def summary_stats_from_df(df: pd.DataFrame) -> np.ndarray:
     nearest = np.abs(nz[:, None] - _ROUND_LEVELS[None, :]).min(axis=1) if nz.size else np.array([1e9])
     round_frac = float((nearest < 1.0).mean())
 
-    pdt = pd.to_datetime(df.get("posting_date"), errors="coerce")
+    # dayfirst=True: corpus dates are European (DD.MM.YYYY); ISO synthetic dates
+    # are unambiguous so this is a no-op for them. Without it the corpus lag /
+    # weekend / month-end features are silently corrupted (NaT + misparse).
+    pdt = pd.to_datetime(df.get("posting_date"), errors="coerce", dayfirst=True)
     dow = pdt.dt.dayofweek
     weekend_frac = float((dow >= 5).mean()) if n else 0.0
     monthend_frac = float((pdt.dt.day >= 25).mean()) if n else 0.0
@@ -125,7 +128,7 @@ def summary_stats_from_df(df: pd.DataFrame) -> np.ndarray:
 
     # Posting lag (posting - document), days
     if "document_date" in df:
-        ddt = pd.to_datetime(df["document_date"], errors="coerce")
+        ddt = pd.to_datetime(df["document_date"], errors="coerce", dayfirst=True)
         lag = (pdt - ddt).dt.days.to_numpy().astype(float)
         lag = lag[np.isfinite(lag)]
         lag_mean, lag_std = (float(lag.mean()), float(lag.std())) if lag.size else (0.0, 0.0)
