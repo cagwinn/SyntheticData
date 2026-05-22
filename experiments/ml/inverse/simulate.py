@@ -70,7 +70,14 @@ def _entropy(shares: np.ndarray) -> float:
 def summary_stats(je_csv: Path) -> np.ndarray:
     """GL → fixed-length feature vector x (DIM_X,). Observable-only (no labels)
     so the same map applies to an out-of-sample GL at inference time."""
-    df = pd.read_csv(je_csv, low_memory=False)
+    return summary_stats_from_df(pd.read_csv(je_csv, low_memory=False))
+
+
+def summary_stats_from_df(df: pd.DataFrame) -> np.ndarray:
+    """Same as `summary_stats` but from an in-memory canonical DataFrame — used
+    by the corpus converter, which maps corpus columns to canonical names and
+    avoids materialising a multi-GB intermediate CSV. The synthetic path
+    delegates here so both sides compute x identically."""
     n = len(df)
     if n == 0:
         return np.zeros(DIM_X, dtype=np.float32)
