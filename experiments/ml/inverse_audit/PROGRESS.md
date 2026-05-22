@@ -12,8 +12,11 @@ engine; "corpus data" legal.
 
 ---
 ## Status
-- **Now:** I1/I2/I3 done; I3 first-cut scorer is an HONEST NEGATIVE (worse than density). Next = **I5 v2**.
-- **Last update:** 2026-05-23 ~01:30 (wake 2), increment 2.
+- **Now:** I1/I2/I3/I5-v2 done. v2 with **signed feature combination beats the density baseline** (PR-AUC
+  0.215 vs 0.119, ROC 0.555 vs 0.522) — the relational arm exists. Next = **I5 v3 (signed weights + bipartite
+  TP-account + temporal account activity)**.
+- **Last update:** 2026-05-23 ~01:55 (wake 2), increment 2 — *substantial*: I2 baseline + I3 first cut +
+  v2 redesign + signed-combination result.
 
 ## Increment ledger
 - [x] **I1** plan + PROGRESS + `generate_relational.py` + `relational/ot_flow.py` rung-1 (self-test ✓) +
@@ -30,18 +33,27 @@ engine; "corpus data" legal.
       relational anomalies in this GL aren't *structurally rare at the per-JE edge level*; they live in
       orthogonal dimensions (counterparty / temporal / cross-JE) v1 doesn't observe.
 - [ ] **I4** ground-truth flows from document chains; OT accuracy vs truth; learn cost (rung 2); A-E baseline.
-- [ ] **I5 v2 — REDESIGN (next wake)** add the dimensions v1 misses. Concrete features to add to
-      `graph_scorer.py` (and report PER-FEATURE ROC so we see which actually help):
-        * `tp_novelty`     = count of JE's `trading_partner` values not seen in normal → NewCounterparty,
-                              UnmatchedIntercompany, TransferPricingAnomaly.
-        * `centrality_max` = max PageRank of touched accounts on the normal graph (power-iter, ~10 LOC,
-                              no networkx dep) → CentralityAnomaly.
-        * `account_dormancy` = days since each touched account's last activity in the normal stream
-                              (use posting_date), max over JE accounts → DormantAccountActivity.
-        * `source_cond_edge_surprise` = -log P(edge | source), per-source conditioning → UnusualAccountPair.
-        * (drop `back_edge` — fires for many normal JEs, not discriminative).
-      Also: cross-JE cycle detection on aggregate graph for CircularTransaction (per-JE attribution via
-      "this JE closes a normal-graph cycle of length <=3").
+- [x] **I5 v2** added `tp_novelty` + `centrality_max` + per-feature ROC reporting (commit 925be48f).
+      Per-feature ROC: edge_surprise_max 0.542, edge_surprise_w 0.537, tp_novelty 0.500, centrality_max
+      0.494, back_edge 0.468, coupling_entropy 0.467. Naive z-sum-of-6 underperforms (ROC 0.445) because
+      the four-out-of-six near/below-random features dilute the two-out-of-six positive ones.
+      **Signed combination is the headline result:**
+        * `pos_only` (edge_surprise_max+w): PR-AUC **0.215** / ROC **0.542**
+        * `signed`   (pos − anti):          PR-AUC 0.188 / ROC **0.555**
+        * density baseline (v same labels): PR-AUC 0.119 / ROC 0.522
+      → **first lift over the density baseline. The relational arm exists.**
+- [ ] **I5 v3 — next wake.** Persist a signed/weighted relational_score (don't ship the naive z-sum).
+      Three concrete improvements, in priority order:
+        (1) signed combination as default (the v2 finding) — either fixed signs from per-feature ROC,
+            or a tiny supervised step (held-out small labeled split, sklearn LogisticRegression on
+            standardised features, report coef + ROC). Persist `relational_score_signed`.
+        (2) bipartite TP-account graph: extend reconstruction to include `trading_partner` as a node
+            type — a counterparty-account *pair* unseen in normal catches NewCounterparty / IC families
+            in a way `tp_novelty` (raw string novelty) doesn't (the tp_set had only 35 values, all
+            re-used in test → 0 lift; the unseen-PAIR signal is what matters).
+        (3) temporal account-activity: last-seen `posting_date` per account in normal; per-JE feature =
+            max days-since-last-activity over touched accounts. Targets DormantAccountActivity (n=112,
+            currently the worst feature at ROC 0.28).
 - [ ] **I6** unified routed detector (local density + relational graph) → combined PR-AUC all families.
 - [ ] **I7** validation/rigor: held-out, ablations, calibration, observability map.
 - [ ] **I8** graph-JSON export (decoupled) + RustGraph ingestion/validation (RG-side, authorized).
@@ -49,6 +61,14 @@ engine; "corpus data" legal.
 
 ## Results log (append per increment)
 - I1: scaffold committed; relational GL generating on VM (anomaly_injection.rates.total_rate=0.08, fraud off).
+- Wake 2 (01:05–02:00):
+  - I2 density-arm baseline on /tmp/iar: PR-AUC 0.119 / ROC 0.522 vs is_anomaly (the 0.096 blind spot).
+  - I3 v1 (naive z-sum, 4 features): PR-AUC 0.087 / ROC 0.446 — *worse than density* (commit 55751e5a).
+  - I5 v2 (+ tp_novelty + centrality_max + per-feature ROC; commit 925be48f): naive sum still 0.087/0.446;
+    `pos_only` (edge_surprise_max+w) **0.215 / 0.542**; `signed` (pos − anti) **0.188 / 0.555**.
+  - **First lift over density.** edge_surprise is the carrier; back_edge + coupling_entropy are
+    anti-correlated (drop or sign-flip); tp_novelty + centrality_max are null on raw strings (need the
+    bipartite-pair / temporal redesign).
 
 ## Open questions / blockers
 - (none yet) — relational anomaly-type taxonomy + counts to be confirmed in I2; if too few relational
