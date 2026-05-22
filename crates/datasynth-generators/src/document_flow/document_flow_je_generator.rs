@@ -558,6 +558,14 @@ impl DocumentFlowJeGenerator {
     /// Uses the configured accounts to derive descriptions, since the document
     /// flow JE generator does not have access to the full chart of accounts.
     fn enrich_line_items(&self, entry: &mut JournalEntry) {
+        // T2-D Lever 1b: emit the SAP document-type code in the `source` column
+        // for document-flow-derived JEs, instead of falling back to the coarse
+        // `TransactionSource` enum (csv_sink). `document_type` is already the SAP
+        // code (WE/KR/KZ/WL/DR/DZ). Closes the ~8.5% `automated` source residual
+        // left by Lever 1 (experiments/ml/FINDINGS.md sec.7).
+        if entry.header.sap_source_code.is_none() && !entry.header.document_type.is_empty() {
+            entry.header.sap_source_code = Some(entry.header.document_type.clone());
+        }
         let desc_map = self.account_description_map();
         let posting_date = entry.header.posting_date;
         let company_code = &entry.header.company_code;
@@ -1493,6 +1501,11 @@ mod tests {
         // Should reference source document
         assert!(je.header.reference.is_some());
         assert!(je.header.reference.as_ref().unwrap().contains("GR:"));
+
+        // T2-D Lever 1b: the `source` column carries the SAP doc-type code
+        // (= document_type "WE"), not the coarse TransactionSource enum.
+        assert_eq!(je.header.sap_source_code.as_deref(), Some("WE"));
+        assert_eq!(je.header.document_type, "WE");
     }
 
     #[test]
