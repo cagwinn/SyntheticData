@@ -191,3 +191,29 @@ corpus dates are European `%d.%m.%Y` (the summary now parses `dayfirst=True` —
 prior runs' lag/weekend features were unreliable, but scale + source dominate the
 OOD regardless); GL-scale (n_lines) OOD is constant across the v5.27↔v5.28
 comparison so it does not confound the #115 isolation.
+
+## 7. T2 outcome — source breadth closes source-mix AND most of the IET gap (2026-05-22)
+
+T2(D) shipped a default SAP source-mix — Lever 1 (25-code standard FI/MM/SD head)
++ Lever 2 (a synthetic power-law long tail of Z-prefixed custom codes) — flag-
+gated (`transactions.synthetic_source_codes`, default-on), drawn from a **separate
+RNG stream** so non-source fields stay byte-identical. Measured end-to-end on a
+no-priors run (manufacturing/medium, ~86k JE lines, 1 year):
+
+| | source entropy | per-source IET std (days) |
+|---|--:|--:|
+| v5.27 (enum `source`) | 0.75 | 0.00028 |
+| Lever 1 (25-code head) | 2.79 | 0.0008 |
+| **Lever 2 (+ long tail, 417 obs. codes)** | **3.36** | **0.0085** |
+| corpus | 3.37 (health) / 3.91 (full) | ~0.015 |
+
+Source entropy now matches the health corpus. **T2(E) (IET variance) needed no
+separate AR scheduler:** §1/§3 established that corpus Δt is near-memoryless, and
+the IET variance is *coupled to source breadth* — with few sources each source is
+dense (same-day postings → ~zero gaps), whereas the corpus's long tail of rare
+sources draws few events → large gaps. Extending source breadth (Lever 2) lifted
+IET std 0.00028 → 0.0085 (**~30×**), closing most of the gap. The residual (0.0085
+vs the full-corpus 0.015) is partly a scale artifact (the synthetic run is 86k
+lines / 1 yr / 417 sources vs the corpus's 104M / multi-year / 4,504). A dedicated
+over-dispersion mechanism could close the remainder but isn't warranted for the
+modest residual — the "AR event-scheduler" turned out to be the source long tail.
