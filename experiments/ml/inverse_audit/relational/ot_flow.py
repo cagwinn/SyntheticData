@@ -74,20 +74,15 @@ def reconstruct_je(credit_accounts, credit_amounts, debit_accounts, debit_amount
     return flows, coupling_entropy(X)
 
 
-def build_account_graph(df, account_col="gl_account", debit_col="debit_amount",
-                        credit_col="credit_amount", je_col="document_id",
-                        eps: float = 0.05, cost_fn=None):
-    """Reconstruct the account-flow graph from a per-line JE frame.
-
-    Returns (edges, je_entropy):
-      edges      : {(src_account, dst_account): summed_flow_amount}
-      je_entropy : {je_id: normalised coupling entropy}  (the relational-ambiguity signal)
-    cost_fn(credit_accts, debit_accts) -> (m x n) cost matrix, or None for uniform (rung 1).
-    """
+def reconstruct_per_je(df, account_col="gl_account", debit_col="debit_amount",
+                       credit_col="credit_amount", je_col="document_id",
+                       eps: float = 0.05, cost_fn=None):
+    """Reconstruct flows for every JE. Returns {je_id: (flows, coupling_entropy)} where
+    flows = [(credit_acct, debit_acct, amount), ...]. The per-JE basis for both the
+    aggregate graph and the relational scorer."""
     import pandas as pd
 
-    edges: dict[tuple[str, str], float] = {}
-    je_entropy: dict[str, float] = {}
+    out: dict[str, tuple[list, float]] = {}
     for je_id, g in df.groupby(je_col, sort=False):
         deb = pd.to_numeric(g[debit_col], errors="coerce").fillna(0.0).to_numpy()
         cred = pd.to_numeric(g[credit_col], errors="coerce").fillna(0.0).to_numpy()
@@ -97,8 +92,20 @@ def build_account_graph(df, account_col="gl_account", debit_col="debit_amount",
         if di.size == 0 or ci.size == 0:
             continue
         cost = cost_fn(acct[ci], acct[di]) if cost_fn else None
-        flows, h = reconstruct_je(acct[ci], cred[ci], acct[di], deb[di], cost=cost, eps=eps)
-        je_entropy[str(je_id)] = h
+        out[str(je_id)] = reconstruct_je(acct[ci], cred[ci], acct[di], deb[di], cost=cost, eps=eps)
+    return out
+
+
+def build_account_graph(df, **kw):
+    """Aggregate account-flow graph. Returns (edges, je_entropy):
+      edges      : {(src_account, dst_account): summed_flow_amount}
+      je_entropy : {je_id: normalised coupling entropy}  (the relational-ambiguity signal)
+    """
+    per = reconstruct_per_je(df, **kw)
+    edges: dict[tuple[str, str], float] = {}
+    je_entropy: dict[str, float] = {}
+    for je_id, (flows, h) in per.items():
+        je_entropy[je_id] = h
         for s, d, w in flows:
             edges[(s, d)] = edges.get((s, d), 0.0) + w
     return edges, je_entropy
