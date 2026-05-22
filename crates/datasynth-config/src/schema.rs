@@ -1651,6 +1651,16 @@ pub struct TransactionConfig {
     /// Transaction source distribution
     #[serde(default)]
     pub source_distribution: SourceDistribution,
+    /// **T2-D** Source-mix breadth. When unset or `true` (the default), the
+    /// emitted `source` column is drawn from a generic SAP document-type mix
+    /// (~25 codes, entropy ~2.7) instead of the coarse `TransactionSource`
+    /// enum (~4 values, entropy ~0.75), closing the source-mix gap measured
+    /// in experiments/ml/FINDINGS.md §6. Industry priors, when loaded, take
+    /// precedence. Set `false` to restore the legacy enum labels. `Option`
+    /// (not bare `bool`) so the default is genuinely on under both serde and
+    /// `Default::default()`.
+    #[serde(default)]
+    pub synthetic_source_codes: Option<bool>,
     /// Seasonality configuration
     #[serde(default)]
     pub seasonality: SeasonalityConfig,

@@ -6,7 +6,7 @@ use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
 use rust_decimal::prelude::*;
 use rust_decimal::Decimal;
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 
 use tracing::debug;
 
@@ -32,6 +32,13 @@ use crate::company_selector::WeightedCompanySelector;
 use crate::user_generator::{UserGenerator, UserGeneratorConfig};
 
 use datasynth_core::distributions::text_taxonomy::{PiiPlaceholderKind, PlaceholderResolver};
+
+/// T2-D Lever 1: the default generic SAP source-mix, used when industry priors
+/// are not loaded but `transactions.synthetic_source_codes` is on (the default).
+/// Built once. See [`SourceMixPrior::sap_default`] and experiments/ml/FINDINGS.md §6.
+static DEFAULT_SOURCE_MIX: LazyLock<
+    datasynth_core::distributions::behavioral_priors::SourceMixPrior,
+> = LazyLock::new(datasynth_core::distributions::behavioral_priors::SourceMixPrior::sap_default);
 
 /// SP6 — Resolves PII placeholders to concrete values drawn from the run's
 /// synthetic master data. `{company}` <- vendor/customer names, `{person}` <-
@@ -1121,6 +1128,22 @@ impl JournalEntryGenerator {
         pool[idx].to_string()
     }
 
+    /// T2-D Lever 1: choose the `sap_source_code` emitted in the CSV `source`
+    /// column. Priority: loaded industry priors' `source_mix` (SP3.6) → the
+    /// default generic SAP doc-type mix when `transactions.synthetic_source_codes`
+    /// is on (the default) → `None` (legacy: `source` falls back to the coarse
+    /// `TransactionSource` enum). Closes the source-mix breadth gap by default
+    /// (entropy ~0.75 → ~2.7; experiments/ml/FINDINGS.md §6).
+    fn sample_sap_source_code(&mut self) -> Option<String> {
+        if let Some(p) = self.loaded_priors.as_ref() {
+            return Some(p.source_mix.sample(&mut self.rng));
+        }
+        if self.config.synthetic_source_codes.unwrap_or(true) {
+            return Some(DEFAULT_SOURCE_MIX.sample(&mut self.rng));
+        }
+        None
+    }
+
     fn determine_fraud(&mut self) -> Option<FraudType> {
         if !self.fraud_config.enabled {
             return None;
@@ -1626,10 +1649,7 @@ impl JournalEntryGenerator {
         // the `TransactionSource` enum (which controls manual/automated semantics)
         // and is written to `header.sap_source_code`, then emitted in the CSV
         // `source` column in place of the generic label.
-        let sap_source_code: Option<String> = self
-            .loaded_priors
-            .as_ref()
-            .map(|p| p.source_mix.sample(&mut self.rng));
+        let sap_source_code: Option<String> = self.sample_sap_source_code();
 
         // Select business process
         let business_process = self.select_business_process();
@@ -2530,10 +2550,7 @@ impl JournalEntryGenerator {
         let source = TransactionSource::Manual;
 
         // SP3.6 — sample SAP source code for the batch entry when priors loaded.
-        let sap_source_code: Option<String> = self
-            .loaded_priors
-            .as_ref()
-            .map(|p| p.source_mix.sample(&mut self.rng));
+        let sap_source_code: Option<String> = self.sample_sap_source_code();
 
         // Use the batch's business process
         let business_process = batch.base_business_process.unwrap_or(BusinessProcess::R2R);
@@ -4372,6 +4389,72 @@ mod tests {
                     "Non-manual entry should not be in `manual` / `spreadsheet` family, got '{s}'",
                 );
             }
+        }
+    }
+
+    #[test]
+    fn test_default_source_codes_breadth() {
+        // T2-D Lever 1: with no industry priors and the default config, the
+        // `source` column carries a broad generic SAP doc-type mix
+        // (sap_source_code populated) instead of collapsing to the
+        // TransactionSource enum. See experiments/ml/FINDINGS.md §6.
+        let mut coa_gen =
+            ChartOfAccountsGenerator::new(CoAComplexity::Small, IndustrySector::Manufacturing, 7);
+        let coa = Arc::new(coa_gen.generate());
+        let mut je_gen = JournalEntryGenerator::new_with_params(
+            TransactionConfig::default(),
+            coa,
+            vec!["1000".to_string()],
+            NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
+            NaiveDate::from_ymd_opt(2024, 12, 31).unwrap(),
+            7,
+        )
+        .with_persona_errors(false)
+        .with_batching(false);
+
+        let mut codes = std::collections::HashSet::new();
+        for _ in 0..500 {
+            let e = je_gen.generate();
+            let code = e
+                .header
+                .sap_source_code
+                .expect("default config should populate sap_source_code");
+            codes.insert(code);
+        }
+        assert!(
+            codes.len() >= 10,
+            "default source-mix should be broad (>=10 distinct codes), got {}",
+            codes.len()
+        );
+    }
+
+    #[test]
+    fn test_source_codes_opt_out() {
+        // synthetic_source_codes = Some(false) restores the legacy behaviour:
+        // sap_source_code stays None and `source` falls back to the enum.
+        let mut coa_gen =
+            ChartOfAccountsGenerator::new(CoAComplexity::Small, IndustrySector::Manufacturing, 9);
+        let coa = Arc::new(coa_gen.generate());
+        let cfg = TransactionConfig {
+            synthetic_source_codes: Some(false),
+            ..TransactionConfig::default()
+        };
+        let mut je_gen = JournalEntryGenerator::new_with_params(
+            cfg,
+            coa,
+            vec!["1000".to_string()],
+            NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
+            NaiveDate::from_ymd_opt(2024, 12, 31).unwrap(),
+            9,
+        )
+        .with_persona_errors(false)
+        .with_batching(false);
+        for _ in 0..50 {
+            let e = je_gen.generate();
+            assert!(
+                e.header.sap_source_code.is_none(),
+                "opt-out should leave sap_source_code None (legacy enum source)"
+            );
         }
     }
 

@@ -286,6 +286,52 @@ impl SourceMixPrior {
             .cloned()
             .unwrap_or_else(|| "SA".to_string())
     }
+
+    /// A privacy-safe **generic** SAP document-type source mix for the default
+    /// (no industry-priors) generation path. Standard SAP FI/MM/SD document
+    /// types with hand-chosen, plausible weights — **not** corpus-derived
+    /// probabilities — so the emitted `source` column has realistic breadth
+    /// (~25 codes, entropy ~2.7) instead of collapsing to the coarse
+    /// `TransactionSource` enum (entropy ~0.75). See experiments/ml/FINDINGS.md
+    /// §6 for the source-mix gap that motivates this. Weights are relative;
+    /// `sample` normalises by their sum.
+    pub fn sap_default() -> Self {
+        let probabilities = [
+            ("RV", 0.16),
+            ("KR", 0.12),
+            ("DR", 0.10),
+            ("SA", 0.09),
+            ("DZ", 0.08),
+            ("KZ", 0.07),
+            ("WE", 0.06),
+            ("RE", 0.05),
+            ("DG", 0.04),
+            ("KG", 0.035),
+            ("WA", 0.03),
+            ("AB", 0.03),
+            ("WL", 0.025),
+            ("ZP", 0.02),
+            ("SK", 0.018),
+            ("AF", 0.015),
+            ("AA", 0.012),
+            ("ML", 0.010),
+            ("PR", 0.008),
+            ("RN", 0.007),
+            ("WI", 0.006),
+            ("AN", 0.005),
+            ("UE", 0.004),
+            ("ZV", 0.003),
+            ("EU", 0.002),
+        ]
+        .into_iter()
+        .map(|(k, v)| (k.to_string(), v))
+        .collect();
+        Self {
+            probabilities,
+            other_fraction: 0.0,
+            min_threshold: 0.0,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
