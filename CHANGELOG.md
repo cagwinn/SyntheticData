@@ -11,10 +11,15 @@ Closes structural gaps surfaced by the corpus fingerprint study
 (`experiments/ml/FINDINGS.md` §8): the corpus is heavily *templated* — a small
 set of standard postings recurs and a hot subset of accounts carries most lines
 — whereas the engine drew fresh, near-uniform accounts per line. Each lever is
-flag-gated and default-on, and all preserve JE balance **and the main RNG
-stream** (amounts, line counts, dates, copula correlations stay byte-identical —
-only account choice, source codes, and interspersed reversals change), so the
-realism gain costs no determinism churn on the non-account fields.
+flag-gated and default-on, and all preserve **JE balance** and **same-seed
+determinism**. The account-selection levers draw their override from dedicated
+RNG streams so the *direct* amount/line-count/date draws are untouched; note,
+however, that the selected account is fed to line-text generation (whose RNG
+draw count is account-dependent), so when line text is enabled the downstream
+amount *values* shift even though their distributions are unchanged — i.e. the
+output is reproducible for a given seed but not byte-for-byte identical to
+v5.28. The amount/line-count *marginal distributions* and Benford compliance are
+preserved (only the specific values and the amount↔line-count pairing move).
 
 ### Added
 
@@ -24,14 +29,15 @@ realism gain costs no determinism churn on the non-account fields.
   is reused (~82%) instead of drawing fresh accounts, matching the corpus's
   heavy templating (FINDINGS §8: ~97% recurring archetypes, top-50 cover ~65%;
   vs the engine's 758/1000 unique). Reuse is drawn from a separate `template_rng`
-  and overrides only the count-matching `gl_account`, so amounts/dates/line-
-  counts are unchanged. Set `false` for the legacy uniform-per-line selection.
+  and overrides only the count-matching `gl_account` (no direct amount/date/
+  line-count draw changes; see the round note on the account→line-text coupling).
+  Set `false` for the legacy uniform-per-line selection.
 - **Account-activity Pareto (`transactions.account_concentration`, default-on).**
   A Zipf (s=2.0) power-law override of the per-line account pick concentrates
   posting activity onto a hot subset of accounts — in the corpus the top-10% of
   accounts carry ~95% of lines, vs the engine's near-uniform ~0.21. The uniform
-  pool draw is still consumed on the main RNG (amounts/dates/counts unchanged);
-  only the selected account moves toward the hot set, via a dedicated
+  pool draw is still consumed on the main RNG (no direct amount/date/count draw
+  changes); only the selected account moves toward the hot set, via a dedicated
   `account_rng` and a precomputed harmonic table. Pinned by
   `test_account_concentration_creates_pareto`.
 - **Reversal / correction process (`transactions.reversal_rate`, default ~0.04).**

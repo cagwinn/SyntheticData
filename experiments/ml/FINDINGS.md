@@ -275,10 +275,14 @@ the structural *ratios* are the signal); 300k-JE deterministic sample each.
 ## 9. SOTA round implemented & corpus-validated (v5.29, 2026-05-22)
 
 The §8 roadmap, shipped as four flag-gated, default-on posting processes. Each
-preserves JE balance **and the main RNG stream** (separate aux RNG + override
-after the main draw), so amounts/line-counts/dates/copula stay byte-identical —
-only account choice, source codes, and interspersed reversal/allocation JEs
-change. Re-measured with the same `corpus_structure.py` / `corpus_processes.py`
+preserves **JE balance** and **same-seed determinism**, drawing its override
+from a dedicated RNG stream so the *direct* amount/line-count/date draws are
+untouched. (Caveat found during the CI shake-out: the selected account feeds
+line-text generation, whose RNG draw count is account-dependent, so when line
+text is on the downstream amount *values* shift — distributions and Benford are
+preserved, but the output is not byte-identical to v5.28. This is why the copula
+correlation smoke tests had to be re-pinned to a no-SOTA-lever config.)
+Re-measured with the same `corpus_structure.py` / `corpus_processes.py`
 fingerprint on a fresh manufacturing/medium generate (commit `38d7722f`):
 
 | dimension | corpus | before | after | lever |
