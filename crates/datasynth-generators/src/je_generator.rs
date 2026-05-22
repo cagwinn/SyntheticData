@@ -101,6 +101,10 @@ fn synthetic_patient_pool(_locale: &str) -> Vec<String> {
 /// Generator for realistic journal entries.
 pub struct JournalEntryGenerator {
     rng: ChaCha8Rng,
+    /// T2-D: independent RNG stream for the default source-mix draw, so
+    /// populating `sap_source_code` on the no-priors path never perturbs the
+    /// main `rng` — all other fields stay byte-identical to the legacy output.
+    source_mix_rng: ChaCha8Rng,
     seed: u64,
     config: TransactionConfig,
     coa: Arc<ChartOfAccounts>,
@@ -422,6 +426,7 @@ impl JournalEntryGenerator {
 
         Self {
             rng: seeded_rng(seed, 0),
+            source_mix_rng: seeded_rng(seed, 50_063),
             seed,
             config: config.clone(),
             coa,
@@ -1139,7 +1144,9 @@ impl JournalEntryGenerator {
             return Some(p.source_mix.sample(&mut self.rng));
         }
         if self.config.synthetic_source_codes.unwrap_or(true) {
-            return Some(DEFAULT_SOURCE_MIX.sample(&mut self.rng));
+            // Independent stream: never perturb the main RNG, so all other
+            // fields stay byte-identical to the legacy (enum-source) output.
+            return Some(DEFAULT_SOURCE_MIX.sample(&mut self.source_mix_rng));
         }
         None
     }
@@ -3459,6 +3466,7 @@ impl Generator for JournalEntryGenerator {
 
     fn reset(&mut self) {
         self.rng = seeded_rng(self.seed, 0);
+        self.source_mix_rng = seeded_rng(self.seed, 50_063);
         self.line_sampler.reset(self.seed + 1);
         self.amount_sampler.reset(self.seed + 2);
         self.temporal_sampler.reset(self.seed + 3);
