@@ -105,6 +105,14 @@ pub struct JournalEntryGenerator {
     /// populating `sap_source_code` on the no-priors path never perturbs the
     /// main `rng` — all other fields stay byte-identical to the legacy output.
     source_mix_rng: ChaCha8Rng,
+    /// SOTA-1: per-(company, doc-type) library of reusable JE account archetypes
+    /// `(debit_accounts, credit_accounts)` for the recurring-templates process.
+    /// Capped per key; reused on the no-priors path so standard postings recur.
+    recurring_archetypes:
+        std::collections::HashMap<(String, String), Vec<(Vec<String>, Vec<String>)>>,
+    /// SOTA-1: independent RNG for the template-reuse roll + archetype pick, so
+    /// templating never perturbs the main `rng` (amounts/dates/counts unchanged).
+    template_rng: ChaCha8Rng,
     seed: u64,
     config: TransactionConfig,
     coa: Arc<ChartOfAccounts>,
@@ -427,6 +435,8 @@ impl JournalEntryGenerator {
         Self {
             rng: seeded_rng(seed, 0),
             source_mix_rng: seeded_rng(seed, 50_063),
+            recurring_archetypes: std::collections::HashMap::new(),
+            template_rng: seeded_rng(seed, 70_081),
             seed,
             config: config.clone(),
             coa,
@@ -1149,6 +1159,69 @@ impl JournalEntryGenerator {
             return Some(DEFAULT_SOURCE_MIX.sample(&mut self.source_mix_rng));
         }
         None
+    }
+
+    /// SOTA-1: on the no-priors path, reuse a cached `(debit, credit)` account
+    /// archetype matching the line counts for this `(company, doc_type)` with
+    /// high probability, so standard postings recur (and a hot subset of
+    /// accounts dominates) instead of every JE drawing fresh uniform accounts.
+    /// Returns the accounts to use, or `None` to select fresh (then cached).
+    /// Rolls `template_rng` first so the main RNG (amounts/dates/counts) is
+    /// never perturbed — only account *choice* changes on reuse.
+    fn pick_recurring_archetype(
+        &mut self,
+        company: &str,
+        doc_type: &str,
+        debit_count: usize,
+        credit_count: usize,
+    ) -> Option<(Vec<String>, Vec<String>)> {
+        // Priors carry their own GL-account structure; templating is the
+        // no-priors default-path realism boost (FINDINGS.md sec.8).
+        if self.loaded_priors.is_some() || !self.config.recurring_templates.unwrap_or(true) {
+            return None;
+        }
+        const P_REUSE: f64 = 0.82; // ~corpus recurring share
+        if self.template_rng.random::<f64>() >= P_REUSE {
+            return None;
+        }
+        let pick: f64 = self.template_rng.random();
+        let lib = self
+            .recurring_archetypes
+            .get(&(company.to_string(), doc_type.to_string()))?;
+        let matching: Vec<&(Vec<String>, Vec<String>)> = lib
+            .iter()
+            .filter(|(d, c)| d.len() == debit_count && c.len() == credit_count)
+            .collect();
+        if matching.is_empty() {
+            return None;
+        }
+        let idx = ((pick * matching.len() as f64) as usize).min(matching.len() - 1);
+        Some(matching[idx].clone())
+    }
+
+    /// SOTA-1: record a freshly-selected archetype for future reuse, capped per
+    /// `(company, doc_type)` so the standard-posting library stays small.
+    fn cache_recurring_archetype(
+        &mut self,
+        company: &str,
+        doc_type: &str,
+        debit: Vec<String>,
+        credit: Vec<String>,
+    ) {
+        if self.loaded_priors.is_some() || !self.config.recurring_templates.unwrap_or(true) {
+            return;
+        }
+        if debit.is_empty() && credit.is_empty() {
+            return;
+        }
+        const CAP: usize = 48; // distinct archetypes per (company, doc-type)
+        let lib = self
+            .recurring_archetypes
+            .entry((company.to_string(), doc_type.to_string()))
+            .or_default();
+        if lib.len() < CAP {
+            lib.push((debit, credit));
+        }
     }
 
     fn determine_fraud(&mut self) -> Option<FraudType> {
@@ -2188,6 +2261,21 @@ impl JournalEntryGenerator {
                 (Vec::new(), 0.0)
             };
 
+        // SOTA-1: recurring/standard-journal templates. On the no-priors path,
+        // reuse a cached account archetype for this (company, doc-type, counts)
+        // with high probability so standard postings recur (and a hot account
+        // subset dominates). Reuse overrides only the line account (set after
+        // text/RNG below), so amounts/counts/dates stay byte-identical; fresh
+        // archetypes are captured + cached after the lines are built.
+        let reuse_archetype = self.pick_recurring_archetype(
+            &entry.header.company_code,
+            &doc_type_for_fanout,
+            line_spec.debit_count,
+            line_spec.credit_count,
+        );
+        let mut fresh_debit_accts: Vec<String> = Vec::new();
+        let mut fresh_credit_accts: Vec<String> = Vec::new();
+
         // Generate debit lines
         let debit_amounts = self
             .amount_sampler
@@ -2282,6 +2370,16 @@ impl JournalEntryGenerator {
                 }));
             }
 
+            // SOTA-1: override the line's account with the reused archetype's
+            // (RNG + text above are unchanged -> amounts/counts/dates stay
+            // byte-identical); else capture the fresh account for caching.
+            if let Some((ref d, _)) = reuse_archetype {
+                if let Some(a) = d.get(i) {
+                    line.gl_account = a.clone();
+                }
+            } else if self.loaded_priors.is_none() {
+                fresh_debit_accts.push(line.gl_account.clone());
+            }
             entry.add_line(line);
         }
 
@@ -2372,7 +2470,27 @@ impl JournalEntryGenerator {
                 }));
             }
 
+            // SOTA-1: override the credit line's account with the reused
+            // archetype's; else capture the fresh account for caching.
+            if let Some((_, ref c)) = reuse_archetype {
+                if let Some(a) = c.get(i) {
+                    line.gl_account = a.clone();
+                }
+            } else if self.loaded_priors.is_none() {
+                fresh_credit_accts.push(line.gl_account.clone());
+            }
             entry.add_line(line);
+        }
+
+        // SOTA-1: cache the freshly-selected archetype for future reuse so
+        // standard postings recur (skipped when this JE reused one).
+        if reuse_archetype.is_none() {
+            self.cache_recurring_archetype(
+                &entry.header.company_code,
+                &doc_type_for_fanout,
+                std::mem::take(&mut fresh_debit_accts),
+                std::mem::take(&mut fresh_credit_accts),
+            );
         }
 
         // Enrich line items with account descriptions, cost centers, etc.
@@ -3467,6 +3585,8 @@ impl Generator for JournalEntryGenerator {
     fn reset(&mut self) {
         self.rng = seeded_rng(self.seed, 0);
         self.source_mix_rng = seeded_rng(self.seed, 50_063);
+        self.template_rng = seeded_rng(self.seed, 70_081);
+        self.recurring_archetypes.clear();
         self.line_sampler.reset(self.seed + 1);
         self.amount_sampler.reset(self.seed + 2);
         self.temporal_sampler.reset(self.seed + 3);
@@ -4464,6 +4584,63 @@ mod tests {
                 "opt-out should leave sap_source_code None (legacy enum source)"
             );
         }
+    }
+
+    #[test]
+    fn test_recurring_templates_reuse_archetypes() {
+        // SOTA-1: with templating on (default), generated JEs reuse account
+        // archetypes (far fewer distinct than the legacy uniform-per-line
+        // selection), and balance is preserved either way.
+        fn run(recurring: Option<bool>) -> (usize, usize, bool) {
+            let mut coa_gen = ChartOfAccountsGenerator::new(
+                CoAComplexity::Medium,
+                IndustrySector::Manufacturing,
+                11,
+            );
+            let coa = Arc::new(coa_gen.generate());
+            let cfg = TransactionConfig {
+                recurring_templates: recurring,
+                ..TransactionConfig::default()
+            };
+            let mut g = JournalEntryGenerator::new_with_params(
+                cfg,
+                coa,
+                vec!["1000".to_string()],
+                NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
+                NaiveDate::from_ymd_opt(2024, 12, 31).unwrap(),
+                11,
+            )
+            .with_persona_errors(false)
+            .with_batching(false);
+            let n = 800;
+            let mut arche = std::collections::HashSet::new();
+            let mut balanced = true;
+            for _ in 0..n {
+                let e = g.generate();
+                if !e.is_balanced() {
+                    balanced = false;
+                }
+                let mut sig: Vec<(String, bool)> = e
+                    .lines
+                    .iter()
+                    .map(|l| (l.gl_account.clone(), l.debit_amount > Decimal::ZERO))
+                    .collect();
+                sig.sort();
+                arche.insert(sig);
+            }
+            (n, arche.len(), balanced)
+        }
+        let (n, distinct_on, bal_on) = run(Some(true));
+        let (_, distinct_off, bal_off) = run(Some(false));
+        assert!(bal_on && bal_off, "balance preserved in both modes");
+        assert!(
+            distinct_on < distinct_off,
+            "templating should reduce distinct archetypes ({distinct_on} on vs {distinct_off} off)"
+        );
+        assert!(
+            distinct_on * 2 < n,
+            "templating should reuse heavily: {distinct_on} distinct archetypes over {n} JEs"
+        );
     }
 
     #[test]

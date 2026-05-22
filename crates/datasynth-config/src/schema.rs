@@ -1661,6 +1661,17 @@ pub struct TransactionConfig {
     /// `Default::default()`.
     #[serde(default)]
     pub synthetic_source_codes: Option<bool>,
+    /// **SOTA-1** Recurring / standard-journal templating. When unset or `true`
+    /// (the default), the no-priors generation path reuses a small per-(company,
+    /// process) library of standard JE account-archetypes with high probability,
+    /// so standard postings recur (and a hot subset of accounts dominates)
+    /// instead of every JE drawing fresh uniform accounts. Matches the corpus's
+    /// heavy templating (FINDINGS.md sec.8: 97% recurring, top-50 cover 65%; vs
+    /// the engine's 758/1k unique). Reuse overrides only account *choice* (the
+    /// main RNG + amounts/dates/counts are unchanged). Set `false` for the
+    /// legacy uniform-per-line account selection.
+    #[serde(default)]
+    pub recurring_templates: Option<bool>,
     /// Seasonality configuration
     #[serde(default)]
     pub seasonality: SeasonalityConfig,
