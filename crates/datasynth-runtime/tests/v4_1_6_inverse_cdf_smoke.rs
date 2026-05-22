@@ -27,6 +27,13 @@ fn build_runtime(
     // achievable Kendall-τ — decouple the copula test from that default.
     config.transactions.line_item_distribution =
         datasynth_core::distributions::LineItemDistributionConfig::paper_reference();
+    // Same spirit as the paper_reference pin: isolate the copula's
+    // amount↔line_count signal from the SOTA-5/6 processes (default-on).
+    // Allocation batches inject ~50-line JEs with uncorrelated amounts and
+    // reversals duplicate points — both attenuate the achievable rank
+    // correlation this inverse-CDF test asserts on.
+    config.transactions.allocation_batch_rate = Some(0.0);
+    config.transactions.reversal_rate = Some(0.0);
     cfg_tweak(&mut config);
     let mut phase_config = PhaseConfig::from_config(&config);
     phase_config.generate_document_flows = false;
