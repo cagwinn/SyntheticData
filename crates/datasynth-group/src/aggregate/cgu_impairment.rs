@@ -50,6 +50,7 @@
 //! Results are sorted by `cgu_id` for byte-identical ordering across
 //! runs with identical inputs.
 
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use chrono::NaiveDate;
@@ -78,13 +79,32 @@ pub struct CguTestInputs {
     /// Carrying amount of the **other assets** of the CGU (everything
     /// except the allocated goodwill) immediately before the test, in
     /// the group presentation currency.  Always non-negative.
-    pub other_carrying: Decimal,
+    ///
+    /// **`None` (the default) derives this from the actually-generated
+    /// trial balances** — the summed net assets of the CGU's
+    /// `member_entity_codes` (per `classify_account`) less the allocated
+    /// goodwill — so the impairment test reconciles to the consolidated
+    /// balance sheet. Supply `Some(_)` to override with an external amount.
+    #[serde(default)]
+    pub other_carrying: Option<Decimal>,
     /// Fair value of the CGU less costs of disposal at the test date.
-    pub fair_value_less_costs: Decimal,
-    /// Value in use of the CGU at the test date.  Typically the
-    /// present value of the next 5 years of net cash flows + a
-    /// terminal value, discounted at the WACC.
-    pub value_in_use: Decimal,
+    /// Required together with `value_in_use` unless `recoverable_ratio` is set.
+    #[serde(default)]
+    pub fair_value_less_costs: Option<Decimal>,
+    /// Value in use of the CGU at the test date (PV of future net cash
+    /// flows + terminal value at the WACC). Required together with
+    /// `fair_value_less_costs` unless `recoverable_ratio` is set.
+    #[serde(default)]
+    pub value_in_use: Option<Decimal>,
+    /// **Recoverable amount expressed as a ratio of the CGU's carrying
+    /// amount.** When set, `recoverable = (allocated_goodwill +
+    /// other_carrying) * recoverable_ratio`, overriding
+    /// `fair_value_less_costs` / `value_in_use` — so the recoverable amount
+    /// stays internally consistent with the (TB-derived) carrying rather than
+    /// floating free of the financials (e.g. `0.9` → a real 10% shortfall,
+    /// `1.2` → headroom). Must be non-negative.
+    #[serde(default)]
+    pub recoverable_ratio: Option<Decimal>,
 }
 
 // ── Filename and path constants ────────────────────────────────────────────────
@@ -112,6 +132,7 @@ pub const CGU_IMPAIRMENT_TESTS_FILENAME: &str = "cgu_impairment_tests.json";
 pub fn run_cgu_impairment_tests(
     cgu_plan: &CguPlan,
     test_inputs: &[CguTestInputs],
+    entity_net_assets: &BTreeMap<String, Decimal>,
     test_date: NaiveDate,
     currency: &str,
 ) -> GroupResult<Vec<CguImpairmentResult>> {
@@ -122,27 +143,20 @@ pub fn run_cgu_impairment_tests(
     let mut results: Vec<CguImpairmentResult> = Vec::with_capacity(test_inputs.len());
 
     for input in test_inputs {
-        // Validate inputs
-        if !cgu_plan.cgus.iter().any(|c| c.cgu_id == input.cgu_id) {
-            return Err(GroupError::Aggregate(format!(
-                "cgu impairment: test input references cgu_id `{}` which has no matching definition in the manifest plan",
-                input.cgu_id,
-            )));
-        }
-        for (label, val) in [
-            ("other_carrying", input.other_carrying),
-            ("fair_value_less_costs", input.fair_value_less_costs),
-            ("value_in_use", input.value_in_use),
-        ] {
-            if val < Decimal::ZERO {
-                return Err(GroupError::Aggregate(format!(
-                    "cgu impairment: test input for cgu `{}` has negative {} `{}` — all carrying / recoverable amounts must be non-negative",
-                    input.cgu_id, label, val,
-                )));
-            }
-        }
+        // Validate cgu_id references a defined CGU; capture its members so a
+        // missing `other_carrying` can be derived from their trial balances.
+        let cgu = cgu_plan
+            .cgus
+            .iter()
+            .find(|c| c.cgu_id == input.cgu_id)
+            .ok_or_else(|| {
+                GroupError::Aggregate(format!(
+                    "cgu impairment: test input references cgu_id `{}` which has no matching definition in the manifest plan",
+                    input.cgu_id,
+                ))
+            })?;
 
-        // Sum goodwill allocations for this CGU
+        // Sum goodwill allocations for this CGU.
         let allocated_goodwill: Decimal = cgu_plan
             .goodwill_allocations
             .iter()
@@ -150,13 +164,71 @@ pub fn run_cgu_impairment_tests(
             .map(|a| a.goodwill_amount)
             .sum();
 
+        // Other-asset carrying: explicit override, else derived from the member
+        // entities' net assets in the generated TBs less the allocated goodwill,
+        // so the test reconciles to the consolidated balance sheet (clamped >=0).
+        let other_carrying = match input.other_carrying {
+            Some(c) => c,
+            None => {
+                let members_net: Decimal = cgu
+                    .member_entity_codes
+                    .iter()
+                    .map(|e| entity_net_assets.get(e).copied().unwrap_or(Decimal::ZERO))
+                    .sum();
+                (members_net - allocated_goodwill).max(Decimal::ZERO)
+            }
+        };
+        if other_carrying < Decimal::ZERO {
+            return Err(GroupError::Aggregate(format!(
+                "cgu impairment: cgu `{}` has negative other_carrying `{other_carrying}`",
+                input.cgu_id,
+            )));
+        }
+
+        // Recoverable amount: a ratio of the (BS-coherent) carrying when
+        // `recoverable_ratio` is set, else max(FV-less-costs, VIU). Both are
+        // injected into the test as FV-less-costs / VIU so `run`'s max() yields
+        // the intended recoverable amount.
+        let (fair_value_less_costs, value_in_use) = if let Some(ratio) = input.recoverable_ratio {
+            if ratio < Decimal::ZERO {
+                return Err(GroupError::Aggregate(format!(
+                    "cgu impairment: cgu `{}` has negative recoverable_ratio `{ratio}`",
+                    input.cgu_id,
+                )));
+            }
+            let recoverable = (allocated_goodwill + other_carrying) * ratio;
+            (recoverable, recoverable)
+        } else {
+            let fvlc = input.fair_value_less_costs.ok_or_else(|| {
+                GroupError::Aggregate(format!(
+                    "cgu impairment: cgu `{}` needs fair_value_less_costs + value_in_use (or recoverable_ratio)",
+                    input.cgu_id,
+                ))
+            })?;
+            let viu = input.value_in_use.ok_or_else(|| {
+                GroupError::Aggregate(format!(
+                    "cgu impairment: cgu `{}` needs value_in_use (or recoverable_ratio)",
+                    input.cgu_id,
+                ))
+            })?;
+            for (label, val) in [("fair_value_less_costs", fvlc), ("value_in_use", viu)] {
+                if val < Decimal::ZERO {
+                    return Err(GroupError::Aggregate(format!(
+                        "cgu impairment: test input for cgu `{}` has negative {label} `{val}`",
+                        input.cgu_id,
+                    )));
+                }
+            }
+            (fvlc, viu)
+        };
+
         let test = CguImpairmentTest {
             cgu_id: input.cgu_id.clone(),
             test_date,
             allocated_goodwill,
-            other_carrying: input.other_carrying,
-            fair_value_less_costs: input.fair_value_less_costs,
-            value_in_use: input.value_in_use,
+            other_carrying,
+            fair_value_less_costs,
+            value_in_use,
             currency: currency.to_string(),
         };
         results.push(test.run());
@@ -232,10 +304,75 @@ mod tests {
         }
     }
 
+    /// Build `CguTestInputs` with explicit carrying + FV/VIU (pre-#120 shape).
+    fn ti(cgu_id: &str, oc: Decimal, fvlc: Decimal, viu: Decimal) -> CguTestInputs {
+        CguTestInputs {
+            cgu_id: cgu_id.to_string(),
+            other_carrying: Some(oc),
+            fair_value_less_costs: Some(fvlc),
+            value_in_use: Some(viu),
+            recoverable_ratio: None,
+        }
+    }
+
+    #[test]
+    fn other_carrying_derived_from_member_entity_net_assets() {
+        // CGU_X members E1 (net assets 900) + E2 (300) = 1200; goodwill 100.
+        // other_carrying derived = 1200 - 100 = 1100; carrying_total = 1200.
+        let plan = CguPlan {
+            cgus: vec![CashGeneratingUnit::new(
+                "CGU_X",
+                "name",
+                vec!["E1".to_string(), "E2".to_string()],
+            )],
+            goodwill_allocations: vec![GoodwillAllocation {
+                cgu_id: "CGU_X".to_string(),
+                business_combination_id: "BC".to_string(),
+                goodwill_amount: dec!(100),
+                allocation_date: date(),
+            }],
+        };
+        let net_assets: BTreeMap<String, Decimal> =
+            [("E1".to_string(), dec!(900)), ("E2".to_string(), dec!(300))]
+                .into_iter()
+                .collect();
+        let inputs = vec![CguTestInputs {
+            cgu_id: "CGU_X".to_string(),
+            other_carrying: None, // derive from TBs
+            fair_value_less_costs: Some(dec!(2000)),
+            value_in_use: Some(dec!(0)),
+            recoverable_ratio: None,
+        }];
+        let results = run_cgu_impairment_tests(&plan, &inputs, &net_assets, date(), "EUR").unwrap();
+        assert_eq!(results[0].carrying_total, dec!(1200));
+        assert_eq!(results[0].impairment_loss_total, Decimal::ZERO); // 1200 < 2000
+    }
+
+    #[test]
+    fn recoverable_ratio_is_a_coherent_multiple_of_carrying() {
+        // goodwill 100 + other 900 = 1000 carrying; ratio 0.9 -> recoverable 900
+        // -> impairment 100 (all to goodwill).
+        let plan = plan_with(vec!["CGU_X"], vec![("CGU_X", "BC", dec!(100))]);
+        let inputs = vec![CguTestInputs {
+            cgu_id: "CGU_X".to_string(),
+            other_carrying: Some(dec!(900)),
+            fair_value_less_costs: None,
+            value_in_use: None,
+            recoverable_ratio: Some(dec!(0.9)),
+        }];
+        let results =
+            run_cgu_impairment_tests(&plan, &inputs, &BTreeMap::new(), date(), "EUR").unwrap();
+        assert_eq!(results[0].carrying_total, dec!(1000));
+        assert_eq!(results[0].recoverable_amount, dec!(900));
+        assert_eq!(results[0].impairment_loss_total, dec!(100));
+        assert_eq!(results[0].impairment_loss_to_goodwill, dec!(100));
+    }
+
     #[test]
     fn empty_inputs_returns_empty_results_no_error() {
         let plan = plan_with(vec!["CGU_X"], vec![]);
-        let results = run_cgu_impairment_tests(&plan, &[], date(), "EUR").unwrap();
+        let results =
+            run_cgu_impairment_tests(&plan, &[], &BTreeMap::new(), date(), "EUR").unwrap();
         assert!(results.is_empty());
     }
 
@@ -246,13 +383,9 @@ mod tests {
         // carrying total = 100 + 500 = 600
         // 600 < 800 → no impairment
         let plan = plan_with(vec!["CGU_X"], vec![("CGU_X", "BC_001", dec!(100))]);
-        let inputs = vec![CguTestInputs {
-            cgu_id: "CGU_X".to_string(),
-            other_carrying: dec!(500),
-            fair_value_less_costs: dec!(800),
-            value_in_use: dec!(700),
-        }];
-        let results = run_cgu_impairment_tests(&plan, &inputs, date(), "EUR").unwrap();
+        let inputs = vec![ti("CGU_X", dec!(500), dec!(800), dec!(700))];
+        let results =
+            run_cgu_impairment_tests(&plan, &inputs, &BTreeMap::new(), date(), "EUR").unwrap();
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].cgu_id, "CGU_X");
         assert_eq!(results[0].carrying_total, dec!(600));
@@ -271,13 +404,9 @@ mod tests {
         // loss to goodwill = min(200, 100) = 100
         // loss to other = 200 - 100 = 100
         let plan = plan_with(vec!["CGU_X"], vec![("CGU_X", "BC_001", dec!(100))]);
-        let inputs = vec![CguTestInputs {
-            cgu_id: "CGU_X".to_string(),
-            other_carrying: dec!(500),
-            fair_value_less_costs: dec!(400),
-            value_in_use: dec!(350),
-        }];
-        let results = run_cgu_impairment_tests(&plan, &inputs, date(), "EUR").unwrap();
+        let inputs = vec![ti("CGU_X", dec!(500), dec!(400), dec!(350))];
+        let results =
+            run_cgu_impairment_tests(&plan, &inputs, &BTreeMap::new(), date(), "EUR").unwrap();
         assert_eq!(results[0].impairment_loss_total, dec!(200));
         assert_eq!(results[0].impairment_loss_to_goodwill, dec!(100));
         assert_eq!(results[0].impairment_loss_to_other_assets, dec!(100));
@@ -294,13 +423,9 @@ mod tests {
                 ("CGU_X", "BC_003", dec!(20)),
             ],
         );
-        let inputs = vec![CguTestInputs {
-            cgu_id: "CGU_X".to_string(),
-            other_carrying: dec!(0),
-            fair_value_less_costs: dec!(60),
-            value_in_use: dec!(0),
-        }];
-        let results = run_cgu_impairment_tests(&plan, &inputs, date(), "EUR").unwrap();
+        let inputs = vec![ti("CGU_X", dec!(0), dec!(60), dec!(0))];
+        let results =
+            run_cgu_impairment_tests(&plan, &inputs, &BTreeMap::new(), date(), "EUR").unwrap();
         // carrying = 100 + 0 = 100; recoverable = 60; loss = 40 (all to goodwill since 40 < 100)
         assert_eq!(results[0].carrying_total, dec!(100));
         assert_eq!(results[0].impairment_loss_total, dec!(40));
@@ -312,13 +437,9 @@ mod tests {
     fn cgu_with_no_goodwill_allocation_runs_with_zero_goodwill() {
         // CGU_NO_GW exists but has no goodwill allocations
         let plan = plan_with(vec!["CGU_NO_GW"], vec![]);
-        let inputs = vec![CguTestInputs {
-            cgu_id: "CGU_NO_GW".to_string(),
-            other_carrying: dec!(1000),
-            fair_value_less_costs: dec!(800),
-            value_in_use: dec!(750),
-        }];
-        let results = run_cgu_impairment_tests(&plan, &inputs, date(), "EUR").unwrap();
+        let inputs = vec![ti("CGU_NO_GW", dec!(1000), dec!(800), dec!(750))];
+        let results =
+            run_cgu_impairment_tests(&plan, &inputs, &BTreeMap::new(), date(), "EUR").unwrap();
         // carrying = 0 + 1000 = 1000; recoverable = max(800, 750) = 800
         // loss = 200; goodwill share = 0 (none allocated); other = 200
         assert_eq!(results[0].carrying_total, dec!(1000));
@@ -330,26 +451,18 @@ mod tests {
     #[test]
     fn unknown_cgu_id_in_inputs_rejected() {
         let plan = plan_with(vec!["DEFINED"], vec![]);
-        let inputs = vec![CguTestInputs {
-            cgu_id: "GHOST".to_string(),
-            other_carrying: dec!(0),
-            fair_value_less_costs: dec!(0),
-            value_in_use: dec!(0),
-        }];
-        let err = run_cgu_impairment_tests(&plan, &inputs, date(), "EUR").unwrap_err();
+        let inputs = vec![ti("GHOST", dec!(0), dec!(0), dec!(0))];
+        let err =
+            run_cgu_impairment_tests(&plan, &inputs, &BTreeMap::new(), date(), "EUR").unwrap_err();
         assert!(format!("{err}").contains("no matching definition"));
     }
 
     #[test]
     fn negative_input_rejected() {
         let plan = plan_with(vec!["CGU_X"], vec![]);
-        let inputs = vec![CguTestInputs {
-            cgu_id: "CGU_X".to_string(),
-            other_carrying: dec!(-1),
-            fair_value_less_costs: dec!(0),
-            value_in_use: dec!(0),
-        }];
-        let err = run_cgu_impairment_tests(&plan, &inputs, date(), "EUR").unwrap_err();
+        let inputs = vec![ti("CGU_X", dec!(-1), dec!(0), dec!(0))];
+        let err =
+            run_cgu_impairment_tests(&plan, &inputs, &BTreeMap::new(), date(), "EUR").unwrap_err();
         assert!(format!("{err}").contains("negative other_carrying"));
     }
 
@@ -357,26 +470,12 @@ mod tests {
     fn results_sorted_by_cgu_id_for_determinism() {
         let plan = plan_with(vec!["CGU_C", "CGU_A", "CGU_B"], vec![]);
         let inputs = vec![
-            CguTestInputs {
-                cgu_id: "CGU_C".to_string(),
-                other_carrying: dec!(0),
-                fair_value_less_costs: dec!(100),
-                value_in_use: dec!(0),
-            },
-            CguTestInputs {
-                cgu_id: "CGU_A".to_string(),
-                other_carrying: dec!(0),
-                fair_value_less_costs: dec!(100),
-                value_in_use: dec!(0),
-            },
-            CguTestInputs {
-                cgu_id: "CGU_B".to_string(),
-                other_carrying: dec!(0),
-                fair_value_less_costs: dec!(100),
-                value_in_use: dec!(0),
-            },
+            ti("CGU_C", dec!(0), dec!(100), dec!(0)),
+            ti("CGU_A", dec!(0), dec!(100), dec!(0)),
+            ti("CGU_B", dec!(0), dec!(100), dec!(0)),
         ];
-        let results = run_cgu_impairment_tests(&plan, &inputs, date(), "EUR").unwrap();
+        let results =
+            run_cgu_impairment_tests(&plan, &inputs, &BTreeMap::new(), date(), "EUR").unwrap();
         let ids: Vec<&str> = results.iter().map(|r| r.cgu_id.as_str()).collect();
         assert_eq!(ids, vec!["CGU_A", "CGU_B", "CGU_C"]);
     }
@@ -398,13 +497,9 @@ mod tests {
     fn write_emits_pretty_json_file_at_canonical_path() {
         let tmp = tempfile::tempdir().unwrap();
         let plan = plan_with(vec!["CGU_X"], vec![("CGU_X", "BC_001", dec!(100))]);
-        let inputs = vec![CguTestInputs {
-            cgu_id: "CGU_X".to_string(),
-            other_carrying: dec!(500),
-            fair_value_less_costs: dec!(400),
-            value_in_use: dec!(350),
-        }];
-        let results = run_cgu_impairment_tests(&plan, &inputs, date(), "EUR").unwrap();
+        let inputs = vec![ti("CGU_X", dec!(500), dec!(400), dec!(350))];
+        let results =
+            run_cgu_impairment_tests(&plan, &inputs, &BTreeMap::new(), date(), "EUR").unwrap();
         let path = write_cgu_impairment_tests(tmp.path(), &results)
             .unwrap()
             .expect("must return Some path when results non-empty");

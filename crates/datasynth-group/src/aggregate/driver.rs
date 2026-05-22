@@ -483,9 +483,33 @@ pub fn run_aggregate(
     // ── 18b. CGU goodwill impairment tests (IAS 36 § 10) ───────────────
     // No-op when caller supplies no test inputs OR manifest has no
     // CGU plan — preserves backwards compatibility byte-for-byte.
+    // Per-entity net assets (presentation currency) = sum of balance-sheet
+    // lines (assets are debit-side, liabilities credit-side) from the translated
+    // TBs, so a CGU's carrying derives from — and reconciles to — the generated
+    // financials (IAS 36 CGU carrying <-> balance sheet). Consumed by
+    // `run_cgu_impairment_tests` for any CGU whose `other_carrying` is `None`.
+    let entity_net_assets: std::collections::BTreeMap<String, Decimal> = {
+        use crate::aggregate::translation::TranslationAccountType as T;
+        use crate::DrCr;
+        let mut m = std::collections::BTreeMap::new();
+        for t in &translated_tbs {
+            let net: Decimal = t
+                .lines
+                .iter()
+                .filter(|l| matches!(l.account_type, T::BsMonetary | T::BsNonMonetary))
+                .map(|l| match l.local_dr_cr {
+                    DrCr::Debit => l.translated_amount,
+                    DrCr::Credit => -l.translated_amount,
+                })
+                .sum();
+            m.insert(t.entity_code.clone(), net);
+        }
+        m
+    };
     let cgu_results = crate::aggregate::cgu_impairment::run_cgu_impairment_tests(
         &manifest.cgu_plan,
         &opts.cgu_test_inputs,
+        &entity_net_assets,
         manifest.period.end,
         &manifest.presentation_currency,
     )?;
