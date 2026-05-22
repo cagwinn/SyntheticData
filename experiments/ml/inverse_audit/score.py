@@ -1,25 +1,16 @@
-"""Self-contained per-JE anomaly scorer (inverse-audit capstone, Stage 1).
-
-The 'reconstructed normal-system manifold' is a conditional density fit on the
-NORMAL GL; a test JE's score is its negative log-likelihood (residual) under it.
-
-  amount term  : per-(account_class) signed-log1p amount density (robust Gaussian,
-                 median + 1.4826*MAD); per-line surprise aggregated to the JE by max
-                 (one extreme line flags the JE). A conditional amount density — the
-                 lightweight Stage-1 stand-in for the spline flow (drop-in upgrade).
-  struct term  : -log P(archetype_sig | source) under the normal data (add-1
-                 smoothed). archetype_sig = sorted (gl_account, dr/cr) set per JE,
-                 the same signature corpus_structure.py uses.
-  score(JE)    = z(amount_nll) + z(struct_nll), z-standardised on the normal set.
-
-Writes scores.parquet: document_id, is_anomaly, anomaly_type, amount_z, struct_z, score.
+"""Per-JE anomaly score = sum of standardised NLLs under the normal-system manifold:
+  amount     : per-account_class signed-log1p density (robust Gaussian), max over lines.
+  struct     : -log P(archetype_sig | source), add-1 smoothed (the per-JE structural manifold).
+  behavioral : per-source Bernoulli surprise of {weekend, post_close, round-dollar} —
+               the fraud-bias signatures (CLAUDE.md: weekend/off-hours/post-close/round).
+score(JE) = z(amount) + z(struct) + z(behavioral), z-standardised on the normal set.
+Writes scores.parquet: document_id, is_fraud, fraud_type, is_anomaly, amount_z, struct_z,
+behav_z, score.  (The 'reconstructed normal manifold'; high score = residual = anomaly.)
 """
 from __future__ import annotations
 import argparse
 from pathlib import Path
-
-import numpy as np
-import pandas as pd
+import numpy as np, pandas as pd
 
 _EPS = 1e-6
 
@@ -29,102 +20,110 @@ def _load_lines(gl: Path) -> pd.DataFrame:
     deb = pd.to_numeric(df.get("debit_amount", 0), errors="coerce").fillna(0.0)
     cred = pd.to_numeric(df.get("credit_amount", 0), errors="coerce").fillna(0.0)
     df["amt"] = np.where(deb != 0, deb, -cred)
-    df["y"] = np.sign(df["amt"]) * np.log1p(np.abs(df["amt"]))
+    df["aamt"] = np.abs(df["amt"])
+    df["y"] = np.sign(df["amt"]) * np.log1p(df["aamt"])
     df["account_class"] = df.get("account_class").astype(str).fillna("UNK").replace("nan", "UNK")
     df["dr"] = df["amt"] > 0
+    wd = pd.to_datetime(df.get("posting_date"), errors="coerce").dt.weekday
+    df["weekend"] = (wd >= 5).fillna(False)
+    pc = df.get("is_post_close")
+    df["post_close"] = (pc.astype(str).str.lower().isin(["true", "1"]) if pc is not None else False)
+    df["is_round"] = (df["aamt"] >= 1000) & (np.mod(df["aamt"], 500) == 0)
     return df
 
 
-def _fit_amount(df: pd.DataFrame) -> dict:
-    """Per-account_class robust location/scale of y, + a global fallback."""
+def _je_features(df: pd.DataFrame) -> pd.DataFrame:
+    src = "source" if "source" in df.columns else "document_type"
+
+    def sig(g):
+        return "|".join(sorted(f"{a}:{'D' if d else 'C'}"
+                               for a, d in zip(g["gl_account"].astype(str), g["dr"])))
+    grp = df.groupby("document_id")
+    je = pd.DataFrame({
+        "source": grp[src].first().astype(str),
+        "archetype_sig": grp.apply(sig),
+        "weekend": grp["weekend"].any(),
+        "post_close": grp["post_close"].any(),
+        "is_round": grp["is_round"].any(),
+    })
+    je["is_fraud"] = grp["is_fraud"].any() if "is_fraud" in df.columns else False
+    je["fraud_type"] = grp["fraud_type"].first() if "fraud_type" in df.columns else None
+    je["is_anomaly"] = grp["is_anomaly"].any() if "is_anomaly" in df.columns else False
+    return je
+
+
+def _fit_amount(df):
     out = {}
     for cls, g in df.groupby("account_class"):
-        med = float(g["y"].median())
-        mad = float((g["y"] - med).abs().median()) * 1.4826
-        out[cls] = (med, max(mad, _EPS))
-    g_med = float(df["y"].median())
-    g_mad = max(float((df["y"] - g_med).abs().median()) * 1.4826, _EPS)
-    out["__global__"] = (g_med, g_mad)
+        med = float(g["y"].median()); mad = max(float((g["y"] - med).abs().median()) * 1.4826, _EPS)
+        out[cls] = (med, mad)
+    gm = float(df["y"].median()); out["__g__"] = (gm, max(float((df["y"] - gm).abs().median()) * 1.4826, _EPS))
     return out
 
 
-def _amount_nll_per_je(df: pd.DataFrame, fit: dict) -> pd.Series:
-    loc = df["account_class"].map(lambda c: fit.get(c, fit["__global__"])[0])
-    scale = df["account_class"].map(lambda c: fit.get(c, fit["__global__"])[1])
-    z = (df["y"] - loc) / scale
-    df = df.assign(_nll=0.5 * z * z + np.log(scale))     # Gaussian NLL up to const
-    return df.groupby("document_id")["_nll"].max()       # one surprising line flags the JE
+def _amount_nll(df, fit):
+    loc = df["account_class"].map(lambda c: fit.get(c, fit["__g__"])[0])
+    sc = df["account_class"].map(lambda c: fit.get(c, fit["__g__"])[1])
+    z = (df["y"] - loc) / sc
+    return df.assign(_n=0.5 * z * z + np.log(sc)).groupby("document_id")["_n"].max()
 
 
-def _je_meta(df: pd.DataFrame) -> pd.DataFrame:
-    src = "source" if "source" in df.columns else "document_type"
-
-    def sig(g: pd.DataFrame) -> str:
-        return "|".join(sorted(f"{a}:{'D' if d else 'C'}"
-                               for a, d in zip(g["gl_account"].astype(str), g["dr"])))
-
-    grp = df.groupby("document_id")
-    meta = pd.DataFrame({
-        "source": grp[src].first().astype(str),
-        "archetype_sig": grp.apply(sig),
-    })
-    if "is_anomaly" in df.columns:
-        meta["is_anomaly"] = grp["is_anomaly"].any()
-    else:
-        meta["is_anomaly"] = False
-    meta["anomaly_type"] = (grp["anomaly_type"].first() if "anomaly_type" in df.columns else None)
-    return meta
-
-
-def _fit_struct(meta: pd.DataFrame) -> tuple[dict, dict]:
-    """P(archetype_sig | source) with add-1 smoothing over each source's sig vocab."""
+def _fit_struct(je):
     counts, vocab = {}, {}
-    for src, g in meta.groupby("source"):
-        vc = g["archetype_sig"].value_counts().to_dict()
-        counts[src] = vc
-        vocab[src] = len(vc)
+    for s, g in je.groupby("source"):
+        vc = g["archetype_sig"].value_counts().to_dict(); counts[s] = vc; vocab[s] = len(vc)
     return counts, vocab
 
 
-def _struct_nll(meta: pd.DataFrame, counts: dict, vocab: dict) -> pd.Series:
-    def nll(row) -> float:
-        src = row["source"]; vc = counts.get(src, {}); V = vocab.get(src, 1)
-        n = vc.get(row["archetype_sig"], 0)
-        total = sum(vc.values())
-        p = (n + 1) / (total + V + 1)            # add-1 smoothed; unseen sig → small p
-        return -np.log(p)
-    return meta.apply(nll, axis=1)
+def _struct_nll(je, counts, vocab):
+    def f(r):
+        vc = counts.get(r["source"], {}); V = vocab.get(r["source"], 1)
+        return -np.log((vc.get(r["archetype_sig"], 0) + 1) / (sum(vc.values()) + V + 1))
+    return je.apply(f, axis=1)
 
 
-def main(argv: list[str] | None = None) -> None:
+def _fit_behav(je, feats):
+    p = {}
+    for s, g in je.groupby("source"):
+        p[s] = {fe: float(g[fe].mean()) for fe in feats}
+    glob = {fe: float(je[fe].mean()) for fe in feats}
+    return p, glob
+
+
+def _behav_nll(je, p, glob, feats):
+    def f(r):
+        ps = p.get(r["source"], glob); tot = 0.0
+        for fe in feats:
+            pe = min(max(ps.get(fe, glob[fe]), _EPS), 1 - _EPS)
+            tot += -np.log(pe if r[fe] else (1 - pe))
+        return tot
+    return je.apply(f, axis=1)
+
+
+def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--normal", type=Path, required=True)
     ap.add_argument("--test", type=Path, required=True)
     ap.add_argument("--out", type=Path, required=True)
     a = ap.parse_args(argv)
-
+    feats = ["weekend", "post_close", "is_round"]
     nd, td = _load_lines(a.normal), _load_lines(a.test)
-    nmeta, tmeta = _je_meta(nd), _je_meta(td)
+    nje, tje = _je_features(nd), _je_features(td)
+    afit = _fit_amount(nd); counts, vocab = _fit_struct(nje); bp, bg = _fit_behav(nje, feats)
 
-    afit = _fit_amount(nd)
-    counts, vocab = _fit_struct(nmeta)
-
-    # z-stats on the NORMAL set
-    n_amt = _amount_nll_per_je(nd, afit)
-    n_str = _struct_nll(nmeta, counts, vocab)
-    amu, asd = n_amt.mean(), n_amt.std() or 1.0
-    smu, ssd = n_str.mean(), n_str.std() or 1.0
-
-    t_amt = _amount_nll_per_je(td, afit)
-    t_str = _struct_nll(tmeta, counts, vocab)
-    out = tmeta.copy()
-    out["amount_z"] = ((t_amt - amu) / asd).reindex(out.index)
-    out["struct_z"] = ((t_str.reindex(out.index)) - smu) / ssd
-    out["score"] = out["amount_z"].fillna(0) + out["struct_z"].fillna(0)
+    def z_of(series, ref):
+        mu, sd = ref.mean(), (ref.std() or 1.0)
+        return (series - mu) / sd
+    n_amt, n_str, n_beh = _amount_nll(nd, afit), _struct_nll(nje, counts, vocab), _behav_nll(nje, bp, bg, feats)
+    out = tje.copy()
+    out["amount_z"] = z_of(_amount_nll(td, afit).reindex(out.index), n_amt)
+    out["struct_z"] = z_of(_struct_nll(tje, counts, vocab), n_str)
+    out["behav_z"] = z_of(_behav_nll(tje, bp, bg, feats), n_beh)
+    out["score"] = out[["amount_z", "struct_z", "behav_z"]].fillna(0).sum(axis=1)
     out.reset_index().to_parquet(a.out)
-    print(f"SCORE_DONE n={len(out)} "
-          f"mean_score_anom={out.loc[out.is_anomaly,'score'].mean():.3f} "
-          f"mean_score_norm={out.loc[~out.is_anomaly,'score'].mean():.3f}")
+    fr = out["is_fraud"]
+    print(f"SCORE_DONE n={len(out)} fraud_rate={fr.mean():.4f} "
+          f"mean_score_fraud={out.loc[fr,'score'].mean():.3f} mean_score_norm={out.loc[~fr,'score'].mean():.3f}")
 
 
 if __name__ == "__main__":
