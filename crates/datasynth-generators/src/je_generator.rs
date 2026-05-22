@@ -41,8 +41,10 @@ static DEFAULT_SOURCE_MIX: LazyLock<
 > = LazyLock::new(datasynth_core::distributions::behavioral_priors::SourceMixPrior::sap_default);
 
 /// SOTA-5: default fraction of JEs that are reversals/corrections when
-/// `transactions.reversal_rate` is unset (corpus reversal-proxy ~10%).
-const DEFAULT_REVERSAL_RATE: f64 = 0.04;
+/// `transactions.reversal_rate` is unset. Set to match the corpus reversal
+/// proxy (~0.10) — at 0.04 the measured proxy was only ~0.034 (the proxy
+/// detects ~85% of reversals), so 0.10 lands the proxy near the corpus.
+const DEFAULT_REVERSAL_RATE: f64 = 0.10;
 
 /// SOTA-6: default fraction of JEs that are allocation/assessment batches when
 /// `transactions.allocation_batch_rate` is unset. Small (each batch carries
@@ -1236,7 +1238,7 @@ impl JournalEntryGenerator {
         if self.loaded_priors.is_some() || !self.config.recurring_templates.unwrap_or(true) {
             return None;
         }
-        const P_REUSE: f64 = 0.82; // ~corpus recurring share
+        const P_REUSE: f64 = 0.90; // toward corpus recurring share ~0.97
         if self.template_rng.random::<f64>() >= P_REUSE {
             return None;
         }
@@ -1270,7 +1272,7 @@ impl JournalEntryGenerator {
         if debit.is_empty() && credit.is_empty() {
             return;
         }
-        const CAP: usize = 48; // distinct archetypes per (company, doc-type)
+        const CAP: usize = 24; // distinct archetypes per (company, doc-type) — fewer ⇒ top-50 archetypes cover more JEs (toward corpus top-50 ~0.65)
         let lib = self
             .recurring_archetypes
             .entry((company.to_string(), doc_type.to_string()))
@@ -1280,7 +1282,7 @@ impl JournalEntryGenerator {
         }
     }
 
-    /// SOTA-5: with probability `transactions.reversal_rate` (default ~4%),
+    /// SOTA-5: with probability `transactions.reversal_rate` (default ~10%),
     /// build a reversal/correction of a recent JE (swap dr/cr, reference the
     /// original) instead of a fresh JE. Uses `reversal_rng` and an id derived
     /// from the original, so the main RNG + uuid factory are unperturbed (normal
@@ -1379,14 +1381,15 @@ impl JournalEntryGenerator {
         cents.into_iter().map(|c| Decimal::new(c, 2)).collect()
     }
 
-    /// SOTA-3: deterministic cost-center → business-unit roll-up. The same CC
-    /// always maps to the same BU code (`BU01`..`BU11`, matching the corpus's
-    /// ~11 BU codes), so business-unit analytics are internally consistent —
-    /// not a random per-line label. FNV-1a hash of the CC, bucketed.
-    fn business_unit_for_cost_center(cc: &str) -> String {
+    /// SOTA-3: deterministic dimension → business-unit roll-up (the dimension is
+    /// the cost center, or the profit center as fallback). The same dimension
+    /// value always maps to the same BU code (`BU01`..`BU11`, matching the
+    /// corpus's ~11 BU codes), so business-unit analytics are internally
+    /// consistent — not a random per-line label. FNV-1a hash, bucketed.
+    fn business_unit_for_dimension(dim: &str) -> String {
         const N_BU: u32 = 11;
         let mut h: u32 = 0x811c_9dc5;
-        for b in cc.bytes() {
+        for b in dim.bytes() {
             h ^= b as u32;
             h = h.wrapping_mul(0x0100_0193);
         }
@@ -1469,7 +1472,7 @@ impl JournalEntryGenerator {
                         nl.business_unit = nl
                             .cost_center
                             .as_deref()
-                            .map(Self::business_unit_for_cost_center);
+                            .map(Self::business_unit_for_dimension);
                     }
                     new_lines.push(nl);
                 }
@@ -1780,17 +1783,6 @@ impl JournalEntryGenerator {
                 }
             }
 
-            // 2b. business_unit (SOTA-3): a coherent roll-up of the cost center
-            // — the same CC always maps to the same BU, so BU-level analytics
-            // are consistent. Filled wherever a CC is present (the corpus carries
-            // BU on a hot subset of lines); left None otherwise. Flag-gated by
-            // `transactions.business_unit_dimension` (default-on).
-            if line.business_unit.is_none() && self.config.business_unit_dimension.unwrap_or(true) {
-                if let Some(cc) = line.cost_center.as_deref() {
-                    line.business_unit = Some(Self::business_unit_for_cost_center(cc));
-                }
-            }
-
             // 3. profit_center: assign from master pool when available
             // (`with_profit_center_pool`); otherwise derive from
             // company code + business process (legacy behaviour, which
@@ -1845,6 +1837,22 @@ impl JournalEntryGenerator {
                         _ => "",
                     };
                     line.profit_center = Some(format!("PC-{company_code}{suffix}"));
+                }
+            }
+
+            // 3b. business_unit (SOTA-3): a coherent roll-up of the cost center,
+            // or the profit center as fallback — the same dimension value always
+            // maps to the same BU, so BU-level analytics are consistent. Runs
+            // after both CC (step 2) and PC (step 3) are assigned; using CC-or-PC
+            // lifts fill toward the corpus (~82%) vs only CC-bearing lines (~24%).
+            // Flag-gated by `transactions.business_unit_dimension` (default-on).
+            if line.business_unit.is_none() && self.config.business_unit_dimension.unwrap_or(true) {
+                if let Some(dim) = line
+                    .cost_center
+                    .as_deref()
+                    .or(line.profit_center.as_deref())
+                {
+                    line.business_unit = Some(Self::business_unit_for_dimension(dim));
                 }
             }
 
@@ -5207,8 +5215,9 @@ mod tests {
     #[test]
     fn test_business_unit_rolls_up_from_cost_center() {
         // SOTA-3: with the dimension on (default), a line that has a cost center
-        // also carries a business_unit that is a deterministic roll-up of that
-        // CC (same CC → same BU, in BU01..BU11); with it off, BU is empty.
+        // (or, as fallback, a profit center) also carries a business_unit that is
+        // a deterministic roll-up of that dimension (same value → same BU, in
+        // BU01..BU11); with it off, BU is empty.
         fn run(enabled: Option<bool>) -> (usize, usize, bool, bool) {
             let mut coa_gen = ChartOfAccountsGenerator::new(
                 CoAComplexity::Medium,
@@ -5230,27 +5239,29 @@ mod tests {
             )
             .with_persona_errors(false)
             .with_batching(false);
-            let mut cc_lines = 0usize;
+            let mut dim_lines = 0usize;
             let mut bu_lines = 0usize;
-            let mut consistent = true; // BU present ⇒ matches the roll-up of its CC
+            let mut consistent = true; // BU present ⇒ matches the roll-up of its CC/PC
             let mut well_formed = true; // BU in BU01..BU11
-            let mut cc_to_bu: std::collections::HashMap<String, String> =
+            let mut dim_to_bu: std::collections::HashMap<String, String> =
                 std::collections::HashMap::new();
             for _ in 0..600 {
                 let e = g.generate();
                 for l in &e.lines {
-                    if l.cost_center.is_some() {
-                        cc_lines += 1;
+                    // BU rolls up from the cost center, or profit center as fallback.
+                    let dim = l.cost_center.as_deref().or(l.profit_center.as_deref());
+                    if dim.is_some() {
+                        dim_lines += 1;
                     }
                     if let Some(bu) = &l.business_unit {
                         bu_lines += 1;
-                        let cc = l.cost_center.clone().unwrap_or_default();
-                        if bu != &JournalEntryGenerator::business_unit_for_cost_center(&cc) {
+                        let d = dim.unwrap_or_default().to_string();
+                        if bu != &JournalEntryGenerator::business_unit_for_dimension(&d) {
                             consistent = false;
                         }
                         // stable mapping across the run
-                        if cc_to_bu
-                            .insert(cc, bu.clone())
+                        if dim_to_bu
+                            .insert(d, bu.clone())
                             .is_some_and(|prev| &prev != bu)
                         {
                             consistent = false;
@@ -5262,16 +5273,22 @@ mod tests {
                     }
                 }
             }
-            (cc_lines, bu_lines, consistent, well_formed)
+            (dim_lines, bu_lines, consistent, well_formed)
         }
-        let (cc_on, bu_on, consistent, well_formed) = run(Some(true));
+        let (dim_on, bu_on, consistent, well_formed) = run(Some(true));
         let (_, bu_off, _, _) = run(Some(false));
-        assert!(cc_on > 0 && bu_on > 0, "BU should be populated where CC is");
-        assert_eq!(
-            cc_on, bu_on,
-            "every CC-bearing line gets a BU ({cc_on} CC vs {bu_on} BU)"
+        assert!(
+            dim_on > 0 && bu_on > 0,
+            "BU should be populated where CC/PC is"
         );
-        assert!(consistent, "BU must be the deterministic roll-up of its CC");
+        assert_eq!(
+            dim_on, bu_on,
+            "every CC/PC-bearing line gets a BU ({dim_on} dim vs {bu_on} BU)"
+        );
+        assert!(
+            consistent,
+            "BU must be the deterministic roll-up of its CC/PC"
+        );
         assert!(well_formed, "BU codes must be BU01..BU11");
         assert_eq!(bu_off, 0, "dimension off ⇒ no business_unit, got {bu_off}");
     }

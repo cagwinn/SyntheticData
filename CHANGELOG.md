@@ -73,6 +73,29 @@ preserved (only the specific values and the amount↔line-count pairing move).
   are updated accordingly; integration tests resolve columns by name, so the
   added column is non-breaking.
 
+### Tuned (corpus-comparison round)
+
+A side-by-side fingerprint of the corpus vs SOTA-off baseline vs SOTA-on
+current (healthcare; `experiments/ml/FINDINGS.md` §10) showed the levers moved
+every structural metric toward the corpus — account-Pareto 0.16 → 0.95,
+recurring-archetype share 0.13 → 0.89, allocation lines-per-JE absent → 56
+(corpus 52). It also showed three partials still short of the corpus, now tuned
+(all low-risk default/param changes):
+
+- **Reversal rate** default `0.04` → `0.10` — the measured reversal proxy was
+  0.034 (corpus ~0.10); the proxy detects ~85% of reversals, so 0.10 lands it
+  near the corpus.
+- **Templating depth** — reuse probability `0.82` → `0.90` and per-(company,
+  doc-type) archetype cap `48` → `24`, so the top-50 archetypes cover more JEs
+  (was 0.48, corpus 0.65) and the recurring share approaches the corpus's 0.97.
+- **Business-unit fill** — `business_unit` now rolls up the cost center **or
+  the profit center** (fallback), lifting fill from ~24% (CC-only) toward the
+  corpus's ~82%; the helper is renamed `business_unit_for_dimension`.
+
+(The source-mix Z-tail is intentionally left broad: its *entropy* already
+matches the corpus — the higher raw distinct-code count is general-realism
+breadth, and trimming to the health subset's 46 codes would overfit.)
+
 ## v5.28 (corpus-fidelity round — BF eval scale fix + sampler re-fits)
 
 Grounded in the A100 corpus→synthetic gap study (`experiments/ml/FINDINGS.md`):

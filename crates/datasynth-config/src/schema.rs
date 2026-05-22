@@ -1675,9 +1675,9 @@ pub struct TransactionConfig {
     /// **SOTA-5** Fraction of journal entries that are reversals/corrections of
     /// a recent JE (swap dr/cr, reference the original) — a process auditors
     /// specifically look for, and largely absent from the engine (FINDINGS.md
-    /// sec.8: corpus reversal-proxy ~10% vs synthetic ~0.2%). Unset → a small
-    /// default (~0.04); `0.0` disables it. Reversals are interspersed without
-    /// perturbing the normal JEs (separate RNG + derived id).
+    /// sec.8: corpus reversal-proxy ~10% vs synthetic ~0.2%). Unset → a default
+    /// of ~0.10 (matching the corpus proxy); `0.0` disables it. Reversals are
+    /// interspersed without perturbing the normal JEs (separate RNG + derived id).
     #[serde(default)]
     pub reversal_rate: Option<f64>,
     /// **SOTA-2** Concentrate posting activity onto a hot subset of accounts via
@@ -1700,9 +1700,10 @@ pub struct TransactionConfig {
     #[serde(default)]
     pub allocation_batch_rate: Option<f64>,
     /// **SOTA-3** Populate a line-level `business_unit` dimension — an
-    /// organisational segment that rolls up the cost center (the same CC always
-    /// maps to the same BU). The corpus carries a BU dimension (~11 codes) the
-    /// engine lacked entirely; this fills it wherever a cost center is present,
+    /// organisational segment that rolls up the cost center, or the profit
+    /// center as fallback (the same dimension value always maps to the same BU).
+    /// The corpus carries a BU dimension (~11 codes) the engine lacked entirely;
+    /// this fills it wherever a cost or profit center is present (~corpus fill),
     /// so BU-level analytics are coherent. Default-on when unset; `false`
     /// leaves `business_unit` empty (legacy).
     #[serde(default)]

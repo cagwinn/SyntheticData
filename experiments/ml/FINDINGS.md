@@ -321,3 +321,34 @@ than a default-on transaction feature).
 *Caveats as §8 (cross-industry ratios; 300k-JE deterministic sample). The
 `AB` lpje 59.3 vs corpus ~52 is within the target band; tune
 `allocation_batch_rate` / target-count bounds if a tighter match is wanted.*
+
+## 10. Corpus-vs-synthetic comparison + tuning round (2026-05-22)
+
+A clean side-by-side: **corpus** vs the **same binary** with the 5 SOTA levers
+**off (pre-v5.29 baseline)** vs **on (current)**, healthcare to match the corpus
+industry, same `corpus_structure.py` / `corpus_processes.py` fingerprint.
+
+| Structural metric | Corpus | Baseline (off) | Current (on) |
+|---|--:|--:|--:|
+| account top-10% line share | 0.95 | 0.16 | **0.946** |
+| recurring-archetype share | 0.967 | 0.131 | **0.885** |
+| top-50 archetype coverage | 0.651 | 0.03 | 0.48 |
+| reversal proxy | 0.100 | 0.0015 | 0.034 |
+| flow-graph edge entropy *(lower=more templated)* | 5.95 | 10.75 | 7.95 |
+| `AB` allocation lines-per-JE | 52.2 | absent | 55.7 |
+| distinct source codes | 46 | 429 | 405 |
+| business_unit *(dedicated check)* | 82% / 11 | absent | 23.5% / 10, coherent |
+
+**Every structural dimension moved toward the corpus.** Account-Pareto, recurring
+share and allocation lines-per-JE are essentially closed; templating coverage,
+reversal proxy and flow entropy were major-but-partial → **tuning round** (v5.29
+"Tuned"): reversal default 0.04 → 0.10, templating reuse 0.82 → 0.90 + archetype
+cap 48 → 24, and business_unit now rolls up CC **or PC** (fill ~24% → toward 82%).
+
+**Deliberately not tuned:** the source-mix distinct count (405 vs 46) — the
+*entropy* the source-breadth lever targets already matches the corpus (3.36 vs
+3.37); the extra rare codes are general-realism breadth and trimming to this
+health subset's 46 would overfit (the full corpus has far more sources).
+*Tooling note: `corpus_structure.py` reads `business_unit` from corpus parquet
+but not yet from the synthetic CSV (shows 0.0 there) — the dedicated pandas
+check confirms the synthetic value; a tool follow-up.*
