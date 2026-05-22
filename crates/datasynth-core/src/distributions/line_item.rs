@@ -69,6 +69,28 @@ impl Default for LineItemDistributionConfig {
 }
 
 impl LineItemDistributionConfig {
+    /// The paper's Table III line-count distribution (mean ≈ 11), preserved as
+    /// a named reference. The crate `Default` was re-calibrated toward the
+    /// observed corpus (mean ≈ 4.5; experiments/ml/FINDINGS.md §1), so use this
+    /// when you specifically want the original cited reference — e.g. the
+    /// copula smoke tests, which need wide line-count spread to exercise the
+    /// amount↔line_count rank correlation independent of the corpus default.
+    pub fn paper_reference() -> Self {
+        Self {
+            two_items: 0.6068,
+            three_items: 0.0577,
+            four_items: 0.1663,
+            five_items: 0.0306,
+            six_items: 0.0332,
+            seven_items: 0.0113,
+            eight_items: 0.0188,
+            nine_items: 0.0042,
+            ten_to_ninety_nine: 0.0633,
+            hundred_to_nine_ninety_nine: 0.0076,
+            thousand_plus: 0.0002,
+        }
+    }
+
     /// Validate that probabilities sum to approximately 1.0.
     pub fn validate(&self) -> Result<(), String> {
         let sum = self.two_items

@@ -20,6 +20,13 @@ fn build_runtime(
     config.global.seed = Some(4160);
     config.global.period_months = 1;
     config.fraud.enabled = false;
+    // Pin the line-count distribution to the paper's Table III reference. This
+    // copula smoke test needs wide line-count spread to exercise the
+    // amount↔line_count rank correlation; the crate Default was re-calibrated
+    // to a narrower corpus-realistic shape (v5.28) that attenuates the
+    // achievable Kendall-τ — decouple the copula test from that default.
+    config.transactions.line_item_distribution =
+        datasynth_core::distributions::LineItemDistributionConfig::paper_reference();
     cfg_tweak(&mut config);
     let mut phase_config = PhaseConfig::from_config(&config);
     phase_config.generate_document_flows = false;
