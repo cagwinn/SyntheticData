@@ -64,14 +64,21 @@ def _entropy(counts) -> float:
     return float(-(p * np.log(p)).sum())
 
 
-def load_corpus(corpus_dir: Path, sample_jes: int) -> pd.DataFrame:
+def load_corpus(corpus_dir: Path, sample_jes: int, max_rows: int = 12_000_000) -> pd.DataFrame:
+    """Read the needed columns, stopping once `max_rows` accumulate so memory +
+    time stay bounded on the 100M+-line corpus; the per-JE subsample then
+    reduces to `sample_jes` distinct JEs (whole JEs kept by the isin filter)."""
     import pyarrow.parquet as pq
 
-    frames = []
+    frames, total = [], 0
     for f in sorted(glob.glob(str(corpus_dir / "JE_*.parquet"))):
         avail = set(pq.read_schema(f).names)
         cols = [c for c in _CORPUS_MAP if c in avail]
-        frames.append(pd.read_parquet(f, columns=cols).rename(columns=_CORPUS_MAP))
+        fr = pd.read_parquet(f, columns=cols).rename(columns=_CORPUS_MAP)
+        frames.append(fr)
+        total += len(fr)
+        if total >= max_rows:
+            break
     df = pd.concat(frames, ignore_index=True)
     df["amount"] = pd.to_numeric(df["amount"], errors="coerce").fillna(0.0)
     return _subsample(df, sample_jes)
@@ -95,14 +102,16 @@ def load_syn(csv: Path, sample_jes: int) -> pd.DataFrame:
 
 
 def _subsample(df: pd.DataFrame, sample_jes: int) -> pd.DataFrame:
+    """Keep a deterministic random subset of `sample_jes` whole JEs."""
     if sample_jes <= 0:
         return df
-    jes = df["je"].astype(str)
-    distinct = jes.nunique()
-    if distinct <= sample_jes:
+    je = df["je"].astype(str)
+    uniq = je.unique()
+    if len(uniq) <= sample_jes:
         return df
-    keep = (jes.map(lambda s: hash(("je", s)) % distinct) < sample_jes)
-    return df[keep.values].reset_index(drop=True)
+    rng = np.random.default_rng(0)
+    keep = set(rng.choice(uniq, size=sample_jes, replace=False).tolist())
+    return df[je.isin(keep).values].reset_index(drop=True)
 
 
 def fingerprint(df: pd.DataFrame, label: str) -> dict:
