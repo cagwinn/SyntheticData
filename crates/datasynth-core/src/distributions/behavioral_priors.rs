@@ -296,7 +296,7 @@ impl SourceMixPrior {
     /// §6 for the source-mix gap that motivates this. Weights are relative;
     /// `sample` normalises by their sum.
     pub fn sap_default() -> Self {
-        let probabilities = [
+        let head = [
             ("RV", 0.16),
             ("KR", 0.12),
             ("DR", 0.10),
@@ -322,10 +322,24 @@ impl SourceMixPrior {
             ("UE", 0.004),
             ("ZV", 0.003),
             ("EU", 0.002),
-        ]
-        .into_iter()
-        .map(|(k, v)| (k.to_string(), v))
-        .collect();
+        ];
+        let mut probabilities: BTreeMap<String, f64> =
+            head.into_iter().map(|(k, v)| (k.to_string(), v)).collect();
+
+        // Long tail (Lever 2): a power-law of synthetic SAP custom doc-type
+        // codes (Z-prefixed, the SAP custom-type convention). Synthetic only,
+        // never corpus-derived. The rare tail codes draw few events, which also
+        // lifts the per-source inter-event-time variance (FINDINGS sec.6: IET
+        // variance is coupled to source breadth). Weight is proportional to
+        // 1/rank^1.1, scaled to a fraction of the head's summed mass.
+        const TAIL_N: usize = 500;
+        const TAIL_MASS: f64 = 0.30;
+        let zipf: f64 = (1..=TAIL_N).map(|r| 1.0 / (r as f64).powf(1.1)).sum();
+        for r in 1..=TAIL_N {
+            let w = TAIL_MASS * (1.0 / (r as f64).powf(1.1)) / zipf;
+            probabilities.insert(format!("Z{r:03}"), w);
+        }
+
         Self {
             probabilities,
             other_fraction: 0.0,
@@ -959,6 +973,41 @@ mod tests {
     use super::*;
     use rand::SeedableRng;
     use rand_chacha::ChaCha8Rng;
+
+    #[test]
+    fn sap_default_has_broad_long_tail() {
+        // Lever 2: the default source-mix is the standard head plus a synthetic
+        // power-law long tail, giving corpus-like breadth + entropy.
+        let m = SourceMixPrior::sap_default();
+        let p = &m.probabilities;
+        assert!(
+            p.len() >= 300,
+            "Lever-2 default should carry a long tail, got {} codes",
+            p.len()
+        );
+        let total: f64 = p.values().sum();
+        let ent: f64 = -p
+            .values()
+            .map(|&w| {
+                let q = w / total;
+                if q > 0.0 {
+                    q * q.ln()
+                } else {
+                    0.0
+                }
+            })
+            .sum::<f64>();
+        assert!(
+            ent > 3.0,
+            "Lever-2 default entropy should exceed 3.0, got {ent:.3}"
+        );
+        assert!(p.contains_key("RV"), "standard head code present");
+        assert!(p.contains_key("Z001"), "synthetic tail code present");
+        let mut rng = ChaCha8Rng::seed_from_u64(1);
+        for _ in 0..50 {
+            assert!(p.contains_key(&m.sample(&mut rng)));
+        }
+    }
 
     #[test]
     fn line_count_histogram_build_basic() {
