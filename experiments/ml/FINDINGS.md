@@ -241,8 +241,8 @@ a T2 synthetic generate (manufacturing/medium, ~18k JEs):
 | GL-flow edge entropy | 5.9 | 10.7 | posting graph too diffuse |
 | profit_center fill | 19% | 93% | synthetic *over*-fills the dimension |
 
-**Headline: real GLs are heavily TEMPLATED; the engine is too "creative."** A
-real ERP posts the same standard journals repeatedly (recurring entries,
+**Headline: the corpus is heavily TEMPLATED; the engine is too "creative."** A
+production ERP posts the same standard journals repeatedly (recurring entries,
 standard postings) — 97% of corpus JEs use an archetype recurring across periods
 and the top-50 archetypes cover 65% of all JEs. The engine builds each JE
 near-independently from its process logic, so 758/1k archetypes are unique and
@@ -271,3 +271,49 @@ back inside the inverse manifold (§6/§7).
 *Method/caveats:* aggregate stats only (privacy); corpus health subset vs
 manufacturing synthetic (cross-industry, so dimensional vocabularies differ —
 the structural *ratios* are the signal); 300k-JE deterministic sample each.
+
+## 9. SOTA round implemented & corpus-validated (v5.29, 2026-05-22)
+
+The §8 roadmap, shipped as four flag-gated, default-on posting processes. Each
+preserves JE balance **and the main RNG stream** (separate aux RNG + override
+after the main draw), so amounts/line-counts/dates/copula stay byte-identical —
+only account choice, source codes, and interspersed reversal/allocation JEs
+change. Re-measured with the same `corpus_structure.py` / `corpus_processes.py`
+fingerprint on a fresh manufacturing/medium generate (commit `38d7722f`):
+
+| dimension | corpus | before | after | lever |
+|---|--:|--:|--:|---|
+| account top-10% line share | ~95% | 21% | **93.5%** | #126 account Pareto (Zipf s=2.0) |
+| recurring-archetype share | ~97% | 28% | **~91%** | #125 templates (+ #126 side-effect) |
+| top-50 archetype coverage | 65% | 19% | **56%** | #125 + #126 |
+| reversal proxy | 10% | 0.2% | **4.9%** | #129 reversals |
+| `AB` allocation lines-per-JE | ~52 | absent | **59.3** | #131 allocation batches |
+| distinct sources | thousands | low | **390** | #119 source-mix breadth |
+
+**Result: the templating + Pareto gaps — §8's top structural leverage — are
+essentially closed**, with no determinism cost on the non-account fields. The
+account-activity Pareto in particular went 21% → 93.5% on a single principled
+parameter (Zipf s=2.0), and concentrating accounts also lifted the recurring /
+top-50 templating metrics as a side effect (a hot account set yields more
+repeated archetypes). #131 adds the allocation/assessment *process* the engine
+lacked (`AB`, ~52 lines, 1-to-many cost-center spread) rather than the line
+distribution's incidental heavy tail.
+
+A regression worth recording: the derived-id processes (#129/#131 mint
+`base ^ salt` ids without advancing the uuid factory) duplicated document ids
+when the same buffered original was reused — caught only by the macOS/Windows
+**full integration suite** (`test_document_reference_integrity`), not the local
+or feature-matrix runs. Fix: consume the base entry on use; locked by a fast
+lib regression (`test_derived_id_processes_keep_document_ids_unique`). *Lesson:
+XOR-salt id derivation requires single-use of the base, and the integration
+suite is the gate that catches output-uniqueness invariants.*
+
+**Still open from §8:** Business Unit dimension (#127, a core model field),
+multi-currency / FX line postings (#128), and the dimensional-discipline tail
+(wider cost-center vocab + sparser profit-center fill; blank-source ~21% — a
+data-quality characteristic, candidate for the `data_quality` section rather
+than a default-on transaction feature).
+
+*Caveats as §8 (cross-industry ratios; 300k-JE deterministic sample). The
+`AB` lpje 59.3 vs corpus ~52 is within the target band; tune
+`allocation_batch_rate` / target-count bounds if a tighter match is wanted.*
