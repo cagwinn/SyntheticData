@@ -1,0 +1,32 @@
+# DataSynth ML experiments — keep ALL corpus-derived artifacts out of git.
+# Only code (*.py) and specs (*.md, requirements.txt) are tracked.
+
+# Exported training tensors / parquet (corpus-derived)
+data/
+*.parquet
+*.npz
+*.npy
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+
+# Trained weights + run outputs (treat as sensitive as the corpus until
+# memorization-reviewed — see README § Privacy)
+weights/
+runs/
+checkpoints/
+lightning_logs/
+wandb/
+*.log
+
+# Any run config that carries a corpus path
+*.local.yaml
+*.local.json
+config.local.*
+
+# Python env
+.venv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/

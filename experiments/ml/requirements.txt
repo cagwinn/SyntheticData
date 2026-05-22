@@ -1,0 +1,33 @@
+# DataSynth ML experiments — pin major versions; the A100 box installs the
+# CUDA build of torch separately (see README).
+#
+#   pip install torch --index-url https://download.pytorch.org/whl/cu124
+# then:
+#   pip install -r requirements.txt
+
+# Core
+torch>=2.4
+numpy>=1.26
+pandas>=2.2
+pyarrow>=16          # read corpus parquet directly
+polars>=1.0          # faster columnar pre-aggregation (optional path)
+
+# GNN track
+torch-geometric>=2.6
+
+# Flow track — zuko is a small, composable normalizing-flow lib on torch
+zuko>=1.1
+
+# Sequence track uses plain torch.nn.Transformer (no extra dep);
+# tokenizer/util only:
+einops>=0.8
+
+# Surrogate / tuning track
+cma>=3.4             # CMA-ES gradient-free optimizer
+scikit-learn>=1.5    # quick baselines + train/val splits
+
+# Eval bridge + plotting
+scipy>=1.13
+matplotlib>=3.9
+tqdm>=4.66
+pyyaml>=6.0
