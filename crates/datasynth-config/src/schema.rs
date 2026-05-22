@@ -1699,6 +1699,14 @@ pub struct TransactionConfig {
     /// derived id, reusing a recent JE's header).
     #[serde(default)]
     pub allocation_batch_rate: Option<f64>,
+    /// **SOTA-3** Populate a line-level `business_unit` dimension — an
+    /// organisational segment that rolls up the cost center (the same CC always
+    /// maps to the same BU). The corpus carries a BU dimension (~11 codes) the
+    /// engine lacked entirely; this fills it wherever a cost center is present,
+    /// so BU-level analytics are coherent. Default-on when unset; `false`
+    /// leaves `business_unit` empty (legacy).
+    #[serde(default)]
+    pub business_unit_dimension: Option<bool>,
     /// Seasonality configuration
     #[serde(default)]
     pub seasonality: SeasonalityConfig,

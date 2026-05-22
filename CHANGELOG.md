@@ -60,6 +60,18 @@ preserved (only the specific values and the amount↔line-count pairing move).
   default source-mix so synthetic `AB` lines-per-JE matches the corpus rather
   than blending with small manual postings. Separate `allocation_rng`; `0.0`
   disables it.
+- **Business-unit dimension (`transactions.business_unit_dimension`,
+  default-on).** A line-level `business_unit` field — an organisational segment
+  the corpus carries (~11 codes) but the engine lacked entirely (FINDINGS §8).
+  It is a **deterministic roll-up of the cost center** (FNV-bucketed into
+  `BU01`..`BU11`, so the same CC always maps to the same BU and BU-level
+  analytics stay coherent), populated wherever a cost center is present —
+  including allocation-batch sub-lines, which re-derive BU from their overridden
+  CC. Emitted in JSON (automatic), the full `journal_entries.csv`
+  (now 47 columns), and the parquet sink (now 16 columns). Set `false` to leave
+  it empty (legacy). The header-parity self-check and parquet schema assertions
+  are updated accordingly; integration tests resolve columns by name, so the
+  added column is non-breaking.
 
 ## v5.28 (corpus-fidelity round — BF eval scale fix + sampler re-fits)
 

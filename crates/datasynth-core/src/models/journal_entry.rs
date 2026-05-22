@@ -643,6 +643,12 @@ pub struct JournalEntryLine {
     /// Profit center assignment
     pub profit_center: Option<String>,
 
+    /// Business unit / division assignment. An organisational dimension that
+    /// rolls up cost centers (a few BUs carry most postings, as in the corpus).
+    /// `#[serde(default)]` so older JSON without the field still deserialises.
+    #[serde(default)]
+    pub business_unit: Option<String>,
+
     /// Segment for segment reporting
     pub segment: Option<String>,
 
@@ -760,6 +766,7 @@ impl JournalEntryLine {
             group_amount: None,
             cost_center: None,
             profit_center: None,
+            business_unit: None,
             segment: None,
             functional_area: None,
             line_text: None,
@@ -805,6 +812,7 @@ impl JournalEntryLine {
             group_amount: None,
             cost_center: None,
             profit_center: None,
+            business_unit: None,
             segment: None,
             functional_area: None,
             line_text: None,
@@ -899,6 +907,7 @@ impl Default for JournalEntryLine {
             group_amount: None,
             cost_center: None,
             profit_center: None,
+            business_unit: None,
             segment: None,
             functional_area: None,
             line_text: None,

@@ -31,7 +31,7 @@ const DEFAULT_BATCH_SIZE: usize = 10_000;
 ///
 /// # Schema
 ///
-/// The 15-column schema stores one row per journal entry line item:
+/// The 16-column schema stores one row per journal entry line item:
 ///
 /// | Column         | Arrow Type | Description                        |
 /// |----------------|------------|------------------------------------|
@@ -50,6 +50,7 @@ const DEFAULT_BATCH_SIZE: usize = 10_000;
 /// | debit_amount   | Utf8       | Decimal as string (precision safe) |
 /// | credit_amount  | Utf8       | Decimal as string (precision safe) |
 /// | cost_center    | Utf8       | Cost center (nullable)             |
+/// | business_unit  | Utf8       | Business unit / CC roll-up (null.) |
 ///
 /// # Example
 ///
@@ -94,9 +95,10 @@ struct BufferedRow {
     debit_amount: String,
     credit_amount: String,
     cost_center: Option<String>,
+    business_unit: Option<String>,
 }
 
-/// Build the 15-column Arrow schema for journal entry line items.
+/// Build the 16-column Arrow schema for journal entry line items.
 fn journal_entry_schema() -> Schema {
     Schema::new(vec![
         Field::new("document_id", DataType::Utf8, false),
@@ -114,6 +116,7 @@ fn journal_entry_schema() -> Schema {
         Field::new("debit_amount", DataType::Utf8, false),
         Field::new("credit_amount", DataType::Utf8, false),
         Field::new("cost_center", DataType::Utf8, true),
+        Field::new("business_unit", DataType::Utf8, true),
     ])
 }
 
@@ -200,6 +203,8 @@ impl ParquetSink {
         let credit_amount: Vec<&str> = rows.iter().map(|r| r.credit_amount.as_str()).collect();
         let cost_center: Vec<Option<&str>> =
             rows.iter().map(|r| r.cost_center.as_deref()).collect();
+        let business_unit: Vec<Option<&str>> =
+            rows.iter().map(|r| r.business_unit.as_deref()).collect();
 
         let columns: Vec<Arc<dyn arrow::array::Array>> = vec![
             Arc::new(StringArray::from(document_id)),
@@ -217,6 +222,7 @@ impl ParquetSink {
             Arc::new(StringArray::from(debit_amount)),
             Arc::new(StringArray::from(credit_amount)),
             Arc::new(StringArray::from(cost_center)),
+            Arc::new(StringArray::from(business_unit)),
         ];
 
         RecordBatch::try_new(Arc::clone(&self.schema), columns)
@@ -249,6 +255,7 @@ impl Sink for ParquetSink {
                 debit_amount: line.debit_amount.to_string(),
                 credit_amount: line.credit_amount.to_string(),
                 cost_center: line.cost_center.clone(),
+                business_unit: line.business_unit.clone(),
             });
 
             if self.buffer.len() >= self.batch_size {
@@ -375,8 +382,8 @@ mod tests {
         let batch = &batches[0];
         assert_eq!(batch.num_rows(), 2); // 1 debit + 1 credit
 
-        // Verify schema has 15 columns
-        assert_eq!(batch.num_columns(), 15);
+        // Verify schema has 16 columns
+        assert_eq!(batch.num_columns(), 16);
 
         // Verify document_id column
         let doc_ids = batch

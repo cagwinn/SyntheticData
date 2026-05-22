@@ -1379,6 +1379,20 @@ impl JournalEntryGenerator {
         cents.into_iter().map(|c| Decimal::new(c, 2)).collect()
     }
 
+    /// SOTA-3: deterministic cost-center → business-unit roll-up. The same CC
+    /// always maps to the same BU code (`BU01`..`BU11`, matching the corpus's
+    /// ~11 BU codes), so business-unit analytics are internally consistent —
+    /// not a random per-line label. FNV-1a hash of the CC, bucketed.
+    fn business_unit_for_cost_center(cc: &str) -> String {
+        const N_BU: u32 = 11;
+        let mut h: u32 = 0x811c_9dc5;
+        for b in cc.bytes() {
+            h ^= b as u32;
+            h = h.wrapping_mul(0x0100_0193);
+        }
+        format!("BU{:02}", (h % N_BU) + 1)
+    }
+
     /// SOTA-6: with probability `transactions.allocation_batch_rate` (default
     /// ~0.8%), emit an allocation/assessment batch instead of a fresh JE — the
     /// large 1-to-many posting that drives the corpus lines-per-JE tail (AB docs
@@ -1443,11 +1457,20 @@ impl JournalEntryGenerator {
             Vec::with_capacity(entry.lines.len() + parts.len() - 1);
         for (j, line) in entry.lines.iter().enumerate() {
             if j == idx {
+                let bu_on = self.config.business_unit_dimension.unwrap_or(true);
                 for (k, part) in parts.iter().enumerate() {
                     let mut nl = template.clone();
                     nl.debit_amount = *part;
                     nl.credit_amount = Decimal::ZERO;
                     nl.cost_center = Some(cc_pool[k % cc_pool.len()].clone());
+                    // SOTA-3: keep business_unit coherent with the *new* CC
+                    // (the clone carried the template's stale BU).
+                    if bu_on {
+                        nl.business_unit = nl
+                            .cost_center
+                            .as_deref()
+                            .map(Self::business_unit_for_cost_center);
+                    }
                     new_lines.push(nl);
                 }
             } else {
@@ -1754,6 +1777,17 @@ impl JournalEntryGenerator {
                         let idx = cc_seed.wrapping_add(i) % Self::COST_CENTER_POOL.len();
                         line.cost_center = Some(Self::COST_CENTER_POOL[idx].to_string());
                     }
+                }
+            }
+
+            // 2b. business_unit (SOTA-3): a coherent roll-up of the cost center
+            // — the same CC always maps to the same BU, so BU-level analytics
+            // are consistent. Filled wherever a CC is present (the corpus carries
+            // BU on a hot subset of lines); left None otherwise. Flag-gated by
+            // `transactions.business_unit_dimension` (default-on).
+            if line.business_unit.is_none() && self.config.business_unit_dimension.unwrap_or(true) {
+                if let Some(cc) = line.cost_center.as_deref() {
+                    line.business_unit = Some(Self::business_unit_for_cost_center(cc));
                 }
             }
 
@@ -5168,6 +5202,78 @@ mod tests {
             );
         }
         assert_eq!(ids.len(), n, "all {n} document ids unique");
+    }
+
+    #[test]
+    fn test_business_unit_rolls_up_from_cost_center() {
+        // SOTA-3: with the dimension on (default), a line that has a cost center
+        // also carries a business_unit that is a deterministic roll-up of that
+        // CC (same CC → same BU, in BU01..BU11); with it off, BU is empty.
+        fn run(enabled: Option<bool>) -> (usize, usize, bool, bool) {
+            let mut coa_gen = ChartOfAccountsGenerator::new(
+                CoAComplexity::Medium,
+                IndustrySector::Manufacturing,
+                19,
+            );
+            let coa = Arc::new(coa_gen.generate());
+            let cfg = TransactionConfig {
+                business_unit_dimension: enabled,
+                ..TransactionConfig::default()
+            };
+            let mut g = JournalEntryGenerator::new_with_params(
+                cfg,
+                coa,
+                vec!["1000".to_string()],
+                NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
+                NaiveDate::from_ymd_opt(2024, 12, 31).unwrap(),
+                19,
+            )
+            .with_persona_errors(false)
+            .with_batching(false);
+            let mut cc_lines = 0usize;
+            let mut bu_lines = 0usize;
+            let mut consistent = true; // BU present ⇒ matches the roll-up of its CC
+            let mut well_formed = true; // BU in BU01..BU11
+            let mut cc_to_bu: std::collections::HashMap<String, String> =
+                std::collections::HashMap::new();
+            for _ in 0..600 {
+                let e = g.generate();
+                for l in &e.lines {
+                    if l.cost_center.is_some() {
+                        cc_lines += 1;
+                    }
+                    if let Some(bu) = &l.business_unit {
+                        bu_lines += 1;
+                        let cc = l.cost_center.clone().unwrap_or_default();
+                        if bu != &JournalEntryGenerator::business_unit_for_cost_center(&cc) {
+                            consistent = false;
+                        }
+                        // stable mapping across the run
+                        if cc_to_bu
+                            .insert(cc, bu.clone())
+                            .is_some_and(|prev| &prev != bu)
+                        {
+                            consistent = false;
+                        }
+                        let n_ok = bu.strip_prefix("BU").and_then(|d| d.parse::<u32>().ok());
+                        if !matches!(n_ok, Some(1..=11)) {
+                            well_formed = false;
+                        }
+                    }
+                }
+            }
+            (cc_lines, bu_lines, consistent, well_formed)
+        }
+        let (cc_on, bu_on, consistent, well_formed) = run(Some(true));
+        let (_, bu_off, _, _) = run(Some(false));
+        assert!(cc_on > 0 && bu_on > 0, "BU should be populated where CC is");
+        assert_eq!(
+            cc_on, bu_on,
+            "every CC-bearing line gets a BU ({cc_on} CC vs {bu_on} BU)"
+        );
+        assert!(consistent, "BU must be the deterministic roll-up of its CC");
+        assert!(well_formed, "BU codes must be BU01..BU11");
+        assert_eq!(bu_off, 0, "dimension off ⇒ no business_unit, got {bu_off}");
     }
 
     #[test]
