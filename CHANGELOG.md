@@ -5,6 +5,43 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v5.29 (SOTA structural-fidelity round — corpus-grounded posting realism)
+
+Closes structural gaps surfaced by the corpus fingerprint study
+(`experiments/ml/FINDINGS.md` §8): the corpus is heavily *templated* — a small
+set of standard postings recurs and a hot subset of accounts carries most lines
+— whereas the engine drew fresh, near-uniform accounts per line. Each lever is
+flag-gated and default-on, and all preserve JE balance **and the main RNG
+stream** (amounts, line counts, dates, copula correlations stay byte-identical —
+only account choice, source codes, and interspersed reversals change), so the
+realism gain costs no determinism churn on the non-account fields.
+
+### Added
+
+- **Recurring / standard-journal templates (`transactions.recurring_templates`,
+  default-on).** Per-(company, doc-type) library of reusable account archetypes
+  `(debit_accounts, credit_accounts)`; on the no-priors path a standard posting
+  is reused (~82%) instead of drawing fresh accounts, matching the corpus's
+  heavy templating (FINDINGS §8: ~97% recurring archetypes, top-50 cover ~65%;
+  vs the engine's 758/1000 unique). Reuse is drawn from a separate `template_rng`
+  and overrides only the count-matching `gl_account`, so amounts/dates/line-
+  counts are unchanged. Set `false` for the legacy uniform-per-line selection.
+- **Account-activity Pareto (`transactions.account_concentration`, default-on).**
+  A Zipf (s=2.0) power-law override of the per-line account pick concentrates
+  posting activity onto a hot subset of accounts — in the corpus the top-10% of
+  accounts carry ~95% of lines, vs the engine's near-uniform ~0.21. The uniform
+  pool draw is still consumed on the main RNG (amounts/dates/counts unchanged);
+  only the selected account moves toward the hot set, via a dedicated
+  `account_rng` and a precomputed harmonic table. Pinned by
+  `test_account_concentration_creates_pareto`.
+- **Reversal / correction process (`transactions.reversal_rate`, default ~0.04).**
+  A fraction of JEs are balanced reversals of a recent entry (dr/cr swapped,
+  `header_text` "Reversal of {id}", `reference` "REV-{id}", deterministically
+  derived id) — a process auditors specifically look for and largely absent from
+  the engine (FINDINGS §8: corpus reversal-proxy ~10% vs synthetic ~0.2%). Built
+  by cloning a buffered JE so the reversal inherits its source code, line text
+  and audit flags; interspersed via a separate `reversal_rng`. `0.0` disables it.
+
 ## v5.28 (corpus-fidelity round — BF eval scale fix + sampler re-fits)
 
 Grounded in the A100 corpus→synthetic gap study (`experiments/ml/FINDINGS.md`):

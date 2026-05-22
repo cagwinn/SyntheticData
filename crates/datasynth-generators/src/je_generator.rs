@@ -44,6 +44,27 @@ static DEFAULT_SOURCE_MIX: LazyLock<
 /// `transactions.reversal_rate` is unset (corpus reversal-proxy ~10%).
 const DEFAULT_REVERSAL_RATE: f64 = 0.04;
 
+/// SOTA-2: Zipf exponent for the hot-account power-law. At s=2.0 the top-10%
+/// of accounts in a pool carry ~92-96% of that pool's lines across realistic
+/// pool sizes (N≈60-150) — matching the corpus account-activity Pareto (~0.95).
+const ZIPF_ALPHA: f64 = 2.0;
+/// Largest pool size the precomputed harmonic table covers; larger pools (none
+/// realistic for a single account-type) fall back to the uniform draw.
+const ZIPF_CAP: usize = 16_384;
+/// SOTA-2: cumulative partial sums `CUM[k] = Σ_{i=1..k} i^-ZIPF_ALPHA` (CUM[0]=0),
+/// computed once. Lets [`JournalEntryGenerator::power_law_index`] normalise (O(1)
+/// lookup of `CUM[n]`) and inverse-CDF sample (binary search) without an O(n) sum.
+static ZIPF_CUM: LazyLock<Vec<f64>> = LazyLock::new(|| {
+    let mut cum = Vec::with_capacity(ZIPF_CAP + 1);
+    cum.push(0.0);
+    let mut acc = 0.0_f64;
+    for i in 1..=ZIPF_CAP {
+        acc += 1.0 / (i as f64).powf(ZIPF_ALPHA);
+        cum.push(acc);
+    }
+    cum
+});
+
 /// SP6 — Resolves PII placeholders to concrete values drawn from the run's
 /// synthetic master data. `{company}` <- vendor/customer names, `{person}` <-
 /// user display names, `{street}` <- addresses (empty pool for now — no
@@ -124,6 +145,11 @@ pub struct JournalEntryGenerator {
     /// SOTA-5: independent RNG for reversal rolls, so reversals intersperse
     /// without perturbing the main `rng` (normal JEs stay byte-identical).
     reversal_rng: ChaCha8Rng,
+    /// SOTA-2: independent RNG for the hot-account power-law override, so the
+    /// account-activity Pareto (a few accounts carry most lines, like real GLs)
+    /// is concentrated without perturbing the main `rng` — the uniform
+    /// `.choose` draw is still consumed, only its *result* is replaced.
+    account_rng: ChaCha8Rng,
     seed: u64,
     config: TransactionConfig,
     coa: Arc<ChartOfAccounts>,
@@ -450,6 +476,7 @@ impl JournalEntryGenerator {
             template_rng: seeded_rng(seed, 70_081),
             reversal_buffer: Vec::new(),
             reversal_rng: seeded_rng(seed, 90_017),
+            account_rng: seeded_rng(seed, 60_071),
             seed,
             config: config.clone(),
             coa,
@@ -3607,6 +3634,46 @@ impl JournalEntryGenerator {
         *datasynth_core::utils::weighted_select(&mut self.rng, &self.business_process_weights)
     }
 
+    /// SOTA-2: draw a rank index in `[0, n)` with `P(rank=i) ∝ 1/(i+1)^ZIPF_ALPHA`
+    /// from a dedicated stream, so a few low-rank accounts carry most lines (the
+    /// corpus account-activity Pareto). Returns `None` for an empty/oversized pool
+    /// so the caller keeps the uniform draw.
+    #[inline]
+    fn power_law_index(n: usize, rng: &mut ChaCha8Rng) -> Option<usize> {
+        if n == 0 || n > ZIPF_CAP {
+            return None;
+        }
+        let total = ZIPF_CUM[n];
+        let r = rng.random::<f64>() * total;
+        // smallest k in 1..=n with CUM[k] >= r → 0-based rank k-1
+        let k = ZIPF_CUM[..=n]
+            .binary_search_by(|v| v.partial_cmp(&r).unwrap_or(std::cmp::Ordering::Less))
+            .unwrap_or_else(|e| e);
+        Some(k.saturating_sub(1).min(n - 1))
+    }
+
+    /// SOTA-2: replace a uniform `Vec<&GLAccount>` pick with a hot-account
+    /// power-law pick when concentration is on (default). The uniform `.choose`
+    /// draw on the main `rng` is still consumed by the caller first, so
+    /// amounts/line-counts/dates stay byte-identical to the legacy stream — only
+    /// the *selected account* changes. Associated (not `&mut self`) so it borrows
+    /// only `account_rng`, leaving `coa` free for `all`/`uniform`.
+    #[inline]
+    fn concentrate<'a>(
+        enabled: bool,
+        rng: &mut ChaCha8Rng,
+        all: &[&'a GLAccount],
+        uniform: Option<&'a GLAccount>,
+    ) -> Option<&'a GLAccount> {
+        if enabled {
+            Self::power_law_index(all.len(), rng)
+                .map(|i| all[i])
+                .or(uniform)
+        } else {
+            uniform
+        }
+    }
+
     #[inline]
     fn select_debit_account(&mut self) -> &GLAccount {
         let accounts = self.coa.get_accounts_by_type(AccountType::Asset);
@@ -3619,7 +3686,9 @@ impl JournalEntryGenerator {
             expense_accounts
         };
 
-        all.choose(&mut self.rng).copied().unwrap_or_else(|| {
+        let uniform = all.choose(&mut self.rng).copied();
+        let enabled = self.config.account_concentration.unwrap_or(true);
+        Self::concentrate(enabled, &mut self.account_rng, &all, uniform).unwrap_or_else(|| {
             tracing::warn!(
                 "Account selection returned empty list, falling back to first COA account"
             );
@@ -3639,7 +3708,9 @@ impl JournalEntryGenerator {
             revenue_accounts
         };
 
-        all.choose(&mut self.rng).copied().unwrap_or_else(|| {
+        let uniform = all.choose(&mut self.rng).copied();
+        let enabled = self.config.account_concentration.unwrap_or(true);
+        Self::concentrate(enabled, &mut self.account_rng, &all, uniform).unwrap_or_else(|| {
             tracing::warn!(
                 "Account selection returned empty list, falling back to first COA account"
             );
@@ -3673,6 +3744,7 @@ impl Generator for JournalEntryGenerator {
         self.recurring_archetypes.clear();
         self.reversal_rng = seeded_rng(self.seed, 90_017);
         self.reversal_buffer.clear();
+        self.account_rng = seeded_rng(self.seed, 60_071);
         self.line_sampler.reset(self.seed + 1);
         self.amount_sampler.reset(self.seed + 2);
         self.temporal_sampler.reset(self.seed + 3);
@@ -4776,6 +4848,70 @@ mod tests {
         assert!(bal_on && bal_off, "all entries balanced incl. reversals");
         assert_eq!(rev_off, 0, "rate 0.0 emits no reversals, got {rev_off}");
         assert!(rev_on > 0, "rate 0.05 should emit reversals, got {rev_on}");
+    }
+
+    #[test]
+    fn test_account_concentration_creates_pareto() {
+        // SOTA-2: with concentration on (default), a hot subset of accounts
+        // carries most lines (the corpus account-activity Pareto, top-10% ≈ 95%)
+        // vs the legacy near-uniform pool draw. Templating + reversals are held
+        // off so the only difference between the two runs is the power-law pick.
+        fn run(concentration: Option<bool>) -> (f64, bool) {
+            let mut coa_gen = ChartOfAccountsGenerator::new(
+                CoAComplexity::Medium,
+                IndustrySector::Manufacturing,
+                17,
+            );
+            let coa = Arc::new(coa_gen.generate());
+            let cfg = TransactionConfig {
+                account_concentration: concentration,
+                recurring_templates: Some(false),
+                reversal_rate: Some(0.0),
+                ..TransactionConfig::default()
+            };
+            let mut g = JournalEntryGenerator::new_with_params(
+                cfg,
+                coa,
+                vec!["1000".to_string()],
+                NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
+                NaiveDate::from_ymd_opt(2024, 12, 31).unwrap(),
+                17,
+            )
+            .with_persona_errors(false)
+            .with_batching(false);
+            let mut counts: std::collections::HashMap<String, usize> =
+                std::collections::HashMap::new();
+            let mut total_lines = 0usize;
+            let mut balanced = true;
+            for _ in 0..1000 {
+                let e = g.generate();
+                if !e.is_balanced() {
+                    balanced = false;
+                }
+                for l in &e.lines {
+                    *counts.entry(l.gl_account.clone()).or_default() += 1;
+                    total_lines += 1;
+                }
+            }
+            // share of lines carried by the top-10% most-active accounts (the
+            // corpus_structure "acct top10%" metric, over active accounts).
+            let mut v: Vec<usize> = counts.values().copied().collect();
+            v.sort_unstable_by(|a, b| b.cmp(a));
+            let top_k = ((v.len() as f64 * 0.10).ceil() as usize).max(1);
+            let top_share = v.iter().take(top_k).sum::<usize>() as f64 / total_lines as f64;
+            (top_share, balanced)
+        }
+        let (share_on, bal_on) = run(Some(true));
+        let (share_off, bal_off) = run(Some(false));
+        assert!(bal_on && bal_off, "balance preserved in both modes");
+        assert!(
+            share_on > share_off + 0.20,
+            "concentration should raise the top-10% line share ({share_on:.3} on vs {share_off:.3} off)"
+        );
+        assert!(
+            share_on > 0.50,
+            "hot accounts should dominate: top-10% line share {share_on:.3}"
+        );
     }
 
     #[test]

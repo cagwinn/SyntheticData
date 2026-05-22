@@ -1680,6 +1680,15 @@ pub struct TransactionConfig {
     /// perturbing the normal JEs (separate RNG + derived id).
     #[serde(default)]
     pub reversal_rate: Option<f64>,
+    /// **SOTA-2** Concentrate posting activity onto a hot subset of accounts via
+    /// a Zipf (power-law) override of the per-line account pick, so a few
+    /// accounts carry most lines like a real GL (FINDINGS.md sec.8: corpus
+    /// top-10% of accounts ≈ 95% of lines vs the engine's near-uniform ~0.21).
+    /// The uniform draw is still consumed (amounts/dates/counts unchanged) — only
+    /// the chosen account moves toward the hot set. Set `false` for the legacy
+    /// uniform-over-pool selection. Default-on when unset.
+    #[serde(default)]
+    pub account_concentration: Option<bool>,
     /// Seasonality configuration
     #[serde(default)]
     pub seasonality: SeasonalityConfig,
