@@ -122,7 +122,7 @@ fn write_journal_entries_csv(
         "document_id,company_code,fiscal_year,fiscal_period,posting_date,document_date,\
          document_type,currency,exchange_rate,reference,header_text,created_by,source,\
          business_process,ledger,is_fraud,is_anomaly,\
-         line_number,gl_account,debit_amount,credit_amount,local_amount,\
+         line_number,gl_account,debit_amount,credit_amount,local_amount,transaction_amount,\
          cost_center,profit_center,business_unit,line_text,\
          auxiliary_account_number,auxiliary_account_label,lettrage,lettrage_date,\
          is_manual,is_post_close,source_system,\
@@ -242,7 +242,7 @@ fn write_journal_entries_csv(
             let anomaly_type_str = h.anomaly_type.as_deref().unwrap_or("").to_string();
             writeln!(
                 w,
-                "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}",
+                "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}",
                 h.document_id,
                 csv_escape(&h.company_code),
                 h.fiscal_year,
@@ -267,6 +267,7 @@ fn write_journal_entries_csv(
                 line.debit_amount,
                 line.credit_amount,
                 line.local_amount,
+                line.transaction_amount.map(|d| d.to_string()).unwrap_or_default(),
                 csv_opt_str(&line.cost_center),
                 csv_opt_str(&line.profit_center),
                 csv_opt_str(&line.business_unit),
@@ -3184,7 +3185,7 @@ impl BalanceValidationSummary {
 
 #[cfg(test)]
 mod tests {
-    /// v5.17.0 — verify the journal_entries.csv header has exactly 47 columns
+    /// v5.17.0 — verify the journal_entries.csv header has exactly 48 columns
     /// (44 from SP3.8a + fraud_type + anomaly_type appended last).  This
     /// catches any accidental drift between the header string and the row
     /// format string.
@@ -3194,7 +3195,7 @@ mod tests {
             "document_id,company_code,fiscal_year,fiscal_period,posting_date,document_date,\
                       document_type,currency,exchange_rate,reference,header_text,created_by,source,\
                       business_process,ledger,is_fraud,is_anomaly,\
-                      line_number,gl_account,debit_amount,credit_amount,local_amount,\
+                      line_number,gl_account,debit_amount,credit_amount,local_amount,transaction_amount,\
                       cost_center,profit_center,business_unit,line_text,\
                       auxiliary_account_number,auxiliary_account_label,lettrage,lettrage_date,\
                       is_manual,is_post_close,source_system,\
@@ -3206,8 +3207,8 @@ mod tests {
         let normalized: String = header.chars().filter(|c| !c.is_whitespace()).collect();
         let n_cols = normalized.split(',').count();
         assert_eq!(
-            n_cols, 47,
-            "expected 47 columns in journal_entries.csv header, got {n_cols}"
+            n_cols, 48,
+            "expected 48 columns in journal_entries.csv header, got {n_cols}"
         );
     }
 

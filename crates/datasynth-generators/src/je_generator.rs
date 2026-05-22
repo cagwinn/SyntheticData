@@ -52,6 +52,17 @@ const DEFAULT_REVERSAL_RATE: f64 = 0.10;
 /// the corpus's large-batch postings (FINDINGS §8: AB docs ~52 lines drive the
 /// lpje std). `0.0` disables.
 const DEFAULT_ALLOCATION_RATE: f64 = 0.008;
+/// SOTA-4: foreign document currencies + their company-currency rate (company
+/// units per 1 unit of the document currency). Synthetic, plausible values.
+const FOREIGN_CCYS: &[(&str, f64)] = &[
+    ("EUR", 1.09),
+    ("GBP", 1.27),
+    ("CHF", 1.12),
+    ("CAD", 0.74),
+    ("JPY", 0.0068),
+    ("AUD", 0.66),
+    ("CNY", 0.14),
+];
 /// SOTA-6: inclusive bounds for the number of target (cost-center) lines an
 /// allocation batch explodes into — centred near the corpus AB mean (~52).
 const ALLOCATION_MIN_TARGETS: u32 = 30;
@@ -167,6 +178,10 @@ pub struct JournalEntryGenerator {
     /// the large 1-to-many postings (the corpus's lines-per-JE tail) intersperse
     /// without perturbing the main `rng` (normal JEs stay byte-identical).
     allocation_rng: ChaCha8Rng,
+    /// SOTA-4: independent RNG for the foreign-currency post-process, so the
+    /// document-currency tagging never perturbs the main `rng` (company-currency
+    /// JEs stay byte-identical).
+    fx_rng: ChaCha8Rng,
     seed: u64,
     config: TransactionConfig,
     coa: Arc<ChartOfAccounts>,
@@ -495,6 +510,7 @@ impl JournalEntryGenerator {
             reversal_rng: seeded_rng(seed, 90_017),
             account_rng: seeded_rng(seed, 60_071),
             allocation_rng: seeded_rng(seed, 80_023),
+            fx_rng: seeded_rng(seed, 70_093),
             seed,
             config: config.clone(),
             coa,
@@ -1357,6 +1373,31 @@ impl JournalEntryGenerator {
             self.reversal_buffer.remove(0);
         }
         self.reversal_buffer.push(entry.clone());
+    }
+
+    /// SOTA-4: with probability `transactions.foreign_currency_rate`, post this JE
+    /// in a foreign document currency (SAP-style). `debit_amount`/`credit_amount`/
+    /// `local_amount` stay the company-ledger amount (DMBTR — the trial balance is
+    /// unaffected); `header.currency`/`header.exchange_rate` + each line's
+    /// `transaction_amount` (WRBTR) carry the foreign value. Balance holds in both
+    /// currencies (every line shares one rate). Drawn on `fx_rng` so the main
+    /// `rng` (and all company-currency JEs) stay byte-identical.
+    fn maybe_apply_foreign_currency(&mut self, entry: &mut JournalEntry) {
+        let prob = self.config.foreign_currency_rate.unwrap_or(0.0);
+        if prob <= 0.0 || self.fx_rng.random::<f64>() >= prob {
+            return;
+        }
+        let (code, rate) = FOREIGN_CCYS[self.fx_rng.random_range(0..FOREIGN_CCYS.len())];
+        let rate_dec = match Decimal::from_f64_retain(rate) {
+            Some(r) if r > Decimal::ZERO => r,
+            _ => return,
+        };
+        entry.header.currency = code.to_string();
+        entry.header.exchange_rate = rate_dec;
+        for line in entry.lines.iter_mut() {
+            let ledger = line.debit_amount + line.credit_amount; // one side is zero
+            line.transaction_amount = Some((ledger / rate_dec).round_dp(2));
+        }
     }
 
     /// SOTA-6: split `total` into `n` positive cent-precise parts summing
@@ -2837,6 +2878,10 @@ impl JournalEntryGenerator {
             }
         }
 
+        // SOTA-4: with a small probability, post this JE in a foreign document
+        // currency (company-ledger amounts unchanged; adds transaction_amount).
+        self.maybe_apply_foreign_currency(&mut entry);
+
         // SOTA-5: remember this JE so a later reversal can offset it.
         self.record_for_reversal(&entry);
 
@@ -3945,6 +3990,7 @@ impl Generator for JournalEntryGenerator {
         self.reversal_buffer.clear();
         self.account_rng = seeded_rng(self.seed, 60_071);
         self.allocation_rng = seeded_rng(self.seed, 80_023);
+        self.fx_rng = seeded_rng(self.seed, 70_093);
         self.line_sampler.reset(self.seed + 1);
         self.amount_sampler.reset(self.seed + 2);
         self.temporal_sampler.reset(self.seed + 3);
@@ -5297,6 +5343,78 @@ mod tests {
         );
         assert!(well_formed, "BU codes must be BU01..BU11");
         assert_eq!(bu_off, 0, "dimension off ⇒ no business_unit, got {bu_off}");
+    }
+
+    #[test]
+    fn test_foreign_currency_sap_style() {
+        // SOTA-4: with foreign_currency_rate > 0, some JEs post in a foreign
+        // document currency. The ledger amounts (debit/credit) stay company
+        // currency and the JE still balances; the foreign value lands in
+        // transaction_amount and balances in the transaction currency too. rate
+        // 0.0 → all company-currency. Reversals/allocations off to isolate.
+        fn run(rate: Option<f64>) -> (usize, bool, bool) {
+            let mut coa_gen = ChartOfAccountsGenerator::new(
+                CoAComplexity::Small,
+                IndustrySector::Manufacturing,
+                29,
+            );
+            let coa = Arc::new(coa_gen.generate());
+            let cfg = TransactionConfig {
+                foreign_currency_rate: rate,
+                reversal_rate: Some(0.0),
+                allocation_batch_rate: Some(0.0),
+                ..TransactionConfig::default()
+            };
+            let mut g = JournalEntryGenerator::new_with_params(
+                cfg,
+                coa,
+                vec!["1000".to_string()],
+                NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
+                NaiveDate::from_ymd_opt(2024, 12, 31).unwrap(),
+                29,
+            )
+            .with_persona_errors(false)
+            .with_batching(false);
+            let mut foreign = 0usize;
+            let mut ledger_ok = true; // debit == credit (company ledger)
+            let mut txn_ok = true; // foreign lines carry transaction_amount + balance in txn ccy
+            for _ in 0..1500 {
+                let e = g.generate();
+                if !e.is_balanced() {
+                    ledger_ok = false;
+                }
+                if e.header.currency != "USD" {
+                    foreign += 1;
+                    if !e.lines.iter().all(|l| l.transaction_amount.is_some()) {
+                        txn_ok = false;
+                    }
+                    let td: Decimal = e
+                        .lines
+                        .iter()
+                        .filter(|l| l.debit_amount > Decimal::ZERO)
+                        .filter_map(|l| l.transaction_amount)
+                        .sum();
+                    let tc: Decimal = e
+                        .lines
+                        .iter()
+                        .filter(|l| l.credit_amount > Decimal::ZERO)
+                        .filter_map(|l| l.transaction_amount)
+                        .sum();
+                    // tolerate per-line cent rounding (≤ n_lines half-cents)
+                    let tol = Decimal::new(e.lines.len() as i64, 2);
+                    if (td - tc).abs() > tol {
+                        txn_ok = false;
+                    }
+                }
+            }
+            (foreign, ledger_ok, txn_ok)
+        }
+        let (fon, lbal_on, tbal_on) = run(Some(0.20));
+        let (foff, lbal_off, _) = run(Some(0.0));
+        assert!(lbal_on && lbal_off, "ledger balance (debit==credit) preserved in both modes");
+        assert!(fon > 0, "rate 0.20 should produce foreign-currency JEs, got {fon}");
+        assert_eq!(foff, 0, "rate 0.0 ⇒ no foreign JEs, got {foff}");
+        assert!(tbal_on, "foreign JEs carry transaction_amount + balance in the transaction currency");
     }
 
     #[test]

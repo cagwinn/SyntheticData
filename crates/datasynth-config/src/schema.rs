@@ -1708,6 +1708,16 @@ pub struct TransactionConfig {
     /// leaves `business_unit` empty (legacy).
     #[serde(default)]
     pub business_unit_dimension: Option<bool>,
+    /// **SOTA-4** Fraction of journal entries that post in a foreign
+    /// (document) currency — SAP-style: `debit_amount`/`credit_amount`/
+    /// `local_amount` stay the company-ledger amount (DMBTR; the trial balance
+    /// is unaffected), and the line's `transaction_amount` (WRBTR) plus
+    /// `header.currency` (WAERS) / `header.exchange_rate` carry the foreign
+    /// value. The corpus shows ~3.5% functional≠reporting (FINDINGS §8).
+    /// Unset/`0.0` → all company-currency (default). Additive — ledger
+    /// coherence is preserved; enable for corpus-matching / FX realism.
+    #[serde(default)]
+    pub foreign_currency_rate: Option<f64>,
     /// Seasonality configuration
     #[serde(default)]
     pub seasonality: SeasonalityConfig,

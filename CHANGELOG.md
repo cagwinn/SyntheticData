@@ -72,6 +72,20 @@ preserved (only the specific values and the amount↔line-count pairing move).
   it empty (legacy). The header-parity self-check and parquet schema assertions
   are updated accordingly; integration tests resolve columns by name, so the
   added column is non-breaking.
+- **Multi-currency / foreign-currency postings
+  (`transactions.foreign_currency_rate`, default-off).** SAP-style: a fraction of
+  JEs post in a foreign *document* currency. `debit_amount`/`credit_amount`/
+  `local_amount` stay the company-ledger amount (SAP **DMBTR** — the trial balance
+  and every ledger aggregation are untouched), while the new per-line
+  `transaction_amount` (**WRBTR**) plus `header.currency` (**WAERS**) /
+  `header.exchange_rate` carry the foreign value; the JE balances in *both*
+  currencies. **Additive** (new `transaction_amount` column → `journal_entries.csv`
+  now 48 columns; JSON automatic), so ledger coherence is preserved by
+  construction. Default-off (opt-in) — enable for FX realism / corpus-matching (the
+  corpus shows ~3.5% functional≠reporting). Drawn from a separate `fx_rng` (main RNG
+  untouched); applies on the normal path (reversals/allocations stay
+  company-currency). The parquet sink + ERP formats are a follow-up. Pinned by
+  `test_foreign_currency_sap_style`.
 
 ### Tuned (corpus-comparison round)
 

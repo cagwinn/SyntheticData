@@ -637,6 +637,15 @@ pub struct JournalEntryLine {
     #[serde(default, with = "crate::serde_decimal::option")]
     pub group_amount: Option<Decimal>,
 
+    /// **SOTA-4** Document/transaction-currency amount (SAP WRBTR) when the JE
+    /// posts in a foreign currency. `debit_amount`/`credit_amount`/`local_amount`
+    /// remain the company-ledger amount (SAP DMBTR — the ledger and trial balance
+    /// aggregate these, unchanged), while this carries the original foreign value
+    /// at `header.currency` / `header.exchange_rate`. `None` for company-currency
+    /// JEs. Additive: ledger coherence is untouched.
+    #[serde(default, with = "crate::serde_decimal::option")]
+    pub transaction_amount: Option<Decimal>,
+
     /// Cost center assignment
     pub cost_center: Option<String>,
 
@@ -764,6 +773,7 @@ impl JournalEntryLine {
             credit_amount: Decimal::ZERO,
             local_amount: amount,
             group_amount: None,
+            transaction_amount: None,
             cost_center: None,
             profit_center: None,
             business_unit: None,
@@ -810,6 +820,7 @@ impl JournalEntryLine {
             credit_amount: amount,
             local_amount: -amount,
             group_amount: None,
+            transaction_amount: None,
             cost_center: None,
             profit_center: None,
             business_unit: None,
@@ -905,6 +916,7 @@ impl Default for JournalEntryLine {
             credit_amount: Decimal::ZERO,
             local_amount: Decimal::ZERO,
             group_amount: None,
+            transaction_amount: None,
             cost_center: None,
             profit_center: None,
             business_unit: None,
