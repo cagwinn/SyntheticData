@@ -5411,10 +5411,19 @@ mod tests {
         }
         let (fon, lbal_on, tbal_on) = run(Some(0.20));
         let (foff, lbal_off, _) = run(Some(0.0));
-        assert!(lbal_on && lbal_off, "ledger balance (debit==credit) preserved in both modes");
-        assert!(fon > 0, "rate 0.20 should produce foreign-currency JEs, got {fon}");
+        assert!(
+            lbal_on && lbal_off,
+            "ledger balance (debit==credit) preserved in both modes"
+        );
+        assert!(
+            fon > 0,
+            "rate 0.20 should produce foreign-currency JEs, got {fon}"
+        );
         assert_eq!(foff, 0, "rate 0.0 ⇒ no foreign JEs, got {foff}");
-        assert!(tbal_on, "foreign JEs carry transaction_amount + balance in the transaction currency");
+        assert!(
+            tbal_on,
+            "foreign JEs carry transaction_amount + balance in the transaction currency"
+        );
     }
 
     #[test]
