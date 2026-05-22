@@ -59,6 +59,8 @@ def main(argv: list[str] | None = None) -> None:
                     default=os.environ.get("DATASYNTH_CORPUS_DIR"))
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--per-client", action="store_true")
+    ap.add_argument("--industries", type=Path, default=None,
+                    help="client->industry json; also emit one pooled x per industry")
     a = ap.parse_args(argv)
     if not a.corpus_dir:
         raise SystemExit("set DATASYNTH_CORPUS_DIR or pass --corpus-dir")
@@ -68,15 +70,20 @@ def main(argv: list[str] | None = None) -> None:
         raise SystemExit(f"no JE_*.parquet under {a.corpus_dir}")
     a.out.parent.mkdir(parents=True, exist_ok=True)
 
+    ind_map = json.loads(a.industries.read_text()) if a.industries else {}
+
     per_client = {}
+    by_industry: dict[str, list] = {}
     frames = []
     for f in files:
+        cid = _client_id(f)
         df = _read_client(f)
         frames.append(df)
         if a.per_client:
             x = summary_stats_from_df(df)
-            per_client[_client_id(f)] = {"x": [float(v) for v in x],
-                                         "n_lines": int(len(df))}
+            per_client[cid] = {"x": [float(v) for v in x], "n_lines": int(len(df))}
+        if ind_map:
+            by_industry.setdefault(ind_map.get(cid, "unknown"), []).append(df)
 
     pooled = pd.concat(frames, ignore_index=True)
     x = summary_stats_from_df(pooled)
@@ -93,6 +100,18 @@ def main(argv: list[str] | None = None) -> None:
         pc_path.write_text(json.dumps({"feature_names": FEATURE_NAMES,
                                        "clients": per_client}))
         print(f"[corpus_x] per-client x ({len(per_client)}) -> {pc_path}")
+
+    if by_industry:
+        ind_x = {}
+        for ind, dfs in sorted(by_industry.items()):
+            pooled_i = pd.concat(dfs, ignore_index=True)
+            xi = summary_stats_from_df(pooled_i)
+            ind_x[ind] = {"x": [float(v) for v in xi], "n_clients": len(dfs),
+                          "n_lines": int(len(pooled_i))}
+            print(f"[corpus_x] industry {ind:32s} {len(dfs):2d} clients {len(pooled_i):>12,} lines")
+        bi_path = a.out.with_suffix(".by_industry.json")
+        bi_path.write_text(json.dumps({"feature_names": FEATURE_NAMES, "industries": ind_x}))
+        print(f"[corpus_x] per-industry x ({len(ind_x)}) -> {bi_path}")
 
 
 if __name__ == "__main__":
