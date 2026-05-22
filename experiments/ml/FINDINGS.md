@@ -352,3 +352,69 @@ health subset's 46 would overfit (the full corpus has far more sources).
 *Tooling note: `corpus_structure.py` reads `business_unit` from corpus parquet
 but not yet from the synthetic CSV (shows 0.0 there) — the dedicated pandas
 check confirms the synthetic value; a tool follow-up.*
+
+## 11. Inverse-audit capstone — Stage 1 (synthetic, in-distribution), 2026-05-22
+
+Operationalises the inverse-audit thesis (reconstruct the normal-system manifold from
+a GL + the accounting rules, then flag the JEs it *cannot explain* — high residual).
+The "manifold" is a conditional density fit on a NORMAL synthetic GL; a JE's anomaly
+score is its negative log-likelihood under it:
+
+- amount     — per-(account-class) signed-log1p density (robust), max over lines
+- structure  — −log P(account-set signature | source), add-1 smoothed
+- behavioral — per-source surprise of {weekend, post-close, round-dollar} (the
+               fraud-bias signatures)
+
+Test = a synthetic GL with ~3.7% per-JE fraud injected (`fraud.fraud_rate`); ground
+truth = the `is_fraud` label. Pipeline: `experiments/ml/inverse_audit/`.
+
+**Result — the structure-aware residual recovers per-JE fraud and crushes the
+marginal-feature baseline:**
+
+| detector | PR-AUC | ROC-AUC | precision@1% |
+|---|--:|--:|--:|
+| reconstructed-manifold residual (ours) | **0.741** | **0.913** | **0.94** |
+| Isolation Forest (n_lines, total, n_accounts) | 0.038 | 0.479 | 0.04 |
+
+Base rate 3.7% (382 / 10 277). **~19× PR-AUC over Isolation Forest** — the joint
+structural+behavioral manifold sees what marginal features cannot. Score separation
+mean 22.8 (fraud) vs 0.5 (normal).
+
+**Per fraud type (type-vs-normal) — a clean gradient by what a per-JE manifold can
+observe:**
+
+| family | example types (ROC-AUC) |
+|---|---|
+| structural (improbable account-set) | ExceededApprovalLimit 1.00, ExpenseCapitalization 0.99, SuspenseAccountAbuse 0.96, RevenueManipulation 0.96, FictitiousTransaction 0.94, SplitTransaction 0.91 |
+| behavioral (timing / amount-shape) | SegregationOfDuties 0.88, TimingAnomaly 0.87, RoundDollar 0.86, SelfApproval 0.84, JustBelowThreshold 0.81 |
+| cross-JE / relational | DuplicatePayment 0.75, ConflictOfInterestSourcing 0.69 |
+
+On the **relational anomaly family** (secondary arm: NewCounterparty, CentralityAnomaly,
+MissingRelationship, intercompany, …) the *same* scorer reaches only PR-AUC 0.096 /
+ROC 0.61 — near-blind.
+
+**System-theory reading (partial observability).** The per-JE residual reconstructs
+the **structural + behavioral subsystem** of the GL and detects its fraud strongly
+(ROC 0.9–1.0). Anomalies defined by **cross-JE relationships** (duplicate payments,
+circular flows, network centrality) are *off* the single-JE manifold and degrade
+gracefully toward random — they need the graph model. Route each anomaly family to the
+detector that observes its subsystem; the generative residual and the discriminative
+GNN are complementary, and DataSynth powers both (labelled training data for the GNN;
+the forward model for the residual).
+
+**Light-B (system-state) — deferred.** `lightb.py` runs `inverse.apply` over a
+`fraud.fraud_rate` sweep to show the inferred posterior tracks the injected rate, but
+the SBC-calibrated posterior weights from §"Inverse SBI" aren't on the VM; it skips
+gracefully. A quick follow-up once `inverse/train.py` is re-run.
+
+**Why it matters + the prerequisite.** The residual envelope is only as sharp as the
+forward model's coverage of *normal*. Stage 1 is in-distribution, so the manifold is
+exact and detection is strong. On a real GL the forward-fidelity gap (the OOD problem,
+§6/§7) widens the residuals — and the v5.29 SOTA round + tuning (§9/§10) closed much of
+that structural gap, making the corpus the natural **Stage-2** target. Stage 2 needs
+the SAP-style multi-currency work (so FX JEs aren't OOD) and shifts validation from
+labelled PR-AUC to expert review of the top-ranked residuals.
+
+*Caveats: in-distribution only; single-JE scoring (cross-JE/duplicate types need a
+sequence-of-JEs or graph model); the amount term is a lightweight per-class density
+(the spline flow is a drop-in upgrade).*
