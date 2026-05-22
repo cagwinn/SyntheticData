@@ -402,18 +402,39 @@ detector that observes its subsystem; the generative residual and the discrimina
 GNN are complementary, and DataSynth powers both (labelled training data for the GNN;
 the forward model for the residual).
 
-**Light-B (system-state) — deferred.** `lightb.py` runs `inverse.apply` over a
-`fraud.fraud_rate` sweep to show the inferred posterior tracks the injected rate, but
-the SBC-calibrated posterior weights from §"Inverse SBI" aren't on the VM; it skips
-gracefully. A quick follow-up once `inverse/train.py` is re-run.
+**Light-B (system-state) — DONE: the amortized SBI posterior recovers the injected
+fraud_rate.** Re-ran `inverse/train.py` (1500-sim campaign, val NLL −2.67), then probed
+`inverse.apply` over a `fraud.fraud_rate` sweep. The probe GL must be built from the
+*campaign's own* base config (`inverse_base.yaml`, amount params held at prior centres,
+only `fraud.fraud_rate` swept) so x lands on the training manifold:
+
+| injected | recovered median | 90% CI |
+|---|--:|--:|
+| 0.00 | 0.000 | — |
+| 0.02 | 0.027 | [0.015, 0.043] |
+| 0.05 | 0.053 | [0.039, 0.066] |
+| 0.10 | 0.087 | [0.073, 0.100] |
+
+Pearson r = 0.989; the 90% CIs contain truth (0.10 is ceiling-clipped at the prior
+bound). A first probe built from a *different* base (the inverse_audit healthcare config)
+instead collapsed the posterior to a near-Dirac at the prior floor (fraud_rate ≡ 0.000,
+zero-width CIs on every param) — a clean, intended demonstration of the OOD failure
+mode: off-manifold x ⇒ the conditional flow extrapolates to a degenerate density. So
+**both capstone arms now hold** — *local* (per-JE density residual, PR-AUC 0.741) and
+*global* (SBI system-state, r 0.989) — and that OOD collapse is precisely why the §9/§10
+fidelity work (which widens the on-manifold region toward the corpus) is the Stage-2
+enabler, not a nicety.
 
 **Why it matters + the prerequisite.** The residual envelope is only as sharp as the
 forward model's coverage of *normal*. Stage 1 is in-distribution, so the manifold is
 exact and detection is strong. On a real GL the forward-fidelity gap (the OOD problem,
 §6/§7) widens the residuals — and the v5.29 SOTA round + tuning (§9/§10) closed much of
 that structural gap, making the corpus the natural **Stage-2** target. Stage 2 needs
-the SAP-style multi-currency work (so FX JEs aren't OOD) and shifts validation from
-labelled PR-AUC to expert review of the top-ranked residuals.
+the SAP-style multi-currency work (#128, **DONE** — `transactions.foreign_currency_rate`,
+additive SAP DMBTR/WRBTR split; a 3.5%-rate healthcare GL now emits 8 document
+currencies / 2.11% foreign lines vs the corpus's ~3.5%, so FX JEs sit on-manifold rather
+than OOD) and shifts validation from labelled PR-AUC to expert review of the top-ranked
+residuals.
 
 *Caveats: in-distribution only; single-JE scoring (cross-JE/duplicate types need a
 sequence-of-JEs or graph model); the amount term is a lightweight per-class density

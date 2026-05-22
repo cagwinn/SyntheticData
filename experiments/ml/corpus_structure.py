@@ -95,6 +95,7 @@ def load_syn(csv: Path, sample_jes: int) -> pd.DataFrame:
         "cost_center": raw.get("cost_center"),
         "profit_center": raw.get("profit_center"),
         "trading_partner": raw.get("trading_partner"),
+        "currency": raw.get("currency"),  # SAP WAERS (doc currency); foreign line = != entity base
         "period": pd.to_datetime(raw.get("posting_date"), errors="coerce").dt.to_period("M").astype(str),
     })
     return _subsample(df, sample_jes)
@@ -148,10 +149,16 @@ def fingerprint(df: pd.DataFrame, label: str) -> dict:
         return {"distinct": int(vc.size), "entropy": round(_entropy(vc.values), 3),
                 "fill": round(len(s) / n_lines, 3)}
 
-    # 4. Multi-currency.
+    # 4. Multi-currency. Two schemas: corpus canonical (func_ccy/rep_ccy) and the
+    # synthetic SAP-style WAERS column `currency` (a foreign line = doc ccy != entity base).
     if "func_ccy" in df and "rep_ccy" in df:
         mismatch = float((df["func_ccy"].astype(str) != df["rep_ccy"].astype(str)).mean())
         n_ccy = int(pd.concat([df["func_ccy"], df["rep_ccy"]]).astype(str).nunique())
+    elif "currency" in df:
+        cc = df["currency"].astype(str)
+        n_ccy = int(cc.nunique())
+        base = cc.mode().iloc[0] if not cc.mode().empty else None
+        mismatch = float((cc != base).mean()) if base is not None else 0.0
     else:
         mismatch, n_ccy = 0.0, 1
 
