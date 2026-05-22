@@ -25,13 +25,19 @@ fn build_runtime(
     config.global.seed = Some(4100);
     config.global.period_months = 1;
     config.fraud.enabled = false;
-    // Isolate the copula's amount↔line_count signal from the SOTA-5/6
-    // processes (default-on): reversals duplicate (amount, line_count) points
-    // and allocation batches inject ~50-line JEs whose amount is uncorrelated
-    // with the line count, both of which dilute the thin empirical Spearman ρ
-    // these smoke tests assert on (cf. the v5.28 copula-pinning lesson).
+    // Isolate the copula's amount↔line_count signal from the v5.29 SOTA
+    // posting processes (all default-on). Each perturbs the JE stream the thin
+    // empirical Spearman ρ is measured over: allocation batches inject ~50-line
+    // JEs with uncorrelated amounts; reversals duplicate (amount, line_count)
+    // points; recurring-templates and account-concentration change the selected
+    // account, which feeds `generate_line_text` (whose main-RNG draw count is
+    // account-dependent) and so cascades into downstream amounts. Disabling all
+    // four restores the pre-SOTA stream this test was calibrated against
+    // (cf. the v5.28 copula-pinning lesson).
     config.transactions.allocation_batch_rate = Some(0.0);
     config.transactions.reversal_rate = Some(0.0);
+    config.transactions.recurring_templates = Some(false);
+    config.transactions.account_concentration = Some(false);
     cfg_tweak(&mut config);
     let mut phase_config = PhaseConfig::from_config(&config);
     phase_config.generate_document_flows = false;

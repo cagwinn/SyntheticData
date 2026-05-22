@@ -28,12 +28,16 @@ fn build_runtime(
     config.transactions.line_item_distribution =
         datasynth_core::distributions::LineItemDistributionConfig::paper_reference();
     // Same spirit as the paper_reference pin: isolate the copula's
-    // amount↔line_count signal from the SOTA-5/6 processes (default-on).
-    // Allocation batches inject ~50-line JEs with uncorrelated amounts and
-    // reversals duplicate points — both attenuate the achievable rank
-    // correlation this inverse-CDF test asserts on.
+    // amount↔line_count signal from the v5.29 SOTA posting processes (all
+    // default-on). Allocation batches inject ~50-line JEs with uncorrelated
+    // amounts; reversals duplicate points; recurring-templates and account-
+    // concentration change the selected account, which feeds line-text
+    // generation (account-dependent main-RNG draw count) and cascades into
+    // downstream amounts. Disabling all four restores the pre-SOTA stream.
     config.transactions.allocation_batch_rate = Some(0.0);
     config.transactions.reversal_rate = Some(0.0);
+    config.transactions.recurring_templates = Some(false);
+    config.transactions.account_concentration = Some(false);
     cfg_tweak(&mut config);
     let mut phase_config = PhaseConfig::from_config(&config);
     phase_config.generate_document_flows = false;
