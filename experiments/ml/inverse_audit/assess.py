@@ -34,12 +34,18 @@ def main(argv=None):
     res = {"n": int(len(d)), "fraud_base_rate": float(yf.mean()),
            "density_fraud": _metrics(yf, s),
            "density_anomaly": _metrics(d["is_anomaly"].astype(int).to_numpy(), s)}
-    # per fraud_type
+    # per fraud_type, measured type-vs-NORMAL (exclude other fraud types, which
+    # also score high under the global scorer and would otherwise count as FPs).
     bt = {}
+    normal = ~d["is_fraud"].astype(bool)
     for t in d["fraud_type"].dropna().unique():
-        yt = (d["fraud_type"] == t).astype(int).to_numpy()
-        if yt.sum() >= 3:
-            bt[t] = {"n": int(yt.sum()), "pr_auc": float(average_precision_score(yt, s))}
+        is_t = (d["fraud_type"] == t)
+        if int(is_t.sum()) < 3:
+            continue
+        mask = (is_t | normal).to_numpy()
+        bt[t] = {"n": int(is_t.sum()),
+                 "pr_auc": float(average_precision_score(is_t[mask].astype(int).to_numpy(), s[mask])),
+                 "roc_auc": float(roc_auc_score(is_t[mask].astype(int).to_numpy(), s[mask]))}
     res["fraud_by_type"] = dict(sorted(bt.items(), key=lambda kv: -kv[1]["pr_auc"]))
     # IF baseline on engineered per-JE features
     raw = pd.read_csv(a.test_gl / "journal_entries.csv", low_memory=False)
