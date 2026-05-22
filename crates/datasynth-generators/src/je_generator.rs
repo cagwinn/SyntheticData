@@ -1242,7 +1242,6 @@ impl JournalEntryGenerator {
         if self.template_rng.random::<f64>() >= P_REUSE {
             return None;
         }
-        let pick: f64 = self.template_rng.random();
         let lib = self
             .recurring_archetypes
             .get(&(company.to_string(), doc_type.to_string()))?;
@@ -1253,7 +1252,14 @@ impl JournalEntryGenerator {
         if matching.is_empty() {
             return None;
         }
-        let idx = ((pick * matching.len() as f64) as usize).min(matching.len() - 1);
+        // Power-law (Zipf) over the cached archetypes rather than a uniform pick:
+        // the earlier-cached "standard" posting of each (company, doc-type, shape)
+        // dominates, so a hot subset of archetypes carries most JEs. Uniform reuse
+        // kept the per-JE recurring share high but left the archetype head too
+        // flat (top-50 coverage 0.49 vs corpus 0.65); concentrating the head lifts
+        // top-50 coverage toward the corpus. Same mechanism as the SOTA-2 account
+        // Pareto, drawn on the `template_rng` stream.
+        let idx = Self::power_law_index(matching.len(), &mut self.template_rng).unwrap_or(0);
         Some(matching[idx].clone())
     }
 
