@@ -40,6 +40,10 @@ static DEFAULT_SOURCE_MIX: LazyLock<
     datasynth_core::distributions::behavioral_priors::SourceMixPrior,
 > = LazyLock::new(datasynth_core::distributions::behavioral_priors::SourceMixPrior::sap_default);
 
+/// SOTA-5: default fraction of JEs that are reversals/corrections when
+/// `transactions.reversal_rate` is unset (corpus reversal-proxy ~10%).
+const DEFAULT_REVERSAL_RATE: f64 = 0.04;
+
 /// SP6 — Resolves PII placeholders to concrete values drawn from the run's
 /// synthetic master data. `{company}` <- vendor/customer names, `{person}` <-
 /// user display names, `{street}` <- addresses (empty pool for now — no
@@ -113,6 +117,13 @@ pub struct JournalEntryGenerator {
     /// SOTA-1: independent RNG for the template-reuse roll + archetype pick, so
     /// templating never perturbs the main `rng` (amounts/dates/counts unchanged).
     template_rng: ChaCha8Rng,
+    /// SOTA-5: ring buffer of recent (complete) JEs a later reversal can offset.
+    /// Storing the whole JE lets the reversal inherit its source code, line text,
+    /// audit flags, etc. (only dr/cr + the header markers are changed).
+    reversal_buffer: Vec<JournalEntry>,
+    /// SOTA-5: independent RNG for reversal rolls, so reversals intersperse
+    /// without perturbing the main `rng` (normal JEs stay byte-identical).
+    reversal_rng: ChaCha8Rng,
     seed: u64,
     config: TransactionConfig,
     coa: Arc<ChartOfAccounts>,
@@ -437,6 +448,8 @@ impl JournalEntryGenerator {
             source_mix_rng: seeded_rng(seed, 50_063),
             recurring_archetypes: std::collections::HashMap::new(),
             template_rng: seeded_rng(seed, 70_081),
+            reversal_buffer: Vec::new(),
+            reversal_rng: seeded_rng(seed, 90_017),
             seed,
             config: config.clone(),
             coa,
@@ -1224,6 +1237,68 @@ impl JournalEntryGenerator {
         }
     }
 
+    /// SOTA-5: with probability `transactions.reversal_rate` (default ~4%),
+    /// build a reversal/correction of a recent JE (swap dr/cr, reference the
+    /// original) instead of a fresh JE. Uses `reversal_rng` and an id derived
+    /// from the original, so the main RNG + uuid factory are unperturbed (normal
+    /// JEs stay byte-identical; reversals are interspersed). Balanced because the
+    /// original was balanced and we swap each line's debit/credit.
+    fn maybe_generate_reversal(&mut self) -> Option<JournalEntry> {
+        let rate = self.config.reversal_rate.unwrap_or(DEFAULT_REVERSAL_RATE);
+        if rate <= 0.0 || self.reversal_buffer.is_empty() {
+            return None;
+        }
+        if self.reversal_rng.random::<f64>() >= rate {
+            return None;
+        }
+        let pick = (self.reversal_rng.random::<u32>() as usize) % self.reversal_buffer.len();
+        let mut entry = self.reversal_buffer[pick].clone();
+        let orig_id = entry.header.document_id;
+        // Reversal posts a few business days after the original.
+        let offset = 1 + (self.reversal_rng.random::<u32>() % 7) as i64;
+        let mut rev_date = entry.header.posting_date + chrono::Duration::days(offset);
+        if let Some(ref calc) = self.business_day_calculator {
+            if !calc.is_business_day(rev_date) {
+                rev_date = calc.next_business_day(rev_date, false);
+            }
+        }
+        if rev_date > self.end_date {
+            rev_date = entry.header.posting_date;
+        }
+        // Deterministic id derived from the original (no uuid-factory advance).
+        let rev_id =
+            uuid::Uuid::from_u128(orig_id.as_u128() ^ 0x5245_5645_5253_414c_5245_5645_5253_414c);
+        // Inherit everything from the original (source code, line text, audit
+        // flags, ...); change only the markers + each line's debit/credit.
+        entry.header.document_id = rev_id;
+        entry.header.posting_date = rev_date;
+        entry.header.document_date = rev_date;
+        entry.header.fiscal_year = rev_date.year() as u16;
+        entry.header.fiscal_period = rev_date.month() as u8;
+        entry.header.header_text = Some(format!("Reversal of {orig_id}"));
+        entry.header.reference = Some(format!("REV-{orig_id}"));
+        entry.header.batch_id = None;
+        for line in entry.lines.iter_mut() {
+            std::mem::swap(&mut line.debit_amount, &mut line.credit_amount);
+            line.document_id = rev_id;
+        }
+        Some(entry)
+    }
+
+    /// SOTA-5: remember a (complete) JE so a later reversal can offset it.
+    fn record_for_reversal(&mut self, entry: &JournalEntry) {
+        if self.config.reversal_rate.unwrap_or(DEFAULT_REVERSAL_RATE) <= 0.0
+            || entry.lines.is_empty()
+        {
+            return;
+        }
+        const CAP: usize = 64;
+        if self.reversal_buffer.len() >= CAP {
+            self.reversal_buffer.remove(0);
+        }
+        self.reversal_buffer.push(entry.clone());
+    }
+
     fn determine_fraud(&mut self) -> Option<FraudType> {
         if !self.fraud_config.enabled {
             return None;
@@ -1635,6 +1710,12 @@ impl JournalEntryGenerator {
             if state.remaining > 0 {
                 return self.generate_batched_entry();
             }
+        }
+
+        // SOTA-5: with a small probability, emit a reversal/correction of a
+        // recent JE instead of a fresh one (a process auditors look for).
+        if let Some(rev) = self.maybe_generate_reversal() {
+            return rev;
         }
 
         // SP6 — Lazy-init the MD resolver on the first call. Rebuilding once
@@ -2529,6 +2610,9 @@ impl JournalEntryGenerator {
                 self.apply_calibration_step(&step);
             }
         }
+
+        // SOTA-5: remember this JE so a later reversal can offset it.
+        self.record_for_reversal(&entry);
 
         entry
     }
@@ -3587,6 +3671,8 @@ impl Generator for JournalEntryGenerator {
         self.source_mix_rng = seeded_rng(self.seed, 50_063);
         self.template_rng = seeded_rng(self.seed, 70_081);
         self.recurring_archetypes.clear();
+        self.reversal_rng = seeded_rng(self.seed, 90_017);
+        self.reversal_buffer.clear();
         self.line_sampler.reset(self.seed + 1);
         self.amount_sampler.reset(self.seed + 2);
         self.temporal_sampler.reset(self.seed + 3);
@@ -4641,6 +4727,55 @@ mod tests {
             distinct_on * 2 < n,
             "templating should reuse heavily: {distinct_on} distinct archetypes over {n} JEs"
         );
+    }
+
+    #[test]
+    fn test_reversal_process_emits_balanced_reversals() {
+        // SOTA-5: with reversal_rate > 0, some JEs are balanced reversals of
+        // earlier ones (header_text "Reversal of ..."); rate 0.0 emits none.
+        fn run(rate: Option<f64>) -> (usize, bool) {
+            let mut coa_gen = ChartOfAccountsGenerator::new(
+                CoAComplexity::Small,
+                IndustrySector::Manufacturing,
+                13,
+            );
+            let coa = Arc::new(coa_gen.generate());
+            let cfg = TransactionConfig {
+                reversal_rate: rate,
+                ..TransactionConfig::default()
+            };
+            let mut g = JournalEntryGenerator::new_with_params(
+                cfg,
+                coa,
+                vec!["1000".to_string()],
+                NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
+                NaiveDate::from_ymd_opt(2024, 12, 31).unwrap(),
+                13,
+            )
+            .with_persona_errors(false)
+            .with_batching(false);
+            let mut reversals = 0;
+            let mut balanced = true;
+            for _ in 0..1000 {
+                let e = g.generate();
+                if !e.is_balanced() {
+                    balanced = false;
+                }
+                if e.header
+                    .header_text
+                    .as_deref()
+                    .is_some_and(|t| t.starts_with("Reversal of"))
+                {
+                    reversals += 1;
+                }
+            }
+            (reversals, balanced)
+        }
+        let (rev_on, bal_on) = run(Some(0.05));
+        let (rev_off, bal_off) = run(Some(0.0));
+        assert!(bal_on && bal_off, "all entries balanced incl. reversals");
+        assert_eq!(rev_off, 0, "rate 0.0 emits no reversals, got {rev_off}");
+        assert!(rev_on > 0, "rate 0.05 should emit reversals, got {rev_on}");
     }
 
     #[test]

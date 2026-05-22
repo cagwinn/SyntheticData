@@ -1672,6 +1672,14 @@ pub struct TransactionConfig {
     /// legacy uniform-per-line account selection.
     #[serde(default)]
     pub recurring_templates: Option<bool>,
+    /// **SOTA-5** Fraction of journal entries that are reversals/corrections of
+    /// a recent JE (swap dr/cr, reference the original) — a process auditors
+    /// specifically look for, and largely absent from the engine (FINDINGS.md
+    /// sec.8: corpus reversal-proxy ~10% vs synthetic ~0.2%). Unset → a small
+    /// default (~0.04); `0.0` disables it. Reversals are interspersed without
+    /// perturbing the normal JEs (separate RNG + derived id).
+    #[serde(default)]
+    pub reversal_rate: Option<f64>,
     /// Seasonality configuration
     #[serde(default)]
     pub seasonality: SeasonalityConfig,
