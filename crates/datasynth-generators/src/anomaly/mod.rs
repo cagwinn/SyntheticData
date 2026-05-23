@@ -25,6 +25,7 @@ mod patterns;
 mod scheme_advancer;
 pub mod schemes;
 pub mod severity;
+pub mod source_conditional_rarity;
 mod strategies;
 mod types;
 
