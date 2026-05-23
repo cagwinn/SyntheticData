@@ -12,15 +12,15 @@ engine; "corpus data" legal.
 
 ---
 ## Status
-- **Now:** SOTA-8 integrated (commit d2b1698b): config field + sampler API + lazy
-  per-source pools + JeGenerator hook + precedence over SP3/SP4 priors. Tests green
-  + clippy clean. HONEST validation: gap did NOT close meaningfully — SOTA-8 only
-  governs je_generator's direct path; document-flow / allocation / period-close
-  generators dominate line count with their own account selection. Source cardinality
-  (348 distinct SAP codes, many <10 JEs each) also blocks per-source pool accumulation.
-  Sampler + integration are CORRECT building blocks; #141 (SOTA-8.1) tracks the
-  broader coverage decision (extend / post-process / tighten SP3 / reduce cardinality).
-- **Last update:** 2026-05-23 ~13:00 (SOTA-8 integration + honest plateau finding).
+- **Now:** SOTA-9 SHIPPED (commit 86c870ca) — first realism-lever to actually move
+  the corpus gap. `transactions.archetype_reuse_probability` config knob lifted from
+  hardcoded 0.90 toward corpus ~0.97; at 0.97 edges/je 0.062 → 0.054 (~15%), jes/edge
+  16 → 18.4, lines/je max 8804 → 2133 (4× monster-outlier reduction). Trade-off:
+  lines/je p99.9 regressed (98 → 214) since archetype reuse propagates large-batch
+  line counts — SOTA-10 will tame that. Still 7× off corpus on edges/je → confirms
+  central-abstraction intuition (per-lever fixes only get partway). SOTA-8 was a
+  building block; SOTA-9 is the first measurable closure.
+- **Last update:** 2026-05-23 ~14:00 (SOTA-9 archetype-reuse knob).
 
 ## Increment ledger
 - [x] **I1** plan + PROGRESS + `generate_relational.py` + `relational/ot_flow.py` rung-1 (self-test ✓) +
