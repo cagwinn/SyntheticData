@@ -12115,6 +12115,21 @@ impl EnhancedOrchestrator {
         let mut injector = AnomalyInjector::new(anomaly_config);
         let result = injector.process_entries(entries);
 
+        // SOTA-12 (#140) post-process — tag source-conditionally-rare JEs after
+        // per-entry strategies have run. Covers every JE regardless of which
+        // generator produced it; sidesteps the SOTA-8 / SOTA-11 coverage blocker.
+        let sota12_tagged = if let Some(rate) =
+            self.config.anomaly_injection.source_conditional_rarity_rate
+        {
+            use datasynth_generators::anomaly::source_conditional_rarity::{
+                tag_source_conditional_rarity, SourceConditionalRarityConfig,
+            };
+            let cfg = SourceConditionalRarityConfig { rate, ..Default::default() };
+            tag_source_conditional_rarity(entries, &cfg)
+        } else {
+            0
+        };
+
         if let Some(pb) = &pb {
             pb.inc(entries.len() as u64);
             pb.finish_with_message("Anomaly injection complete");
@@ -12125,6 +12140,11 @@ impl EnhancedOrchestrator {
             *by_type
                 .entry(format!("{:?}", label.anomaly_type))
                 .or_insert(0) += 1;
+        }
+        if sota12_tagged > 0 {
+            *by_type
+                .entry("SourceConditionalRarity".to_string())
+                .or_insert(0) += sota12_tagged;
         }
 
         Ok(AnomalyLabels {

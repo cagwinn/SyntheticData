@@ -9566,6 +9566,15 @@ pub struct EnhancedAnomalyConfig {
     /// Enhanced labeling configuration.
     #[serde(default)]
     pub labeling: EnhancedLabelingConfig,
+
+    /// SOTA-12 (#140, FINDINGS §13): post-process tagger that tags the top
+    /// `rate × n_jes` JEs whose `(source, gl_account)` is rare under the
+    /// per-source empirical PMF as `RelationalAnomalyType::SourceConditional-
+    /// Rarity`. `None` = disabled (default); typical value `0.01` matches the
+    /// audit-packet hot-list size. Runs AFTER per-entry strategies — additive,
+    /// doesn't replace them.
+    #[serde(default)]
+    pub source_conditional_rarity_rate: Option<f64>,
 }
 
 /// Base anomaly rate configuration.
