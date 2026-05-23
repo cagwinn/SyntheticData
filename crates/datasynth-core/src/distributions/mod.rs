@@ -56,6 +56,7 @@ mod period_end;
 mod processing_lag;
 mod seasonality;
 pub mod source_active_window;
+pub mod source_conditional_pair;
 mod temporal;
 mod temporal_context;
 pub mod text_taxonomy;
