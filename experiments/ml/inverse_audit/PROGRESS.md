@@ -12,16 +12,17 @@ engine; "corpus data" legal.
 
 ---
 ## Status
-- **Now:** SOTA-10 SHIPPED (commit d5068c09) — biggest single-lever win yet.
-  `transactions.lines_per_je_cap=100` brought lines/je mean 5.88 → **4.30** (corpus
-  4.27), p99.9 214 → **98** (corpus 99, SOTA-9 regression fixed), max 8804 → **104**
-  (monster outliers eliminated), accts/source p99 121 → **100.8** (best yet).
-  SOTA-11 confirmed blocked by same coverage pattern as SOTA-8 (vendor.count config
-  doesn't reach doc-flow generators → SOTA-11.1 #142 opened). SOTA-12 spec + enum
-  variant landed (commit a7b439ec); injector implementation deferred. Round summary:
-  SOTA-9 + SOTA-10 closed 4 corpus metrics to near-exact match; edges/je still 7×
-  off → awaits central abstraction (user's last-resort lever).
-- **Last update:** 2026-05-23 ~14:30 (SOTA-10 win + SOTA-11 blocker + SOTA-12 spec).
+- **Now:** SOTA-12 injector SHIPPED as standalone post-process (commit f7706c0f).
+  `tag_source_conditional_rarity(&mut [JE], &cfg)` — per-source empirical PMF +
+  -log P(account|source) ranking → top `rate × n` get tagged as
+  `RelationalAnomalyType::SourceConditionalRarity`. 4 unit tests green, clippy clean.
+  Designed as a post-process so it sidesteps the SOTA-8/11 coverage blocker by
+  construction. Remaining: ~30 LOC orchestrator wire-up (single call site).
+  Planned-step round CLOSED — all five SOTA-N (#8/9/10/11/12) have landed or have
+  documented blockers. Net corpus-gap movement: 4 metrics now match
+  (lines/je mean / p99.9 / max / accts/source p99); 2 architectural gaps remain
+  (`edges/je` 7×, `tp_set_size` 3.3×) → next round = central abstraction.
+- **Last update:** 2026-05-23 ~15:30 (SOTA-12 injector + planned-step round close).
 
 ## Increment ledger
 - [x] **I1** plan + PROGRESS + `generate_relational.py` + `relational/ot_flow.py` rung-1 (self-test ✓) +
