@@ -75,7 +75,9 @@ def main(argv=None) -> None:
 
     keep_d = ["je_id", "score", "is_fraud", "is_anomaly", "fraud_type", "anomaly_type"]
     keep_d = [c for c in keep_d if c in d.columns]
-    keep_g = ["je_id", "relational_score"]
+    # density scorer doesn't carry `anomaly_type` per-JE; pull it from the graph parquet
+    # (graph_scorer's _je_labels does carry it) so the per-family observability map works.
+    keep_g = ["je_id", "relational_score"] + [c for c in ("anomaly_type",) if c in g.columns]
     j = d[keep_d].merge(g[keep_g], on="je_id", how="inner")
     j["density_z"] = _z(j["score"].to_numpy())
     j["relational_z"] = _z(j["relational_score"].to_numpy())
