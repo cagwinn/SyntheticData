@@ -12,12 +12,12 @@ engine; "corpus data" legal.
 
 ---
 ## Status
-- **Now:** capstone fully finalized for the night. I7/I9 done; v4 cycle_novelty feature added
-  (top per-feature ROC 0.553) with marginal absolute lift but +62% LR-CV-ceiling PR-AUC; `run_capstone.py`
-  one-shot reproducer landed; SPEC updated. Remaining for future work: feature engineering on the still-hard
-  families (counterparty-relationship for NewCounterparty / MissingRelationship; source-conditional edges
-  for UnusualAccountPair) + I8 graph-JSON export / RustGraph substrate validation (deferred).
-- **Last update:** 2026-05-23 ~05:30 (wake 5 close), increment 5.
+- **Now:** v5 source_cond_edge_surprise added — second-best single feature (ROC 0.550) but the
+  unsupervised z-sum has saturated around PR-AUC 0.22 / ROC 0.55 on /tmp/iar (LR-CV ceiling
+  0.239/0.598 essentially unchanged). UnusualAccountPair lifted from 0.480 → 0.487 — directional
+  but small. Honest finding: unweighted-sum saturation; next breakthrough needs per-family routing
+  or a learned weighting, not more features. Pivoting to I8 next wake (graph-JSON for RG substrate).
+- **Last update:** 2026-05-23 ~06:25 (wake 6 close), increment 6.
 
 ## Increment ledger
 - [x] **I1** plan + PROGRESS + `generate_relational.py` + `relational/ot_flow.py` rung-1 (self-test ✓) +
@@ -123,6 +123,18 @@ engine; "corpus data" legal.
   - I9 polish: `run_capstone.py` one-shot reproducer + SPEC.md updated.
   - Final mixed-GL unified result (v4): unified vs is_any **PR-AUC 0.397 / ROC 0.655** vs density-alone
     0.373/0.641 — routing thesis holds; the night closes with three arms validated end-to-end.
+- Wake 6 (05:55–06:25):
+  - I5 v5: added `source_cond_edge_surprise_max` = max -log P_normal(edge | source) — commit 4e148b23.
+    **Per-feature ROC 0.550** (2nd-best, behind cycle_novelty 0.553). But the overall unsupervised
+    sum has saturated: /tmp/iar v5 = 0.221/0.546 (essentially unchanged from v4 0.223/0.544); the
+    LR-CV ceiling moves 0.238→0.239 only. UnusualAccountPair (the target family) lifts 0.480 → 0.487
+    — directional but small; `relational` is now its best_arm.
+  - **Conclusion: unweighted z-sum has plateaued.** Adding more positive-prior features won't compound
+    further; the next gain requires either (a) per-family routing (different feature subsets per
+    family), (b) a learned weighted combination on a labelled split, or (c) a fundamentally
+    different feature class (cross-JE sequence model for Circular*; counterparty-relationship
+    model for NewCounterparty/MissingRelationship). Wake 7 pivots to I8 (graph-JSON export +
+    RustGraph substrate, files-only, RG-side commits authorised).
 
 ## Open questions / blockers
 - (none yet) — relational anomaly-type taxonomy + counts to be confirmed in I2; if too few relational
