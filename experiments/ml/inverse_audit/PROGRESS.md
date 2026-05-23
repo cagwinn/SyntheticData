@@ -12,12 +12,11 @@ engine; "corpus data" legal.
 
 ---
 ## Status
-- **Now:** I8 done — decoupled graph-JSON export landed (`relational/graph_export.py`). On the
-  mixed GL: 362 nodes / 20 878 edges / **42 new-in-test SCC nodes / 4 622 new-in-test edges /
-  831 anomalous JEs** — substrate-ingestable. `run_capstone.py` extended to write the JSON.
-  Capstone Stage 1 is now fully closed at every level (feature engineering plateaued at v5,
-  substrate export shipped, FINDINGS §12 + SPEC + observability map landed).
-- **Last update:** 2026-05-23 ~07:30 (wake 7 close), increment 7.
+- **Now:** Stage 2 (corpus) operational and validated at two scales. `corpus_runner` handles
+  fit-on-self + half-split + substrate JSON; `corpus_batch.py` sweeps multiple files with SHA-tagged
+  output dirs (no client names committed). Next: cross-file aggregate run (a sample per industry)
+  to characterise corpus-wide residual fingerprints.
+- **Last update:** 2026-05-23 ~08:55 (wake 8 close), increment 8.
 
 ## Increment ledger
 - [x] **I1** plan + PROGRESS + `generate_relational.py` + `relational/ot_flow.py` rung-1 (self-test ✓) +
@@ -126,6 +125,27 @@ engine; "corpus data" legal.
   - I9 polish: `run_capstone.py` one-shot reproducer + SPEC.md updated.
   - Final mixed-GL unified result (v4): unified vs is_any **PR-AUC 0.397 / ROC 0.655** vs density-alone
     0.373/0.641 — routing thesis holds; the night closes with three arms validated end-to-end.
+- Morning hand-off (~07:45): user re-provided the corpus locally; legal guardrails kept (path
+  never in committed artifacts; aggregates only). Stage 2 of the capstone unblocked. Wrote
+  `corpus_runner.py` and smoke-ran on smallest GL parquet (commit f633ee29): 116k lines/9.6k JEs
+  processed in seconds; relational_score heavy-tailed (p50 0.67 / p99 6.94 / max 12.25); the
+  active signals are edge_surprise (marginal + source-conditional) + account_dormancy_max.
+  cycle_novelty + tp_account_novelty collapse to 0 under fit-on-self (no "new in test").
+- Wake 8 (08:12–08:55):
+  - Refactored `graph_export` to a DataFrame core (`export_graph_df`) with a CSV wrapper for
+    backcompat. `corpus_runner` gains `--mode {self, half-split}` + `--export-graph`. Half-split
+    shuffles JEs with a deterministic seed and fits on first half, scores second half — recovers
+    the new-in-test signals.
+  - Half-split smoke (smallest GL, 9.6k JEs total): now cycle_novelty p99=2, max=5;
+    tp_account_novelty max=2. relational_score p99=10.4, max=14.7. Substrate JSON: 297 nodes,
+    6548 edges, 2151 je-scores.
+  - Half-split scale test (median GL, 22 MB → 1.13M lines / 250k JEs, 4m37s wall-clock):
+    relational_score p99=12.43, max=26.89 (heavier tail than smallest at scale); manifold
+    grows to 11,749 edges / 395 nodes / 308 SCC accounts (vs smallest's 5,248 / 280 / 179).
+    cycle_novelty stays modest (p99=1) — the larger graph's SCC structure is more stable so
+    fewer "new" cycles emerge under half-split. dormancy max 13.09 (vs 9.38 smallest).
+  - `corpus_batch.py` written: SHA-tagged per-file dirs, aggregates summaries into a single
+    cross_corpus.json without exposing client names. Ready for a sweep next wake.
 - Wake 7 (07:04–07:30):
   - I8 graph-JSON export (`relational/graph_export.py`, commits f2a48798 + e4114422) — generic
     node/edge/per-JE schema, decoupled from any substrate. Wired into `run_capstone.py` so a
