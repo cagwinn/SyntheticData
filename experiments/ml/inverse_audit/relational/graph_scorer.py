@@ -1,19 +1,23 @@
-"""Rung 1+ relational scorer (v2): fit the NORMAL account-flow graph as the relational
-manifold, score test JEs by how off-manifold they are. v1 (edges-only marginal) under-
-performed even the density baseline (ROC 0.45 vs 0.52) — the relational anomalies live
-in dimensions edges alone don't see. v2 adds trading-partner novelty + PageRank
-centrality and reports PER-FEATURE ROC so we know which signals actually carry weight.
+"""Rung 1+ relational scorer (v3): fit the NORMAL account-flow graph as the relational
+manifold; score test JEs by how off-manifold they are. v2 with naive z-sum-of-all under-
+performed (the four mid/anti features diluted the two positive ones); v3 keeps only
+positive-prior features in the deployable score and adds two targeted ones:
 
-Per-JE features (each z-standardised on normal-JE scores, summed -> relational_score):
-  edge_surprise_max  : max over JE flows of -log P_normal(edge); rare/unseen account-pair pops.
-  edge_surprise_w    : amount-weighted mean -log P_normal(edge).
-  coupling_entropy   : OT coupling entropy; high = reconstruction-ambiguous JE.
-  tp_novelty         : count of trading_partner values on this JE not seen in normal
-                       (targets NewCounterparty + Unmatched/TransferPricing IC families).
-  centrality_max     : max PageRank of touched accounts on the normal graph (PR is computed
-                       by power iteration; no networkx dep) — targets CentralityAnomaly.
-  back_edge          : 1 iff any (s->d) has its reverse (d->s) in normal (2-cycle proxy;
-                       kept but fires often -> typically weak; per-feature ROC will show).
+  positive-prior features (high value => anomaly; summed -> relational_score):
+    edge_surprise_max    : max over JE flows of -log P_normal(edge)
+    edge_surprise_w      : amount-weighted mean -log P_normal(edge)
+    tp_account_novelty   : count of (trading_partner, account) PAIRS on this JE NOT seen in
+                           normal -- this catches NewCounterparty / IC families where the
+                           tp string itself isn't novel but the tp-touches-this-account pair is
+    account_dormancy_max : max over touched accounts of -log(normal_count_of_account + 1) --
+                           rarely-used (dormant) account proxy without needing date arithmetic
+
+  reported-but-not-scored (per-feature ROC + as a visibility/diagnostic only):
+    back_edge, centrality_max, tp_novelty (raw string), coupling_entropy
+
+  diagnostic ceiling: relational_score_lr -- LogisticRegression over all standardised
+  features with 5-fold CV (out-of-fold proba). Uses test labels => UPPER BOUND only, not a
+  deployable scorer. Shows the best a linear combination can achieve.
 """
 from __future__ import annotations
 
@@ -29,6 +33,12 @@ from inverse_audit.relational.ot_flow import reconstruct_per_je
 _EPS = 1e-9
 _LOG_EPS = 30.0
 
+# features summed (positive-prior, unsupervised) into relational_score
+_SCORE_FEATURES = ("edge_surprise_max", "edge_surprise_w",
+                   "tp_account_novelty", "account_dormancy_max")
+# all features computed (for per-feature ROC reporting / LR-CV)
+_ALL_FEATURES = _SCORE_FEATURES + ("back_edge", "centrality_max", "tp_novelty", "coupling_entropy")
+
 
 def _load_lines(d: Path) -> pd.DataFrame:
     return pd.read_csv(d / "journal_entries.csv", low_memory=False)
@@ -36,7 +46,6 @@ def _load_lines(d: Path) -> pd.DataFrame:
 
 def _pagerank(edge_w: dict[tuple[str, str], float], damping: float = 0.85,
               iters: int = 60, tol: float = 1e-9) -> dict[str, float]:
-    """PageRank by power iteration on a weighted dict-of-edges. Returns {node: pr}."""
     nodes = sorted({n for e in edge_w for n in e})
     if not nodes:
         return {}
@@ -52,7 +61,6 @@ def _pagerank(edge_w: dict[tuple[str, str], float], damping: float = 0.85,
             si = idx[s]
             if out_w[si] > 0:
                 rn[idx[d]] += damping * r[si] * (w / out_w[si])
-        # redistribute dangling mass
         dangling = float(((out_w == 0).astype(float) * r).sum()) * damping / N
         rn += dangling
         if np.max(np.abs(rn - r)) < tol:
@@ -63,8 +71,21 @@ def _pagerank(edge_w: dict[tuple[str, str], float], damping: float = 0.85,
     return {n: float(r[idx[n]] / s) for n in nodes}
 
 
+def _je_tp_accounts(df: pd.DataFrame) -> dict[str, set[tuple[str, str]]]:
+    """Per-JE set of (trading_partner, gl_account) pairs (non-null tp only)."""
+    out: dict[str, set[tuple[str, str]]] = {}
+    if "trading_partner" not in df.columns or "gl_account" not in df.columns:
+        return out
+    sub = df[["document_id", "trading_partner", "gl_account"]].dropna(subset=["trading_partner"])
+    if sub.empty:
+        return out
+    for je_id, g in sub.groupby("document_id", sort=False):
+        out[str(je_id)] = {(str(t), str(a)) for t, a in zip(g["trading_partner"], g["gl_account"])}
+    return out
+
+
 def fit_graph_manifold(normal_df: pd.DataFrame) -> dict:
-    """Per-edge frequency + PageRank + trading_partner set, from the normal graph."""
+    """Per-edge frequency + PageRank + tp set + tp-account pair set + per-account count."""
     per = reconstruct_per_je(normal_df)
     edge_w: dict[tuple[str, str], float] = {}
     for _, (flows, _) in per.items():
@@ -76,16 +97,27 @@ def fit_graph_manifold(normal_df: pd.DataFrame) -> dict:
     tp_set: set[str] = set()
     if "trading_partner" in normal_df.columns:
         tp_set = set(normal_df["trading_partner"].dropna().astype(str).unique())
+    tp_acc_set: set[tuple[str, str]] = set()
+    for pairs in _je_tp_accounts(normal_df).values():
+        tp_acc_set.update(pairs)
+    # per-account JE count in normal (for dormancy proxy)
+    acc_count: dict[str, int] = {}
+    if "gl_account" in normal_df.columns:
+        c = (normal_df.groupby(["gl_account", "document_id"]).size().reset_index()
+                      .groupby("gl_account").size())
+        acc_count = {str(k): int(v) for k, v in c.items()}
     return {"edge_p": edge_p, "pagerank": pr, "tp_set": tp_set,
+            "tp_acc_set": tp_acc_set, "acc_count": acc_count,
             "n_normal_jes": len(per)}
 
 
-def score_je(flows, je_tp: list[str] | None, manifold) -> dict:
-    """Per-JE relational features."""
-    edge_p = manifold["edge_p"]; pr = manifold["pagerank"]; tp_set = manifold["tp_set"]
+def score_je(flows, je_tp: list[str] | None,
+             je_tp_acc_pairs: set[tuple[str, str]] | None, manifold) -> dict:
+    edge_p = manifold["edge_p"]; pr = manifold["pagerank"]
+    tp_set = manifold["tp_set"]; tp_acc_set = manifold["tp_acc_set"]
+    acc_count = manifold["acc_count"]
     if not flows:
-        return {"edge_surprise_max": 0.0, "edge_surprise_w": 0.0, "back_edge": 0.0,
-                "centrality_max": 0.0, "tp_novelty": 0, "n_edges": 0}
+        return {f: 0.0 for f in _ALL_FEATURES} | {"n_edges": 0}
     sur, wts, back, cmax = [], [], 0.0, 0.0
     accts: set[str] = set()
     for s, d, w in flows:
@@ -98,14 +130,28 @@ def score_je(flows, je_tp: list[str] | None, manifold) -> dict:
     for a in accts:
         cmax = max(cmax, pr.get(a, 0.0))
     sur_a = np.asarray(sur); w_a = np.asarray(wts)
-    novel = 0
+    novel_tp = 0
     if je_tp and tp_set:
-        novel = sum(1 for t in je_tp if t and str(t) not in tp_set)
+        novel_tp = sum(1 for t in je_tp if t and str(t) not in tp_set)
+    novel_pair = 0
+    if je_tp_acc_pairs and tp_acc_set:
+        novel_pair = sum(1 for p in je_tp_acc_pairs if p not in tp_acc_set)
+    elif je_tp_acc_pairs:    # normal has no tp dimension => count all as novel
+        novel_pair = len(je_tp_acc_pairs)
+    # Dormancy proxy = IDF of touched accounts: log(N_total_account_activity / (account_count + 1)).
+    # High when the account is rarely touched in normal => dormant-ish. Per-JE: max over accounts.
+    n_acc = max(sum(acc_count.values()), 1)
+    dorm_max = 0.0
+    for a in accts:
+        dorm_max = max(dorm_max, float(np.log(n_acc / (acc_count.get(a, 0) + 1))))
     return {"edge_surprise_max": float(sur_a.max()),
             "edge_surprise_w": float((sur_a * w_a).sum() / max(w_a.sum(), _EPS)),
             "back_edge": back,
             "centrality_max": float(cmax),
-            "tp_novelty": int(novel),
+            "tp_novelty": int(novel_tp),
+            "tp_account_novelty": int(novel_pair),
+            "account_dormancy_max": dorm_max,
+            "coupling_entropy": 0.0,            # filled by caller from ot_flow
             "n_edges": len(flows)}
 
 
@@ -121,23 +167,23 @@ def _je_labels(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _je_tps(df: pd.DataFrame) -> dict[str, list[str]]:
-    """Per-JE list of trading_partner values (unique, non-null)."""
     if "trading_partner" not in df.columns:
         return {}
     out: dict[str, list[str]] = {}
     for je_id, g in df.groupby("document_id", sort=False):
-        vals = g["trading_partner"].dropna().astype(str).unique().tolist()
-        out[str(je_id)] = vals
+        out[str(je_id)] = g["trading_partner"].dropna().astype(str).unique().tolist()
     return out
 
 
 def score_df(df: pd.DataFrame, manifold) -> pd.DataFrame:
     per = reconstruct_per_je(df)
     tps = _je_tps(df)
+    tp_accs = _je_tp_accounts(df)
     rows = []
     for je_id, (flows, h) in per.items():
-        f = score_je(flows, tps.get(je_id), manifold)
-        f["je_id"] = je_id; f["coupling_entropy"] = h
+        f = score_je(flows, tps.get(je_id), tp_accs.get(je_id), manifold)
+        f["je_id"] = je_id
+        f["coupling_entropy"] = h
         rows.append(f)
     res = pd.DataFrame(rows).set_index("je_id")
     res.index = res.index.astype(str)
@@ -151,20 +197,15 @@ def z_of(test: np.ndarray, normal: np.ndarray) -> np.ndarray:
     return (test - med) / mad
 
 
-_FEATURES = ("edge_surprise_max", "edge_surprise_w", "back_edge",
-             "centrality_max", "tp_novelty", "coupling_entropy")
-
-
-def assess(t_scored: pd.DataFrame) -> dict:
+def assess(t_scored: pd.DataFrame, score_col: str = "relational_score") -> dict:
     from sklearn.metrics import average_precision_score, roc_auc_score
     ia = t_scored["is_anomaly_je"].fillna(False).astype(bool).to_numpy()
-    s = t_scored["relational_score"].to_numpy()
+    s = t_scored[score_col].to_numpy()
     out: dict = {"n_jes": len(t_scored), "n_pos": int(ia.sum())}
     out["overall"] = {"pr_auc": float(average_precision_score(ia, s)),
                       "roc_auc": float(roc_auc_score(ia, s))}
-    # per-feature ROC (which signals actually help)
     per_feat: dict = {}
-    for f in _FEATURES:
+    for f in _ALL_FEATURES:
         if f not in t_scored.columns:
             continue
         v = t_scored[f].fillna(0).to_numpy()
@@ -174,7 +215,6 @@ def assess(t_scored: pd.DataFrame) -> dict:
         except Exception:
             pass
     out["per_feature"] = per_feat
-    # per-family
     by_type: dict = {}
     if "anomaly_type" in t_scored.columns:
         normal = ~ia
@@ -202,34 +242,60 @@ def main(argv=None) -> None:
     a = ap.parse_args(argv)
 
     nd = _load_lines(a.normal); td = _load_lines(a.test)
-    print(f"[graph_scorer v2] fit on normal: lines={len(nd)} jes={nd['document_id'].nunique()}")
+    print(f"[graph_scorer v3] fit on normal: lines={len(nd)} jes={nd['document_id'].nunique()}")
     manifold = fit_graph_manifold(nd)
     print(f"  manifold: edges={len(manifold['edge_p'])} nodes={len(manifold['pagerank'])} "
-          f"tp_set={len(manifold['tp_set'])}")
+          f"tp_set={len(manifold['tp_set'])} tp_acc_set={len(manifold['tp_acc_set'])} "
+          f"accounts_w_count={len(manifold['acc_count'])}")
 
     n_scored = score_df(nd, manifold)
     t_scored = score_df(td, manifold)
-    for c in _FEATURES:
+    for c in _ALL_FEATURES:
         if c in t_scored.columns:
             t_scored[c + "_z"] = z_of(t_scored[c].to_numpy(), n_scored[c].to_numpy())
-    z_cols = [c + "_z" for c in _FEATURES if (c + "_z") in t_scored.columns]
-    t_scored["relational_score"] = t_scored[z_cols].fillna(0).sum(axis=1)
+
+    # deployable, unsupervised relational_score: sum of POSITIVE-PRIOR features only
+    score_cols = [c + "_z" for c in _SCORE_FEATURES if (c + "_z") in t_scored.columns]
+    t_scored["relational_score"] = t_scored[score_cols].fillna(0).sum(axis=1)
+    print(f"  score components (positive-prior, unsupervised): {score_cols}")
+
+    # diagnostic LR-CV ceiling (uses labels => UPPER BOUND, not deployable)
+    try:
+        from sklearn.linear_model import LogisticRegression
+        from sklearn.model_selection import cross_val_predict
+        all_z = [c + "_z" for c in _ALL_FEATURES if (c + "_z") in t_scored.columns]
+        X = t_scored[all_z].fillna(0).to_numpy()
+        y = t_scored["is_anomaly_je"].fillna(False).astype(int).to_numpy()
+        if y.sum() >= 10 and (~y.astype(bool)).sum() >= 10:
+            proba = cross_val_predict(
+                LogisticRegression(max_iter=500, class_weight="balanced"),
+                X, y, cv=5, method="predict_proba")[:, 1]
+            t_scored["relational_score_lr"] = proba
+    except Exception as e:
+        print(f"  LR-CV skipped: {e}")
 
     t_scored.reset_index().to_parquet(a.out)
     print(f"GRAPH_SCORE_DONE -> {a.out}")
 
-    m = assess(t_scored)
+    m_unsup = assess(t_scored, "relational_score")
     out_json = a.assess_out or a.out.with_suffix(".assess.json")
-    out_json.write_text(json.dumps(m, indent=2))
-    o = m["overall"]
-    print(f"\nRELATIONAL_ARM_VS_IS_ANOMALY: n_pos={m['n_pos']} "
-          f"pr_auc={o['pr_auc']:.4f} roc_auc={o['roc_auc']:.4f}")
-    print("  per-feature ROC (which signals carry weight):")
-    for f, v in sorted(m["per_feature"].items(), key=lambda kv: -kv[1]["roc_auc"]):
-        print(f"    {f:22s} pr_auc={v['pr_auc']:.3f} roc={v['roc_auc']:.3f}")
-    if m["per_anomaly_type"]:
+    payload = {"unsupervised": m_unsup}
+    if "relational_score_lr" in t_scored.columns:
+        payload["lr_cv_ceiling"] = assess(t_scored, "relational_score_lr")
+    out_json.write_text(json.dumps(payload, indent=2))
+
+    o = m_unsup["overall"]
+    print(f"\nRELATIONAL_ARM_VS_IS_ANOMALY (unsupervised, deployable):")
+    print(f"  n_pos={m_unsup['n_pos']}  pr_auc={o['pr_auc']:.4f}  roc_auc={o['roc_auc']:.4f}")
+    if "lr_cv_ceiling" in payload:
+        oc = payload["lr_cv_ceiling"]["overall"]
+        print(f"  LR-CV ceiling: pr_auc={oc['pr_auc']:.4f}  roc_auc={oc['roc_auc']:.4f}")
+    print("  per-feature ROC (high = useful, < 0.5 = anti-correlated):")
+    for f, v in sorted(m_unsup["per_feature"].items(), key=lambda kv: -kv[1]["roc_auc"]):
+        print(f"    {f:24s} pr_auc={v['pr_auc']:.3f} roc={v['roc_auc']:.3f}")
+    if m_unsup["per_anomaly_type"]:
         print("  per family (type vs normal-JE), top by ROC:")
-        for t, mm in sorted(m["per_anomaly_type"].items(),
+        for t, mm in sorted(m_unsup["per_anomaly_type"].items(),
                              key=lambda kv: -kv[1]["roc_auc"]):
             print(f"    {t:30s} n={mm['n']:4d} pr_auc={mm['pr_auc']:.3f} roc={mm['roc_auc']:.3f}")
 
