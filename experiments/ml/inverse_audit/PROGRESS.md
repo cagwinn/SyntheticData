@@ -12,11 +12,12 @@ engine; "corpus data" legal.
 
 ---
 ## Status
-- **Now:** capstone effectively finalized. I7 observability map landed (per-family best arm); I9
-  FINDINGS §12 written ("Stage 1 closeout — relational arm + unified routed detector"). Remaining
-  polish: run.py wired for the new pipeline, one or two hard families (cycle detection for Circular*,
-  source-conditional surprise for UnusualAccountPair), and the SPEC update.
-- **Last update:** 2026-05-23 ~04:25 (wake 4 close), increment 4.
+- **Now:** capstone fully finalized for the night. I7/I9 done; v4 cycle_novelty feature added
+  (top per-feature ROC 0.553) with marginal absolute lift but +62% LR-CV-ceiling PR-AUC; `run_capstone.py`
+  one-shot reproducer landed; SPEC updated. Remaining for future work: feature engineering on the still-hard
+  families (counterparty-relationship for NewCounterparty / MissingRelationship; source-conditional edges
+  for UnusualAccountPair) + I8 graph-JSON export / RustGraph substrate validation (deferred).
+- **Last update:** 2026-05-23 ~05:30 (wake 5 close), increment 5.
 
 ## Increment ledger
 - [x] **I1** plan + PROGRESS + `generate_relational.py` + `relational/ot_flow.py` rung-1 (self-test ✓) +
@@ -72,8 +73,9 @@ engine; "corpus data" legal.
 - [x] **I9** FINDINGS §12 written — "Stage 1 closeout — relational arm + unified routed detector":
       tables for the three-armed result, the observability map, and the throughline. Reproducible via
       `generate_mixed.py → unified_score.py`.
-- [ ] **I9 polish** wire run.py for the full pipeline (generate_mixed → density + relational →
-      unified + observability) so a single command reproduces the §12 numbers; SPEC.md update.
+- [x] **I9 polish** (commit 29da4f44 + wake-5 close): `run_capstone.py` one-shot reproducer +
+      SPEC.md updated with new modules + reproduction command. `python -m inverse_audit.run_capstone`
+      reproduces FINDINGS §12 numbers.
 
 ## Results log (append per increment)
 - I1: scaffold committed; relational GL generating on VM (anomaly_injection.rates.total_rate=0.08, fraud off).
@@ -109,6 +111,18 @@ engine; "corpus data" legal.
   - I9 FINDINGS §12 "Stage 1 closeout" written: relational arm spec, three-armed result table,
     observability map (both `fraud_type` and `anomaly_type`), throughline. The capstone narrative is
     now publishable end-to-end.
+- Wake 5 (04:45–05:30):
+  - I5 v4: added `cycle_novelty` (SCC-based, count of touched accounts in test's non-trivial SCCs
+    that aren't in normal's) — commit 29da4f44. **cycle_novelty is the top single feature (ROC 0.553)**;
+    overall unsupervised lifts marginally (0.220→0.223 / ROC 0.544 unchanged), but the **LR-CV ceiling
+    jumps from 0.147/0.555 to 0.238/0.598** — cycle_novelty carries real *learnable* signal that the
+    unweighted sum doesn't fully extract. CircularTransaction family stays at ~0.50 (the SCC-detector
+    fires more broadly than the injector's specific cycle labels).
+  - z_of now guards against degenerate MAD (cycle_novelty is constant on normal by construction):
+    returns centred raw values instead of dividing by ~0.
+  - I9 polish: `run_capstone.py` one-shot reproducer + SPEC.md updated.
+  - Final mixed-GL unified result (v4): unified vs is_any **PR-AUC 0.397 / ROC 0.655** vs density-alone
+    0.373/0.641 — routing thesis holds; the night closes with three arms validated end-to-end.
 
 ## Open questions / blockers
 - (none yet) — relational anomaly-type taxonomy + counts to be confirmed in I2; if too few relational
