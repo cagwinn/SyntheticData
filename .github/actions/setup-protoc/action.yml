@@ -1,0 +1,36 @@
+name: 'Setup protoc'
+description: |
+  Install the Protocol Buffers compiler (protoc) via the OS-native package
+  manager. Replaces `arduino/setup-protoc@v3`, which intermittently fails
+  the GitHub Releases API call with "Bad credentials" / 401 — see
+  https://github.com/arduino/setup-protoc/issues for recurring reports.
+
+  This composite hits only the platform's apt / brew / choco indices and
+  has no third-party GitHub-API dependency, so the protoc setup step
+  no longer flakes the build.
+
+runs:
+  using: composite
+  steps:
+    - name: Install protoc (Linux)
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y protobuf-compiler
+
+    - name: Install protoc (macOS)
+      if: runner.os == 'macOS'
+      shell: bash
+      run: brew install protobuf
+
+    - name: Install protoc (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        # choco is pre-installed on Windows runners; --no-progress keeps the log readable.
+        choco install protoc -y --no-progress
+
+    - name: Verify protoc
+      shell: bash
+      run: protoc --version
