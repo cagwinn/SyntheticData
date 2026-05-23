@@ -12,15 +12,16 @@ engine; "corpus data" legal.
 
 ---
 ## Status
-- **Now:** SOTA-9 SHIPPED (commit 86c870ca) — first realism-lever to actually move
-  the corpus gap. `transactions.archetype_reuse_probability` config knob lifted from
-  hardcoded 0.90 toward corpus ~0.97; at 0.97 edges/je 0.062 → 0.054 (~15%), jes/edge
-  16 → 18.4, lines/je max 8804 → 2133 (4× monster-outlier reduction). Trade-off:
-  lines/je p99.9 regressed (98 → 214) since archetype reuse propagates large-batch
-  line counts — SOTA-10 will tame that. Still 7× off corpus on edges/je → confirms
-  central-abstraction intuition (per-lever fixes only get partway). SOTA-8 was a
-  building block; SOTA-9 is the first measurable closure.
-- **Last update:** 2026-05-23 ~14:00 (SOTA-9 archetype-reuse knob).
+- **Now:** SOTA-10 SHIPPED (commit d5068c09) — biggest single-lever win yet.
+  `transactions.lines_per_je_cap=100` brought lines/je mean 5.88 → **4.30** (corpus
+  4.27), p99.9 214 → **98** (corpus 99, SOTA-9 regression fixed), max 8804 → **104**
+  (monster outliers eliminated), accts/source p99 121 → **100.8** (best yet).
+  SOTA-11 confirmed blocked by same coverage pattern as SOTA-8 (vendor.count config
+  doesn't reach doc-flow generators → SOTA-11.1 #142 opened). SOTA-12 spec + enum
+  variant landed (commit a7b439ec); injector implementation deferred. Round summary:
+  SOTA-9 + SOTA-10 closed 4 corpus metrics to near-exact match; edges/je still 7×
+  off → awaits central abstraction (user's last-resort lever).
+- **Last update:** 2026-05-23 ~14:30 (SOTA-10 win + SOTA-11 blocker + SOTA-12 spec).
 
 ## Increment ledger
 - [x] **I1** plan + PROGRESS + `generate_relational.py` + `relational/ot_flow.py` rung-1 (self-test ✓) +
