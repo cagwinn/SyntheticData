@@ -155,22 +155,36 @@ mod tests {
             .collect();
         entries.push(make_je("rare", "SA", "9999", "8888"));
 
-        let cfg = SourceConditionalRarityConfig { rate: 0.02, min_surprise: 0.5, ..Default::default() };
+        let cfg = SourceConditionalRarityConfig {
+            rate: 0.02,
+            min_surprise: 0.5,
+            ..Default::default()
+        };
         let tagged = tag_source_conditional_rarity(&mut entries, &cfg);
         assert!(tagged >= 1, "expected ≥ 1 tag, got {tagged}");
         // The "rare" JE (index 99) must be tagged.
         let rare = &entries[99];
         assert!(rare.header.is_anomaly, "rare JE header not flagged");
-        assert_eq!(rare.header.anomaly_type.as_deref(), Some("SourceConditionalRarity"));
+        assert_eq!(
+            rare.header.anomaly_type.as_deref(),
+            Some("SourceConditionalRarity")
+        );
         // Common JEs must NOT be tagged (allow at most 1 false positive at the rate budget).
         let common_tagged = entries[..99].iter().filter(|e| e.header.is_anomaly).count();
-        assert!(common_tagged <= 1, "common JEs over-tagged: {common_tagged}");
+        assert!(
+            common_tagged <= 1,
+            "common JEs over-tagged: {common_tagged}"
+        );
     }
 
     #[test]
     fn skips_sources_with_too_few_lines() {
         let mut entries = vec![make_je("solo", "ZZ", "1000", "2000")];
-        let cfg = SourceConditionalRarityConfig { rate: 1.0, min_surprise: 0.0, ..Default::default() };
+        let cfg = SourceConditionalRarityConfig {
+            rate: 1.0,
+            min_surprise: 0.0,
+            ..Default::default()
+        };
         let tagged = tag_source_conditional_rarity(&mut entries, &cfg);
         assert_eq!(tagged, 0, "should skip when per-source data is too sparse");
     }
@@ -180,9 +194,16 @@ mod tests {
         let mut entries: Vec<JournalEntry> = (0..50)
             .map(|i| make_je(&format!("je{i}"), "SA", "1000", "2000"))
             .collect();
-        let cfg = SourceConditionalRarityConfig { rate: 0.10, min_surprise: 100.0, ..Default::default() };
+        let cfg = SourceConditionalRarityConfig {
+            rate: 0.10,
+            min_surprise: 100.0,
+            ..Default::default()
+        };
         let tagged = tag_source_conditional_rarity(&mut entries, &cfg);
-        assert_eq!(tagged, 0, "unreachable min_surprise should suppress tagging");
+        assert_eq!(
+            tagged, 0,
+            "unreachable min_surprise should suppress tagging"
+        );
     }
 
     #[test]

@@ -221,11 +221,7 @@ impl SourceConditionalPairSampler {
     /// Sample a `(debit_account, credit_account)` pair conditioned on `source`.
     /// Returns `None` if the source isn't in the sampler — the caller should fall back
     /// to the existing global account picker.
-    pub fn sample_pair(
-        &self,
-        source: &str,
-        rng: &mut ChaCha8Rng,
-    ) -> Option<(String, String)> {
+    pub fn sample_pair(&self, source: &str, rng: &mut ChaCha8Rng) -> Option<(String, String)> {
         self.pools.get(source).and_then(|p| p.sample_pair(rng))
     }
 
@@ -245,9 +241,7 @@ mod tests {
     fn synthetic_accounts(n: usize) -> (Vec<String>, Vec<f64>) {
         // Lognormal-ish weights (a stand-in for the existing account-Pareto in tests).
         let accounts: Vec<String> = (0..n).map(|i| format!("ACC{i:04}")).collect();
-        let weights: Vec<f64> = (0..n)
-            .map(|i| 1.0 / ((i + 1) as f64).powf(1.2))
-            .collect();
+        let weights: Vec<f64> = (0..n).map(|i| 1.0 / ((i + 1) as f64).powf(1.2)).collect();
         (accounts, weights)
     }
 
@@ -319,6 +313,9 @@ mod tests {
         let p1: std::collections::HashSet<_> =
             sampler.pool("S1").unwrap().accounts.iter().collect();
         let overlap = p0.intersection(&p1).count() as f64 / p0.len() as f64;
-        assert!(overlap < 0.85, "pools too similar across sources: overlap={overlap:.2}");
+        assert!(
+            overlap < 0.85,
+            "pools too similar across sources: overlap={overlap:.2}"
+        );
     }
 }

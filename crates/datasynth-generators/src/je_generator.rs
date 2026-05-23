@@ -189,7 +189,9 @@ pub struct JournalEntryGenerator {
     cond_pair_rng: ChaCha8Rng,
     /// SOTA-8: per-source Dirichlet PMFs over per-source account pools.
     /// Lazy-built on first JE whose source isn't yet pooled.
-    cond_pair_sampler: Option<datasynth_core::distributions::source_conditional_pair::SourceConditionalPairSampler>,
+    cond_pair_sampler: Option<
+        datasynth_core::distributions::source_conditional_pair::SourceConditionalPairSampler,
+    >,
     /// SOTA-8: SAP source code of the JE currently being constructed, so the
     /// `select_*_account` helpers can consult the per-source pool.
     current_je_source: Option<String>,
@@ -2092,9 +2094,8 @@ impl JournalEntryGenerator {
             let cap = cap.max(2);
             let total = line_spec.debit_count + line_spec.credit_count;
             if total > cap {
-                let new_debit = ((line_spec.debit_count as f64 / total as f64)
-                    * cap as f64)
-                    .round() as usize;
+                let new_debit =
+                    ((line_spec.debit_count as f64 / total as f64) * cap as f64).round() as usize;
                 let new_debit = new_debit.clamp(1, cap - 1);
                 let new_credit = cap - new_debit;
                 line_spec.total_count = cap;

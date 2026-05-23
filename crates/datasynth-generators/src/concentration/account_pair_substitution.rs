@@ -196,11 +196,7 @@ impl ConcentrationPass for AccountPairSubstitutionPass {
         PASS_NAME
     }
 
-    fn apply(
-        &self,
-        entries: &mut [JournalEntry],
-        rng: &mut ChaCha8Rng,
-    ) -> ConcentrationStats {
+    fn apply(&self, entries: &mut [JournalEntry], rng: &mut ChaCha8Rng) -> ConcentrationStats {
         let mut substitutions_applied: u64 = 0;
         let mut entries_modified: usize = 0;
         let mut skipped_no_source: u64 = 0;
@@ -356,7 +352,10 @@ mod tests {
             pmfs: vec![PmfPerSource {
                 source: source.to_string(),
                 n_jes: 1000,
-                pmf: pairs.into_iter().map(|(d, c, p)| (d.to_string(), c.to_string(), p)).collect(),
+                pmf: pairs
+                    .into_iter()
+                    .map(|(d, c, p)| (d.to_string(), c.to_string(), p))
+                    .collect(),
             }],
         }
     }
@@ -441,21 +440,24 @@ mod tests {
 
     #[test]
     fn deterministic_under_same_seed() {
-        let make_batch = || -> Vec<JournalEntry> {
-            (0..20).map(|i| make_je(i, "S1", "6000", "5000")).collect()
-        };
-        let file = corpus_pmf("S1", vec![
-            ("7000", "4000", 0.4),
-            ("7100", "4100", 0.3),
-            ("7200", "4200", 0.2),
-            ("7300", "4300", 0.1),
-        ]);
+        let make_batch =
+            || -> Vec<JournalEntry> { (0..20).map(|i| make_je(i, "S1", "6000", "5000")).collect() };
+        let file = corpus_pmf(
+            "S1",
+            vec![
+                ("7000", "4000", 0.4),
+                ("7100", "4100", 0.3),
+                ("7200", "4200", 0.2),
+                ("7300", "4300", 0.1),
+            ],
+        );
         let cfg = AccountPairSubstitutionPassConfig {
             pmf_path: "".to_string(),
             rarity_threshold: Some(0.005),
             top_k: Some(4),
         };
-        let pass_a = AccountPairSubstitutionPass::from_pmf_file_inner(file.clone(), cfg.clone()).unwrap();
+        let pass_a =
+            AccountPairSubstitutionPass::from_pmf_file_inner(file.clone(), cfg.clone()).unwrap();
         let pass_b = AccountPairSubstitutionPass::from_pmf_file_inner(file, cfg).unwrap();
 
         let mut batch_a = make_batch();
@@ -486,7 +488,11 @@ mod tests {
         let _ = pass.apply(&mut entries, &mut rng);
 
         for je in &entries {
-            assert!(je.is_balanced(), "JE {} unbalanced after pass", je.header.document_id);
+            assert!(
+                je.is_balanced(),
+                "JE {} unbalanced after pass",
+                je.header.document_id
+            );
         }
     }
 

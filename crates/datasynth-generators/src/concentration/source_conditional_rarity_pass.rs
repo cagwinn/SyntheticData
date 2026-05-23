@@ -45,11 +45,7 @@ impl ConcentrationPass for SourceConditionalRarityPass {
         PASS_NAME
     }
 
-    fn apply(
-        &self,
-        entries: &mut [JournalEntry],
-        _rng: &mut ChaCha8Rng,
-    ) -> ConcentrationStats {
+    fn apply(&self, entries: &mut [JournalEntry], _rng: &mut ChaCha8Rng) -> ConcentrationStats {
         let inner = self.build_inner_config();
         let tagged = tag_source_conditional_rarity(entries, &inner);
         let mut extra = BTreeMap::new();
@@ -109,9 +105,9 @@ mod tests {
         assert!(stats.entries_modified <= 2, "{}", stats.entries_modified);
         assert!(stats.entries_modified >= 1, "rare JE should be tagged");
         // The rare JE must be one of the tagged ones.
-        let tagged_rare = entries.iter().any(|je| {
-            je.lines[0].gl_account == "9999" && je.header.is_anomaly
-        });
+        let tagged_rare = entries
+            .iter()
+            .any(|je| je.lines[0].gl_account == "9999" && je.header.is_anomaly);
         assert!(tagged_rare, "the rare (S1, 9999) JE must be tagged");
     }
 }

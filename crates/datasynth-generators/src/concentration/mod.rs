@@ -36,9 +36,7 @@ pub mod account_pair_substitution;
 pub mod source_conditional_rarity_pass;
 pub mod trading_partner_pool;
 
-pub use account_pair_substitution::{
-    AccountPairSubstitutionError, AccountPairSubstitutionPass,
-};
+pub use account_pair_substitution::{AccountPairSubstitutionError, AccountPairSubstitutionPass};
 pub use source_conditional_rarity_pass::SourceConditionalRarityPass;
 pub use trading_partner_pool::TradingPartnerPoolPass;
 
@@ -81,11 +79,7 @@ pub trait ConcentrationPass: Send + Sync {
     /// Apply the transformation in place. Returns aggregate counters.
     /// `rng` is a dedicated per-pass ChaCha8 substream split by the pipeline,
     /// so adding/removing a pass doesn't perturb downstream passes' RNG state.
-    fn apply(
-        &self,
-        entries: &mut [JournalEntry],
-        rng: &mut ChaCha8Rng,
-    ) -> ConcentrationStats;
+    fn apply(&self, entries: &mut [JournalEntry], rng: &mut ChaCha8Rng) -> ConcentrationStats;
 }
 
 /// Per-pass aggregate counters. Serialised into the orchestrator's run report.
@@ -136,9 +130,7 @@ impl ConcentrationPipeline {
     /// `Err(ConcentrationPipelineError)` if a configured pass fails to
     /// construct (e.g. Phase-2 AccountPairSubstitutionPass can't read its
     /// PMF file).
-    pub fn from_config(
-        cfg: &ConcentrationConfig,
-    ) -> Result<Self, ConcentrationPipelineError> {
+    pub fn from_config(cfg: &ConcentrationConfig) -> Result<Self, ConcentrationPipelineError> {
         let mut passes: Vec<Box<dyn ConcentrationPass>> = Vec::new();
 
         if !cfg.enabled {
@@ -163,11 +155,7 @@ impl ConcentrationPipeline {
     /// Execute every pass in order, each with its own ChaCha8 substream
     /// derived deterministically from `seed`. Returns one `ConcentrationStats`
     /// per pass in execution order.
-    pub fn run(
-        &self,
-        entries: &mut [JournalEntry],
-        seed: u64,
-    ) -> Vec<ConcentrationStats> {
+    pub fn run(&self, entries: &mut [JournalEntry], seed: u64) -> Vec<ConcentrationStats> {
         // Golden-ratio multiplier keeps substreams well-separated across passes.
         const STREAM_STRIDE: u64 = 0x9E37_79B9_7F4A_7C15;
 
@@ -175,8 +163,7 @@ impl ConcentrationPipeline {
             .iter()
             .enumerate()
             .map(|(idx, pass)| {
-                let stream_seed =
-                    seed.wrapping_add((idx as u64).wrapping_mul(STREAM_STRIDE));
+                let stream_seed = seed.wrapping_add((idx as u64).wrapping_mul(STREAM_STRIDE));
                 let mut rng = ChaCha8Rng::seed_from_u64(stream_seed);
                 pass.apply(entries, &mut rng)
             })
@@ -222,13 +209,14 @@ mod tests {
     fn disabled_master_switch_yields_inactive_pipeline_even_with_passes() {
         let cfg = ConcentrationConfig {
             enabled: false, // master switch off
-            trading_partner_pool: Some(TradingPartnerPoolPassConfig {
-                target_size: 25,
-            }),
+            trading_partner_pool: Some(TradingPartnerPoolPassConfig { target_size: 25 }),
             ..Default::default()
         };
         let pipeline = ConcentrationPipeline::from_config(&cfg).unwrap();
-        assert!(!pipeline.is_active(), "master-switch-off must override pass configs");
+        assert!(
+            !pipeline.is_active(),
+            "master-switch-off must override pass configs"
+        );
     }
 
     #[test]
@@ -240,9 +228,7 @@ mod tests {
                 min_surprise: None,
                 min_per_source_lines: None,
             }),
-            trading_partner_pool: Some(TradingPartnerPoolPassConfig {
-                target_size: 25,
-            }),
+            trading_partner_pool: Some(TradingPartnerPoolPassConfig { target_size: 25 }),
             ..Default::default()
         };
         let pipeline = ConcentrationPipeline::from_config(&cfg).unwrap();
@@ -262,7 +248,7 @@ mod tests {
         assert!(is_structural_bridge("1599")); // ACQUISITION_CLEARING
         assert!(!is_structural_bridge("6000")); // expense account — safe
         assert!(!is_structural_bridge("4000")); // revenue — safe
-        assert!(!is_structural_bridge(""));      // empty — safe
+        assert!(!is_structural_bridge("")); // empty — safe
     }
 
     /// Pass-isolation invariant: adding a no-op pass FIRST should not change
@@ -275,7 +261,9 @@ mod tests {
         // Pass that consumes some RNG state but doesn't touch entries.
         struct NoopRngConsumer;
         impl ConcentrationPass for NoopRngConsumer {
-            fn name(&self) -> &'static str { "noop_rng_consumer" }
+            fn name(&self) -> &'static str {
+                "noop_rng_consumer"
+            }
             fn apply(
                 &self,
                 entries: &mut [JournalEntry],
@@ -329,9 +317,9 @@ mod tests {
         let pipe_b = ConcentrationPipeline {
             passes: vec![
                 Box::new(NoopRngConsumer),
-                Box::new(TradingPartnerPoolPass::new(
-                    TradingPartnerPoolPassConfig { target_size: 3 },
-                )),
+                Box::new(TradingPartnerPoolPass::new(TradingPartnerPoolPassConfig {
+                    target_size: 3,
+                })),
             ],
         };
         let mut batch_b = make_batch();

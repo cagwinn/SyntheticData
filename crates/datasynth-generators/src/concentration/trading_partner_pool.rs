@@ -60,11 +60,7 @@ impl ConcentrationPass for TradingPartnerPoolPass {
         PASS_NAME
     }
 
-    fn apply(
-        &self,
-        entries: &mut [JournalEntry],
-        _rng: &mut ChaCha8Rng,
-    ) -> ConcentrationStats {
+    fn apply(&self, entries: &mut [JournalEntry], _rng: &mut ChaCha8Rng) -> ConcentrationStats {
         let mut lines_modified: u64 = 0;
         let mut entries_modified: usize = 0;
         for je in entries.iter_mut() {
@@ -126,9 +122,7 @@ mod tests {
             .map(|i| make_je(i, Some(&format!("V-{:06}", i))))
             .collect();
 
-        let pass = TradingPartnerPoolPass::new(TradingPartnerPoolPassConfig {
-            target_size: 25,
-        });
+        let pass = TradingPartnerPoolPass::new(TradingPartnerPoolPassConfig { target_size: 25 });
         let mut rng = ChaCha8Rng::seed_from_u64(7);
         let stats = pass.apply(&mut entries, &mut rng);
 
@@ -136,7 +130,11 @@ mod tests {
             .iter()
             .filter_map(|je| je.lines[0].trading_partner.as_ref())
             .collect();
-        assert!(distinct.len() <= 25, "pool exceeded target: {}", distinct.len());
+        assert!(
+            distinct.len() <= 25,
+            "pool exceeded target: {}",
+            distinct.len()
+        );
         // Hash quality lower bound — FNV-1a on sequential inputs is uniform
         // asymptotically; with 200 → 25 bins we expect >= half the pool to fill.
         assert!(
@@ -174,9 +172,7 @@ mod tests {
     #[test]
     fn preserves_lines_without_trading_partner() {
         let mut entries: Vec<JournalEntry> = (0..10).map(|i| make_je(i, None)).collect();
-        let pass = TradingPartnerPoolPass::new(TradingPartnerPoolPassConfig {
-            target_size: 5,
-        });
+        let pass = TradingPartnerPoolPass::new(TradingPartnerPoolPassConfig { target_size: 5 });
         let mut rng = ChaCha8Rng::seed_from_u64(0);
         let stats = pass.apply(&mut entries, &mut rng);
         assert_eq!(stats.entries_modified, 0);
@@ -188,9 +184,7 @@ mod tests {
 
     #[test]
     fn zero_target_size_is_clamped_to_one() {
-        let pass = TradingPartnerPoolPass::new(TradingPartnerPoolPassConfig {
-            target_size: 0,
-        });
+        let pass = TradingPartnerPoolPass::new(TradingPartnerPoolPassConfig { target_size: 0 });
         let mut entries = vec![make_je(0, Some("V-000001"))];
         let mut rng = ChaCha8Rng::seed_from_u64(0);
         let _ = pass.apply(&mut entries, &mut rng);

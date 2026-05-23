@@ -12134,33 +12134,31 @@ impl EnhancedOrchestrator {
             // back-fill from the legacy SOTA-12 key if the unified DSL didn't set it.
             let mut effective: ConcentrationConfig = self.config.concentration.clone();
             if effective.source_conditional_rarity.is_none() {
-                if let Some(rate) =
-                    self.config.anomaly_injection.source_conditional_rarity_rate
-                {
+                if let Some(rate) = self.config.anomaly_injection.source_conditional_rarity_rate {
                     effective.enabled = true;
-                    effective.source_conditional_rarity =
-                        Some(SourceConditionalRarityPassConfig {
-                            rate,
-                            min_surprise: None,
-                            min_per_source_lines: None,
-                        });
+                    effective.source_conditional_rarity = Some(SourceConditionalRarityPassConfig {
+                        rate,
+                        min_surprise: None,
+                        min_per_source_lines: None,
+                    });
                 }
             }
 
             if !effective.enabled {
                 0
             } else {
-                let pipeline = ConcentrationPipeline::from_config(&effective)
-                    .map_err(|e| SynthError::generation(format!(
+                let pipeline = ConcentrationPipeline::from_config(&effective).map_err(|e| {
+                    SynthError::generation(format!(
                         "ConcentrationPipeline construction failed: {e}"
-                    )))?;
+                    ))
+                })?;
                 if !pipeline.is_active() {
                     0
                 } else {
                     // Per-pipeline seed disjoint from every other generator stream.
                     const CONCENTRATION_SEED_OFFSET: u64 = 0xC0_C3_E1_47_10_43_77_3B;
-                    let stats = pipeline
-                        .run(entries, self.seed.wrapping_add(CONCENTRATION_SEED_OFFSET));
+                    let stats =
+                        pipeline.run(entries, self.seed.wrapping_add(CONCENTRATION_SEED_OFFSET));
                     stats
                         .iter()
                         .filter(|s| s.pass == "source_conditional_rarity")
