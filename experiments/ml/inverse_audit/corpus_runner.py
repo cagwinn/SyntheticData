@@ -26,8 +26,7 @@ from inverse_audit.relational.graph_scorer import (
     score_df,
     z_of,
 )
-# Note: graph_export currently reads CSVs (synthetic schema). Corpus-graph export
-# is a follow-on (refactor export_graph to accept a DataFrame or add a parquet path).
+from inverse_audit.relational.graph_export import export_graph_df
 
 # corpus parquet → synthetic-canonical column mapping (ISO 21378-ish ↔ DataSynth).
 # Note "Tarding Partner" (sic) is the corpus's literal column name.
@@ -61,25 +60,49 @@ def main(argv: list[str] | None = None) -> None:
     ap.add_argument("--parquet", type=Path, required=True,
                     help="corpus GL parquet (path stays in runtime args, never in commits)")
     ap.add_argument("--out", type=Path, required=True, help="output dir for aggregates")
-    # --export-graph deferred until graph_export accepts a parquet path / DataFrame.
+    ap.add_argument("--mode", choices=("self", "half-split"), default="self",
+                    help="self = fit on full corpus, score on full (cycle/tp_account_novelty=0 by "
+                         "construction); half-split = shuffle by JE, fit on first half, score second "
+                         "half (recovers all new-in-test signals)")
+    ap.add_argument("--seed", type=int, default=42, help="deterministic half-split shuffle")
+    ap.add_argument("--export-graph", action="store_true",
+                    help="also emit the decoupled substrate JSON (no row content)")
     a = ap.parse_args(argv)
     a.out.mkdir(parents=True, exist_ok=True)
 
     df = load_canonical(a.parquet)
     n_lines = len(df)
     n_jes = int(df["document_id"].nunique())
-    print(f"loaded: {n_lines:,} lines / {n_jes:,} JEs")
+    print(f"loaded: {n_lines:,} lines / {n_jes:,} JEs (mode={a.mode})")
 
-    # Fit-on-self: no labelled normal set, so the manifold IS the corpus and the score
-    # becomes each JE's deviation from the self-consistent reference distribution.
-    manifold = fit_graph_manifold(df)
+    if a.mode == "self":
+        # Fit-on-self: the manifold IS the corpus; score = each JE's deviation from the
+        # self-consistent reference. cycle_novelty + tp_account_novelty collapse to 0
+        # by construction (no "new in test").
+        nd, td = df, df
+    else:
+        # Half-split by document_id with a deterministic shuffle. Brings back the
+        # novelty-vs-baseline features at the cost of halving each set.
+        rng = np.random.default_rng(a.seed)
+        jes = df["document_id"].dropna().astype(str).unique()
+        rng.shuffle(jes)
+        cut = len(jes) // 2
+        normal_jes = set(jes[:cut]); test_jes = set(jes[cut:])
+        nd = df[df["document_id"].astype(str).isin(normal_jes)].copy()
+        td = df[df["document_id"].astype(str).isin(test_jes)].copy()
+        print(f"half-split: normal={nd['document_id'].nunique():,} JEs  "
+              f"test={td['document_id'].nunique():,} JEs")
+
+    manifold = fit_graph_manifold(nd)
     print(f"manifold: edges={len(manifold['edge_p']):,} nodes={len(manifold['pagerank']):,} "
           f"tp_set={len(manifold['tp_set']):,} normal_scc_accts={len(manifold['normal_scc_set']):,}")
 
-    scored = score_df(df, manifold)
+    scored = score_df(td, manifold)
+    # z-baseline: normal-scored features if half-split (proper out-of-sample), else self.
+    n_scored = score_df(nd, manifold) if a.mode == "half-split" else scored
     for c in _SCORE_FEATURES:
-        if c in scored.columns:
-            scored[c + "_z"] = z_of(scored[c].to_numpy(), scored[c].to_numpy())
+        if c in scored.columns and c in n_scored.columns:
+            scored[c + "_z"] = z_of(scored[c].to_numpy(), n_scored[c].to_numpy())
     z_cols = [c + "_z" for c in _SCORE_FEATURES if (c + "_z") in scored.columns]
     scored["relational_score"] = scored[z_cols].fillna(0).sum(axis=1)
     scored.reset_index().to_parquet(a.out / "graph_scores.parquet")
@@ -110,7 +133,9 @@ def main(argv: list[str] | None = None) -> None:
     print(f"\ntop 1% candidates: {n_top:,} JE IDs written to {a.out}/top1pct_je_ids.json")
 
     summary = {
+        "mode": a.mode,
         "n_lines": int(n_lines), "n_jes": int(n_jes),
+        "n_scored_jes": int(len(scored)),
         "manifold": {
             "n_edges":          len(manifold["edge_p"]),
             "n_nodes":          len(manifold["pagerank"]),
@@ -129,6 +154,11 @@ def main(argv: list[str] | None = None) -> None:
     }
     (a.out / "summary.json").write_text(json.dumps(summary, indent=2))
     print(f"summary -> {a.out}/summary.json")
+
+    if a.export_graph:
+        export_graph_df(nd, td, a.out / "graph_scores.parquet",
+                        a.out / "account_flow_graph.json")
+        print(f"graph JSON -> {a.out}/account_flow_graph.json")
 
     print("CORPUS_STAGE2_DONE")
 

@@ -63,9 +63,17 @@ def _coerce(v):
 
 def export_graph(normal_csv: Path, test_csv: Path,
                  scores_parquet: Path | None, out: Path) -> dict:
-    nd = pd.read_csv(normal_csv, low_memory=False)
-    td = pd.read_csv(test_csv, low_memory=False)
+    """Synthetic-path entrypoint: load CSVs then delegate to export_graph_df."""
+    return export_graph_df(
+        pd.read_csv(normal_csv, low_memory=False),
+        pd.read_csv(test_csv, low_memory=False),
+        scores_parquet, out)
 
+
+def export_graph_df(nd: pd.DataFrame, td: pd.DataFrame,
+                    scores_parquet: Path | None, out: Path) -> dict:
+    """Core export over already-loaded normal/test frames (canonical schema). Used by
+    both the CSV CLI (synthetic) and by corpus_runner (parquet → canonicalised in-memory)."""
     n_per = reconstruct_per_je(nd)
     t_per = reconstruct_per_je(td)
     n_ew = _aggregate_edges(n_per); t_ew = _aggregate_edges(t_per)
