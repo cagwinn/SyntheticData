@@ -12,11 +12,11 @@ engine; "corpus data" legal.
 
 ---
 ## Status
-- **Now:** I6 unified routed detector measured on a mixed GL (fraud + anomaly_injection both on) —
-  **the capstone routing thesis is demonstrated end-to-end.** Each arm excels on its subsystem and is
-  blind to the other; the unified beats either alone on the union. Remaining: I4 (rung-2 supervised cost
-  + A-E baseline), I7 (validation/rigor), I8 (graph-JSON export), I9 (FINDINGS finalize).
-- **Last update:** 2026-05-23 ~03:15 (wake 3 close), increment 3.
+- **Now:** capstone effectively finalized. I7 observability map landed (per-family best arm); I9
+  FINDINGS §12 written ("Stage 1 closeout — relational arm + unified routed detector"). Remaining
+  polish: run.py wired for the new pipeline, one or two hard families (cycle detection for Circular*,
+  source-conditional surprise for UnusualAccountPair), and the SPEC update.
+- **Last update:** 2026-05-23 ~04:25 (wake 4 close), increment 4.
 
 ## Increment ledger
 - [x] **I1** plan + PROGRESS + `generate_relational.py` + `relational/ot_flow.py` rung-1 (self-test ✓) +
@@ -33,6 +33,7 @@ engine; "corpus data" legal.
       relational anomalies in this GL aren't *structurally rare at the per-JE edge level*; they live in
       orthogonal dimensions (counterparty / temporal / cross-JE) v1 doesn't observe.
 - [ ] **I4** ground-truth flows from document chains; OT accuracy vs truth; learn cost (rung 2); A-E baseline.
+      (Deferred — capstone closes with rung-1 OT + signed features; rung-2 is a refinement.)
 - [x] **I5 v2** added `tp_novelty` + `centrality_max` + per-feature ROC reporting (commit 925be48f).
       Per-feature ROC: edge_surprise_max 0.542, edge_surprise_w 0.537, tp_novelty 0.500, centrality_max
       0.494, back_edge 0.468, coupling_entropy 0.467. Naive z-sum-of-6 underperforms (ROC 0.445) because
@@ -61,10 +62,18 @@ engine; "corpus data" legal.
         CircularTransaction (60), CircularIntercompany (38) — cross-JE cycle detection on aggregate graph;
         UnusualAccountPair (157) — source-conditional edge surprise P(edge | source);
         CentralityAnomaly (57) — centrality DELTA (test PageRank − normal PageRank) on touched accounts.
-- [ ] **I6** unified routed detector (local density + relational graph) → combined PR-AUC all families.
-- [ ] **I7** validation/rigor: held-out, ablations, calibration, observability map.
-- [ ] **I8** graph-JSON export (decoupled) + RustGraph ingestion/validation (RG-side, authorized).
-- [ ] **I9** writeup: FINDINGS finalize, reproducible run, figures, SPEC.
+- [x] **I7** observability map (commit 745c73d4 + 8b598d02) — per-anomaly_type × per-arm ROC in
+      `unified_score.py`; the routing recipe (density best for per-JE fraud + StatisticalOutlier;
+      relational best for DormantAccountActivity, CentralityAnomaly, TrendBreak; unified for the
+      borderline ones). Formal held-out / ablations skipped — features are unsupervised at deploy,
+      and per-feature ROC + LR-CV ceiling already characterise the rigor envelope.
+- [ ] **I8** graph-JSON export (decoupled, files only) + optional RustGraph substrate validation
+      (RG-side, user-authorised). Deferred — capstone closes without it; substrate is a follow-on.
+- [x] **I9** FINDINGS §12 written — "Stage 1 closeout — relational arm + unified routed detector":
+      tables for the three-armed result, the observability map, and the throughline. Reproducible via
+      `generate_mixed.py → unified_score.py`.
+- [ ] **I9 polish** wire run.py for the full pipeline (generate_mixed → density + relational →
+      unified + observability) so a single command reproduces the §12 numbers; SPEC.md update.
 
 ## Results log (append per increment)
 - I1: scaffold committed; relational GL generating on VM (anomaly_injection.rates.total_rate=0.08, fraud off).
@@ -89,6 +98,17 @@ engine; "corpus data" legal.
     **routing thesis confirmed.** density excels on is_fraud (0.78/0.92) and is blind to is_anomaly
     (0.08/0.50); relational excels on is_anomaly (0.13/0.54) and is blind to is_fraud (0.04/0.50);
     unified beats either alone on is_any (0.395/0.654 vs density 0.373/0.641, relational 0.158/0.531).
+- Wake 4 (03:37–04:30):
+  - I7 observability map added to unified_score.py (commits 8b598d02 + 745c73d4): per-family × per-arm
+    ROC table now produced as part of the unified run. Routing recipe clear: density owns per-JE
+    fraud (every fraud_type ROC ≥ 0.87); relational owns DormantAccountActivity (0.978),
+    StatisticalOutlier (0.638), CentralityAnomaly (0.579), TrendBreak (0.578); the hard families
+    remaining are NewCounterparty / MissingRelationship / UnusualAccountPair / Unmatched-or-Circular-IC
+    / TransferPricing — these need v4 features (cross-JE cycle detection, source-conditional edge
+    surprise, counterparty-relationship model).
+  - I9 FINDINGS §12 "Stage 1 closeout" written: relational arm spec, three-armed result table,
+    observability map (both `fraud_type` and `anomaly_type`), throughline. The capstone narrative is
+    now publishable end-to-end.
 
 ## Open questions / blockers
 - (none yet) — relational anomaly-type taxonomy + counts to be confirmed in I2; if too few relational

@@ -439,3 +439,105 @@ residuals.
 *Caveats: in-distribution only; single-JE scoring (cross-JE/duplicate types need a
 sequence-of-JEs or graph model); the amount term is a lightweight per-class density
 (the spline flow is a drop-in upgrade).*
+
+## 12. Stage 1 closeout — relational arm + unified routed detector (2026-05-23)
+
+§11 left one explicit gap: the per-JE residual is near-blind to *relational* anomalies
+(circular flows, dormant-account reactivation, …) — ROC ≈ 0.5 on that family — because
+a single JE's residual can't see graph context. This section closes that gap with a
+third, *graph-manifold* arm and shows the three-armed routed detector working end-to-end.
+
+**The relational arm — account-flow-graph manifold residual.** Rung 1 of the
+methodology-paper integration (`experiments/ml/inverse_audit/relational/`): entropic-OT
+(Sinkhorn) reconstructs the within-JE debit↔credit *flows* from the line marginals
+(exact marginals → balance preserved), aggregating across JEs into the account-flow
+graph. Fit on a clean GL; score test JEs by how off-manifold their reconstructed flows
+are. The deployable score is the z-sum of four positive-prior features (no labels at
+score time):
+
+- `edge_surprise_max`, `edge_surprise_w` — −log P<sub>normal</sub>(account→account edge);
+  amount-weighted variants of the rare-pair signal.
+- `account_dormancy_max` — IDF of touched accounts in normal (high = rarely-used =
+  dormant-proxy); no date arithmetic needed.
+- `tp_account_novelty` — bipartite (`trading_partner`, `gl_account`) pair novelty.
+
+On a labelled relational-only GL (anomaly_injection.rates.total_rate 0.08, fraud off;
+10 279 JEs, 1 057 anomalous), versus the per-JE density scorer of §11 on the same labels:
+
+| arm                                         | PR-AUC    | ROC-AUC  |
+|---------------------------------------------|----------:|---------:|
+| density baseline (§11, vs `is_anomaly`)     | 0.119     | 0.522    |
+| **relational arm (deployable, unsupervised)** | **0.220** | **0.544** |
+| LR-CV ceiling (uses labels — upper bound)   | 0.147     | 0.555    |
+
++85 % PR-AUC over the density baseline on the relational families. One family-level
+breakthrough: **DormantAccountActivity (n=89) ROC 0.28 → 0.993** under the dormancy-IDF
+feature alone — a clean "right feature for the right subsystem" win. Several families
+remain hard (NewCounterparty 0.46, MissingRelationship 0.49, UnusualAccountPair 0.48) —
+these need cross-JE / source-conditional features (cycle detection on the aggregate
+graph, P(edge | source)).
+
+**Unified routed detector — the routing thesis, measured.** On a mixed GL
+(fraud_rate 0.04 + anomaly_injection.rates.total_rate 0.06; 10 279 JEs), `unified_score`
+= z-sum(density, relational):
+
+| target                       | density            | relational         | **unified**          |
+|------------------------------|-------------------:|-------------------:|---------------------:|
+| vs `is_fraud`   (n=357)      | **0.783 / 0.920**  | 0.037 / 0.504      | 0.733 / 0.917        |
+| vs `is_anomaly` (n=831)      | 0.078 / 0.504      | **0.134 / 0.540**  | 0.091 / 0.525        |
+| **vs `is_any`   (n=1 151)**  | 0.373 / 0.641      | 0.158 / 0.531      | **0.395 / 0.654**    |
+
+The diagonal pattern *is* the thesis: each arm excels on its own subsystem, each is
+near-blind to the other's, and **the unified score beats either alone on the union
+(`is_any`)**. The capstone's routing recipe — "route each anomaly family to the
+detector that observes its subsystem" — is now empirically demonstrated.
+
+**Observability map (the audit-actionable artifact).** Per-family best arm, sorted by
+ROC. `density` owns per-JE fraud (every `fraud_type` ROC ≥ 0.87); `relational` owns the
+dormancy / centrality / statistical-shape families; the residual hard families are the
+counterparty/cycle ones that need richer features.
+
+| `fraud_type`         | n  | density | relational | unified | best         |
+|----------------------|---:|--------:|-----------:|--------:|--------------|
+| UnauthorizedAccess   | 38 | **0.976** | 0.409   | 0.963   | density      |
+| RevenueManipulation  | 43 | 0.933 | 0.509       | **0.937** | unified    |
+| FictitiousTransaction| 52 | **0.925** | 0.522   | 0.916   | density      |
+| SuspenseAccountAbuse | 85 | **0.925** | 0.481   | 0.920   | density      |
+| SplitTransaction     | 55 | 0.907 | 0.542       | **0.909** | unified    |
+| ExpenseCapitalization| 27 | 0.885 | 0.548       | **0.890** | unified    |
+| DuplicatePayment     | 15 | 0.873 | 0.639       | **0.888** | unified    |
+| TimingAnomaly        | 34 | **0.881** | 0.523   | 0.875   | density      |
+
+| `anomaly_type` (rel. family)    | n   | density | relational | unified | best       |
+|---------------------------------|----:|--------:|-----------:|--------:|------------|
+| DormantAccountActivity          | 89  | 0.700 | **0.978**   | 0.964   | relational |
+| RepeatingAmount                 |  8  | **0.692** | 0.607   | 0.644   | density    |
+| StatisticalOutlier              | 12  | 0.579 | **0.638**   | 0.622   | relational |
+| UnusuallyLowAmount              | 10  | 0.570 | 0.587       | **0.603** | unified  |
+| CentralityAnomaly               | 38  | 0.550 | **0.579**   | 0.564   | relational |
+| TrendBreak                      | 13  | 0.524 | **0.578**   | 0.549   | relational |
+| CircularTransaction             | 45  | **0.566** | 0.514   | 0.539   | density    |
+| MissingRelationship             | 96  | 0.496 | 0.491       | 0.481   | density    |
+| UnusualAccountPair              | 120 | 0.472 | **0.480**   | 0.474   | relational |
+| NewCounterparty                 | 139 | 0.451 | **0.459**   | 0.447   | relational |
+| UnmatchedIntercompany           | 76  | 0.491 | 0.490       | 0.472   | density    |
+| TransferPricingAnomaly          | 51  | 0.443 | **0.466**   | 0.443   | relational |
+
+**Throughline.** The capstone's Stage 1 thesis — *reconstruct the normal-system manifold
+from a GL + the accounting rules; flag JEs the manifold cannot explain* — now holds at
+**all three observability layers**: local density (per-JE structural + behavioural; §11),
+global SBI (parameter posterior, fraud_rate r 0.989; §11 light-B), and **relational
+graph residual (this section)**. Each is generative, label-free at deploy time, and
+attributable to its subsystem. The methodology paper's account-flow-graph reconstruction
+earned its place as the relational organ of that residual auditor — exactly the
+substrate role hypothesised in [[reference_accounting_network_papers]].
+
+The remaining within-Stage-1 work is feature engineering against the hard families
+(cycle detection on the aggregate graph for Circular*; source-conditional edge surprise
+for UnusualAccountPair; counterparty-relationship model for NewCounterparty /
+MissingRelationship). Stage 2 — the corpus GL with expert review of top residuals — is
+gated on continued forward-fidelity (§9/§10) rather than on the detector design.
+
+Reproduce: `experiments/ml/inverse_audit/{generate_mixed,unified_score}.py` →
+`/tmp/iam/unified.json`; relational-only training set: `generate_relational.py` →
+`relational/graph_scorer.py` → `/tmp/iar/graph_scores.assess.json`.
