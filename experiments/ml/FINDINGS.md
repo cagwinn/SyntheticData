@@ -667,3 +667,49 @@ features capture client-typical accounting structure more than industry-typical;
 expert review can't lean on an "industry average tail" — the threshold has to be set
 per-client. Dormancy stays the most stable cross-row signal (p99 8.1 – 9.4 across
 all 5 Health files, same band as the cross-industry sweep).
+
+## 14. Round 0 — corpus-vs-synthetic realism gap (2026-05-23)
+
+The Stage 2 corpus work revealed five realism levers that would *both* (a) make
+synthetic GLs better reflect production and (b) tighten the inverse-audit normal
+manifold (sharper residuals, less OOD collapse on corpus probes). Round 0 quantifies
+where each lever sits today, before the engine rounds. Measured against the canonical
+synthetic mixed GL (`ia_canonical_v5/test`, 10 277 JEs / 23.6 MB) and 6 sample corpus
+parquets (one per industry, 9 576 – 353 925 JEs, 1.2 – 24.5 MB):
+
+| metric | corpus median | synth | corpus / synth | lever |
+|---|--:|--:|--:|---|
+| **edges / je** (manifold density) | 0.008 | 0.062 | **0.12×** | **SOTA-9** — synth is 8.75× too diffuse |
+| **jes / edge** | 140 | 16 | 8.75× | mirror of above |
+| **top-10 % edge concentration** | 0.93 | 0.80 | 1.16× | corpus's hot-account-pair concentration |
+| **src-cond entropy median** | 0.684 | 0.966 | 0.71× | **SOTA-8** — synth too uniform per source |
+| **src-cond entropy p10 (tightest)** | 0.47 | 0.79 | 0.60× | corpus has tight sources synth never reaches |
+| **accts / source median** | 23.5 | 5 | 4.70× | synth has too *few* accounts per source (then uses them uniformly) |
+| **tp_set_size** | 10.5 | 35 | **0.30×** | **SOTA-11** — synth has 3.3× too many trading partners |
+| **lines / je p99** | 18 | 66 | **0.28×** | **SOTA-10 redirected** — synth's *mid-tail* is too fat |
+| **lines / je p99.9** | 99 | 98 | 1.01× | the extreme tail already matches |
+| **lines / je max** | 924 | 8 804 | **0.10×** | synth produces occasional 8 800-line monster JEs (cap the outlier) |
+
+Five concrete findings + corrections that fed back into the SOTA backlog:
+
+1. **SOTA-8 (source-conditional Dirichlet) is correctly the #1 lever.** Synth is too
+   uniform (entropy 0.97 vs corpus 0.68) *and* has too few accounts per source (5 vs
+   23.5). The lever needs **both**: a larger per-source account pool *and* a
+   concentrated Dirichlet (low α). Not just one.
+2. **SOTA-9 (manifold density) has a stronger gap than I sketched.** Synth is 8.75×
+   too diffuse on `edges/je`; the corpus runs 140 JEs/edge while synth only 16.
+3. **SOTA-10's original direction was wrong.** Synth's *extreme* tail (p99.9 = 98)
+   already matches corpus (99). What synth gets wrong is the *mid-tail* (p99 = 66 vs
+   corpus 18 — 3.6× too high) and an occasional **monster outlier** (max = 8 804 vs
+   corpus 924). #131's allocation generator probably over-fires; the fix is to *tame*
+   the mid-tail and cap the extreme, not add more big JEs.
+4. **SOTA-11 (TP pool size) is well-justified.** Synth has 3.3× too many TPs; corpus
+   includes single-counterparty consolidated entities that synth can't currently
+   express.
+5. **Edge concentration matches direction but trails.** Corpus's top-10% of edges
+   carry 93 % of flow; synth's only 80 %. Tightening manifold density (SOTA-9) will
+   close this as a side-effect.
+
+Stage 2 doesn't need anything *more* from Round 0 — every gap above is now numerically
+quantified and each subsequent engine round will close part of it (re-running this
+script after each is the validation pattern).

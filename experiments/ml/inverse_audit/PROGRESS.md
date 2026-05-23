@@ -12,12 +12,13 @@ engine; "corpus data" legal.
 
 ---
 ## Status
-- **Now:** `audit_packet.py` ships — turns top-N JEs by relational_score into an
-  auditor-ready review list (per-feature breakdown + top-3 contributors + original GL
-  lines). Validated on small (~2k JEs, 463 KB JSON, 50 entries) and prod-scale (174k
-  JEs scored, top-50 generated in 6 s, 23 MB JSON / 5.7 MB MD). Privacy contract: code
-  is content-free; output files contain row content and stay local (gitignored).
-- **Last update:** 2026-05-23 ~11:20 (audit_packet + Stage 2 deliverable complete).
+- **Now:** Round 0 (corpus-vs-synth realism gap) done — five realism levers
+  empirically validated/refined. Highlights: synth is 8.75× too DIFFUSE on the account
+  manifold (corpus 140 JEs/edge vs synth 16); src-cond entropy 0.97 synth vs 0.68
+  corpus (synth too uniform); synth has 3.3× too many TPs; synth's lines/je *mid-tail*
+  is fatter than corpus (not the extreme — SOTA-10 redirected). SOTA-8 source-conditional
+  Dirichlet is the cleanest next engine round.
+- **Last update:** 2026-05-23 ~11:50 (Round 0 gap baseline + task refinement).
 
 ## Increment ledger
 - [x] **I1** plan + PROGRESS + `generate_relational.py` + `relational/ot_flow.py` rung-1 (self-test ✓) +
