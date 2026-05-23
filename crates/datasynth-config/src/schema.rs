@@ -1727,6 +1727,13 @@ pub struct TransactionConfig {
     /// Benford's Law compliance configuration
     #[serde(default)]
     pub benford: BenfordConfig,
+    /// SOTA-10 (FINDINGS §14): optional hard cap on total lines per JE. Corpus has
+    /// p99.9 ~99 lines / max ~924; the synthetic engine occasionally produces
+    /// 2000+-line monster JEs that degrade the audit packet's signal-to-noise.
+    /// `None` = no cap (legacy); ~100 is a realism-matching default. Applies after
+    /// copula adjustment; preserves balance by scaling debit/credit proportionally.
+    #[serde(default)]
+    pub lines_per_je_cap: Option<usize>,
     /// SOTA-9 (FINDINGS §14): archetype reuse probability for the recurring-templates
     /// process (overrides the historical 0.90 default). Corpus recurring share ~0.97;
     /// raising this concentrates `edges/je` toward the corpus value (currently 8.75×

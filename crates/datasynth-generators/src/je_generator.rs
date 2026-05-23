@@ -2085,6 +2085,24 @@ impl JournalEntryGenerator {
             line_spec.credit_count = new_credit;
         }
 
+        // SOTA-10 (#138): optional hard cap on total lines per JE — tames the
+        // monster outliers (synth max 2133 vs corpus 924). Scales debit + credit
+        // proportionally so balance is preserved.
+        if let Some(cap) = self.config.lines_per_je_cap {
+            let cap = cap.max(2);
+            let total = line_spec.debit_count + line_spec.credit_count;
+            if total > cap {
+                let new_debit = ((line_spec.debit_count as f64 / total as f64)
+                    * cap as f64)
+                    .round() as usize;
+                let new_debit = new_debit.clamp(1, cap - 1);
+                let new_credit = cap - new_debit;
+                line_spec.total_count = cap;
+                line_spec.debit_count = new_debit;
+                line_spec.credit_count = new_credit;
+            }
+        }
+
         // Determine source type using full 4-way distribution
         let source = self.select_source();
         let is_automated = matches!(
