@@ -459,6 +459,7 @@ mod tests {
             session: Default::default(),
             compliance_regulations: Default::default(),
             analytics_metadata: Default::default(),
+            concentration: Default::default(),
         }
     }
 

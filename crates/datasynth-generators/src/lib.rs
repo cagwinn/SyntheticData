@@ -18,6 +18,7 @@ pub mod audit;
 pub mod balance;
 pub mod coa_generator;
 pub mod company_selector;
+pub mod concentration;
 pub mod control_generator;
 pub mod counterfactual;
 pub mod data_quality;

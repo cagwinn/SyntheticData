@@ -213,6 +213,12 @@ pub struct GeneratorConfig {
     /// default so v3.2.1 archives are byte-identical.
     #[serde(default, alias = "analyticsMetadata")]
     pub analytics_metadata: AnalyticsMetadataConfig,
+    /// Phase 1 of the central concentration abstraction (#143). Post-generation
+    /// passes over the JE batch that reshape distributional structure toward a
+    /// corpus-derived target. Off by default — see
+    /// `docs/superpowers/specs/2026-05-23-concentration-pass-INDEX.md`.
+    #[serde(default)]
+    pub concentration: ConcentrationConfig,
 }
 
 /// v3.3.0: analytics-metadata phase configuration.
@@ -9573,8 +9579,89 @@ pub struct EnhancedAnomalyConfig {
     /// Rarity`. `None` = disabled (default); typical value `0.01` matches the
     /// audit-packet hot-list size. Runs AFTER per-entry strategies — additive,
     /// doesn't replace them.
+    ///
+    /// **Phase 1 deprecation note:** this key remains the source of truth for
+    /// back-compat. If `concentration.source_conditional_rarity.rate` is also
+    /// set, that value wins (it's an opt-in to the unified DSL).
     #[serde(default)]
     pub source_conditional_rarity_rate: Option<f64>,
+}
+
+// ---------------------------------------------------------------------------
+// ConcentrationConfig — central post-process pass pipeline (#143, Phase 1).
+//
+// Design reference:
+//   docs/superpowers/specs/2026-05-23-concentration-pass-INDEX.md
+//
+// Phase 1 fields: SourceConditionalRarityPass (wrapping shipped SOTA-12) +
+// TradingPartnerPoolPass (closes SOTA-11.1 / #142).
+// Phase 2 will add: account_pair_substitution (closes SOTA-8.1 / #141).
+// ---------------------------------------------------------------------------
+
+/// Top-level configuration for the post-generation concentration pipeline.
+///
+/// Each sub-field is `Option<_>`; presence enables the corresponding pass.
+/// `enabled = false` (default) disables the pipeline regardless of sub-fields,
+/// matching the parent proposal's "opt-in" guidance.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct ConcentrationConfig {
+    /// Master switch. `false` (default) → pipeline is no-op.
+    #[serde(default)]
+    pub enabled: bool,
+
+    /// Phase 1: source-conditional rarity tagger (wraps shipped SOTA-12).
+    /// If also `anomaly_injection.source_conditional_rarity_rate` is set, this
+    /// field wins.
+    #[serde(default)]
+    pub source_conditional_rarity: Option<SourceConditionalRarityPassConfig>,
+
+    /// Phase 1: trading-partner pool resizing (closes SOTA-11.1 / #142).
+    #[serde(default)]
+    pub trading_partner_pool: Option<TradingPartnerPoolPassConfig>,
+
+    /// Phase 2: account-pair substitution against a corpus-derived PMF
+    /// (closes SOTA-8.1 / #141). Defers to Phase 2 when wired.
+    #[serde(default)]
+    pub account_pair_substitution: Option<AccountPairSubstitutionPassConfig>,
+}
+
+/// Per-pass config for SourceConditionalRarityPass.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct SourceConditionalRarityPassConfig {
+    /// Fraction of input JEs to tag (typically `0.01`).
+    pub rate: f64,
+    /// Optional min surprise floor (Σ -log P(account|source)). Default `5.0`.
+    #[serde(default)]
+    pub min_surprise: Option<f64>,
+    /// Per-source line-count floor (sources below have unreliable PMFs).
+    /// Default `5`.
+    #[serde(default)]
+    pub min_per_source_lines: Option<u32>,
+}
+
+/// Per-pass config for TradingPartnerPoolPass.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct TradingPartnerPoolPassConfig {
+    /// Target distinct trading-partner pool size. `0` is clamped to `1` at
+    /// runtime. Typical corpus value `~12`; synthetic default `~40`.
+    pub target_size: usize,
+}
+
+/// Per-pass config for AccountPairSubstitutionPass (Phase 2).
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct AccountPairSubstitutionPassConfig {
+    /// Path to a per-source pair-PMF JSON (produced by
+    /// `corpus_vs_synth_gap.py --emit-pair-pmf`). Aggregate-only; never
+    /// contains row content or client identifiers.
+    pub pmf_path: String,
+    /// JEs whose dominant (debit, credit) pair has corpus probability ≥ this
+    /// threshold are left alone (they're already plausible). Default `0.005`.
+    #[serde(default)]
+    pub rarity_threshold: Option<f64>,
+    /// When substituting, draw from the top-K corpus pairs (weighted by
+    /// probability). Default `10`.
+    #[serde(default)]
+    pub top_k: Option<usize>,
 }
 
 /// Base anomaly rate configuration.

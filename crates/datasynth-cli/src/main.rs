@@ -5599,6 +5599,7 @@ fn create_safe_demo_preset() -> GeneratorConfig {
         session: Default::default(),
         compliance_regulations: Default::default(),
         analytics_metadata: Default::default(),
+        concentration: Default::default(),
     }
 }
 

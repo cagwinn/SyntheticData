@@ -921,6 +921,7 @@ pub fn default_generator_config() -> GeneratorConfig {
         session: Default::default(),
         compliance_regulations: Default::default(),
         analytics_metadata: Default::default(),
+        concentration: Default::default(),
     }
 }
 

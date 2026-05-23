@@ -12115,19 +12115,52 @@ impl EnhancedOrchestrator {
         let mut injector = AnomalyInjector::new(anomaly_config);
         let result = injector.process_entries(entries);
 
-        // SOTA-12 (#140) post-process — tag source-conditionally-rare JEs after
-        // per-entry strategies have run. Covers every JE regardless of which
-        // generator produced it; sidesteps the SOTA-8 / SOTA-11 coverage blocker.
-        let sota12_tagged = if let Some(rate) =
-            self.config.anomaly_injection.source_conditional_rarity_rate
-        {
-            use datasynth_generators::anomaly::source_conditional_rarity::{
-                tag_source_conditional_rarity, SourceConditionalRarityConfig,
+        // Central concentration abstraction (#143, Phase 1): run the post-process
+        // pipeline AFTER per-entry strategies. The pipeline merges the SOTA-12
+        // tagger + new passes (trading-partner pool, Phase-2 account substitution)
+        // through a single integration point — see
+        // docs/superpowers/specs/2026-05-23-concentration-pass-INDEX.md.
+        //
+        // Back-compat: the legacy `anomaly_injection.source_conditional_rarity_rate`
+        // key remains honored. If `concentration.source_conditional_rarity` is also
+        // set in the same config, the unified DSL field wins.
+        let sota12_tagged: usize = {
+            use datasynth_config::schema::{
+                ConcentrationConfig, SourceConditionalRarityPassConfig,
             };
-            let cfg = SourceConditionalRarityConfig { rate, ..Default::default() };
-            tag_source_conditional_rarity(entries, &cfg)
-        } else {
-            0
+            use datasynth_generators::concentration::ConcentrationPipeline;
+
+            // Decide effective ConcentrationConfig: start from user config, then
+            // back-fill from the legacy SOTA-12 key if the unified DSL didn't set it.
+            let mut effective: ConcentrationConfig = self.config.concentration.clone();
+            if effective.source_conditional_rarity.is_none() {
+                if let Some(rate) =
+                    self.config.anomaly_injection.source_conditional_rarity_rate
+                {
+                    effective.enabled = true;
+                    effective.source_conditional_rarity =
+                        Some(SourceConditionalRarityPassConfig {
+                            rate,
+                            min_surprise: None,
+                            min_per_source_lines: None,
+                        });
+                }
+            }
+
+            if !effective.enabled || !ConcentrationPipeline::from_config(&effective).is_active() {
+                0
+            } else {
+                let pipeline = ConcentrationPipeline::from_config(&effective);
+                // Per-pipeline seed disjoint from every other generator stream.
+                const CONCENTRATION_SEED_OFFSET: u64 = 0xC0_C3_E1_47_10_43_77_3B;
+                let stats =
+                    pipeline.run(entries, self.seed.wrapping_add(CONCENTRATION_SEED_OFFSET));
+                stats
+                    .iter()
+                    .filter(|s| s.pass == "source_conditional_rarity")
+                    .map(|s| s.entries_modified)
+                    .sum()
+            }
         };
 
         if let Some(pb) = &pb {
@@ -15980,6 +16013,7 @@ mod tests {
             session: Default::default(),
             compliance_regulations: Default::default(),
             analytics_metadata: Default::default(),
+            concentration: Default::default(),
         }
     }
 

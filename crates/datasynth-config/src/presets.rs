@@ -113,6 +113,7 @@ pub fn create_preset(
         session: SessionSchemaConfig::default(),
         compliance_regulations: ComplianceRegulationsConfig::default(),
         analytics_metadata: AnalyticsMetadataConfig::default(),
+        concentration: ConcentrationConfig::default(),
     }
 }
 

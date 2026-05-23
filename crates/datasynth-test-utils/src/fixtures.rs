@@ -115,6 +115,7 @@ pub fn minimal_config() -> GeneratorConfig {
         session: Default::default(),
         compliance_regulations: Default::default(),
         analytics_metadata: Default::default(),
+        concentration: Default::default(),
     }
 }
 
