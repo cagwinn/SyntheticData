@@ -756,6 +756,13 @@ pub enum RelationalAnomalyType {
     CircularIntercompany,
     /// Transfer pricing anomaly.
     TransferPricingAnomaly,
+
+    // Source-conditional anomalies (SOTA-12, #140)
+    /// JE uses a `(source, account-pair)` combination that is rare under the
+    /// per-source marginal P(account | source) — the single dominant explainer
+    /// for audit-packet top JEs (FINDINGS §13). Selected by the orchestrator's
+    /// anomaly-injection post-process from the generated JE set.
+    SourceConditionalRarity,
 }
 
 impl RelationalAnomalyType {
@@ -769,6 +776,7 @@ impl RelationalAnomalyType {
             RelationalAnomalyType::CircularIntercompany => 4,
             RelationalAnomalyType::TransferPricingAnomaly => 4,
             RelationalAnomalyType::UnmatchedIntercompany => 3,
+            RelationalAnomalyType::SourceConditionalRarity => 2,
             _ => 3,
         }
     }
