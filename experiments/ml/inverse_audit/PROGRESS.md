@@ -12,17 +12,15 @@ engine; "corpus data" legal.
 
 ---
 ## Status
-- **Now:** SOTA-12 injector SHIPPED as standalone post-process (commit f7706c0f).
-  `tag_source_conditional_rarity(&mut [JE], &cfg)` — per-source empirical PMF +
-  -log P(account|source) ranking → top `rate × n` get tagged as
-  `RelationalAnomalyType::SourceConditionalRarity`. 4 unit tests green, clippy clean.
-  Designed as a post-process so it sidesteps the SOTA-8/11 coverage blocker by
-  construction. Remaining: ~30 LOC orchestrator wire-up (single call site).
-  Planned-step round CLOSED — all five SOTA-N (#8/9/10/11/12) have landed or have
-  documented blockers. Net corpus-gap movement: 4 metrics now match
-  (lines/je mean / p99.9 / max / accts/source p99); 2 architectural gaps remain
-  (`edges/je` 7×, `tp_set_size` 3.3×) → next round = central abstraction.
-- **Last update:** 2026-05-23 ~15:30 (SOTA-12 injector + planned-step round close).
+- **Now:** SOTA-12 orchestrator wire-in SHIPPED end-to-end (commit 43eaa59f + smoke
+  5678dd90). `anomaly_injection.source_conditional_rarity_rate=0.01` produces 102
+  tagged JEs out of 10 279 (exact target). Cleanly composes with the existing per-
+  entry anomaly strategies. Sidesteps the SOTA-8/11 coverage blocker by design.
+  All five planned SOTA steps (#8/9/10/11/12) now landed; FINDINGS §15 documents
+  the round. Central-abstraction proposal (#143, spec at
+  docs/superpowers/specs/2026-05-23-central-abstraction-proposal.md) awaits user
+  steer on Option A (threaded sampler) vs Option B (post-process ConcentrationPass).
+- **Last update:** 2026-05-23 ~16:30 (SOTA-12 wire-in shipped + smoke green).
 
 ## Increment ledger
 - [x] **I1** plan + PROGRESS + `generate_relational.py` + `relational/ot_flow.py` rung-1 (self-test ✓) +
