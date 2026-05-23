@@ -12,13 +12,15 @@ engine; "corpus data" legal.
 
 ---
 ## Status
-- **Now:** SOTA-8 sampler module + spec landed (commit 6b5507f6). Standalone
-  `source_conditional_pair.rs` in `datasynth-core/distributions`: SourcePool +
-  SourceConditionalPairSampler; 5 unit tests green (concentrated vs diffuse α, seed
-  determinism, pair distinctness, cross-source diversity); clippy clean. NOT yet
-  wired into je_generator — that's the next round's job (config field +
-  integration + Round-0 re-validation).
-- **Last update:** 2026-05-23 ~12:10 (SOTA-8 sampler skeleton + spec doc).
+- **Now:** SOTA-8 integrated (commit d2b1698b): config field + sampler API + lazy
+  per-source pools + JeGenerator hook + precedence over SP3/SP4 priors. Tests green
+  + clippy clean. HONEST validation: gap did NOT close meaningfully — SOTA-8 only
+  governs je_generator's direct path; document-flow / allocation / period-close
+  generators dominate line count with their own account selection. Source cardinality
+  (348 distinct SAP codes, many <10 JEs each) also blocks per-source pool accumulation.
+  Sampler + integration are CORRECT building blocks; #141 (SOTA-8.1) tracks the
+  broader coverage decision (extend / post-process / tighten SP3 / reduce cardinality).
+- **Last update:** 2026-05-23 ~13:00 (SOTA-8 integration + honest plateau finding).
 
 ## Increment ledger
 - [x] **I1** plan + PROGRESS + `generate_relational.py` + `relational/ot_flow.py` rung-1 (self-test ✓) +
