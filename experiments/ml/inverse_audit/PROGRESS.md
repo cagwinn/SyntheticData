@@ -12,15 +12,20 @@ engine; "corpus data" legal.
 
 ---
 ## Status
-- **Now:** SOTA-12 orchestrator wire-in SHIPPED end-to-end (commit 43eaa59f + smoke
-  5678dd90). `anomaly_injection.source_conditional_rarity_rate=0.01` produces 102
-  tagged JEs out of 10 279 (exact target). Cleanly composes with the existing per-
-  entry anomaly strategies. Sidesteps the SOTA-8/11 coverage blocker by design.
-  All five planned SOTA steps (#8/9/10/11/12) now landed; FINDINGS §15 documents
-  the round. Central-abstraction proposal (#143, spec at
-  docs/superpowers/specs/2026-05-23-central-abstraction-proposal.md) awaits user
-  steer on Option A (threaded sampler) vs Option B (post-process ConcentrationPass).
-- **Last update:** 2026-05-23 ~16:30 (SOTA-12 wire-in shipped + smoke green).
+- **Now:** Central-abstraction proposal (#143) is structurally unblocked end-to-end.
+  Open question — "can post-process account substitution preserve PO/GR/IR/Payment
+  chain refs?" — answered YES in chain-invariants addendum (commit 5358051d): refs
+  are keyed by document_id, NOT gl_account; only the 7 subledger-bridge accounts
+  (AR/AP_CONTROL, GR_IR_CLEARING, IC_AR/IC_AP_CLEARING, WIRE_CLEARING,
+  ACQUISITION_CLEARING) need an allowlist guard. Phase 1 design doc (commit
+  4bef8554) sketches the ConcentrationPass trait + ConcentrationPipeline + orchestrator
+  call site + 2 concrete passes (SourceConditionalRarityPass wrapping the shipped
+  SOTA-12 tagger, TradingPartnerPoolPass closing the SOTA-11 coverage gap) + 6-test
+  plan + back-compat config migration. Awaiting user steer on whether to land
+  Phase 1 (~1-2 days engine work) before Phase 2 (account substitution with the
+  7-account allowlist). All five planned SOTA steps (#8/9/10/11/12) shipped;
+  FINDINGS §15 documents the round.
+- **Last update:** 2026-05-23 ~17:00 (chain-invariants addendum + Phase 1 design doc landed).
 
 ## Increment ledger
 - [x] **I1** plan + PROGRESS + `generate_relational.py` + `relational/ot_flow.py` rung-1 (self-test ✓) +
