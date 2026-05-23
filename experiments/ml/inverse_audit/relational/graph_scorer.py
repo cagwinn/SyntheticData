@@ -35,13 +35,32 @@ _LOG_EPS = 30.0
 
 # features summed (positive-prior, unsupervised) into relational_score
 _SCORE_FEATURES = ("edge_surprise_max", "edge_surprise_w",
-                   "tp_account_novelty", "account_dormancy_max")
+                   "tp_account_novelty", "account_dormancy_max",
+                   "cycle_novelty")
 # all features computed (for per-feature ROC reporting / LR-CV)
 _ALL_FEATURES = _SCORE_FEATURES + ("back_edge", "centrality_max", "tp_novelty", "coupling_entropy")
 
 
 def _load_lines(d: Path) -> pd.DataFrame:
     return pd.read_csv(d / "journal_entries.csv", low_memory=False)
+
+
+def _scc_set(edge_w: dict[tuple[str, str], float]) -> set[str]:
+    """Accounts in non-trivial (size >= 2) strongly-connected components — i.e. accounts
+    that participate in a directed cycle in the aggregate flow graph."""
+    if not edge_w:
+        return set()
+    from scipy.sparse import csr_matrix
+    from scipy.sparse.csgraph import connected_components
+    nodes = sorted({n for e in edge_w for n in e})
+    idx = {n: i for i, n in enumerate(nodes)}
+    rows, cols, data = [], [], []
+    for (s, d), w in edge_w.items():
+        rows.append(idx[s]); cols.append(idx[d]); data.append(float(w))
+    g = csr_matrix((data, (rows, cols)), shape=(len(nodes), len(nodes)))
+    n_comp, labels = connected_components(g, connection="strong")
+    sizes = np.bincount(labels, minlength=n_comp)
+    return {nodes[i] for i in range(len(nodes)) if sizes[labels[i]] >= 2}
 
 
 def _pagerank(edge_w: dict[tuple[str, str], float], damping: float = 0.85,
@@ -106,8 +125,10 @@ def fit_graph_manifold(normal_df: pd.DataFrame) -> dict:
         c = (normal_df.groupby(["gl_account", "document_id"]).size().reset_index()
                       .groupby("gl_account").size())
         acc_count = {str(k): int(v) for k, v in c.items()}
+    normal_scc_set = _scc_set(edge_w)
     return {"edge_p": edge_p, "pagerank": pr, "tp_set": tp_set,
             "tp_acc_set": tp_acc_set, "acc_count": acc_count,
+            "normal_scc_set": normal_scc_set,
             "n_normal_jes": len(per)}
 
 
@@ -177,6 +198,16 @@ def _je_tps(df: pd.DataFrame) -> dict[str, list[str]]:
 
 def score_df(df: pd.DataFrame, manifold) -> pd.DataFrame:
     per = reconstruct_per_je(df)
+    # Build the AGGREGATE flow graph of *this* df and find its SCCs; accounts in
+    # non-trivial SCCs that are NOT in the normal manifold's SCC set are participating
+    # in cycles that didn't exist in normal — the cycle_novelty signal (Circular* families).
+    df_edge_w: dict[tuple[str, str], float] = {}
+    for _, (flows, _) in per.items():
+        for s, d, w in flows:
+            df_edge_w[(s, d)] = df_edge_w.get((s, d), 0.0) + w
+    df_scc = _scc_set(df_edge_w)
+    new_scc_accts = df_scc - manifold.get("normal_scc_set", set())
+
     tps = _je_tps(df)
     tp_accs = _je_tp_accounts(df)
     rows = []
@@ -184,6 +215,8 @@ def score_df(df: pd.DataFrame, manifold) -> pd.DataFrame:
         f = score_je(flows, tps.get(je_id), tp_accs.get(je_id), manifold)
         f["je_id"] = je_id
         f["coupling_entropy"] = h
+        accts = {s for s, d, _ in flows} | {d for s, d, _ in flows}
+        f["cycle_novelty"] = float(len(accts & new_scc_accts))
         rows.append(f)
     res = pd.DataFrame(rows).set_index("je_id")
     res.index = res.index.astype(str)
@@ -193,7 +226,12 @@ def score_df(df: pd.DataFrame, manifold) -> pd.DataFrame:
 
 def z_of(test: np.ndarray, normal: np.ndarray) -> np.ndarray:
     med = float(np.nanmedian(normal))
-    mad = max(float(np.nanmedian(np.abs(normal - med))) * 1.4826, _EPS)
+    mad = float(np.nanmedian(np.abs(normal - med))) * 1.4826
+    if mad < 1e-6:
+        # Feature is constant (or near-constant) on normal — e.g. cycle_novelty is 0
+        # for normal by construction. Z-standardising would divide by ~0 and explode.
+        # Return centred raw values; the feature's natural scale (0/1/k) contributes directly.
+        return test - med
     return (test - med) / mad
 
 
