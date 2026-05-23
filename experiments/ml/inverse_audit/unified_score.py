@@ -92,15 +92,61 @@ def main(argv=None) -> None:
             "unified": j["unified_score"].to_numpy()}
     for tgt, y in targets.items():
         result[tgt] = {arm: _metrics(y, s) for arm, s in arms.items()}
+
+    # Observability map: per anomaly_type AND per fraud_type, each arm's ROC measured
+    # type-vs-CLEAN (exclude JEs with the OTHER label class so each family is contrasted
+    # only against truly normal JEs). Sorted by best-arm ROC -> shows which arm SEES which
+    # family (the audit-actionable artifact).
+    is_none = ~(is_f | is_a)
+    def _per_type(col: str) -> dict:
+        if col not in j.columns:
+            return {}
+        out: dict = {}
+        for t in j[col].dropna().unique():
+            is_t = (j[col] == t).fillna(False).to_numpy()
+            if is_t.sum() < 5:
+                continue
+            mask = is_t | is_none
+            ent: dict = {"n": int(is_t.sum())}
+            for arm, s in arms.items():
+                ent[arm] = _metrics(is_t[mask], s[mask])
+            ent["best_arm"] = max(("density", "relational", "unified"),
+                                  key=lambda a: ent[a]["roc_auc"] or 0.0)
+            out[str(t)] = ent
+        return out
+    result["per_anomaly_type"] = _per_type("anomaly_type")
+    result["per_fraud_type"]   = _per_type("fraud_type")
+
     a.out.write_text(json.dumps(result, indent=2))
     print("UNIFIED_DONE")
     for tgt, scores in result.items():
+        if not isinstance(scores, dict) or "density" not in scores:
+            continue
         n = scores["density"]["n_pos"]
         print(f"  {tgt} (n_pos={n}):")
-        for arm, m in scores.items():
+        for arm in ("density", "relational", "unified"):
+            m = scores[arm]
             pa = "—" if m["pr_auc"] is None else f"{m['pr_auc']:.3f}"
             rc = "—" if m["roc_auc"] is None else f"{m['roc_auc']:.3f}"
             print(f"    {arm:11s} pr_auc={pa} roc={rc}")
+
+    # Observability map (sorted by best ROC)
+    for label, per_t in (("anomaly_type (relational families)", result["per_anomaly_type"]),
+                         ("fraud_type (per-JE fraud)",          result["per_fraud_type"])):
+        if not per_t:
+            continue
+        print(f"\n  Observability map — {label}:")
+        rows = sorted(per_t.items(),
+                      key=lambda kv: -max((kv[1][a]["roc_auc"] or 0.0)
+                                           for a in ("density", "relational", "unified")))
+        print(f"    {'family':30s} {'n':>4s}   density       relational    unified       best")
+        for t, ent in rows:
+            best = ent["best_arm"]
+            cells = []
+            for arm in ("density", "relational", "unified"):
+                rc = ent[arm]["roc_auc"]
+                cells.append("  —  " if rc is None else f" {rc:.3f}")
+            print(f"    {t:30s} {ent['n']:4d} {''.join(c.ljust(13) for c in cells)} {best}")
 
 
 if __name__ == "__main__":
