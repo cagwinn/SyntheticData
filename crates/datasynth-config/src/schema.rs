@@ -1727,6 +1727,12 @@ pub struct TransactionConfig {
     /// Benford's Law compliance configuration
     #[serde(default)]
     pub benford: BenfordConfig,
+    /// SOTA-9 (FINDINGS §14): archetype reuse probability for the recurring-templates
+    /// process (overrides the historical 0.90 default). Corpus recurring share ~0.97;
+    /// raising this concentrates `edges/je` toward the corpus value (currently 8.75×
+    /// too diffuse). Range [0.0, 1.0]. None = use legacy 0.90.
+    #[serde(default)]
+    pub archetype_reuse_probability: Option<f64>,
     /// SOTA-8 (FINDINGS §14): source-conditional Dirichlet account-pair sampler.
     /// Models the corpus finding that per-source account usage is *concentrated*
     /// (entropy ~0.68 vs synth 0.97) over a *larger* pool (~23 vs 5 accts/source).

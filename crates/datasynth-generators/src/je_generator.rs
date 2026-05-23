@@ -1263,13 +1263,19 @@ impl JournalEntryGenerator {
         debit_count: usize,
         credit_count: usize,
     ) -> Option<(Vec<String>, Vec<String>)> {
-        // Priors carry their own GL-account structure; templating is the
-        // no-priors default-path realism boost (FINDINGS.md sec.8).
-        if self.loaded_priors.is_some() || !self.config.recurring_templates.unwrap_or(true) {
+        if !self.config.recurring_templates.unwrap_or(true) {
             return None;
         }
-        const P_REUSE: f64 = 0.90; // toward corpus recurring share ~0.97
-        if self.template_rng.random::<f64>() >= P_REUSE {
+        // Priors carry their own GL-account structure; templating is the no-priors
+        // default-path realism boost (FINDINGS sec.8) UNLESS the user has explicitly
+        // set archetype_reuse_probability — in that case SOTA-1 composes with the
+        // priors path (SOTA-9 #137: lift corpus recurring share toward ~0.97).
+        let p_reuse_opt = self.config.archetype_reuse_probability;
+        if p_reuse_opt.is_none() && self.loaded_priors.is_some() {
+            return None;
+        }
+        let p_reuse = p_reuse_opt.unwrap_or(0.90);
+        if self.template_rng.random::<f64>() >= p_reuse {
             return None;
         }
         let lib = self
