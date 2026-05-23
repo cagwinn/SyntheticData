@@ -74,13 +74,16 @@ def export_graph(normal_csv: Path, test_csv: Path,
     n_pr = _pagerank(n_ew); t_pr = _pagerank(t_ew)
     n_scc = _scc_set(n_ew); t_scc = _scc_set(t_ew)
 
-    acc_count = (nd.groupby(["gl_account", "document_id"]).size().reset_index()
-                   .groupby("gl_account").size().to_dict())
+    # ot_flow returns str-keyed accounts; pandas may yield non-str keys for gl_account.
+    # Stringify uniformly so the union/sort works (otherwise: int<->str comparison error).
+    acc_count = {str(k): int(v) for k, v in
+                 (nd.groupby(["gl_account", "document_id"]).size().reset_index()
+                    .groupby("gl_account").size().to_dict()).items()}
 
     nodes = []
     for n in sorted(set(n_pr) | set(t_pr) | set(acc_count)):
         nodes.append({
-            "id": str(n), "type": "account",
+            "id": n, "type": "account",
             "props": {
                 "pagerank_normal": float(n_pr.get(n, 0.0)),
                 "pagerank_test":   float(t_pr.get(n, 0.0)),
