@@ -48,3 +48,34 @@ Reproduce (synthetic, in-distribution):
 writes density_scores.parquet + graph_scores.parquet + unified.json. The §12 tables come
 from unified.json (`overall` / `per_fraud_type` / `per_anomaly_type`); the routing recipe
 follows the `best_arm` column in each per-family entry.
+
+## Stage 2 — corpus pipeline (2026-05-23, FINDINGS §13)
+
+Apply Stage 1's relational arm to corpus GLs (real-world, no labels — validation
+shifts to expert review of top residuals). The corpus path is always a runtime arg
+(never committed); aggregate-only artifacts in commits.
+
+Modules:
+  corpus_runner.py            corpus parquet → canonical → fit-on-self / half-split
+                               → graph_scores.parquet + summary.json + top1pct_je_ids.json
+                               (--export-graph adds account_flow_graph.json)
+  corpus_batch.py             sweep corpus_runner over a glob; SHA-tagged per-file dirs
+  audit_packet.py             top-N JEs by relational_score → per-JE breakdown
+                               (rank, score, top contributors, per-feature value/z/elevated)
+                               + the original GL lines (account/amount/description/...)
+                               Privacy: code commits no row content; OUTPUT files contain
+                               row content and stay local (gitignored, never echoed).
+  run_capstone_corpus.py      one-shot orchestrator — corpus parquet in,
+                               relational scoring + substrate JSON + audit packet out.
+
+Reproduce (corpus, expert-review-ready):
+
+    python -m inverse_audit.run_capstone_corpus \
+        --parquet <corpus parquet>  --out <local dir>  --mode half-split  --top-n 50
+
+Numerical guards in `graph_scorer.z_of`:
+- degenerate-MAD (MAD < 1e-6): return centred raw values; the feature's natural scale
+  (binary / small-int) contributes to the sum directly.
+- per-feature z clip at ±10: rank-preserving (PR-AUC/ROC unchanged); prevents
+  divide-by-tiny-MAD from inflating a single feature's contribution by 100× (the
+  source_cond MAD = 0.009 case in §13).
