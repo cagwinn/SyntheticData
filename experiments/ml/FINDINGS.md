@@ -545,3 +545,57 @@ writes `{root}/unified.json` plus a substrate-ingestable graph JSON
 external dependency). On the mixed GL: **362 accounts / 20 878 directed edges / 42 nodes
 in test-only cycles / 4 622 new-in-test edges** — these are the audit hot list a graph DB
 or living-graph substrate can route to scored JEs.
+
+## 13. Stage 2 — corpus residual fingerprints, per industry (2026-05-23)
+
+Stage 1's manifold residual transfers cleanly to corpus data once the canonical column
+map is in place. `inverse_audit.corpus_runner` ingests a corpus parquet → canonicalises
+to the synthetic schema (corpus column names → DataSynth canonical; signed
+`Functional Amount` split into debit/credit) → fits the relational manifold
+**half-split** (deterministic shuffle by `document_id`, fit on first half, score the
+second) so the new-in-test signals (`cycle_novelty`, `tp_account_novelty`) remain
+meaningful. Privacy: corpus paths/clients never appear in committed artifacts; the
+batch runner uses SHA-tagged output dirs and emits aggregate statistics only.
+
+**Cross-industry sweep** — 6 industries, smallest GL parquet per industry,
+half-split deterministic seed, total wall-clock ~20 min on a CPU box:
+
+| industry | tag | JEs (test half) | edges (normal) | rs p50 | rs p99 | rs max | dorm p99 | cyc max |
+|---|---|--:|--:|--:|--:|--:|--:|--:|
+| Health                          | `5a491735` |   2,151 |  5,248 |  1.45 | 10.37 | 14.66 | 8.68 | 5 |
+| Professional Firms & Services   | `b59326eb` |   9,325 |  2,647 |  0.18 | 11.66 | 19.52 | 8.22 | 4 |
+| Technology                      | `8809d54d` |  26,423 |  1,692 |  0.52 | 17.16 | 32.82 | 8.73 | 2 |
+| Life Sciences                   | `6cfad1f4` | 141,712 |  1,542 | −0.73 | 33.71 | 82.17 | 9.11 | 4 |
+| Power & Utilities               | `9fe8cd50` | 124,936 | 11,749 |  0.36 | 12.43 | 26.89 | 9.95 | 2 |
+| Government and Public Sector    | `16966e5f` | 176,963 |  2,233 |  1.75 | 18.02 | 38.89 | 7.94 | 3 |
+
+(Pharmaceutical's smallest parquet lacked the `Functional Amount` column → registry-like;
+runner now raises a clear ValueError + recommends a per-industry rescan. Hospitality &
+Leisure was excluded — its smallest file is 162 MB and would dominate the sweep budget.)
+
+**Observations.**
+
+- **The residual approach generalises**: every industry has a heavy-tailed
+  `relational_score` distribution (p99 / max well above p50 in every row). The hot list
+  is non-empty and well-separated for all six.
+- **Dormancy is the *most stable* signal across industries** — p99 `account_dormancy_max`
+  sits in a tight 7.9–9.95 band even as p99/max of the overall score range by 3.3×
+  (10.4 → 33.7). The IDF dormancy probe behaves as a near-universal feature.
+- **Tail magnitude tracks manifold sparsity, not data size.** Life Sciences (141k JEs,
+  1542 edges → ~92 JEs/edge) shows the most extreme tail (max 82); Power & Utilities
+  (similar JE count, but 11 749 edges → 11 JEs/edge) shows max 26.9. When the
+  reconstructed graph has few edges, more test edges are unseen → `edge_surprise`
+  saturates at the cap (`_LOG_EPS=30`) for many lines → the z-summed score inflates.
+  An audit interpretation reads this as "this client's accounting topology is
+  concentrated; small numbers of edges carry most of the value" — which is itself a
+  fingerprint, but the inflated tail should be interpreted with that caveat.
+- **`cycle_novelty` fires modestly everywhere (max 2–5)** — the half-split brings the
+  feature alive but cycles in production GLs are rare relative to the total JE count.
+- **`p50` shifts vary**: Government and Health have positive median residual (entire
+  distribution shifted right vs the half-fitted reference) → many test-half JEs touch
+  edges/accounts that the normal-half didn't represent well. The corpus shape is uneven
+  by JE-time (likely period or business-cycle drift) — a half-split by JE_id catches it.
+
+These are corpus-wide *aggregate* signatures only. The audit-actionable next step is
+expert review of the **top-1% per-industry JE ID lists** (written by `corpus_runner`)
+against the original GLs — done by an auditor, not the model.

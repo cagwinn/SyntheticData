@@ -44,12 +44,17 @@ CORPUS_COLMAP = {
 
 
 def load_canonical(parquet_path: Path) -> pd.DataFrame:
-    """Map corpus columns → canonical; split signed Functional Amount → debit/credit."""
+    """Map corpus columns → canonical; split signed Functional Amount → debit/credit.
+    Raises a clear ValueError on non-GL parquets (registry files, schema drift)."""
     df = pd.read_parquet(parquet_path).rename(columns=CORPUS_COLMAP)
-    fa = pd.to_numeric(df.get("Functional Amount", 0), errors="coerce").fillna(0.0)
+    if "Functional Amount" not in df.columns:
+        raise ValueError(
+            f"parquet at {parquet_path.name} is missing 'Functional Amount' "
+            f"(columns={list(df.columns)[:8]}…) — likely a registry file or a different schema."
+        )
+    fa = pd.to_numeric(df["Functional Amount"], errors="coerce").fillna(0.0)
     df["debit_amount"]  = fa.where(fa > 0, 0.0)
     df["credit_amount"] = (-fa).where(fa < 0, 0.0)
-    # Trim to relational-scorer's columns (drop everything else — defence in depth).
     keep = ["document_id", "gl_account", "debit_amount", "credit_amount",
             "source", "trading_partner"]
     return df[[c for c in keep if c in df.columns]].copy()

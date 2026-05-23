@@ -12,11 +12,13 @@ engine; "corpus data" legal.
 
 ---
 ## Status
-- **Now:** Stage 2 (corpus) operational + validated at two scales. Stage 1 canonical archive
-  assembled at `~/DEV/local-artifacts/inverse_audit_stage1/` (240 MB: canonical_v5 run, iar, ia,
-  posterior.pt, pairs.npz) ahead of VM decommission. Pure-local Python from here on. Next:
-  cross-file aggregate batch run (per-industry sample) for corpus-wide residual fingerprints.
-- **Last update:** 2026-05-23 ~09:00 (Stage 1 archive + VM ready for decom).
+- **Now:** Stage 2 cross-industry sweep done (6 industries, ~20 min, FINDINGS §13). Per-industry
+  residual fingerprints: heavy-tailed everywhere; dormancy is the most stable signal (p99 in tight
+  7.9–9.95 band); tail magnitude tracks **manifold sparsity**, not JE count (Life Sciences max 82
+  has 1542 edges across 141k JEs; Power & Utilities max 27 has 11,749 edges across similar JE
+  count). Pharmaceutical exclusion noted (registry-like smallest parquet); runner now raises a
+  clear ValueError on schema drift.
+- **Last update:** 2026-05-23 ~09:50 (per-industry sweep + §13).
 
 ## Increment ledger
 - [x] **I1** plan + PROGRESS + `generate_relational.py` + `relational/ot_flow.py` rung-1 (self-test ✓) +
