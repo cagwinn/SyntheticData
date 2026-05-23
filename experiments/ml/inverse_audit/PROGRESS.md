@@ -12,11 +12,10 @@ engine; "corpus data" legal.
 
 ---
 ## Status
-- **Now:** I1/I2/I3/I5-v2 done. v2 with **signed feature combination beats the density baseline** (PR-AUC
-  0.215 vs 0.119, ROC 0.555 vs 0.522) — the relational arm exists. Next = **I5 v3 (signed weights + bipartite
-  TP-account + temporal account activity)**.
-- **Last update:** 2026-05-23 ~01:55 (wake 2), increment 2 — *substantial*: I2 baseline + I3 first cut +
-  v2 redesign + signed-combination result.
+- **Now:** v3 deployable (commit d915c2ad) — PR-AUC **0.220** / ROC **0.544** vs density 0.119 / 0.522.
+  **DormantAccountActivity (n=112) ROC 0.28 → 0.993** via the IDF-account-dormancy feature. The relational
+  arm is real. Mixed-GL gen kicking off for I6 (unified routed detector: density + relational + light-B).
+- **Last update:** 2026-05-23 ~02:55 (wake 3), increment 3 — v3 scorer + dormancy breakthrough.
 
 ## Increment ledger
 - [x] **I1** plan + PROGRESS + `generate_relational.py` + `relational/ot_flow.py` rung-1 (self-test ✓) +
@@ -42,18 +41,20 @@ engine; "corpus data" legal.
         * `signed`   (pos − anti):          PR-AUC 0.188 / ROC **0.555**
         * density baseline (v same labels): PR-AUC 0.119 / ROC 0.522
       → **first lift over the density baseline. The relational arm exists.**
-- [ ] **I5 v3 — next wake.** Persist a signed/weighted relational_score (don't ship the naive z-sum).
-      Three concrete improvements, in priority order:
-        (1) signed combination as default (the v2 finding) — either fixed signs from per-feature ROC,
-            or a tiny supervised step (held-out small labeled split, sklearn LogisticRegression on
-            standardised features, report coef + ROC). Persist `relational_score_signed`.
-        (2) bipartite TP-account graph: extend reconstruction to include `trading_partner` as a node
-            type — a counterparty-account *pair* unseen in normal catches NewCounterparty / IC families
-            in a way `tp_novelty` (raw string novelty) doesn't (the tp_set had only 35 values, all
-            re-used in test → 0 lift; the unseen-PAIR signal is what matters).
-        (3) temporal account-activity: last-seen `posting_date` per account in normal; per-JE feature =
-            max days-since-last-activity over touched accounts. Targets DormantAccountActivity (n=112,
-            currently the worst feature at ROC 0.28).
+- [x] **I5 v3** signed-default (positive-prior features only) + tp_account_novelty + account_dormancy_max
+      (IDF) + LR-CV diagnostic ceiling (commit d915c2ad). Deployable PR-AUC **0.220** / ROC **0.544**;
+      **DormantAccountActivity solved (ROC 0.993)**. tp_account_novelty + centrality_max still null
+      (the injector's NewCounterparty / CentralityAnomaly mechanisms don't reflect in these
+      observables — need different features or cross-JE context).
+- [ ] **I6 — unified routed detector (NEXT, this wake or next).** density + relational + (optionally)
+      global SBI light-B; measure on a MIXED GL (fraud + anomaly_injection both on) so the routed
+      thesis is shown end-to-end. Mixed-GL generator + unified scorer to land before next wake.
+- [ ] **I5 v4 / future** for the remaining unsolved families:
+        NewCounterparty (195), MissingRelationship (111) — likely need a counterparty-relationship model
+            (e.g. (tp, account, source) tri-novelty) since raw + bipartite-pair novelty are null;
+        CircularTransaction (60), CircularIntercompany (38) — cross-JE cycle detection on aggregate graph;
+        UnusualAccountPair (157) — source-conditional edge surprise P(edge | source);
+        CentralityAnomaly (57) — centrality DELTA (test PageRank − normal PageRank) on touched accounts.
 - [ ] **I6** unified routed detector (local density + relational graph) → combined PR-AUC all families.
 - [ ] **I7** validation/rigor: held-out, ablations, calibration, observability map.
 - [ ] **I8** graph-JSON export (decoupled) + RustGraph ingestion/validation (RG-side, authorized).
@@ -67,8 +68,17 @@ engine; "corpus data" legal.
   - I5 v2 (+ tp_novelty + centrality_max + per-feature ROC; commit 925be48f): naive sum still 0.087/0.446;
     `pos_only` (edge_surprise_max+w) **0.215 / 0.542**; `signed` (pos − anti) **0.188 / 0.555**.
   - **First lift over density.** edge_surprise is the carrier; back_edge + coupling_entropy are
-    anti-correlated (drop or sign-flip); tp_novelty + centrality_max are null on raw strings (need the
-    bipartite-pair / temporal redesign).
+    anti-correlated (drop or sign-flip); tp_novelty + centrality_max are null on raw strings.
+- Wake 3 (02:22–03:?):
+  - I5 v3 (signed by default; + tp_account_novelty (bipartite-pair) + account_dormancy_max (IDF);
+    LR-CV diagnostic; commit d915c2ad): **deployable PR-AUC 0.220 / ROC 0.544**.
+  - Per-feature top: account_dormancy_max (ROC 0.550), edge_surprise_max (0.542), edge_surprise_w (0.537).
+    tp_account_novelty (0.501), tp_novelty (0.500), centrality_max (0.494) — still null. back_edge,
+    coupling_entropy anti-correlated (0.468, 0.467) as expected.
+  - **DormantAccountActivity (n=112) ROC 0.28 → 0.993, PR-AUC 0.938.** A family-level breakthrough.
+  - LR-CV ceiling (uses labels): PR-AUC 0.147 / ROC 0.555 — slightly higher ROC than the unsupervised
+    sum, but lower PR-AUC (likely because most features carry no signal, LR weights are noisy).
+    The unsupervised positive-prior sum is the right deployable.
 
 ## Open questions / blockers
 - (none yet) — relational anomaly-type taxonomy + counts to be confirmed in I2; if too few relational
