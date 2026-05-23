@@ -12,13 +12,13 @@ engine; "corpus data" legal.
 
 ---
 ## Status
-- **Now:** Round 0 (corpus-vs-synth realism gap) done — five realism levers
-  empirically validated/refined. Highlights: synth is 8.75× too DIFFUSE on the account
-  manifold (corpus 140 JEs/edge vs synth 16); src-cond entropy 0.97 synth vs 0.68
-  corpus (synth too uniform); synth has 3.3× too many TPs; synth's lines/je *mid-tail*
-  is fatter than corpus (not the extreme — SOTA-10 redirected). SOTA-8 source-conditional
-  Dirichlet is the cleanest next engine round.
-- **Last update:** 2026-05-23 ~11:50 (Round 0 gap baseline + task refinement).
+- **Now:** SOTA-8 sampler module + spec landed (commit 6b5507f6). Standalone
+  `source_conditional_pair.rs` in `datasynth-core/distributions`: SourcePool +
+  SourceConditionalPairSampler; 5 unit tests green (concentrated vs diffuse α, seed
+  determinism, pair distinctness, cross-source diversity); clippy clean. NOT yet
+  wired into je_generator — that's the next round's job (config field +
+  integration + Round-0 re-validation).
+- **Last update:** 2026-05-23 ~12:10 (SOTA-8 sampler skeleton + spec doc).
 
 ## Increment ledger
 - [x] **I1** plan + PROGRESS + `generate_relational.py` + `relational/ot_flow.py` rung-1 (self-test ✓) +
