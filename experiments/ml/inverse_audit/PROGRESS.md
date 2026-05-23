@@ -12,12 +12,12 @@ engine; "corpus data" legal.
 
 ---
 ## Status
-- **Now:** Intra-Health stratified sweep done (5 files, 20 in registry). Found + fixed a
-  divide-by-tiny-MAD numerical pathology that inflated one client's score 100× (z-clip
-  ±10 in graph_scorer.z_of, rank-preserving). Post-fix Health max 14.7-43 (3× spread)
-  — fingerprint is *client-specific* within industry, dormancy stays stable. §12
-  synthetic unchanged. §13 expanded with intra-industry + fix story.
-- **Last update:** 2026-05-23 ~10:50 (intra-Health + z-clip fix + §13 update).
+- **Now:** `audit_packet.py` ships — turns top-N JEs by relational_score into an
+  auditor-ready review list (per-feature breakdown + top-3 contributors + original GL
+  lines). Validated on small (~2k JEs, 463 KB JSON, 50 entries) and prod-scale (174k
+  JEs scored, top-50 generated in 6 s, 23 MB JSON / 5.7 MB MD). Privacy contract: code
+  is content-free; output files contain row content and stay local (gitignored).
+- **Last update:** 2026-05-23 ~11:20 (audit_packet + Stage 2 deliverable complete).
 
 ## Increment ledger
 - [x] **I1** plan + PROGRESS + `generate_relational.py` + `relational/ot_flow.py` rung-1 (self-test ✓) +
