@@ -623,3 +623,47 @@ Professional Firms — single-digit thousand JEs), where the manifold has too fe
 to discriminate cleanly. So the practical guidance is *not* "lift `_LOG_EPS`" but
 *"distrust the score on tiny GLs"* — for files <~5 k JEs, treat the top-1% as a
 suggested-look list rather than ranked by raw score.
+
+**Intra-industry variance — Health (5 stratified-by-size files of 20 in registry).**
+Picking the smallest, 25 %, 50 %, 75 %, and largest Health parquets <30 MB and running
+the half-split scorer on each. The story is **mostly stable + one extreme outlier whose
+mechanism turned out to be a numerical degeneracy in the z-standardiser**:
+
+| tag | size | JEs (test) | edges | nodes | rs p50 | rs p99 | rs max | dorm p99 | cyc max |
+|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|
+| `5a491735` |  1.2 MB |   2 151 |  5 248 | 280 |  1.45 | 10.37 | 14.66 | 8.68 | 5 |
+| `4fe1a883` |  4.0 MB |  56 655 |  1 109 | 152 |  0.00 | 17.38 | 35.44 | 8.14 | 2 |
+| `65aff36e` |  5.9 MB |   6 173 |  6 476 | 312 |  0.74 | 10.45 | 17.10 | 9.30 | 4 |
+| `a6c1e115` |  8.1 MB |  36 070 |    447 | 123 | −0.67 | **37.22** | **43.00** | 8.67 | 1 |
+| `d15bbf6a` | 29.4 MB | 173 936 | 13 124 | 550 |  0.34 | 24.46 | 42.26 | 9.38 | 6 |
+
+(Numbers shown are *post* the z-clip fix described below. Without it, `a6c1e115`
+showed p99 = 1 284, max = 1 972 — three orders of magnitude beyond its peers.)
+
+**Diagnosis of the outlier.** `a6c1e115` has an unusually concentrated normal half:
+its `source_cond_edge_surprise_max` feature has median 2.064 and **MAD = 0.00881**
+(eight thousandths). The client's source-conditional edge usage is so regimented that
+the prior on `P(edge | source)` is razor-tight; off-pattern test JEs then produce
+z = (test − median) / MAD ≈ 1 700 on that single feature, dwarfing everything else in
+the score sum. It's *not* a true cap-firing event (0 % of top-1 % JEs sit at the
+`_LOG_EPS=30` cap) — purely a divide-by-tiny-MAD numerical pathology.
+
+**Fix — clip per-feature z at ±10.** A small, rank-preserving guard in
+`relational/graph_scorer.py::z_of`: after dividing by MAD, clip to [−10, 10] so no
+single feature's contribution dominates by orders of magnitude. Verified:
+
+- Outlier `a6c1e115`: max 1 972 → **43** (in band with peers); top-1 % JE ranking
+  preserved — *who* the anomalies are doesn't change, only the score's numerical scale.
+- 3 small Health files (`5a491735`, `4fe1a883`, `65aff36e`) re-run: clip is a
+  **no-op** (post-fix == pre-fix to 0.01). Their MADs were healthy.
+- §12 synthetic capstone result (mixed-GL unified vs `is_any`): pre-clip 0.395/0.654 →
+  post-clip 0.398/0.657 — within ordinary re-run jitter; the clip is rank-preserving
+  on healthy features, so PR-AUC/ROC are unaffected.
+
+**Intra-industry takeaway.** Within one vertical (Health), the residual fingerprint is
+**substantially client-specific**: even after the fix, the post-fix `rs_max` ranges
+14.7 → 43 (~3×) across same-vertical clients with similar size class. The manifold
+features capture client-typical accounting structure more than industry-typical;
+expert review can't lean on an "industry average tail" — the threshold has to be set
+per-client. Dormancy stays the most stable cross-row signal (p99 8.1 – 9.4 across
+all 5 Health files, same band as the cross-industry sweep).

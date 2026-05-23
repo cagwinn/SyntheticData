@@ -12,12 +12,12 @@ engine; "corpus data" legal.
 
 ---
 ## Status
-- **Now:** Stage 2 cross-industry sweep done + cap-artifact analysis added (§13). Life Sciences'
-  max-82 tail is REAL (only 0.8% at cap, 4.08 features active per top-JE — multi-feature anomaly).
-  Cap-firing concentrates in *small* files (Health, Professional Firms at 9-11% top@cap, single-
-  digit-thousand JEs) where the manifold is under-determined. Practical guidance recorded:
-  distrust raw score ranking on tiny GLs.
-- **Last update:** 2026-05-23 ~10:30 (composition analysis + §13 update).
+- **Now:** Intra-Health stratified sweep done (5 files, 20 in registry). Found + fixed a
+  divide-by-tiny-MAD numerical pathology that inflated one client's score 100× (z-clip
+  ±10 in graph_scorer.z_of, rank-preserving). Post-fix Health max 14.7-43 (3× spread)
+  — fingerprint is *client-specific* within industry, dormancy stays stable. §12
+  synthetic unchanged. §13 expanded with intra-industry + fix story.
+- **Last update:** 2026-05-23 ~10:50 (intra-Health + z-clip fix + §13 update).
 
 ## Increment ledger
 - [x] **I1** plan + PROGRESS + `generate_relational.py` + `relational/ot_flow.py` rung-1 (self-test ✓) +

@@ -267,7 +267,11 @@ def z_of(test: np.ndarray, normal: np.ndarray) -> np.ndarray:
         # for normal by construction. Z-standardising would divide by ~0 and explode.
         # Return centred raw values; the feature's natural scale (0/1/k) contributes directly.
         return test - med
-    return (test - med) / mad
+    # Clip per-feature z to ±10. Some highly regimented clients (e.g. one with a
+    # source_cond MAD of 0.009) would otherwise produce z ≈ 1700, dwarfing every
+    # other feature in the sum. Clipping is rank-preserving so PR-AUC/ROC are
+    # unaffected — it just bounds the score's numerical scale.
+    return np.clip((test - med) / mad, -10.0, 10.0)
 
 
 def assess(t_scored: pd.DataFrame, score_col: str = "relational_score") -> dict:
