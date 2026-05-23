@@ -25,8 +25,9 @@ engine; "corpus data" legal.
   Phase 1 (~1-2 days engine work) before Phase 2 (account substitution with the
   7-account allowlist). All five planned SOTA steps (#8/9/10/11/12) shipped;
   FINDINGS §15 documents the round.
-- **Last update:** 2026-05-23 ~17:15 (.rs code-shape draft 54b831d6 added alongside
-  markdown specs; unlinked from module tree, cargo check clean).
+- **Last update:** 2026-05-23 ~17:45 (Phase 2 design doc 61271699 — account-pair
+  substitution algorithm with PMF input format, 7-account allowlist, type-matched
+  invariant, is_balanced fallback, 5-test plan; effort summary Phase 1+2 ~4d).
 
 ## Increment ledger
 - [x] **I1** plan + PROGRESS + `generate_relational.py` + `relational/ot_flow.py` rung-1 (self-test ✓) +
