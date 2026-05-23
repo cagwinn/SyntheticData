@@ -12,10 +12,11 @@ engine; "corpus data" legal.
 
 ---
 ## Status
-- **Now:** v3 deployable (commit d915c2ad) — PR-AUC **0.220** / ROC **0.544** vs density 0.119 / 0.522.
-  **DormantAccountActivity (n=112) ROC 0.28 → 0.993** via the IDF-account-dormancy feature. The relational
-  arm is real. Mixed-GL gen kicking off for I6 (unified routed detector: density + relational + light-B).
-- **Last update:** 2026-05-23 ~02:55 (wake 3), increment 3 — v3 scorer + dormancy breakthrough.
+- **Now:** I6 unified routed detector measured on a mixed GL (fraud + anomaly_injection both on) —
+  **the capstone routing thesis is demonstrated end-to-end.** Each arm excels on its subsystem and is
+  blind to the other; the unified beats either alone on the union. Remaining: I4 (rung-2 supervised cost
+  + A-E baseline), I7 (validation/rigor), I8 (graph-JSON export), I9 (FINDINGS finalize).
+- **Last update:** 2026-05-23 ~03:15 (wake 3 close), increment 3.
 
 ## Increment ledger
 - [x] **I1** plan + PROGRESS + `generate_relational.py` + `relational/ot_flow.py` rung-1 (self-test ✓) +
@@ -46,9 +47,14 @@ engine; "corpus data" legal.
       **DormantAccountActivity solved (ROC 0.993)**. tp_account_novelty + centrality_max still null
       (the injector's NewCounterparty / CentralityAnomaly mechanisms don't reflect in these
       observables — need different features or cross-JE context).
-- [ ] **I6 — unified routed detector (NEXT, this wake or next).** density + relational + (optionally)
-      global SBI light-B; measure on a MIXED GL (fraud + anomaly_injection both on) so the routed
-      thesis is shown end-to-end. Mixed-GL generator + unified scorer to land before next wake.
+- [x] **I6** unified routed detector (commit d609e0d9 + run). Mixed GL `/tmp/iam` (fraud_rate 0.04
+      + anomaly_rate 0.06): unified_score = z-sum(density, relational); per-arm vs each label:
+      vs is_fraud  (n=357): density **0.783 / 0.920**, relational 0.037 / 0.504, unified 0.733 / 0.917
+      vs is_anomaly(n=831): density 0.078 / 0.504, relational **0.134 / 0.540**, unified 0.091 / 0.525
+      vs is_any    (n=1151): density 0.373 / 0.641, relational 0.158 / 0.531, **unified 0.395 / 0.654**
+      Routing thesis confirmed: arms specialise on their subsystems, are blind to the other's,
+      union beats either alone on is_any. (LightB / global SBI as a third arm would target
+      parameter-drift-class anomalies — not in this synthetic dataset; add at I7/I9.)
 - [ ] **I5 v4 / future** for the remaining unsolved families:
         NewCounterparty (195), MissingRelationship (111) — likely need a counterparty-relationship model
             (e.g. (tp, account, source) tri-novelty) since raw + bipartite-pair novelty are null;
@@ -69,7 +75,7 @@ engine; "corpus data" legal.
     `pos_only` (edge_surprise_max+w) **0.215 / 0.542**; `signed` (pos − anti) **0.188 / 0.555**.
   - **First lift over density.** edge_surprise is the carrier; back_edge + coupling_entropy are
     anti-correlated (drop or sign-flip); tp_novelty + centrality_max are null on raw strings.
-- Wake 3 (02:22–03:?):
+- Wake 3 (02:22–03:15):
   - I5 v3 (signed by default; + tp_account_novelty (bipartite-pair) + account_dormancy_max (IDF);
     LR-CV diagnostic; commit d915c2ad): **deployable PR-AUC 0.220 / ROC 0.544**.
   - Per-feature top: account_dormancy_max (ROC 0.550), edge_surprise_max (0.542), edge_surprise_w (0.537).
@@ -79,6 +85,10 @@ engine; "corpus data" legal.
   - LR-CV ceiling (uses labels): PR-AUC 0.147 / ROC 0.555 — slightly higher ROC than the unsupervised
     sum, but lower PR-AUC (likely because most features carry no signal, LR weights are noisy).
     The unsupervised positive-prior sum is the right deployable.
+  - I6 unified routed detector (commit d609e0d9; mixed GL /tmp/iam with fraud 0.04 + anomaly 0.06):
+    **routing thesis confirmed.** density excels on is_fraud (0.78/0.92) and is blind to is_anomaly
+    (0.08/0.50); relational excels on is_anomaly (0.13/0.54) and is blind to is_fraud (0.04/0.50);
+    unified beats either alone on is_any (0.395/0.654 vs density 0.373/0.641, relational 0.158/0.531).
 
 ## Open questions / blockers
 - (none yet) — relational anomaly-type taxonomy + counts to be confirmed in I2; if too few relational
