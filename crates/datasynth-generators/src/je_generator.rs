@@ -182,6 +182,17 @@ pub struct JournalEntryGenerator {
     /// document-currency tagging never perturbs the main `rng` (company-currency
     /// JEs stay byte-identical).
     fx_rng: ChaCha8Rng,
+    /// SOTA-8: independent RNG for the source-conditional Dirichlet account-pair
+    /// sampler. Built lazily (one `SourcePool` per observed source); when the
+    /// feature is off the sampler stays None and the main RNG / `account_rng`
+    /// stream is byte-identical.
+    cond_pair_rng: ChaCha8Rng,
+    /// SOTA-8: per-source Dirichlet PMFs over per-source account pools.
+    /// Lazy-built on first JE whose source isn't yet pooled.
+    cond_pair_sampler: Option<datasynth_core::distributions::source_conditional_pair::SourceConditionalPairSampler>,
+    /// SOTA-8: SAP source code of the JE currently being constructed, so the
+    /// `select_*_account` helpers can consult the per-source pool.
+    current_je_source: Option<String>,
     seed: u64,
     config: TransactionConfig,
     coa: Arc<ChartOfAccounts>,
@@ -511,6 +522,9 @@ impl JournalEntryGenerator {
             account_rng: seeded_rng(seed, 60_071),
             allocation_rng: seeded_rng(seed, 80_023),
             fx_rng: seeded_rng(seed, 70_093),
+            cond_pair_rng: seeded_rng(seed, 110_071),
+            cond_pair_sampler: None,
+            current_je_source: None,
             seed,
             config: config.clone(),
             coa,
@@ -2078,6 +2092,9 @@ impl JournalEntryGenerator {
         // and is written to `header.sap_source_code`, then emitted in the CSV
         // `source` column in place of the generic label.
         let sap_source_code: Option<String> = self.sample_sap_source_code();
+        // SOTA-8: stash the current JE's SAP source so select_*_account can consult
+        // the per-source Dirichlet pool. Cleared at the end of this generate() call.
+        self.current_je_source = sap_source_code.clone();
 
         // Select business process
         let business_process = self.select_business_process();
@@ -2623,6 +2640,9 @@ impl JournalEntryGenerator {
         );
         let mut fresh_debit_accts: Vec<String> = Vec::new();
         let mut fresh_credit_accts: Vec<String> = Vec::new();
+        // SOTA-8: hoisted so both the debit and credit loops + their SOTA-1 archetype
+        // override blocks share the same flag.
+        let sota8_active = self.config.source_conditional_account_pair.enabled;
 
         // Generate debit lines
         let debit_amounts = self
@@ -2638,7 +2658,14 @@ impl JournalEntryGenerator {
             // `select_debit_account` (which takes `&mut self`) does not conflict
             // with the concurrent borrow of `loaded_priors` and `rng`.
             let debit_fallback = self.select_debit_account().account_number.clone();
-            let account_number = {
+            // SOTA-8: when enabled, the per-source Dirichlet pool (which `select_debit_account`
+            // has already consulted via try_cond_pick_account_number) takes precedence over the
+            // SP3/SP4 priors-driven path so the user's explicit source-conditional knob actually
+            // governs the source-conditional account distribution. `sota8_active` is hoisted
+            // above this scope so the credit loop can see it too.
+            let account_number = if sota8_active {
+                debit_fallback
+            } else {
                 let priors_opt = &mut self.loaded_priors;
                 let rng_ref = &mut self.rng;
                 if let Some(priors) = priors_opt {
@@ -2721,6 +2748,10 @@ impl JournalEntryGenerator {
             // SOTA-1: override the line's account with the reused archetype's
             // (RNG + text above are unchanged -> amounts/counts/dates stay
             // byte-identical); else capture the fresh account for caching.
+            // SOTA-1 and SOTA-8 compose: SOTA-8 picks the FIRST archetype's accounts
+            // from its per-source pool, then SOTA-1 caches + reuses them. Disabling
+            // SOTA-1 under SOTA-8 actually *worsens* edge concentration — empirically
+            // measured in Round 0 v4: edges/je 0.35 -> 0.82 when SOTA-1 was bypassed.
             if let Some((ref d, _)) = reuse_archetype {
                 if let Some(a) = d.get(i) {
                     line.gl_account = a.clone();
@@ -2738,13 +2769,13 @@ impl JournalEntryGenerator {
         for (i, amount) in credit_amounts.into_iter().enumerate() {
             // SP3 T13 — GL Account fanout for credit lines.
             let credit_fallback = self.select_credit_account().account_number.clone();
-            let account_number = {
+            // SOTA-8 precedence (mirror of the debit-side block above).
+            let account_number = if sota8_active {
+                credit_fallback
+            } else {
                 let priors_opt = &mut self.loaded_priors;
                 let rng_ref = &mut self.rng;
                 if let Some(priors) = priors_opt {
-                    // SP4.6 — role-aware GL account selection: try (source, "CR")
-                    // conditional first, then fall back to SP3.7 source-marginal,
-                    // then to the fanout sampler, then to the default credit account.
                     let sp46_gl = entry
                         .header
                         .sap_source_code
@@ -2753,14 +2784,12 @@ impl JournalEntryGenerator {
                     if let Some(gl) = sp46_gl {
                         gl
                     } else {
-                        // SP3.7 — try per-source marginal GL account.
                         let sp37_gl = entry.header.sap_source_code.as_deref().and_then(|code| {
                             priors.sample_attribute_for_source(code, "gl_account", rng_ref)
                         });
                         if let Some(gl) = sp37_gl {
                             gl
                         } else if let Some(sampler) = priors.fanout_samplers.get_mut("GLAccount") {
-                            // SP3.3: prefer neighbor-used buckets when motifs are available.
                             sampler.pick_for_with_neighbors(
                                 &doc_type_for_fanout,
                                 &gl_neighbor_vec,
@@ -2820,6 +2849,7 @@ impl JournalEntryGenerator {
 
             // SOTA-1: override the credit line's account with the reused
             // archetype's; else capture the fresh account for caching.
+            // (Same compose-with-SOTA-8 rationale as the debit block.)
             if let Some((_, ref c)) = reuse_archetype {
                 if let Some(a) = c.get(i) {
                     line.gl_account = a.clone();
@@ -3031,6 +3061,8 @@ impl JournalEntryGenerator {
 
         // SP3.6 — sample SAP source code for the batch entry when priors loaded.
         let sap_source_code: Option<String> = self.sample_sap_source_code();
+        // SOTA-8: stash the batch JE's source for the per-source pool consult.
+        self.current_je_source = sap_source_code.clone();
 
         // Use the batch's business process
         let business_process = batch.base_business_process.unwrap_or(BusinessProcess::R2R);
@@ -3918,8 +3950,76 @@ impl JournalEntryGenerator {
         }
     }
 
+    /// SOTA-8: ensure a `SourcePool` exists for `source` in the sampler (lazy build).
+    /// One pool per source, persisted across JEs (sampler grows monotonically).
+    fn ensure_cond_pair_pool(&mut self, source: &str) {
+        let cfg = &self.config.source_conditional_account_pair;
+        if !cfg.enabled {
+            return;
+        }
+        if self.cond_pair_sampler.is_none() {
+            self.cond_pair_sampler = Some(Default::default());
+        }
+        let sampler = self
+            .cond_pair_sampler
+            .as_mut()
+            .expect("just-initialised above");
+        if sampler.pool(source).is_some() {
+            return;
+        }
+        let all_accounts: Vec<String> = self
+            .coa
+            .accounts
+            .iter()
+            .map(|a| a.account_number.clone())
+            .collect();
+        if all_accounts.is_empty() {
+            return;
+        }
+        // Uniform weights here — the existing account-Pareto (account_concentration)
+        // still applies at the outer fallback level if the per-source pool isn't used.
+        let weights: Vec<f64> = vec![1.0; all_accounts.len()];
+        sampler.ensure_pool(
+            source,
+            &all_accounts,
+            &weights,
+            cfg.accts_per_source_target,
+            cfg.concentration,
+            &mut self.cond_pair_rng,
+        );
+    }
+
+    /// SOTA-8: if the feature is enabled and the current JE has a source with a
+    /// pool, pick an *account number* from the per-source PMF. Returns an owned
+    /// `String` so the caller can release the mutable self-borrow before looking
+    /// up the `GLAccount` in `self.coa`.
+    #[inline]
+    fn try_cond_pick_account_number(&mut self) -> Option<String> {
+        let cfg = &self.config.source_conditional_account_pair;
+        if !cfg.enabled {
+            return None;
+        }
+        let src = self.current_je_source.clone()?;
+        self.ensure_cond_pair_pool(&src);
+        let sampler = self.cond_pair_sampler.as_ref()?;
+        let pool = sampler.pool(&src)?;
+        Some(pool.sample_one(&mut self.cond_pair_rng).to_string())
+    }
+
     #[inline]
     fn select_debit_account(&mut self) -> &GLAccount {
+        // SOTA-8 source-conditional pick when feature is enabled.
+        if let Some(acct_num) = self.try_cond_pick_account_number() {
+            if let Some(a) = self
+                .coa
+                .accounts
+                .iter()
+                .find(|a| a.account_number == acct_num)
+            {
+                return a;
+            }
+            // Sampler chose an account not in CoA (defensive fall-through).
+        }
         let accounts = self.coa.get_accounts_by_type(AccountType::Asset);
         let expense_accounts = self.coa.get_accounts_by_type(AccountType::Expense);
 
@@ -3942,6 +4042,17 @@ impl JournalEntryGenerator {
 
     #[inline]
     fn select_credit_account(&mut self) -> &GLAccount {
+        // SOTA-8 source-conditional pick when feature is enabled.
+        if let Some(acct_num) = self.try_cond_pick_account_number() {
+            if let Some(a) = self
+                .coa
+                .accounts
+                .iter()
+                .find(|a| a.account_number == acct_num)
+            {
+                return a;
+            }
+        }
         let liability_accounts = self.coa.get_accounts_by_type(AccountType::Liability);
         let revenue_accounts = self.coa.get_accounts_by_type(AccountType::Revenue);
 

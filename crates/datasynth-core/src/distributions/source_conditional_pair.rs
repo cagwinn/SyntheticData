@@ -189,6 +189,35 @@ impl SourceConditionalPairSampler {
         self.pools.get(source)
     }
 
+    /// Lazy-add a per-source pool if one isn't already present. Returns `true` iff a
+    /// new pool was inserted; `false` if `source` was already pooled (no-op). Uses the
+    /// same LogNormal(0, 0.3) jitter on the pool size as `new`, so a sampler built up
+    /// one source at a time has the same distribution as one built with all sources
+    /// at once.
+    pub fn ensure_pool(
+        &mut self,
+        source: &str,
+        all_accounts: &[String],
+        account_weights: &[f64],
+        accts_per_source_target: usize,
+        alpha: f64,
+        rng: &mut ChaCha8Rng,
+    ) -> bool {
+        if self.pools.contains_key(source) {
+            return false;
+        }
+        let jitter = LogNormal::new(0.0, 0.3).expect("sigma > 0");
+        let mult = jitter.sample(rng);
+        let n_s = ((accts_per_source_target as f64 * mult).round() as usize)
+            .max(2)
+            .min(all_accounts.len());
+        self.pools.insert(
+            source.to_string(),
+            SourcePool::new(n_s, all_accounts, account_weights, alpha, rng),
+        );
+        true
+    }
+
     /// Sample a `(debit_account, credit_account)` pair conditioned on `source`.
     /// Returns `None` if the source isn't in the sampler — the caller should fall back
     /// to the existing global account picker.

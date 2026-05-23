@@ -1727,6 +1727,49 @@ pub struct TransactionConfig {
     /// Benford's Law compliance configuration
     #[serde(default)]
     pub benford: BenfordConfig,
+    /// SOTA-8 (FINDINGS §14): source-conditional Dirichlet account-pair sampler.
+    /// Models the corpus finding that per-source account usage is *concentrated*
+    /// (entropy ~0.68 vs synth 0.97) over a *larger* pool (~23 vs 5 accts/source).
+    /// Default off — opt-in so existing synthetic streams stay byte-identical;
+    /// enable for audit-realism + tighter inverse-audit normal manifold.
+    #[serde(default)]
+    pub source_conditional_account_pair: SourceConditionalAccountPairConfig,
+}
+
+/// SOTA-8 — per-source Dirichlet over account pairs. Concentration α controls
+/// per-source structure tightness (low α = razor-tight prior, high α = diffuse);
+/// `accts_per_source_target` controls the per-source account-pool size.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct SourceConditionalAccountPairConfig {
+    /// Enable the source-conditional account-pair sampler (default off).
+    #[serde(default)]
+    pub enabled: bool,
+    /// Symmetric Dirichlet α — lower = more concentrated PMF per source.
+    /// α=0.5 + N_s=25 ⇒ expected normalised entropy ≈ 0.65 (corpus median 0.68).
+    #[serde(default = "default_source_cond_concentration")]
+    pub concentration: f64,
+    /// Expected distinct accounts per source (jittered by LogNormal(0, 0.3)).
+    /// Corpus median 23.5; synth pre-SOTA-8 is ~5.
+    #[serde(default = "default_accts_per_source_target")]
+    pub accts_per_source_target: usize,
+}
+
+fn default_source_cond_concentration() -> f64 {
+    0.5
+}
+
+fn default_accts_per_source_target() -> usize {
+    25
+}
+
+impl Default for SourceConditionalAccountPairConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            concentration: default_source_cond_concentration(),
+            accts_per_source_target: default_accts_per_source_target(),
+        }
+    }
 }
 
 /// Benford's Law compliance configuration.
