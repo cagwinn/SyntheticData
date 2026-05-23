@@ -538,6 +538,10 @@ for UnusualAccountPair; counterparty-relationship model for NewCounterparty /
 MissingRelationship). Stage 2 — the corpus GL with expert review of top residuals — is
 gated on continued forward-fidelity (§9/§10) rather than on the detector design.
 
-Reproduce: `experiments/ml/inverse_audit/{generate_mixed,unified_score}.py` →
-`/tmp/iam/unified.json`; relational-only training set: `generate_relational.py` →
-`relational/graph_scorer.py` → `/tmp/iar/graph_scores.assess.json`.
+Reproduce: `python -m inverse_audit.run_capstone` runs the full pipeline (mixed-GL
+generation → density + relational scoring → unified + observability + graph export) and
+writes `{root}/unified.json` plus a substrate-ingestable graph JSON
+(`{root}/account_flow_graph.json`, node/edge/per-JE schema, decoupled — no DataSynth →
+external dependency). On the mixed GL: **362 accounts / 20 878 directed edges / 42 nodes
+in test-only cycles / 4 622 new-in-test edges** — these are the audit hot list a graph DB
+or living-graph substrate can route to scored JEs.

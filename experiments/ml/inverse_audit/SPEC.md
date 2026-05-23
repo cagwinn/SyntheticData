@@ -36,7 +36,10 @@ New modules:
   generate_relational.py       relational-only GL (fraud off, anomaly_injection on).
   generate_mixed.py            mixed GL (both on) — substrate for routing measurement.
   unified_score.py             three-arm join + per-family observability map.
-  run_capstone.py              one-shot end-to-end reproduction of §12.
+  relational/graph_export.py   decoupled graph-JSON export — node/edge/per-JE payload for
+                                downstream substrate ingestion (graph DB / RustGraph living
+                                graph / notebook). No DataSynth→external dependency.
+  run_capstone.py              one-shot end-to-end reproduction of §12 + graph export.
 
 Reproduce (synthetic, in-distribution):
 

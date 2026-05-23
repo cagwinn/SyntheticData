@@ -51,13 +51,20 @@ def main(argv: list[str] | None = None) -> None:
     # density + relational + unified + observability map (unified_score shells out to both arms)
     sh("inverse_audit.unified_score", "--root", str(R), "--out", str(R / "unified.json"))
 
+    # Decoupled graph-JSON export for downstream substrate ingestion (e.g. RustGraph).
+    sh("inverse_audit.relational.graph_export",
+       "--normal", str(R / "normal"), "--test", str(R / "test"),
+       "--scores", str(R / "graph_scores.parquet"),
+       "--out", str(R / "account_flow_graph.json"))
+
     print()
     print("=" * 64)
-    print(f"CAPSTONE_DONE — three-arm routed detector measured.")
+    print(f"CAPSTONE_DONE — three-arm routed detector measured + graph exported.")
     print(f"  raw GL          : {R}/normal,  {R}/test")
     print(f"  density scores  : {R}/density_scores.parquet")
     print(f"  graph scores    : {R}/graph_scores.parquet")
     print(f"  routing result  : {R}/unified.json   (reproduces FINDINGS §12)")
+    print(f"  graph (JSON)    : {R}/account_flow_graph.json   (substrate-ingestable, decoupled)")
 
 
 if __name__ == "__main__":

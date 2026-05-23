@@ -12,12 +12,12 @@ engine; "corpus data" legal.
 
 ---
 ## Status
-- **Now:** v5 source_cond_edge_surprise added — second-best single feature (ROC 0.550) but the
-  unsupervised z-sum has saturated around PR-AUC 0.22 / ROC 0.55 on /tmp/iar (LR-CV ceiling
-  0.239/0.598 essentially unchanged). UnusualAccountPair lifted from 0.480 → 0.487 — directional
-  but small. Honest finding: unweighted-sum saturation; next breakthrough needs per-family routing
-  or a learned weighting, not more features. Pivoting to I8 next wake (graph-JSON for RG substrate).
-- **Last update:** 2026-05-23 ~06:25 (wake 6 close), increment 6.
+- **Now:** I8 done — decoupled graph-JSON export landed (`relational/graph_export.py`). On the
+  mixed GL: 362 nodes / 20 878 edges / **42 new-in-test SCC nodes / 4 622 new-in-test edges /
+  831 anomalous JEs** — substrate-ingestable. `run_capstone.py` extended to write the JSON.
+  Capstone Stage 1 is now fully closed at every level (feature engineering plateaued at v5,
+  substrate export shipped, FINDINGS §12 + SPEC + observability map landed).
+- **Last update:** 2026-05-23 ~07:30 (wake 7 close), increment 7.
 
 ## Increment ledger
 - [x] **I1** plan + PROGRESS + `generate_relational.py` + `relational/ot_flow.py` rung-1 (self-test ✓) +
@@ -68,8 +68,11 @@ engine; "corpus data" legal.
       relational best for DormantAccountActivity, CentralityAnomaly, TrendBreak; unified for the
       borderline ones). Formal held-out / ablations skipped — features are unsupervised at deploy,
       and per-feature ROC + LR-CV ceiling already characterise the rigor envelope.
-- [ ] **I8** graph-JSON export (decoupled, files only) + optional RustGraph substrate validation
-      (RG-side, user-authorised). Deferred — capstone closes without it; substrate is a follow-on.
+- [x] **I8** decoupled graph-JSON export (commit e4114422 + run_capstone wire-up). Generic node/edge/
+      per-JE schema; no DataSynth→external dependency. /tmp/iam: 362 nodes / 20 878 edges /
+      42 new-test-SCC nodes / 4 622 new-test edges / 831 anomalous JEs joined in. RustGraph
+      substrate ingestion (RG-side, authorised) is the follow-on left for the user — the JSON
+      is ready, decoupled, and meets the b27 living-graph vision substrate contract.
 - [x] **I9** FINDINGS §12 written — "Stage 1 closeout — relational arm + unified routed detector":
       tables for the three-armed result, the observability map, and the throughline. Reproducible via
       `generate_mixed.py → unified_score.py`.
@@ -123,6 +126,16 @@ engine; "corpus data" legal.
   - I9 polish: `run_capstone.py` one-shot reproducer + SPEC.md updated.
   - Final mixed-GL unified result (v4): unified vs is_any **PR-AUC 0.397 / ROC 0.655** vs density-alone
     0.373/0.641 — routing thesis holds; the night closes with three arms validated end-to-end.
+- Wake 7 (07:04–07:30):
+  - I8 graph-JSON export (`relational/graph_export.py`, commits f2a48798 + e4114422) — generic
+    node/edge/per-JE schema, decoupled from any substrate. Wired into `run_capstone.py` so a
+    single command emits the full pipeline outputs including the graph. /tmp/iam result:
+    362 nodes (with PR-on-normal + PR-on-test + normal_je_count + SCC membership + new-in-test
+    SCC flag) / 20 878 edges (with weight_normal/test + p_normal/test + is_new_in_test) /
+    10 275 per-JE scores (relational_score + every feature + is_anomaly_je + anomaly_type).
+    42 new-in-test SCC nodes and 4 622 new-in-test edges are the substrate's audit hot list.
+  - Capstone closeout at every level: feature engineering (v3-v5), unified routing thesis (I6),
+    observability map (I7), graph-JSON substrate (I8), FINDINGS §12 + SPEC + reproducer.
 - Wake 6 (05:55–06:25):
   - I5 v5: added `source_cond_edge_surprise_max` = max -log P_normal(edge | source) — commit 4e148b23.
     **Per-feature ROC 0.550** (2nd-best, behind cycle_novelty 0.553). But the overall unsupervised
