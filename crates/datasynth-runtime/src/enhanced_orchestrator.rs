@@ -12147,19 +12147,26 @@ impl EnhancedOrchestrator {
                 }
             }
 
-            if !effective.enabled || !ConcentrationPipeline::from_config(&effective).is_active() {
+            if !effective.enabled {
                 0
             } else {
-                let pipeline = ConcentrationPipeline::from_config(&effective);
-                // Per-pipeline seed disjoint from every other generator stream.
-                const CONCENTRATION_SEED_OFFSET: u64 = 0xC0_C3_E1_47_10_43_77_3B;
-                let stats =
-                    pipeline.run(entries, self.seed.wrapping_add(CONCENTRATION_SEED_OFFSET));
-                stats
-                    .iter()
-                    .filter(|s| s.pass == "source_conditional_rarity")
-                    .map(|s| s.entries_modified)
-                    .sum()
+                let pipeline = ConcentrationPipeline::from_config(&effective)
+                    .map_err(|e| SynthError::generation(format!(
+                        "ConcentrationPipeline construction failed: {e}"
+                    )))?;
+                if !pipeline.is_active() {
+                    0
+                } else {
+                    // Per-pipeline seed disjoint from every other generator stream.
+                    const CONCENTRATION_SEED_OFFSET: u64 = 0xC0_C3_E1_47_10_43_77_3B;
+                    let stats = pipeline
+                        .run(entries, self.seed.wrapping_add(CONCENTRATION_SEED_OFFSET));
+                    stats
+                        .iter()
+                        .filter(|s| s.pass == "source_conditional_rarity")
+                        .map(|s| s.entries_modified)
+                        .sum()
+                }
             }
         };
 

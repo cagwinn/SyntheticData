@@ -115,6 +115,91 @@ def measure_one(df: pd.DataFrame, label: str) -> dict:
     return out
 
 
+MIN_JES_PER_SOURCE_FOR_PMF = 50
+
+
+def _dominant_pairs(df: pd.DataFrame) -> list[tuple[str, str]]:
+    """Per JE, return the dominant `(debit_acct, credit_acct)` pair —
+    same algorithm as `_edges_per_je_and_concentration`. Returned in
+    deterministic JE-iteration order so the PMF is reproducible."""
+    def _pair(g: pd.DataFrame) -> tuple:
+        d = g[g["debit_amount"] > 0]
+        c = g[g["credit_amount"] > 0]
+        if d.empty or c.empty:
+            return (None, None)
+        return (str(d.loc[d["debit_amount"].idxmax(),  "gl_account"]),
+                str(c.loc[c["credit_amount"].idxmax(), "gl_account"]))
+    pairs = df.groupby("document_id", sort=False).apply(_pair, include_groups=False)
+    return [p for p in pairs if p[0] is not None]
+
+
+def emit_pair_pmf(corpus_dfs: list[pd.DataFrame],
+                  min_jes_per_source: int = MIN_JES_PER_SOURCE_FOR_PMF) -> dict:
+    """Aggregate per-source `(debit, credit)` PMFs across corpus dataframes.
+
+    Returns a dict serialisable as `corpus_pair_pmf.json` — the on-disk format
+    consumed by Rust's `AccountPairSubstitutionPass`. Aggregate only — no row
+    content, no client identifiers, no document IDs.
+
+    Schema (v1):
+        {
+          "schema_version": 1,
+          "min_jes_per_source": <int>,
+          "produced_by": "corpus_vs_synth_gap.py --emit-pair-pmf",
+          "pmfs": [
+            { "source": <str>, "n_jes": <int>,
+              "pmf": [ [<debit>, <credit>, <p>], ... ] },
+            ...
+          ]
+        }
+    """
+    from collections import Counter
+
+    # Collect (source, (debit_acct, credit_acct)) tuples across corpus shards.
+    per_source: dict[str, Counter] = {}
+    for df in corpus_dfs:
+        if "source" not in df.columns:
+            continue
+        # Build a JE -> source lookup, then dominant-pair-per-JE.
+        je_source = df.groupby("document_id", sort=False)["source"] \
+            .first().astype(str).to_dict()
+        # Reuse the dominant-pair logic with JE id preserved.
+        def _pair_with_id(g: pd.DataFrame) -> tuple:
+            d = g[g["debit_amount"] > 0]
+            c = g[g["credit_amount"] > 0]
+            if d.empty or c.empty:
+                return (None, None)
+            return (str(d.loc[d["debit_amount"].idxmax(),  "gl_account"]),
+                    str(c.loc[c["credit_amount"].idxmax(), "gl_account"]))
+        pairs = df.groupby("document_id", sort=False) \
+                  .apply(_pair_with_id, include_groups=False)
+        for doc_id, pair in pairs.items():
+            if pair[0] is None:
+                continue
+            src = je_source.get(doc_id)
+            if not src or src == "nan":
+                continue
+            per_source.setdefault(src, Counter())[pair] += 1
+
+    pmfs = []
+    for src, counts in per_source.items():
+        total = sum(counts.values())
+        if total < min_jes_per_source:
+            continue
+        triples = [(d, c, n / total) for (d, c), n in counts.most_common()]
+        pmfs.append({"source": src, "n_jes": int(total), "pmf": triples})
+
+    # Sort sources alphabetically so output is deterministic.
+    pmfs.sort(key=lambda x: x["source"])
+
+    return {
+        "schema_version": 1,
+        "min_jes_per_source": min_jes_per_source,
+        "produced_by": "corpus_vs_synth_gap.py --emit-pair-pmf",
+        "pmfs": pmfs,
+    }
+
+
 def main(argv: list[str] | None = None) -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--corpus-parquets", type=Path, nargs="+", required=True,
@@ -123,11 +208,18 @@ def main(argv: list[str] | None = None) -> None:
                     help="canonical synthetic GL journal_entries.csv (typically the "
                          "Stage 1 archive ia_canonical_v5/test/journal_entries.csv)")
     ap.add_argument("--out", type=Path, required=True, help="gap report json")
+    ap.add_argument("--emit-pair-pmf", type=Path, default=None,
+                    help="optional: write per-source (debit,credit) PMF JSON to "
+                         "this path. Consumed by Rust ConcentrationPipeline's "
+                         "AccountPairSubstitutionPass (#143 Phase 2). Aggregate only.")
+    ap.add_argument("--min-jes-per-source", type=int, default=MIN_JES_PER_SOURCE_FOR_PMF,
+                    help=f"PMF sparsity guard (default {MIN_JES_PER_SOURCE_FOR_PMF})")
     a = ap.parse_args(argv)
     a.out.parent.mkdir(parents=True, exist_ok=True)
 
     import hashlib
     corpus_results = []
+    corpus_dfs_for_pmf: list[pd.DataFrame] = []  # only populated if --emit-pair-pmf
     for p in a.corpus_parquets:
         tag = os.path.basename(p)
         sha = hashlib.sha1(tag.encode()).hexdigest()[:8]
@@ -139,6 +231,8 @@ def main(argv: list[str] | None = None) -> None:
         r = measure_one(df, label=f"corpus[{sha}]")
         r["size_mb"] = round(os.path.getsize(p) / 1e6, 1)
         corpus_results.append(r)
+        if a.emit_pair_pmf is not None:
+            corpus_dfs_for_pmf.append(df)
         print(f"corpus[{sha}] {r['size_mb']:>5.1f}MB  jes={r['n_jes']:>7,}  "
               f"lines/je p99={r['lines_per_je']['p99']:>4d}  tp={r['tp_set_size']:>4d}  "
               f"edges/je={r['edges']['edges_per_je']:.4f}  "
@@ -205,6 +299,17 @@ def main(argv: list[str] | None = None) -> None:
         "corpus": corpus_results, "synth": synth, "gap_table": gap_table,
     }, indent=2))
     print(f"\nfull report -> {a.out}")
+
+    # Optional: emit per-source pair PMF for Phase-2 AccountPairSubstitutionPass.
+    if a.emit_pair_pmf is not None and corpus_dfs_for_pmf:
+        a.emit_pair_pmf.parent.mkdir(parents=True, exist_ok=True)
+        pmf = emit_pair_pmf(corpus_dfs_for_pmf,
+                            min_jes_per_source=a.min_jes_per_source)
+        a.emit_pair_pmf.write_text(json.dumps(pmf, indent=2))
+        total_pairs = sum(len(p["pmf"]) for p in pmf["pmfs"])
+        total_jes = sum(p["n_jes"] for p in pmf["pmfs"])
+        print(f"\nemitted PMF — {len(pmf['pmfs'])} sources, {total_pairs:,} pairs, "
+              f"{total_jes:,} JEs -> {a.emit_pair_pmf}")
 
 
 if __name__ == "__main__":

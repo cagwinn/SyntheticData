@@ -32,9 +32,13 @@ use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
 use serde::Serialize;
 
+pub mod account_pair_substitution;
 pub mod source_conditional_rarity_pass;
 pub mod trading_partner_pool;
 
+pub use account_pair_substitution::{
+    AccountPairSubstitutionError, AccountPairSubstitutionPass,
+};
 pub use source_conditional_rarity_pass::SourceConditionalRarityPass;
 pub use trading_partner_pool::TradingPartnerPoolPass;
 
@@ -99,6 +103,26 @@ pub struct ConcentrationStats {
 // Pipeline
 // ---------------------------------------------------------------------------
 
+/// Errors from constructing a `ConcentrationPipeline`. Currently only one
+/// fallible source (Phase-2 AccountPairSubstitutionPass loads its PMF file);
+/// the enum is open for future pass-construction errors.
+#[derive(Debug)]
+pub enum ConcentrationPipelineError {
+    AccountPairSubstitution(AccountPairSubstitutionError),
+}
+
+impl std::fmt::Display for ConcentrationPipelineError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::AccountPairSubstitution(e) => {
+                write!(f, "AccountPairSubstitutionPass: {e}")
+            }
+        }
+    }
+}
+
+impl std::error::Error for ConcentrationPipelineError {}
+
 /// Ordered, deterministic execution of zero or more `ConcentrationPass`
 /// instances. Each pass receives a dedicated ChaCha8 substream so adding or
 /// removing a pass does not perturb the RNG state of any other pass.
@@ -108,12 +132,17 @@ pub struct ConcentrationPipeline {
 
 impl ConcentrationPipeline {
     /// Build a pipeline from config. Returns an empty pipeline if
-    /// `cfg.enabled == false` or no passes are configured.
-    pub fn from_config(cfg: &ConcentrationConfig) -> Self {
+    /// `cfg.enabled == false` or no passes are configured. Returns
+    /// `Err(ConcentrationPipelineError)` if a configured pass fails to
+    /// construct (e.g. Phase-2 AccountPairSubstitutionPass can't read its
+    /// PMF file).
+    pub fn from_config(
+        cfg: &ConcentrationConfig,
+    ) -> Result<Self, ConcentrationPipelineError> {
         let mut passes: Vec<Box<dyn ConcentrationPass>> = Vec::new();
 
         if !cfg.enabled {
-            return Self { passes };
+            return Ok(Self { passes });
         }
 
         if let Some(c) = cfg.source_conditional_rarity.as_ref() {
@@ -122,9 +151,13 @@ impl ConcentrationPipeline {
         if let Some(c) = cfg.trading_partner_pool.as_ref() {
             passes.push(Box::new(TradingPartnerPoolPass::new(c.clone())));
         }
-        // Phase 2 will register AccountPairSubstitutionPass here.
+        if let Some(c) = cfg.account_pair_substitution.as_ref() {
+            let pass = AccountPairSubstitutionPass::from_pmf_file(c.clone())
+                .map_err(ConcentrationPipelineError::AccountPairSubstitution)?;
+            passes.push(Box::new(pass));
+        }
 
-        Self { passes }
+        Ok(Self { passes })
     }
 
     /// Execute every pass in order, each with its own ChaCha8 substream
@@ -180,7 +213,7 @@ mod tests {
     #[test]
     fn empty_config_yields_inactive_pipeline() {
         let cfg = ConcentrationConfig::default();
-        let pipeline = ConcentrationPipeline::from_config(&cfg);
+        let pipeline = ConcentrationPipeline::from_config(&cfg).unwrap();
         assert!(!pipeline.is_active());
         assert_eq!(pipeline.len(), 0);
     }
@@ -194,7 +227,7 @@ mod tests {
             }),
             ..Default::default()
         };
-        let pipeline = ConcentrationPipeline::from_config(&cfg);
+        let pipeline = ConcentrationPipeline::from_config(&cfg).unwrap();
         assert!(!pipeline.is_active(), "master-switch-off must override pass configs");
     }
 
@@ -212,7 +245,7 @@ mod tests {
             }),
             ..Default::default()
         };
-        let pipeline = ConcentrationPipeline::from_config(&cfg);
+        let pipeline = ConcentrationPipeline::from_config(&cfg).unwrap();
         assert!(pipeline.is_active());
         assert_eq!(pipeline.len(), 2);
     }
