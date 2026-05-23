@@ -12,11 +12,11 @@ engine; "corpus data" legal.
 
 ---
 ## Status
-- **Now:** Stage 2 (corpus) operational and validated at two scales. `corpus_runner` handles
-  fit-on-self + half-split + substrate JSON; `corpus_batch.py` sweeps multiple files with SHA-tagged
-  output dirs (no client names committed). Next: cross-file aggregate run (a sample per industry)
-  to characterise corpus-wide residual fingerprints.
-- **Last update:** 2026-05-23 ~08:55 (wake 8 close), increment 8.
+- **Now:** Stage 2 (corpus) operational + validated at two scales. Stage 1 canonical archive
+  assembled at `~/DEV/local-artifacts/inverse_audit_stage1/` (240 MB: canonical_v5 run, iar, ia,
+  posterior.pt, pairs.npz) ahead of VM decommission. Pure-local Python from here on. Next:
+  cross-file aggregate batch run (per-industry sample) for corpus-wide residual fingerprints.
+- **Last update:** 2026-05-23 ~09:00 (Stage 1 archive + VM ready for decom).
 
 ## Increment ledger
 - [x] **I1** plan + PROGRESS + `generate_relational.py` + `relational/ot_flow.py` rung-1 (self-test ✓) +
