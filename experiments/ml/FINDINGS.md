@@ -599,3 +599,27 @@ Leisure was excluded — its smallest file is 162 MB and would dominate the swee
 These are corpus-wide *aggregate* signatures only. The audit-actionable next step is
 expert review of the **top-1% per-industry JE ID lists** (written by `corpus_runner`)
 against the original GLs — done by an auditor, not the model.
+
+**Cap-artifact check — what dominates the heavy tails?** A `_LOG_EPS=30` cap on
+`-log P(edge)` ensures finite scores when an edge is unseen in the normal half; the
+Life Sciences max-82 tail raised the worry that sparse-manifold cases were just
+cap-firing on `edge_surprise`. Decomposing the top-1% per industry — what fraction of
+top JEs sit at the cap, and how many features (of 6) are simultaneously above the
+non-top p90:
+
+| industry | top@cap (`edge_surprise_max`) | features active per top JE |
+|---|--:|--:|
+| Life Sciences                  | 0.8 % | **4.08** |
+| Power & Utilities              | 1.0 % | 4.02 |
+| Government and Public Sector   | 1.0 % | 3.03 |
+| Technology                     | 0.0 % | 3.73 |
+| Professional Firms & Services  | 10.6 % | 3.66 |
+| Health                         |  9.1 % | 3.32 |
+
+The cap-artifact hypothesis is **rejected for the large-sample industries**: Life
+Sciences' top-1% activates **4+ features simultaneously** on average — a genuine
+multi-feature anomaly. The cap *does* fire more in the small-sample files (Health,
+Professional Firms — single-digit thousand JEs), where the manifold has too few edges
+to discriminate cleanly. So the practical guidance is *not* "lift `_LOG_EPS`" but
+*"distrust the score on tiny GLs"* — for files <~5 k JEs, treat the top-1% as a
+suggested-look list rather than ranked by raw score.

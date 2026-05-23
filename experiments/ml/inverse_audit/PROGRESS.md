@@ -12,13 +12,12 @@ engine; "corpus data" legal.
 
 ---
 ## Status
-- **Now:** Stage 2 cross-industry sweep done (6 industries, ~20 min, FINDINGS §13). Per-industry
-  residual fingerprints: heavy-tailed everywhere; dormancy is the most stable signal (p99 in tight
-  7.9–9.95 band); tail magnitude tracks **manifold sparsity**, not JE count (Life Sciences max 82
-  has 1542 edges across 141k JEs; Power & Utilities max 27 has 11,749 edges across similar JE
-  count). Pharmaceutical exclusion noted (registry-like smallest parquet); runner now raises a
-  clear ValueError on schema drift.
-- **Last update:** 2026-05-23 ~09:50 (per-industry sweep + §13).
+- **Now:** Stage 2 cross-industry sweep done + cap-artifact analysis added (§13). Life Sciences'
+  max-82 tail is REAL (only 0.8% at cap, 4.08 features active per top-JE — multi-feature anomaly).
+  Cap-firing concentrates in *small* files (Health, Professional Firms at 9-11% top@cap, single-
+  digit-thousand JEs) where the manifold is under-determined. Practical guidance recorded:
+  distrust raw score ranking on tiny GLs.
+- **Last update:** 2026-05-23 ~10:30 (composition analysis + §13 update).
 
 ## Increment ledger
 - [x] **I1** plan + PROGRESS + `generate_relational.py` + `relational/ot_flow.py` rung-1 (self-test ✓) +
