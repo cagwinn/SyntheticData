@@ -713,3 +713,59 @@ Five concrete findings + corrections that fed back into the SOTA backlog:
 Stage 2 doesn't need anything *more* from Round 0 — every gap above is now numerically
 quantified and each subsequent engine round will close part of it (re-running this
 script after each is the validation pattern).
+
+## 15. SOTA-N realism round — scorecard + central-abstraction motivation (2026-05-23)
+
+Five planned SOTA-N levers, all landed or with documented blockers. Two delivered
+measurable corpus-gap closure end-to-end; two hit the same multi-generator coverage
+blocker; one shipped as a post-process module that sidesteps the blocker by design.
+
+**Per-lever scorecard:**
+
+| #   | lever                                  | outcome  | what moved                                                                |
+|-----|----------------------------------------|----------|----------------------------------------------------------------------------|
+| 8   | source-conditional Dirichlet sampler   | blocked  | sampler + integration ship; can't reach doc-flow / allocation / period-close generators → #141 |
+| 9   | archetype reuse @ 0.97                 | **shipped** | edges/je 0.062 → 0.054 (−15%); lines/je max 8 804 → 2 133 (4× reduction) |
+| 10  | lines_per_je_cap = 100                 | **shipped** | mean 5.88 → **4.30** ≈ corpus 4.27; p99.9 → 98 ≈ corpus 99; max → 104; accts/source p99 → 100.8 |
+| 11  | TP pool size + consolidated preset     | blocked  | master_data.vendor.count doesn't reach doc-flow generators → #142          |
+| 12  | source-conditional rarity injector     | **shipped** (module) | post-process tagger + 4 tests; ~30 LOC orchestrator wire-up remaining |
+
+**Round 0 corpus-vs-synth movement** (baseline → after-shipped-levers, all values
+on the same `corpus_vs_synth_gap.py` config):
+
+| metric                       | corpus | baseline | after | corpus / after | status                  |
+|------------------------------|-------:|---------:|------:|---------------:|-------------------------|
+| `lines/je mean`              |  4.27  | 5.88     | 4.30  | **0.99×**      | corpus-match (within 1%) |
+| `lines/je p99.9`             |  99    | 98       | 98    | **1.01×**      | corpus-match            |
+| `lines/je max`               |  924   | 8 804    | 104   | 8.88×          | overcorrected (cap fires) |
+| `accts/source p99`           |  147   | 121      | 100.8 | **1.46×**      | best yet, closer than corpus baseline |
+| `edges/je` (manifold density)| 0.008  | 0.062    | 0.054 | 0.14×          | still 7× off (SOTA-9 only ~15%) |
+| `lines/je p99`               |  18    | 66       | 62    | 0.30×          | still 3.4× off (mid-tail) |
+| `tp_set_size`                | 10.5   | 35       | 35    | 0.30×          | unmoved (SOTA-11 blocked) |
+| `src-cond entropy median`    | 0.68   | 0.97     | 0.97  | 0.71×          | unmoved (SOTA-8 blocked) |
+| `accts/source median`        | 23.5   | 5        | 5     | 4.70×          | unmoved (SOTA-8 blocked) |
+
+**The blocker pattern.** Three of the five planned levers (SOTA-8, SOTA-11, the
+`edges/je` long tail) ran into the same architectural issue: the synthetic engine has
+**many independent generator modules** — `je_generator` (the main path), document-flow
+generators (p2p, o2c), allocation/balance/period-close, subledger, intercompany. Each
+has its own account / TP / line-count selection logic. A config knob added to one
+generator is bypassed by all the others. Round 0 directly confirmed this: small
+`master_data.vendor.count` doesn't move `tp_set_size`; SOTA-8 precedence over SP3/SP4
+priors doesn't move `src-cond entropy`; manifold density only partially closes because
+allocation/document-flow JEs feed their own edges.
+
+**The deliberate counter-example: SOTA-12.** Designed up-front as a **post-process**
+over the generated JE batch — single integration point, covers every JE regardless
+of producer. Module shipped + tested + clippy clean; ~30 LOC orchestrator wire-up
+remaining. Confirms the architectural lesson by inversion: the lever that *doesn't*
+need to be threaded through all generators ships cleanly.
+
+**Forward path — central concentration abstraction.** Both `edges/je` (synth 7× too
+diffuse) and `tp_set_size` (synth 3.3× too high) are *distributional concentration*
+problems. Closing them with the per-lever pattern would need SOTA-8.1 + SOTA-11.1 +
+likely SOTA-9.1 + future similar refactors. Each one touches every generator. The
+honest read of the round is that the architectural cost is now greater than the
+single-time cost of building the **shared concentration abstraction** the next round
+is designed around (spec: `docs/superpowers/specs/2026-05-23-central-abstraction-
+proposal.md`).
