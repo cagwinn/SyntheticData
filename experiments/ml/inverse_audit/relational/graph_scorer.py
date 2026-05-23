@@ -36,7 +36,7 @@ _LOG_EPS = 30.0
 # features summed (positive-prior, unsupervised) into relational_score
 _SCORE_FEATURES = ("edge_surprise_max", "edge_surprise_w",
                    "tp_account_novelty", "account_dormancy_max",
-                   "cycle_novelty")
+                   "cycle_novelty", "source_cond_edge_surprise_max")
 # all features computed (for per-feature ROC reporting / LR-CV)
 _ALL_FEATURES = _SCORE_FEATURES + ("back_edge", "centrality_max", "tp_novelty", "coupling_entropy")
 
@@ -126,20 +126,43 @@ def fit_graph_manifold(normal_df: pd.DataFrame) -> dict:
                       .groupby("gl_account").size())
         acc_count = {str(k): int(v) for k, v in c.items()}
     normal_scc_set = _scc_set(edge_w)
+    # per-source edge frequencies — for source-conditional surprise.
+    # P_normal(edge | source): a JE flow rare under its source's prior fires high
+    # even when the global edge_p is moderate (the UnusualAccountPair mechanism).
+    edge_p_by_source: dict[str, dict[tuple[str, str], float]] = {}
+    if "source" in normal_df.columns:
+        je_src = (normal_df.groupby("document_id", sort=False)["source"]
+                            .first().astype(str).to_dict())
+        by_src: dict[str, dict[tuple[str, str], float]] = {}
+        for je_id, (flows, _) in per.items():
+            src = je_src.get(je_id)
+            if src is None or src == "nan":
+                continue
+            bs = by_src.setdefault(str(src), {})
+            for s, d, w in flows:
+                bs[(s, d)] = bs.get((s, d), 0.0) + w
+        for src, edges in by_src.items():
+            t = sum(edges.values()) or 1.0
+            edge_p_by_source[src] = {k: v / t for k, v in edges.items()}
     return {"edge_p": edge_p, "pagerank": pr, "tp_set": tp_set,
             "tp_acc_set": tp_acc_set, "acc_count": acc_count,
             "normal_scc_set": normal_scc_set,
+            "edge_p_by_source": edge_p_by_source,
             "n_normal_jes": len(per)}
 
 
 def score_je(flows, je_tp: list[str] | None,
-             je_tp_acc_pairs: set[tuple[str, str]] | None, manifold) -> dict:
+             je_tp_acc_pairs: set[tuple[str, str]] | None,
+             manifold, je_source: str | None = None) -> dict:
     edge_p = manifold["edge_p"]; pr = manifold["pagerank"]
     tp_set = manifold["tp_set"]; tp_acc_set = manifold["tp_acc_set"]
     acc_count = manifold["acc_count"]
+    edge_p_by_src = manifold.get("edge_p_by_source", {})
+    src_p = edge_p_by_src.get(str(je_source), {}) if je_source else {}
     if not flows:
         return {f: 0.0 for f in _ALL_FEATURES} | {"n_edges": 0}
     sur, wts, back, cmax = [], [], 0.0, 0.0
+    src_sur: list[float] = []
     accts: set[str] = set()
     for s, d, w in flows:
         p = edge_p.get((s, d), _EPS)
@@ -148,6 +171,9 @@ def score_je(flows, je_tp: list[str] | None,
         if (d, s) in edge_p:
             back = 1.0
         accts.add(s); accts.add(d)
+        if src_p:
+            ps = src_p.get((s, d), _EPS)
+            src_sur.append(min(-np.log(ps), _LOG_EPS))
     for a in accts:
         cmax = max(cmax, pr.get(a, 0.0))
     sur_a = np.asarray(sur); w_a = np.asarray(wts)
@@ -172,6 +198,7 @@ def score_je(flows, je_tp: list[str] | None,
             "tp_novelty": int(novel_tp),
             "tp_account_novelty": int(novel_pair),
             "account_dormancy_max": dorm_max,
+            "source_cond_edge_surprise_max": float(max(src_sur)) if src_sur else 0.0,
             "coupling_entropy": 0.0,            # filled by caller from ot_flow
             "n_edges": len(flows)}
 
@@ -210,9 +237,17 @@ def score_df(df: pd.DataFrame, manifold) -> pd.DataFrame:
 
     tps = _je_tps(df)
     tp_accs = _je_tp_accounts(df)
+    # per-JE source (header column; all lines of a JE share it) — for source-conditional surprise.
+    if "source" in df.columns:
+        je_src = (df.groupby("document_id", sort=False)["source"]
+                    .first().astype(str).to_dict())
+        je_src = {str(k): v for k, v in je_src.items()}
+    else:
+        je_src = {}
     rows = []
     for je_id, (flows, h) in per.items():
-        f = score_je(flows, tps.get(je_id), tp_accs.get(je_id), manifold)
+        f = score_je(flows, tps.get(je_id), tp_accs.get(je_id),
+                     manifold, je_source=je_src.get(je_id))
         f["je_id"] = je_id
         f["coupling_entropy"] = h
         accts = {s for s, d, _ in flows} | {d for s, d, _ in flows}
