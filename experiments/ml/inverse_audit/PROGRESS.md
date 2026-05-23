@@ -25,10 +25,18 @@ engine; "corpus data" legal.
   Phase 1 (~1-2 days engine work) before Phase 2 (account substitution with the
   7-account allowlist). All five planned SOTA steps (#8/9/10/11/12) shipped;
   FINDINGS §15 documents the round.
-- **Last update:** 2026-05-23 ~18:00 (consolidated INDEX landing page — single
-  navigation entry point for all 5 specs. DESIGN PHASE COMPLETE; autonomous loop
-  output is genuinely bounded to docs from here. Switching to lower-frequency wake
-  to avoid makework while awaiting user steer.).
+- **Last update:** 2026-05-23 ~18:25 — **AUTONOMOUS LOOP STOPPED.** Design phase
+  for central-abstraction #143 genuinely complete:
+    - 6 commits / 5 specs / consolidated INDEX
+    - all internal links verified, spec set self-consistent
+    - Phase 1+2 effort estimate ~4 days engine work, +1 day Phase 3 = ~1 week
+  Three stale wake-prompts fired in sequence after INDEX shipped, asking to
+  redo work that's already done. Continuing the loop produces makework. The
+  next non-trivial action — landing engine code — requires user steer
+  (approve P1+2 / approve P1 only / pick Option A / stop). No further wake
+  re-armed. Resume by sending a fresh instruction.
+
+  **Entry point for the user:** docs/superpowers/specs/2026-05-23-concentration-pass-INDEX.md
 
 ## Increment ledger
 - [x] **I1** plan + PROGRESS + `generate_relational.py` + `relational/ot_flow.py` rung-1 (self-test ✓) +
