@@ -14,18 +14,26 @@
 #   ./scripts/publish.sh <TOKEN> --force-all # Re-publish all (will fail if exists)
 #   ./scripts/publish.sh --status            # Check which crates are published
 #
-# The publishing order respects the dependency graph:
-#   Tier 1 (no deps):         datasynth-core
-#   Tier 2 (core only):       datasynth-banking, datasynth-ocpm, datasynth-output, datasynth-standards
-#   Tier 3 (core+banking):    datasynth-config
-#   Tier 4 (config+standards):datasynth-generators, datasynth-fingerprint
-#   Tier 5 (generators+ocpm): datasynth-graph, datasynth-test-utils, datasynth-audit-fsm
-#   Tier 6 (audit-fsm):       datasynth-audit-optimizer
-#   Tier 7 (generators):      datasynth-eval
-#   Tier 8 (runtime):         datasynth-runtime
-#   Tier 9 (group lib):       datasynth-group
-#   Tier 10 (apps):           datasynth-server, datasynth-cli
+# The publishing order respects the dependency graph (verified against each
+# crate's actual Cargo.toml deps on 2026-05-24):
+#   Tier 1 (no internal deps): datasynth-core
+#   Tier 2 (core only):        datasynth-banking, datasynth-ocpm, datasynth-output, datasynth-standards
+#   Tier 3 (core+banking):     datasynth-config
+#   Tier 4 (config+banking):   datasynth-test-utils
+#   Tier 5 (config+standards): datasynth-generators (parallel-safe with Tier 4)
+#   Tier 6 (core+test-utils):  datasynth-eval  ← must precede fingerprint + runtime
+#   Tier 7 (core+eval):        datasynth-fingerprint  ← needs eval, NOT a Tier-4 crate
+#   Tier 8 (generators):       datasynth-graph, datasynth-audit-fsm
+#   Tier 9 (audit-fsm):        datasynth-audit-optimizer
+#   Tier 10 (orchestration):   datasynth-runtime (depends on eval, fingerprint, graph, audit-fsm)
+#   Tier 11 (group lib):       datasynth-group (depends on runtime)
+#   Tier 12 (apps):            datasynth-server, datasynth-cli
 #   Excluded: datasynth-graph-export (local-only path dep on rustgraph-api-types)
+#
+# Previous ordering bug (pre-v5.29.0): fingerprint was placed in Tier 4 alongside
+# generators, but it depends on eval which was Tier 7 — `cargo publish -p
+# datasynth-fingerprint` then failed to resolve `datasynth-eval = "^5.29.0"`
+# from the registry because eval hadn't been pushed yet.
 #
 
 set -eo pipefail
@@ -105,38 +113,42 @@ CRATES=(
     "datasynth-core"
 
     # Tier 2: Depends only on core
-    "datasynth-banking"      # depends on: core
-    "datasynth-ocpm"         # depends on: core
-    "datasynth-output"       # depends on: core
-    "datasynth-standards"    # depends on: core
+    "datasynth-banking"         # depends on: core
+    "datasynth-ocpm"            # depends on: core
+    "datasynth-output"          # depends on: core
+    "datasynth-standards"       # depends on: core
 
     # Tier 3: Depends on core + banking
-    "datasynth-config"       # depends on: core, banking
+    "datasynth-config"          # depends on: core, banking
 
-    # Tier 4: Depends on config + standards
-    "datasynth-generators"   # depends on: core, config, standards
-    "datasynth-fingerprint"  # depends on: core, config
+    # Tier 4: Depends on config + banking
+    "datasynth-test-utils"      # depends on: core, config, banking
 
-    # Tier 5: Depends on generators + ocpm + banking
-    "datasynth-graph"        # depends on: core, banking, generators, ocpm, standards
-    "datasynth-test-utils"   # depends on: core, config, banking
-    "datasynth-audit-fsm"    # depends on: core, standards, generators
+    # Tier 5: Depends on config + standards
+    "datasynth-generators"      # depends on: core, config, standards
 
-    # Tier 6: Depends on audit-fsm
+    # Tier 6: Depends on core + test-utils (must precede fingerprint + runtime)
+    "datasynth-eval"            # depends on: core, test-utils
+
+    # Tier 7: Depends on core + eval
+    "datasynth-fingerprint"     # depends on: core, eval
+
+    # Tier 8: Depend on generators (+ ocpm / standards / banking)
+    "datasynth-graph"           # depends on: core, banking, generators, ocpm, standards
+    "datasynth-audit-fsm"       # depends on: core, standards, generators
+
+    # Tier 9: Depends on audit-fsm
     "datasynth-audit-optimizer" # depends on: audit-fsm
 
-    # Tier 7: Depends on generators + test-utils
-    "datasynth-eval"         # depends on: core, config, generators, test-utils
+    # Tier 10: Orchestration layer (depends on everything above)
+    "datasynth-runtime"         # depends on: core, config, eval, generators, standards, ocpm, output, banking, fingerprint, graph, audit-fsm, test-utils
 
-    # Tier 8: Runtime (orchestration layer)
-    "datasynth-runtime"      # depends on: core, config, eval, generators, standards, ocpm, output, banking, fingerprint, graph, audit-fsm, test-utils
+    # Tier 11: Group audit library (depends on runtime)
+    "datasynth-group"           # depends on: core, config, generators, runtime, standards, output, audit-fsm, test-utils
 
-    # Tier 9: Group audit library (must precede cli, which depends on it)
-    "datasynth-group"        # depends on: core, config, generators, runtime, standards, output, audit-fsm, test-utils
-
-    # Tier 10: Applications
-    "datasynth-server"       # depends on: core, config, generators, runtime, output
-    "datasynth-cli"          # depends on: core, config, eval, generators, output, runtime, audit-fsm, audit-optimizer, banking, fingerprint, graph, group
+    # Tier 12: Applications
+    "datasynth-server"          # depends on: core, config, runtime
+    "datasynth-cli"             # depends on: core, config, eval, generators, output, runtime, audit-fsm, audit-optimizer, banking, fingerprint, graph, group
 )
 
 # Tier 1 crates can be verified independently
