@@ -1,0 +1,201 @@
+# VynFi Journal Entries — HF dataset regen, v5.29 SOTA mode
+#
+# Companion to journal_entries_1m.yaml (v5.27 baseline shipped on HF
+# 2026-05-20). This config layers on every behavioral lever shipped
+# 2026-05-11 → 2026-05-24:
+#
+#   SP3 priors            default-on (source-conditional IET, multi-segment lifetimes)
+#   SOTA-1  archetype reuse (#125)        → archetype_reuse_probability
+#   SOTA-2  account Pareto (#126)         default-on (top-10% line-share ~0.95)
+#   SOTA-3  Business Unit (#127)          default-on (~23.5% / 11 BUs)
+#   SOTA-4  multi-currency (#128)         → transactions.foreign_currency_rate
+#   SOTA-5  reversal/correction (#129)    default-on
+#   SOTA-6  per-process LpJE + AB (#131)  default-on
+#   SOTA-7  blank-source (#132)           → concentration.source_blanking.rate
+#   SOTA-8  src-cond pair sampler (#136)  → transactions.source_conditional_account_pair
+#   SOTA-9  edges/je via reuse (#137)     covered by archetype_reuse_probability
+#   SOTA-10 lines/JE cap (#138)           → transactions.lines_per_je_cap
+#   SOTA-11 TP pool size (#139)           → concentration.trading_partner_pool
+#   SOTA-12 src-cond rarity (#140)        → concentration.source_conditional_rarity
+#   ConcentrationPipeline Phase 1 (#143)  → concentration.{...}
+#
+# Sajja (2026) behavioral-fidelity targets (P1-P4) — see
+# docs/Synthetic_Tabular_Generators_Fail_to_Preserve_Beha.pdf. The corpus
+# composite is anchored to a 50/50 split noise floor (DR=1.0). Paper
+# baselines for learned generators are 24.4× (TVAE) to 99.7× (CTGAN).
+
+global:
+  industry: manufacturing
+  start_date: "2024-01-01"
+  period_months: 12
+  seed: 20260524           # v5.29 regen seed — distinct from v5.27 (20260507)
+  group_currency: USD
+  parallel: true
+  worker_threads: 4
+  memory_limit_mb: 8192
+
+companies:
+  - { code: "1000", name: "VynFi Mfg HQ",        currency: USD, country: US, annual_transaction_volume: hundred_k, volume_weight: 0.18, fiscal_year_variant: K4 }
+  - { code: "1100", name: "VynFi Mfg Plant 1",   currency: USD, country: US, annual_transaction_volume: hundred_k, volume_weight: 0.14, fiscal_year_variant: K4 }
+  - { code: "1200", name: "VynFi Mfg Plant 2",   currency: USD, country: US, annual_transaction_volume: hundred_k, volume_weight: 0.12, fiscal_year_variant: K4 }
+  - { code: "1300", name: "VynFi Mfg Plant 3",   currency: USD, country: US, annual_transaction_volume: hundred_k, volume_weight: 0.10, fiscal_year_variant: K4 }
+  - { code: "2000", name: "VynFi Mfg EU GmbH",   currency: EUR, country: DE, annual_transaction_volume: hundred_k, volume_weight: 0.10, fiscal_year_variant: K4 }
+  - { code: "2100", name: "VynFi Mfg UK Ltd",    currency: GBP, country: GB, annual_transaction_volume: hundred_k, volume_weight: 0.08, fiscal_year_variant: K4 }
+  - { code: "2200", name: "VynFi Mfg FR SAS",    currency: EUR, country: FR, annual_transaction_volume: hundred_k, volume_weight: 0.08, fiscal_year_variant: K4 }
+  - { code: "3000", name: "VynFi Mfg APAC SG",   currency: SGD, country: SG, annual_transaction_volume: hundred_k, volume_weight: 0.08, fiscal_year_variant: K4 }
+  - { code: "3100", name: "VynFi Mfg AU Pty",    currency: AUD, country: AU, annual_transaction_volume: hundred_k, volume_weight: 0.06, fiscal_year_variant: K4 }
+  - { code: "4000", name: "VynFi Mfg CA Inc",    currency: CAD, country: CA, annual_transaction_volume: hundred_k, volume_weight: 0.06, fiscal_year_variant: K4 }
+
+chart_of_accounts:
+  complexity: medium
+  industry_specific: true
+  min_hierarchy_depth: 2
+  max_hierarchy_depth: 4
+
+# SOTA-1, -2, -4, -6, -8, -9, -10 keys live under `transactions:`
+transactions:
+  # SOTA-1 / #125 / SOTA-9 / #137 — concentrate edges/je toward corpus 0.95
+  # recurring-archetype share. Corpus value ~0.97; default 0.90 was diffuse.
+  archetype_reuse_probability: 0.97
+
+  # SOTA-10 / #138 — cap monster JEs that drag the audit signal/noise. Corpus
+  # p99.9 ~99 lines / max ~924; cap at 100 to match the audit-realism band
+  # while still allowing legitimate consolidation batches.
+  lines_per_je_cap: 100
+
+  # SOTA-4 / #128 — ~3.5% of lines post in foreign currency (corpus FINDINGS §8).
+  # Adds SAP DMBTR (ledger) + WRBTR (transaction) coherence on those lines.
+  foreign_currency_rate: 0.035
+
+  # SOTA-8 / #136 — per-source Dirichlet over (debit, credit) pairs. Tightens
+  # the source-conditional account-pool entropy from synth ~0.97 to corpus ~0.68.
+  source_conditional_account_pair:
+    enabled: true
+    # Use the conservative defaults documented in the schema:
+    #   alpha (concentration) ≈ 0.5
+    #   accts_per_source_target ≈ 23 (corpus median)
+    # We leave them implicit so the v5.29 defaults track future tuning.
+
+master_data:
+  vendors:      { count: 300, intercompany_percent: 0.15 }
+  customers:    { count: 600, intercompany_percent: 0.10 }
+  materials:    { count: 1500, bom_enabled: true, average_bom_depth: 3 }
+  fixed_assets: { count: 150 }
+  employees:    { count: 200 }
+
+document_flows:
+  p2p:
+    enabled: true
+    chains_per_month: 1500
+    three_way_match_rate: 0.92
+    partial_delivery_rate: 0.12
+    gr_ir_clearing_enabled: true
+  o2c:
+    enabled: true
+    chains_per_month: 2000
+    credit_check_failure_rate: 0.04
+    partial_shipment_rate: 0.10
+    return_rate: 0.025
+
+balance:
+  generate_opening_balances: true
+  generate_trial_balances: true
+  reconcile_subledgers: true
+  validate_balance_equation: true
+  target_gross_margin: 0.32
+  target_dso_days: 45
+  target_dpo_days: 30
+
+period_close:
+  enabled: true
+
+financial_reporting:
+  generate_balance_sheet: true
+  generate_income_statement: true
+  generate_cash_flow: true
+
+# 6-7% line-level fraud (matches v5.27 published rate). Behavioural bias on
+# every is_fraud line — weekend / round-dollar / off-hours / post-close
+# (datasynth_core::fraud_bias::apply_fraud_behavioral_bias).
+fraud:
+  enabled: true
+  fraud_rate: 0.05
+  document_fraud_rate: 0.07
+  propagate_to_lines: true
+
+# 21% manual entries — ISA 240 relevant.
+user_personas:
+  enabled: true
+  manual_entry_target_share: 0.21
+
+internal_controls:
+  enabled: true
+  coso_enabled: true
+  include_entity_level_controls: true
+  target_maturity_level: managed
+  exception_rate: 0.02
+  sod_violation_rate: 0.01
+
+distributions:
+  enabled: true
+  industry_profile: manufacturing
+  amounts:
+    enabled: true
+    distribution_type: log_normal
+    components:
+      # v5.28 amount sampler — closes the 16x p99 tail gap. Components retuned
+      # toward corpus: more mass at "routine", smaller "major" tail.
+      - { weight: 0.70, mu: 5.3, sigma: 1.2, label: "routine" }
+      - { weight: 0.26, mu: 7.6, sigma: 0.9, label: "significant" }
+      - { weight: 0.04, mu: 9.3, sigma: 0.6, label: "major" }
+    benford_compliance: true
+
+temporal_patterns:
+  enabled: true
+  business_days:
+    enabled: true
+    half_day_policy: half_day
+    month_end_convention: modified_following
+  calendars:
+    regions: [US, DE, GB, SG, JP, BR]
+  period_end:
+    model: exponential
+    month_end:   { start_day: -10, base_multiplier: 1.0, peak_multiplier: 3.5, decay_rate: 0.3 }
+    quarter_end: { inherit_from: month_end, additional_multiplier: 1.5 }
+    year_end:    { start_day: -15, peak_multiplier: 6.0 }
+
+audit:
+  enabled: false  # Audit data is published as a separate HF dataset.
+
+graph_export:
+  je_network:
+    method: a
+
+# Central concentration abstraction (#143, Phase 1) — single post-process
+# point that closes the multi-generator coverage problem that blocked
+# SOTA-8 (#141) / SOTA-11 (#142). Three Phase-1 passes registered here:
+concentration:
+  enabled: true
+
+  # SOTA-12 / #140 — tag the top 1% of source-conditionally-rare JEs as
+  # `RelationalAnomalyType::SourceConditionalRarity`. Matches the audit-
+  # packet hot-list size; composes additively with per-entry strategies.
+  source_conditional_rarity:
+    rate: 0.01
+
+  # SOTA-11.1 / #142 — collapse trading_partner to corpus-matched pool size.
+  # Corpus median tp_set_size ~12; the synth default is ~40 due to the
+  # hard-coded V-000001..V-000040 doc-flow pool. The pool pass deterministically
+  # remaps via FNV-1a hash, balance-preserving by construction.
+  trading_partner_pool:
+    target_size: 12
+
+  # SOTA-7 / #132 — match the corpus ~21% blank-source / no-doc-type rate.
+  # Pass runs LAST in the pipeline so the source-reading passes above see
+  # full coverage when they build their PMFs.
+  source_blanking:
+    rate: 0.21
+
+output:
+  output_directory: "./output"
+  formats: [csv, json, parquet]
