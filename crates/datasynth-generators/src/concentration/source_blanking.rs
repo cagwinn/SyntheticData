@@ -66,13 +66,27 @@ impl ConcentrationPass for SourceBlankingPass {
         let mut blanked: usize = 0;
         let mut already_blank: u64 = 0;
         for je in entries.iter_mut() {
-            if je.header.sap_source_code.is_none() {
-                already_blank += 1;
-                continue;
+            // "Already blank" = sap_source_code missing or empty string.
+            // Both states are treated the same downstream by the CSV writer
+            // (it back-fills the TransactionSource Display label only when
+            // sap_source_code is None, NOT when it's an empty string — so we
+            // express "intentionally blanked" as `Some("")` to override the
+            // writer's fallback and match the corpus's literal-empty Source
+            // column semantic).
+            match je.header.sap_source_code.as_deref() {
+                None | Some("") => {
+                    already_blank += 1;
+                    continue;
+                }
+                _ => {}
             }
             let draw: f64 = rng.random();
             if draw < self.rate {
-                je.header.sap_source_code = None;
+                // See above: `Some("")` (not `None`) so the output writer
+                // honors the blank intent. None still falls back to the
+                // TransactionSource Display label for the priors-disabled
+                // legacy path; that fallback is preserved.
+                je.header.sap_source_code = Some(String::new());
                 blanked += 1;
             }
         }
@@ -141,7 +155,10 @@ mod tests {
         let stats = pass.apply(&mut entries, &mut rng);
         assert_eq!(stats.entries_modified, 100);
         for je in &entries {
-            assert!(je.header.sap_source_code.is_none());
+            // Post-pass: sap_source_code is `Some("")` (intentionally blanked
+            // marker); never `None` for previously-set rows. See the pass-body
+            // comment for why `Some("")` not `None`.
+            assert_eq!(je.header.sap_source_code.as_deref(), Some(""));
         }
     }
 
