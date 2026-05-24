@@ -33,10 +33,12 @@ use rand_chacha::ChaCha8Rng;
 use serde::Serialize;
 
 pub mod account_pair_substitution;
+pub mod source_blanking;
 pub mod source_conditional_rarity_pass;
 pub mod trading_partner_pool;
 
 pub use account_pair_substitution::{AccountPairSubstitutionError, AccountPairSubstitutionPass};
+pub use source_blanking::SourceBlankingPass;
 pub use source_conditional_rarity_pass::SourceConditionalRarityPass;
 pub use trading_partner_pool::TradingPartnerPoolPass;
 
@@ -147,6 +149,11 @@ impl ConcentrationPipeline {
             let pass = AccountPairSubstitutionPass::from_pmf_file(c.clone())
                 .map_err(ConcentrationPipelineError::AccountPairSubstitution)?;
             passes.push(Box::new(pass));
+        }
+        // SourceBlankingPass registered LAST — earlier passes that read
+        // sap_source_code must see full coverage. See module-level docs.
+        if let Some(c) = cfg.source_blanking.as_ref() {
+            passes.push(Box::new(SourceBlankingPass::new(c.clone())));
         }
 
         Ok(Self { passes })

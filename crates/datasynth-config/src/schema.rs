@@ -9623,6 +9623,14 @@ pub struct ConcentrationConfig {
     /// (closes SOTA-8.1 / #141). Defers to Phase 2 when wired.
     #[serde(default)]
     pub account_pair_substitution: Option<AccountPairSubstitutionPassConfig>,
+
+    /// Phase 1.5: blank-source post-process (closes SOTA-7 / #132). Nulls
+    /// `sap_source_code` on a configurable fraction of JEs to match the
+    /// corpus's ~21% blank-source rate. Runs LAST in the pipeline so
+    /// earlier passes (`SourceConditionalRarityPass`,
+    /// `AccountPairSubstitutionPass`) see full source coverage.
+    #[serde(default)]
+    pub source_blanking: Option<SourceBlankingPassConfig>,
 }
 
 /// Per-pass config for SourceConditionalRarityPass.
@@ -9645,6 +9653,14 @@ pub struct TradingPartnerPoolPassConfig {
     /// Target distinct trading-partner pool size. `0` is clamped to `1` at
     /// runtime. Typical corpus value `~12`; synthetic default `~40`.
     pub target_size: usize,
+}
+
+/// Per-pass config for SourceBlankingPass (Phase 1.5 / SOTA-7).
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct SourceBlankingPassConfig {
+    /// Fraction of JEs whose `sap_source_code` should be nulled. Typical
+    /// corpus-matching value `0.21`. Clamped to `[0.0, 1.0]` at runtime.
+    pub rate: f64,
 }
 
 /// Per-pass config for AccountPairSubstitutionPass (Phase 2).
