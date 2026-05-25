@@ -148,7 +148,7 @@ opentelemetry_sdk = { version = "0.32", features = ["rt-tokio"] }
 opentelemetry-otlp = { version = "0.32", features = ["grpc-tonic"] }
 opentelemetry-prometheus = "0.32"
 prometheus = "0.14"
-tracing-opentelemetry = "0.32"
+tracing-opentelemetry = "0.33"
 
 # Fast number formatting
 itoa = "1.0"
