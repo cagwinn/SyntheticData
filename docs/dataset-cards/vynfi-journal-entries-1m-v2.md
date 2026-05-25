@@ -82,7 +82,7 @@ composites on IEEE-CIS.
 
 | Generator | Paradigm | Composite mean | vol-corrected | Source on P1 IETD |
 |---|---|--:|--:|--:|
-| **DataSynth v5.29 SOTA (v2)** | rule + process + post-process | 488.7× | **71.8×** | 321× |
+| **DataSynth v5.29 SOTA (v2, 1M scale)** | rule + process + post-process | 505.0× | **62.7×** | 152× |
 | **DataSynth v5.27 (v1)** | rule + process (no concentration) | 63.1× | 109.3× | 0× *(degenerate)* |
 | TabularARGN (paper) | learned autoregressive (single-row) | 36.3× | n/a | 30.7× |
 | CTGAN (paper) | learned GAN | 32.2× | n/a | 30.0× |
@@ -102,11 +102,11 @@ Three readings:
 
    | metric | v1 DR | v2 DR | Δ |
    |---|--:|--:|---|
-   | Source · P3_ClusteringGap | 1180× | 148× | **-87%** ✓ |
-   | TP · P3_ClusteringGap | 53.8× | 0.89× | **-98%** ✓ |
+   | Source · P3_ClusteringGap | 1180× | 96.7× | **-92%** ✓ |
+   | Source · P1_AutocorrGap | 35.2× | 149× | (regression — see Notes) |
    | TP · P3_TriangleLogRatio | 270× | 103× | **-62%** ✓ |
-   | Source · P4_MeanGap | 14.4× | 7.2× | **-50%** ✓ |
-   | **Vol-corrected composite** | **109.3×** | **71.8×** | **-34%** ✓ |
+   | Source · P4_MeanGap | 14.4× | 4.8× | **-66%** ✓ |
+   | **Vol-corrected composite** | **109.3×** | **62.7×** | **-43%** ✓ |
 
 3. **Direct composite comparison to the paper isn't apples-to-apples** — the
    paper measures only fraud-entity sequences from a 590K-row card-fraud
@@ -132,7 +132,7 @@ Three readings:
 from datasets import load_dataset
 ds = load_dataset("VynFi/vynfi-journal-entries-1m")
 print(ds["train"].column_names)        # 52 columns
-print(ds["train"].num_rows)            # ~442,277 lines in v2
+print(ds["train"].num_rows)            # 1,093,555 lines in v2
 ```
 
 Aux artefacts (separate parquets in the same repo):
@@ -160,10 +160,18 @@ datasynth-data generate --config journal_entries_1m_sota.yaml
   500-code Z-prefixed synthetic tail (TAIL_MASS=0.30) to lift IET variance.
   This inflates the source-cardinality metric (526 vs corpus ~46) but is
   intentional per `FINDINGS.md` §6. Opt out by disabling SP3 priors.
-- **Line count ~442K** (v1 was 1.06M). The dataset name retains the "1m"
-  identifier for continuity; the lower count reflects v5.28's corpus-matched
-  lines-per-JE distribution (mean 4.6, was 11). To match v1 row count,
-  multiply company volumes by ~2.4×.
+- **Line count 1,093,555** matches v1's 1,058,941 within 3%. v5.29's
+  corpus-matched lines-per-JE distribution (mean 4.6, was 11) requires
+  higher company-volume to hit the same line count; this config uses
+  per-company `Custom(250000)` × 10 companies × 12 months.
+- **P1 Autocorr regression at scale** (35.2× → 149× on Source). With
+  the broader source vocabulary in v5.29 (526 vs ~46 in v1), each
+  source has fewer transactions, so the within-source IET
+  autocorrelation has a smaller signal-to-noise ratio per source. The
+  regression doesn't reflect worse generation — it reflects v5.29
+  measuring on a wider per-source basis. Mitigated where it matters
+  (the vol-corrected composite, which excludes volume-bounded metrics,
+  is still down 43%).
 
 ## Citation
 
@@ -201,5 +209,5 @@ P1-P4 behavioral fidelity framework:
 | Config | `configs/examples/hf/journal_entries_1m_sota.yaml` @ `v5.29.0` |
 | BF score script | `datasynth-data behavioral score --profile gl-source-tp` |
 | Run seed | `20260524` |
-| BF report (full) | `docs/baselines/2026-05-24-v5.29.0-sota/{report.json,report.md,metrics.csv}` |
+| BF report (full, 1M) | `docs/baselines/2026-05-25-v5.29.0-1m/{report.json,report.md,metrics.csv}` |
 | v5.27 baseline BF | `docs/baselines/2026-05-24-v5.27-hf/{report.json,report.md,metrics.csv}` |
