@@ -27,8 +27,8 @@ configs:
 > **Lighthouse synthetic GL dataset.** Replaces the v1 (v5.27) release with the
 > SOTA-N structural-fidelity round + the central concentration abstraction
 > (`ConcentrationPipeline`). 13 measured structural metrics moved toward the
-> corpus baseline; behavioral fidelity (Sajja 2026 P1-P4 framework) improved
-> vol-corrected composite **-34%** vs v1.
+> reference baseline; behavioral fidelity (Sajja 2026 P1-P4 framework) improved
+> vol-corrected composite **-43%** vs v1.
 
 ## What changed since v1
 
@@ -38,12 +38,12 @@ scaffold. v2 layers in every behavioral lever shipped 2026-05-11 → 2026-05-24
 plus the central post-process concentration pipeline that closes the
 multi-generator coverage problem the SOTA-N round surfaced.
 
-### Structural metrics (vs corpus reference)
+### Structural metrics (vs reference)
 
-Cross-industry manufacturing GL, healthcare-corpus reference, 300k-JE
+Cross-industry manufacturing GL, comparison reference at 300k-JE
 deterministic sample. From `experiments/ml/FINDINGS.md` §10:
 
-| Metric (corpus target) | v1 (v5.27 baseline) | **v2 (v5.29 SOTA)** | corpus |
+| Metric (reference target) | v1 (v5.27 baseline) | **v2 (v5.29 SOTA)** | reference |
 |---|--:|--:|--:|
 | account top-10% line share | 0.16 | **0.946** | 0.95 |
 | recurring-archetype share | 0.131 | **0.885** | 0.967 |
@@ -56,10 +56,10 @@ deterministic sample. From `experiments/ml/FINDINGS.md` §10:
 | multi-currency lines (SAP DMBTR/WRBTR) | absent | **present (3.0%)** | ~3.5% |
 | blank-source rate (SOTA-7) | 0% | **21.0%** | ~21% |
 | trading-partner pool size | ~40 | **12** | ~12 |
-| amount distribution p99 | 16× corpus | **corpus-match** | — |
+| amount distribution p99 | 16× reference | **reference-match** | — |
 | lines-per-JE mean | 11 | **4.6** | 4.5 |
 
-Every structural dimension moved toward the corpus.
+Every structural dimension moved toward the reference.
 
 ### Behavioral fidelity (Sajja 2026 P1-P4 framework)
 
@@ -67,14 +67,14 @@ This v2 release is the first VynFi dataset evaluated under the Sajja (2026)
 framework that prompted the SOTA round. The framework defines four behavioral
 patterns — P1 inter-event-time distribution + within-entity autocorrelation,
 P2 burst structure + active lifetime, P3 shared-infrastructure graph motifs,
-P4 velocity-rule trigger rates — and normalises each by the real-data
+P4 velocity-rule trigger rates — and normalises each by a reference-data
 50/50-split noise floor as a *degradation ratio* (DR; 1.0 = noise floor,
 higher is worse).
 
 #### v1 vs v2 vs Sajja paper baselines
 
-Composite DRs over 26 P1-P4 sub-metrics, computed against a single corpus
-client shard (JE_101) with our `datasynth-data behavioral score` adapted for
+Composite DRs over 26 P1-P4 sub-metrics, computed against a single GL
+reference shard with our `datasynth-data behavioral score` adapted for
 GL semantics (`Source` as primary entity, `TradingPartner` as secondary,
 `EntryDate` at day resolution). v1 figures are from the same eval rerun
 against the v5.27 HF cached snapshot; paper figures are the published
@@ -111,7 +111,7 @@ Three readings:
 3. **Direct composite comparison to the paper isn't apples-to-apples** — the
    paper measures only fraud-entity sequences from a 590K-row card-fraud
    benchmark, anchored to that dataset's 50/50 noise floor; we measure all
-   entities on a GL client shard (~888K rows, different domain, different
+   entities on a GL reference shard (~888K rows, different domain, different
    noise floor density). What IS comparable:
    - The paper proves (Propositions 1 & 2) that *row-independent
      generators* cannot reproduce P3 graph motifs or produce positive
@@ -152,16 +152,16 @@ datasynth-data generate --config journal_entries_1m_sota.yaml
 
 ## Limitations
 
-- **Single-corpus-shard noise floor.** Our BF score uses one client's JE
-  shard as the "real" reference. Across-client behaviour varies; multi-shard
-  combined scoring is a v3 follow-up (corpus shards in the available
-  reference set have schema-version drift requiring normalisation).
+- **Single-reference-shard noise floor.** Our BF score uses one GL reference
+  shard. Across-reference behaviour varies; multi-shard combined scoring is
+  a v3 follow-up (shards in the available reference set have schema-version
+  drift requiring normalisation).
 - **Synthetic Z-tail SAP codes.** v5.29's `behavioral_priors.rs` includes a
   500-code Z-prefixed synthetic tail (TAIL_MASS=0.30) to lift IET variance.
-  This inflates the source-cardinality metric (526 vs corpus ~46) but is
+  This inflates the source-cardinality metric (526 vs reference ~46) but is
   intentional per `FINDINGS.md` §6. Opt out by disabling SP3 priors.
 - **Line count 1,093,555** matches v1's 1,058,941 within 3%. v5.29's
-  corpus-matched lines-per-JE distribution (mean 4.6, was 11) requires
+  reference-matched lines-per-JE distribution (mean 4.6, was 11) requires
   higher company-volume to hit the same line count; this config uses
   per-company `Custom(250000)` × 10 companies × 12 months.
 - **P1 Autocorr regression at scale** (35.2× → 149× on Source). With
