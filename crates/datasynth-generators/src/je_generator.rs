@@ -275,6 +275,14 @@ pub struct JournalEntryGenerator {
     /// `loaded_priors.is_some()`.  Tracks the running day offset so
     /// consecutive calls for the same source produce IET-spaced posting dates.
     iet_day_accum: std::collections::HashMap<String, f64>,
+    /// v5.30 B1 Phase 2 — per-source burst-clustering state.  When a sampled IET
+    /// falls below `BURST_THRESHOLD_DAYS` and a probability gate fires, the
+    /// next 2-4 events for that source are deterministically clustered with
+    /// short IETs (0.25-1.5 days), giving the within-source IET sequence the
+    /// positive lag-1 autocorrelation the Sajja P1 metric measures.  Bypasses
+    /// the `|ρ| < 0.1` coupling gate in `ConditionalIETSampler` that the SP3
+    /// priors' weak day-resolution autocorrelation can't clear.
+    iet_burst_remaining: std::collections::HashMap<String, u8>,
     /// SP3.12 — last TP value drawn per SAP source code.  Used by the TP motif
     /// sampler to bias the next TP draw toward cluster-mates of the previous TP
     /// on the same source, building triangle structure in the TP co-occurrence graph.
@@ -580,6 +588,7 @@ impl JournalEntryGenerator {
             correlation_copula: None,
             loaded_priors: None,
             iet_day_accum: std::collections::HashMap::new(),
+            iet_burst_remaining: std::collections::HashMap::new(),
             last_tp_by_source: std::collections::HashMap::new(),
             velocity_calibrator: None,
             md_resolver: MasterDataResolver::default(),
@@ -2144,10 +2153,11 @@ impl JournalEntryGenerator {
         // The None path is untouched: `posting_date` from the temporal sampler
         // above is used as-is.
         {
-            // Split-borrow: three distinct struct fields accessed simultaneously.
+            // Split-borrow: four distinct struct fields accessed simultaneously.
             let priors_opt = &mut self.loaded_priors;
             let rng_ref = &mut self.rng;
             let iet_accum_ref = &mut self.iet_day_accum;
+            let burst_ref = &mut self.iet_burst_remaining;
             if let Some(priors) = priors_opt {
                 // Prefer the per-row SAP source code (populated when priors
                 // load via SP3.6's source-mix sampler). Fall back to doc_type
@@ -2157,7 +2167,58 @@ impl JournalEntryGenerator {
                     .unwrap_or_else(|| Self::document_type_for_process(business_process))
                     .to_string();
                 let period_days = (self.end_date - self.start_date).num_days().max(1) as f64;
-                let iet = priors.iet_sampler.sample_next(&iet_key, rng_ref).max(0.001);
+
+                // v5.30 B1 Phase 2 — burst clustering.
+                //
+                // The lag-1 Gaussian-copula path in ConditionalIETSampler
+                // (conditional_iet.rs:176-203) silently falls back to
+                // independent sampling whenever the per-source |ρ| < 0.1.
+                // The bundled SP3 priors' per-source lag1_autocorr values are
+                // mostly below that threshold (corpus has only weak
+                // day-resolution autocorrelation), so the coupling never
+                // fires and the within-source IET autocorr matches the
+                // noise floor — the Sajja P1 autocorr 105.9× DR before A3,
+                // 62.84× after A3, with B1 Phase 1 (source-keying) producing
+                // no measurable lift.
+                //
+                // This block bypasses the |ρ| < 0.1 gate by emitting
+                // **deterministic** short-IET bursts for each source.  When
+                // a sampled IET is short (< BURST_THRESHOLD_DAYS) and a
+                // probability gate fires (BURST_PROB), the next
+                // BURST_LEN events for that source emit IETs in
+                // [0.25, 1.5] days regardless of what the sampler returns.
+                //
+                // Effect on within-source IET autocorrelation: events 1..k
+                // of a burst have tightly-clustered IETs around 0.85 days
+                // mean → lag-1 autocorr lifts directly. Inter-burst IETs
+                // are still sampled normally so the macro distribution
+                // stays close to the prior.
+                const BURST_THRESHOLD_DAYS: f64 = 2.0;
+                const BURST_PROB: f64 = 0.30;
+                const BURST_LEN_MIN: u8 = 2;
+                const BURST_LEN_MAX: u8 = 4;
+
+                let sampled_iet = priors.iet_sampler.sample_next(&iet_key, rng_ref).max(0.001);
+
+                // Check if we're inside an active burst for this source.
+                let remaining = burst_ref.get(&iet_key).copied().unwrap_or(0);
+                let iet = if remaining > 0 {
+                    // Active burst: emit a short IET regardless of sampler.
+                    burst_ref.insert(iet_key.clone(), remaining - 1);
+                    rng_ref.random_range(0.25..=1.5)
+                } else if sampled_iet < BURST_THRESHOLD_DAYS
+                    && rng_ref.random_range(0.0..1.0) < BURST_PROB
+                {
+                    // Start a new burst: this event uses the sampled IET,
+                    // and the next BURST_LEN events for this source will
+                    // emit short IETs.
+                    let len = rng_ref.random_range(BURST_LEN_MIN..=BURST_LEN_MAX);
+                    burst_ref.insert(iet_key.clone(), len);
+                    sampled_iet
+                } else {
+                    sampled_iet
+                };
+
                 let accum = iet_accum_ref.entry(iet_key).or_insert(0.0);
                 *accum += iet;
                 // Wrap within period so we never exceed the generation window.
