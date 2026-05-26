@@ -35,16 +35,16 @@ global:
   memory_limit_mb: 8192
 
 companies:
-  - { code: "1000", name: "VynFi Mfg HQ",        currency: USD, country: US, annual_transaction_volume: hundred_k, volume_weight: 0.18, fiscal_year_variant: K4 }
-  - { code: "1100", name: "VynFi Mfg Plant 1",   currency: USD, country: US, annual_transaction_volume: hundred_k, volume_weight: 0.14, fiscal_year_variant: K4 }
-  - { code: "1200", name: "VynFi Mfg Plant 2",   currency: USD, country: US, annual_transaction_volume: hundred_k, volume_weight: 0.12, fiscal_year_variant: K4 }
-  - { code: "1300", name: "VynFi Mfg Plant 3",   currency: USD, country: US, annual_transaction_volume: hundred_k, volume_weight: 0.10, fiscal_year_variant: K4 }
-  - { code: "2000", name: "VynFi Mfg EU GmbH",   currency: EUR, country: DE, annual_transaction_volume: hundred_k, volume_weight: 0.10, fiscal_year_variant: K4 }
-  - { code: "2100", name: "VynFi Mfg UK Ltd",    currency: GBP, country: GB, annual_transaction_volume: hundred_k, volume_weight: 0.08, fiscal_year_variant: K4 }
-  - { code: "2200", name: "VynFi Mfg FR SAS",    currency: EUR, country: FR, annual_transaction_volume: hundred_k, volume_weight: 0.08, fiscal_year_variant: K4 }
-  - { code: "3000", name: "VynFi Mfg APAC SG",   currency: SGD, country: SG, annual_transaction_volume: hundred_k, volume_weight: 0.08, fiscal_year_variant: K4 }
-  - { code: "3100", name: "VynFi Mfg AU Pty",    currency: AUD, country: AU, annual_transaction_volume: hundred_k, volume_weight: 0.06, fiscal_year_variant: K4 }
-  - { code: "4000", name: "VynFi Mfg CA Inc",    currency: CAD, country: CA, annual_transaction_volume: hundred_k, volume_weight: 0.06, fiscal_year_variant: K4 }
+  - { code: "1000", name: "VynFi Mfg HQ",        currency: USD, country: US, annual_transaction_volume: !custom 2500000, volume_weight: 0.18, fiscal_year_variant: K4 }
+  - { code: "1100", name: "VynFi Mfg Plant 1",   currency: USD, country: US, annual_transaction_volume: !custom 2500000, volume_weight: 0.14, fiscal_year_variant: K4 }
+  - { code: "1200", name: "VynFi Mfg Plant 2",   currency: USD, country: US, annual_transaction_volume: !custom 2500000, volume_weight: 0.12, fiscal_year_variant: K4 }
+  - { code: "1300", name: "VynFi Mfg Plant 3",   currency: USD, country: US, annual_transaction_volume: !custom 2500000, volume_weight: 0.10, fiscal_year_variant: K4 }
+  - { code: "2000", name: "VynFi Mfg EU GmbH",   currency: EUR, country: DE, annual_transaction_volume: !custom 2500000, volume_weight: 0.10, fiscal_year_variant: K4 }
+  - { code: "2100", name: "VynFi Mfg UK Ltd",    currency: GBP, country: GB, annual_transaction_volume: !custom 2500000, volume_weight: 0.08, fiscal_year_variant: K4 }
+  - { code: "2200", name: "VynFi Mfg FR SAS",    currency: EUR, country: FR, annual_transaction_volume: !custom 2500000, volume_weight: 0.08, fiscal_year_variant: K4 }
+  - { code: "3000", name: "VynFi Mfg APAC SG",   currency: SGD, country: SG, annual_transaction_volume: !custom 2500000, volume_weight: 0.08, fiscal_year_variant: K4 }
+  - { code: "3100", name: "VynFi Mfg AU Pty",    currency: AUD, country: AU, annual_transaction_volume: !custom 2500000, volume_weight: 0.06, fiscal_year_variant: K4 }
+  - { code: "4000", name: "VynFi Mfg CA Inc",    currency: CAD, country: CA, annual_transaction_volume: !custom 2500000, volume_weight: 0.06, fiscal_year_variant: K4 }
 
 chart_of_accounts:
   complexity: medium
