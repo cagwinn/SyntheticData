@@ -1575,13 +1575,44 @@ impl JournalEntryGenerator {
         Some(entry)
     }
 
-    fn determine_fraud(&mut self) -> Option<FraudType> {
+    fn determine_fraud(&mut self, business_process: BusinessProcess) -> Option<FraudType> {
         if !self.fraud_config.enabled {
             return None;
         }
 
-        // Roll for fraud based on fraud rate
-        if self.rng.random::<f64>() >= self.fraud_config.fraud_rate {
+        // v5.30 B3 (#153) — per-process fraud rate override. When
+        // `fraud.per_process_rates` carries an entry for this JE's business
+        // process, use that rate instead of the global `fraud_rate`. Unmapped
+        // processes fall back to the global rate (preserving v5.29 default
+        // behavior for configs that don't opt in to per-process rates).
+        //
+        // The slug uses the YAML wire form (matches `#[serde(rename_all =
+        // "UPPERCASE")]` plus the per-variant renames on `BusinessProcess`).
+        let process_slug = match business_process {
+            BusinessProcess::P2P => "P2P",
+            BusinessProcess::O2C => "O2C",
+            BusinessProcess::R2R => "R2R",
+            BusinessProcess::H2R => "H2R",
+            BusinessProcess::A2R => "A2R",
+            BusinessProcess::S2C => "S2C",
+            BusinessProcess::Mfg => "MFG",
+            BusinessProcess::Bank => "BANK",
+            BusinessProcess::Audit => "AUDIT",
+            BusinessProcess::Treasury => "TREASURY",
+            BusinessProcess::Tax => "TAX",
+            BusinessProcess::Intercompany => "INTERCOMPANY",
+            BusinessProcess::ProjectAccounting => "PROJECT",
+            BusinessProcess::Esg => "ESG",
+        };
+        let effective_rate = self
+            .fraud_config
+            .per_process_rates
+            .get(process_slug)
+            .copied()
+            .unwrap_or(self.fraud_config.fraud_rate);
+
+        // Roll for fraud based on the (per-process or global) rate
+        if self.rng.random::<f64>() >= effective_rate {
             return None;
         }
 
@@ -2306,8 +2337,10 @@ impl JournalEntryGenerator {
             line_spec.credit_count = n_total - new_debit;
         }
 
-        // Determine if this is a fraudulent transaction
-        let fraud_type = self.determine_fraud();
+        // Determine if this is a fraudulent transaction (v5.30 B3 — per-process
+        // rates pass `business_process` through to honor fraud.per_process_rates
+        // overrides when configured)
+        let fraud_type = self.determine_fraud(business_process);
         let is_fraud = fraud_type.is_some();
 
         // Sample time based on source

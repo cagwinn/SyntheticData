@@ -2255,6 +2255,45 @@ pub struct FraudConfig {
     /// Approval thresholds for threshold-adjacent fraud pattern
     #[serde(default = "default_approval_thresholds")]
     pub approval_thresholds: Vec<f64>,
+    /// v5.30 B3 (#153) — per-business-process fraud rate overrides.
+    ///
+    /// Keys are business-process slugs (`"P2P"`, `"O2C"`, `"R2R"`, `"H2R"`,
+    /// `"A2R"`); values are line-level fraud rates that **override** the
+    /// global `fraud_rate` when a JE's selected business process matches a
+    /// key. Unmatched processes fall back to `fraud_rate`.
+    ///
+    /// When empty (the default), per-process rates are disabled and every
+    /// JE uses the global `fraud_rate` — preserving v5.29 byte-identical
+    /// output for configs that don't opt in.
+    ///
+    /// # Why
+    ///
+    /// Real audit data shows process-specific fraud signatures (R2R
+    /// manual-close and period-end accruals carry higher fraud
+    /// concentration than P2P invoice-processing). The v5.29 global
+    /// `fraud_rate` flattens this signal, leaving the GNN fraud detector
+    /// at a uniform per-process AUC band (0.914-0.925 in the v5.29 retrain).
+    ///
+    /// # Example
+    ///
+    /// ```yaml
+    /// fraud:
+    ///   fraud_rate: 0.02         # baseline for unmapped processes
+    ///   per_process_rates:
+    ///     R2R: 0.06              # 3× baseline — period-close hot spot
+    ///     P2P: 0.04              # 2× baseline — invoice fraud
+    ///     O2C: 0.025             # 1.25× baseline — revenue manipulation
+    ///     H2R: 0.015             # below baseline — payroll
+    ///     A2R: 0.020             # baseline — asset accounting
+    /// ```
+    ///
+    /// Aggregate effective line-level prevalence depends on the
+    /// `business_processes` weights mix; calibrate to a target X by
+    /// solving for the weighted average. For default v5.29 weights
+    /// (P2P 0.35, O2C 0.35, R2R 0.20, H2R 0.05, A2R 0.05) the
+    /// example above yields ~0.0335 line-level fraud.
+    #[serde(default, alias = "perProcessRates")]
+    pub per_process_rates: std::collections::HashMap<String, f64>,
 }
 
 fn default_approval_thresholds() -> Vec<f64> {
@@ -2292,6 +2331,7 @@ impl Default for FraudConfig {
             clustering_enabled: false,
             clustering_factor: default_clustering_factor(),
             approval_thresholds: default_approval_thresholds(),
+            per_process_rates: std::collections::HashMap::new(),
         }
     }
 }
