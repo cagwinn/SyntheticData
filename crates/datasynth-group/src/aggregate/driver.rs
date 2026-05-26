@@ -97,10 +97,10 @@ use crate::aggregate::equity_method::{
 };
 use crate::aggregate::fs::{
     build_consolidated_balance_sheet_with_names, build_consolidated_cash_flow,
-    build_consolidated_income_statement_with_names, build_consolidation_schedule,
-    build_notes_to_consolidated_fs, build_statement_of_changes_in_equity, write_consolidated_fs,
-    AccountNameDictionary, CashFlowInputs, ConsolidatedFinancialStatements, EquityChangesInputs,
-    NotesInputs,
+    build_consolidated_income_statement_with_names,
+    build_consolidation_schedule_with_contributions, build_notes_to_consolidated_fs,
+    build_statement_of_changes_in_equity, write_consolidated_fs, AccountNameDictionary,
+    CashFlowInputs, ConsolidatedFinancialStatements, EquityChangesInputs, NotesInputs,
 };
 use crate::aggregate::ic_matcher::match_ic_pairs;
 use crate::aggregate::nci::{
@@ -108,7 +108,9 @@ use crate::aggregate::nci::{
     NciRollforward,
 };
 use crate::aggregate::post_elim::{apply_eliminations_to_tb, apply_nci_and_equity_method};
-use crate::aggregate::pre_elim::aggregate_pre_elimination;
+use crate::aggregate::pre_elim::{
+    accumulate_entity_into_aggregate, empty_aggregate, finalise_streaming_aggregate, AggregatedTb,
+};
 use crate::aggregate::tb_loader::load_entity_trial_balance;
 use crate::aggregate::translation::cta::{
     cta_rollforward, write_cta_rollforward, CtaRollforward, CONSOLIDATED_SUBDIR,
@@ -256,30 +258,46 @@ pub fn run_aggregate(
     // notes) so we don't re-parse it per-entity.
     let framework = resolve_primary_framework(manifest);
 
-    // ── 1. Walk per-entity shard archives ───────────────────────────────
-    let WalkOutcome {
-        contributing_tbs,
-        contributing_jes,
+    // ── 1+2+9. v5.31 C1 streaming walk ──────────────────────────────────
+    //
+    // The previous v5.0–v5.30 driver loaded all 1800–2000 contributing
+    // TBs into a `Vec<(String, TrialBalance)>` (`walk_entity_archives`),
+    // ran pre-elim accumulation, then translated *all* TBs into a
+    // second 1800–2000-element vector (`translate_all_contributing`).
+    // Combined hold peaked at ~400 GB on the 2026-05-26 2000-entity
+    // run, OOM-killing the aggregate phase at 226 GB anon-rss.
+    //
+    // The streaming variant fuses the walk, pre-elim accumulation,
+    // translation, and consolidation-contribution-map build into ONE
+    // pass per entity directory. Each source TB drops at the end of
+    // its loop iteration; the only structures that survive past the
+    // walk are the (small) derived aggregates.
+    let StreamingWalkOutcome {
+        pre_elim,
+        translated_tbs,
+        entity_contributions,
         deferred_tbs,
+        contributing_jes,
         entities_missing,
-    } = walk_entity_archives(manifest, shards_dir, opts.tolerate_missing_shards)?;
+    } = walk_aggregate_streaming(
+        manifest,
+        shards_dir,
+        framework,
+        &opts.cpi_series_by_currency,
+        opts.tolerate_missing_shards,
+    )?;
 
-    let entities_processed: Vec<String> = contributing_tbs
+    let entities_processed: Vec<String> = pre_elim
+        .contributing_entities
         .iter()
-        .map(|(c, _)| c.clone())
+        .cloned()
         .chain(deferred_tbs.iter().map(|(c, _)| c.clone()))
         .collect();
     let mut entities_processed_sorted = entities_processed.clone();
     entities_processed_sorted.sort();
     entities_processed_sorted.dedup();
 
-    // ── 2. Pre-elimination aggregation (Task 5.2) ───────────────────────
-    // The aggregator filters by consolidation method internally, but we
-    // pass only the contributing slice for clarity (deferred entities
-    // are handled separately in step 13).
-    let pre_elim = aggregate_pre_elimination(manifest, &contributing_tbs)?;
-
-    // ── 3. (already covered above by walk_entity_archives) ──────────────
+    // ── 3. (already covered above by walk_aggregate_streaming) ──────────
 
     // ── 4. Match IC pairs (Task 5.3) ────────────────────────────────────
     let match_result = match_ic_pairs(manifest, &contributing_jes)?;
@@ -316,13 +334,8 @@ pub fn run_aggregate(
     let post_elim = apply_eliminations_to_tb(&pre_elim, &elim_jes)?;
 
     // ── 9. Per-entity translation (Task 6.2) ────────────────────────────
-    let translated_tbs = translate_all_contributing(
-        &contributing_tbs,
-        manifest,
-        framework,
-        &entity_lookup(manifest),
-        &opts.cpi_series_by_currency,
-    )?;
+    //      v5.31 C1: translated_tbs was built during the streaming walk
+    //      above (no second pass over contributing_tbs).
 
     // ── 10. CTA rollforward (Task 6.3) ─────────────────────────────────
     let cta_rolls = build_cta_rollforwards(
@@ -458,10 +471,12 @@ pub fn run_aggregate(
     };
 
     // ── 16. Build consolidation schedule (Task 8.5) ────────────────────
-    let schedule = build_consolidation_schedule(
+    //      v5.31 C1: pass the pre-built entity_contributions map (built
+    //      during the streaming walk) instead of re-iterating all TBs.
+    let schedule = build_consolidation_schedule_with_contributions(
         &pre_elim,
         &post_overlay,
-        &contributing_tbs,
+        &entity_contributions,
         &manifest.group_id,
         manifest.period.end,
     )?;
@@ -554,6 +569,12 @@ pub fn run_aggregate(
 /// Outcome of the per-entity archive walk: balanced TBs partitioned by
 /// consolidation method, paired with the JEs the runner emitted, plus
 /// the entities that were missing from disk.
+///
+/// **v5.31 C1**: superseded by [`StreamingWalkOutcome`] + [`walk_aggregate_streaming`].
+/// Kept for now so the legacy path can be revived for differential-test fixtures
+/// without re-introducing the symbol; mark as `#[allow(dead_code)]` to silence the
+/// dead-code lint while the streaming path bakes.
+#[allow(dead_code)]
 struct WalkOutcome {
     /// Parent + Full entity TBs, paired with their entity codes.  Fed
     /// into the pre-elim aggregator.
@@ -587,6 +608,10 @@ struct WalkOutcome {
 /// entity emits zero JEs (the orchestrator at minimum produces opening-
 /// balance entries for any seeded TB), so the missing-file case is
 /// effectively unreachable under v5.0 but defended here defensively.
+///
+/// **v5.31 C1**: superseded by [`walk_aggregate_streaming`]. Kept for
+/// the differential-test fixture path; marked dead-code-allowed.
+#[allow(dead_code)]
 fn walk_entity_archives(
     manifest: &GroupManifest,
     shards_dir: &Path,
@@ -670,6 +695,231 @@ fn load_entity_journal_entries(
     Ok(jes)
 }
 
+/// v5.31 C1 — translate a **single** entity's TB.
+///
+/// Factored out of [`translate_all_contributing`] so the streaming
+/// aggregate walk can call it per-entity without materialising a
+/// `Vec<(String, TrialBalance)>`.  The signature mirrors the inner
+/// loop body verbatim — the only structural change is the explicit
+/// `entity: &ManifestEntity` parameter (the caller already has the
+/// lookup in hand, no need to repeat it inside the helper).
+fn translate_one_entity(
+    code: &str,
+    tb: &TrialBalance,
+    entity: &ManifestEntity,
+    manifest: &GroupManifest,
+    framework: AccountingFramework,
+    cpi_opt: Option<&BTreeMap<String, datasynth_core::models::hyperinflation::GeneralPriceIndex>>,
+) -> GroupResult<TranslatedTb> {
+    let path = select_restatement_path(
+        entity.hyperinflation_status,
+        entity.functional_currency.as_str(),
+        cpi_opt,
+        manifest.period.start,
+        manifest.period.end,
+    );
+    let translated = match &path {
+        RestatementPath::Indexed(ir) => translate_entity_tb_with_indexed_restatement(
+            tb,
+            entity.functional_currency.as_str(),
+            &manifest.fx_rate_master,
+            manifest.period.end,
+            &manifest.presentation_currency,
+            framework,
+            entity.hyperinflation_status,
+            Some(ir),
+        )?,
+        RestatementPath::Standard | RestatementPath::ClosingRate => {
+            if matches!(path, RestatementPath::ClosingRate) && cpi_opt.is_some() {
+                tracing::warn!(
+                    entity = %code,
+                    functional_currency = %entity.functional_currency,
+                    period_start = %manifest.period.start,
+                    period_end = %manifest.period.end,
+                    "hyperinflationary entity has no matching CPI series — falling back to IAS 21 § 42(b) closing-rate translation only (no IAS 29 § 12 indexed restatement)",
+                );
+            }
+            translate_entity_tb_with_hyperinflation(
+                tb,
+                entity.functional_currency.as_str(),
+                &manifest.fx_rate_master,
+                manifest.period.end,
+                &manifest.presentation_currency,
+                framework,
+                entity.hyperinflation_status,
+            )?
+        }
+    };
+    Ok(translated)
+}
+
+/// v5.31 C1 — outcome of the streaming aggregate walk.
+///
+/// Eliminates the `contributing_tbs: Vec<(String, TrialBalance)>` hold
+/// (100-200 GB on a 2000-entity run) by fusing the walk, pre-elimination
+/// accumulation, translation, and consolidation-contribution-map build
+/// into one pass per entity directory.  After the walk completes, only
+/// the **derived** structures live in memory:
+///
+/// - `pre_elim` — small (~50 GL accounts × few KB each)
+/// - `translated_tbs` — ~20 MB × N entities (one per contributing
+///   entity); needed by Chunk 6 + Chunk 7 + Chunk 8 downstream
+/// - `entity_contributions` — `account_code → entity_code → net` map
+///   used by Chunk 8 consolidation_schedule (~200 MB at 2000 entities)
+/// - `deferred_tbs` — small (~200 entities, kept for equity-method
+///   in Chunk 7; refactoring this is Phase 2)
+/// - `contributing_jes` — kept as-is for IC matching (refactoring is
+///   Phase 2; large structure but separate code path)
+/// - `entities_missing` — mirror of [`WalkOutcome`]
+///
+/// The source TBs are **never materialised into a vector** — each TB
+/// drops at the end of its loop iteration.
+struct StreamingWalkOutcome {
+    pre_elim: AggregatedTb,
+    translated_tbs: Vec<TranslatedTb>,
+    /// `account_code → entity_code → net balance`
+    entity_contributions: BTreeMap<String, BTreeMap<String, Decimal>>,
+    deferred_tbs: Vec<(String, TrialBalance)>,
+    contributing_jes: Vec<(String, Vec<JournalEntry>)>,
+    entities_missing: Vec<String>,
+}
+
+/// v5.31 C1 — streaming aggregate walk.
+///
+/// Combines the three former passes (walk → pre-elim → translate)
+/// into one pass per entity, dropping each source TB immediately after
+/// it has been accumulated into the running [`AggregatedTb`] and
+/// translated into a [`TranslatedTb`].
+///
+/// Memory profile on a 2000-entity run:
+/// - Peak source-TB hold: **1 TB at a time** (was 1800–2000 TBs)
+/// - Net hold after walk: `pre_elim + translated_tbs +
+///   entity_contributions + deferred_tbs + contributing_jes`
+/// - Eliminates the ~200 GB that drove the OOM on the 2026-05-26 run.
+///
+/// Behaviour is byte-equivalent to the legacy three-step path: the
+/// pre-elim aggregator, the translation function, and the consolidation
+/// schedule's contribution-map all see identical inputs in identical
+/// order; `pre_elim` is `finalise`d at the end to match the legacy
+/// deterministic sort.
+fn walk_aggregate_streaming(
+    manifest: &GroupManifest,
+    shards_dir: &Path,
+    framework: AccountingFramework,
+    cpi_series_by_currency: &BTreeMap<
+        String,
+        datasynth_core::models::hyperinflation::GeneralPriceIndex,
+    >,
+    tolerate_missing_shards: bool,
+) -> GroupResult<StreamingWalkOutcome> {
+    let entity_lookup_map = entity_lookup(manifest);
+    let cpi_opt = if cpi_series_by_currency.is_empty() {
+        None
+    } else {
+        Some(cpi_series_by_currency)
+    };
+
+    let mut pre_elim = empty_aggregate(manifest);
+    let mut translated_tbs: Vec<TranslatedTb> =
+        Vec::with_capacity(manifest.ownership_graph.entities.len());
+    let mut entity_contributions: BTreeMap<String, BTreeMap<String, Decimal>> = BTreeMap::new();
+    let mut deferred_tbs: Vec<(String, TrialBalance)> = Vec::new();
+    let mut contributing_jes: Vec<(String, Vec<JournalEntry>)> = Vec::new();
+    let mut entities_missing: Vec<String> = Vec::new();
+
+    for entity in &manifest.ownership_graph.entities {
+        let entity_dir = shards_dir.join("entities").join(&entity.code);
+        let tb_path = entity_dir.join("period_close").join("trial_balances.json");
+
+        if !tb_path.exists() {
+            if tolerate_missing_shards {
+                tracing::warn!(
+                    entity = %entity.code,
+                    path = %tb_path.display(),
+                    "missing shard archive — continuing in tolerate_missing_shards mode",
+                );
+                entities_missing.push(entity.code.clone());
+                continue;
+            }
+            return Err(GroupError::Aggregate(format!(
+                "run_aggregate: missing shard archive for `{}` at `{}`",
+                entity.code,
+                tb_path.display()
+            )));
+        }
+
+        let tb = load_entity_trial_balance(&entity_dir)?;
+        let jes = load_entity_journal_entries(&entity_dir, &entity.code)?;
+
+        match entity.consolidation_method {
+            ConsolidationMethod::Parent | ConsolidationMethod::Full => {
+                // 1. Accumulate into running pre-elim aggregate (small).
+                accumulate_entity_into_aggregate(&mut pre_elim, manifest, &entity.code, &tb)?;
+
+                // 2. Build per-account contribution map for the
+                //    consolidation schedule (Chunk 8.5). Replaces the
+                //    O(N) re-scan of all TBs that used to live inside
+                //    `build_consolidation_schedule`.
+                for line in &tb.lines {
+                    let net = line.debit_balance - line.credit_balance;
+                    entity_contributions
+                        .entry(line.account_code.clone())
+                        .or_default()
+                        .insert(entity.code.clone(), net);
+                }
+
+                // 3. Translate to presentation currency (Chunk 6).
+                //    `translated_tbs` stays in memory — downstream Chunks
+                //    6 + 7 + 8 iterate it; refactoring those to lazy
+                //    iteration is Phase 2.
+                let entity_meta = entity_lookup_map.get(&entity.code).ok_or_else(|| {
+                    GroupError::Aggregate(format!(
+                        "run_aggregate: entity `{}` not in manifest's ownership graph",
+                        entity.code,
+                    ))
+                })?;
+                let translated = translate_one_entity(
+                    &entity.code,
+                    &tb,
+                    entity_meta,
+                    manifest,
+                    framework,
+                    cpi_opt,
+                )?;
+                translated_tbs.push(translated);
+
+                // 4. Stash JEs for IC matching (refactoring is Phase 2;
+                //    JE storage is large but separate from TB storage).
+                contributing_jes.push((entity.code.clone(), jes));
+
+                // 5. `tb` drops here — never held past this iteration.
+            }
+            ConsolidationMethod::EquityMethod
+            | ConsolidationMethod::Proportional
+            | ConsolidationMethod::FairValue => {
+                // accumulate_entity_into_aggregate already recorded the
+                // DeferredEntity in pre_elim; we still keep the source
+                // TB in `deferred_tbs` for equity-method downstream
+                // (~200 entities × ~20 MB = ~4 GB max; manageable).
+                accumulate_entity_into_aggregate(&mut pre_elim, manifest, &entity.code, &tb)?;
+                deferred_tbs.push((entity.code.clone(), tb));
+            }
+        }
+    }
+
+    entities_missing.sort();
+    finalise_streaming_aggregate(&mut pre_elim);
+
+    Ok(StreamingWalkOutcome {
+        pre_elim,
+        translated_tbs,
+        entity_contributions,
+        deferred_tbs,
+        contributing_jes,
+        entities_missing,
+    })
+}
+
 /// Translate every contributing entity's TB to the presentation
 /// currency.  Returns one [`TranslatedTb`] per `(entity_code, tb)` in
 /// the contributing slice.
@@ -681,6 +931,11 @@ fn load_entity_journal_entries(
 /// matching series log a warning and fall back to the closing-rate-only
 /// path. Non-hyperinflationary entities always use the standard IAS 21
 /// multi-rate path regardless of the map.
+///
+/// **v5.31 C1**: superseded by [`translate_one_entity`] + the inline
+/// per-entity translation in [`walk_aggregate_streaming`]. Kept for
+/// the differential-test fixture path; marked dead-code-allowed.
+#[allow(dead_code)]
 fn translate_all_contributing(
     contributing_tbs: &[(String, TrialBalance)],
     manifest: &GroupManifest,

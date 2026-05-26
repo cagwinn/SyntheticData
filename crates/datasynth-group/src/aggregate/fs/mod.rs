@@ -82,7 +82,8 @@ pub use cash_flow::{
     build_consolidated_cash_flow, CashFlowInputs, CfLine, CfSection, ConsolidatedCashFlow,
 };
 pub use consolidation_schedule::{
-    build_consolidation_schedule, ConsolidationSchedule, ScheduleLine,
+    build_consolidation_schedule, build_consolidation_schedule_with_contributions,
+    ConsolidationSchedule, ScheduleLine,
 };
 pub use equity_changes::{
     build_statement_of_changes_in_equity, EquityChangesInputs, EquityRollforward,

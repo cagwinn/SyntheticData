@@ -210,6 +210,82 @@ pub fn aggregate_pre_elimination(
     Ok(agg)
 }
 
+/// v5.31 C1 — streaming entry point.
+///
+/// Accumulate a single contributing entity's TB into an existing
+/// [`AggregatedTb`].  Mirrors one iteration of
+/// [`aggregate_pre_elimination`]'s loop body so the driver can call
+/// this per-entity inside its streaming walk, dropping each source TB
+/// immediately after accumulation — avoiding the 100-200 GB
+/// `Vec<(String, TrialBalance)>` hold that OOM-killed the
+/// 2000-entity regen.
+///
+/// Behaviour mirrors the in-loop logic at lines 186-203:
+/// - `Parent` / `Full` → currency-check, accumulate into account_totals,
+///   record in `contributing_entities` and bump `total_debits` /
+///   `total_credits`.
+/// - `EquityMethod` / `Proportional` / `FairValue` → push a
+///   `DeferredEntity` for Chunk 7 special-method handling.
+///
+/// The caller is responsible for the final sort of
+/// `contributing_entities` and `deferred_entities` (do this once after
+/// the streaming walk completes — see [`finalise_streaming_aggregate`]).
+///
+/// # Errors
+///
+/// - [`GroupError::Aggregate`] if `entity_code` is not in the manifest's
+///   ownership graph (mirror of [`aggregate_pre_elimination`]).
+pub fn accumulate_entity_into_aggregate(
+    agg: &mut AggregatedTb,
+    manifest: &GroupManifest,
+    entity_code: &str,
+    tb: &TrialBalance,
+) -> GroupResult<()> {
+    let method = lookup_consolidation_method(manifest, entity_code)?;
+    match method {
+        ConsolidationMethod::Parent | ConsolidationMethod::Full => {
+            ensure_currency_matches(manifest, entity_code, tb)?;
+            accumulate_tb(agg, entity_code, tb);
+        }
+        ConsolidationMethod::EquityMethod
+        | ConsolidationMethod::Proportional
+        | ConsolidationMethod::FairValue => {
+            agg.deferred_entities.push(DeferredEntity {
+                entity_code: entity_code.to_string(),
+                method,
+            });
+        }
+    }
+    Ok(())
+}
+
+/// v5.31 C1 — finalise an [`AggregatedTb`] populated incrementally via
+/// [`accumulate_entity_into_aggregate`].
+///
+/// Sorts `contributing_entities` and `deferred_entities` lexicographically
+/// to match [`aggregate_pre_elimination`]'s deterministic ordering
+/// contract.  Call this once, after the streaming walk completes.
+pub fn finalise_streaming_aggregate(agg: &mut AggregatedTb) {
+    agg.contributing_entities.sort();
+    agg.deferred_entities
+        .sort_by(|a, b| a.entity_code.cmp(&b.entity_code));
+}
+
+/// v5.31 C1 — construct an empty [`AggregatedTb`] seeded from the
+/// manifest.  Used as the starting accumulator for the streaming walk.
+pub fn empty_aggregate(manifest: &GroupManifest) -> AggregatedTb {
+    AggregatedTb {
+        group_id: manifest.group_id.clone(),
+        currency: manifest.presentation_currency.clone(),
+        as_of_date: manifest.period.end,
+        account_totals: BTreeMap::new(),
+        contributing_entities: Vec::new(),
+        deferred_entities: Vec::new(),
+        total_debits: Decimal::ZERO,
+        total_credits: Decimal::ZERO,
+    }
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 /// Look up `entity_code` in the manifest's ownership graph and return

@@ -91,6 +91,13 @@ pub struct ScheduleLine {
 /// Pure function: no I/O, no allocation beyond the schedule itself,
 /// no dependence on global state.  Two calls with the same inputs
 /// produce equal records.
+///
+/// **v5.31 C1**: prefer [`build_consolidation_schedule_with_contributions`]
+/// when you have a pre-built contribution map (the streaming aggregate
+/// pipeline does).  This thin wrapper materialises the contribution
+/// map from `entity_tbs` and calls into the new entry point — kept
+/// for backward compatibility with existing test fixtures + the legacy
+/// non-streaming code path.
 pub fn build_consolidation_schedule(
     pre_elim_tb: &AggregatedTb,
     post_elim_tb: &AggregatedTb,
@@ -98,17 +105,9 @@ pub fn build_consolidation_schedule(
     group_id: &str,
     as_of_date: NaiveDate,
 ) -> GroupResult<ConsolidationSchedule> {
-    // ── 1. Union the account codes across pre and post ────────────────────
-    let mut codes: BTreeSet<String> = BTreeSet::new();
-    codes.extend(pre_elim_tb.account_totals.keys().cloned());
-    codes.extend(post_elim_tb.account_totals.keys().cloned());
-
-    // ── 2. Build a per-entity, per-account contribution map ───────────────
-    // entity_amounts: code → entity_code → contribution
     let mut entity_contributions: BTreeMap<String, BTreeMap<String, Decimal>> = BTreeMap::new();
     for (entity_code, tb) in entity_tbs {
         for line in &tb.lines {
-            // Use net_balance() which is debit_balance - credit_balance.
             let net = line.debit_balance - line.credit_balance;
             entity_contributions
                 .entry(line.account_code.clone())
@@ -116,6 +115,37 @@ pub fn build_consolidation_schedule(
                 .insert(entity_code.clone(), net);
         }
     }
+    build_consolidation_schedule_with_contributions(
+        pre_elim_tb,
+        post_elim_tb,
+        &entity_contributions,
+        group_id,
+        as_of_date,
+    )
+}
+
+/// v5.31 C1 — streaming-friendly entry point.
+///
+/// Same as [`build_consolidation_schedule`] but takes the pre-built
+/// per-entity contribution map (the streaming aggregate pipeline
+/// constructs this incrementally during its single-pass walk over
+/// shard archives, avoiding the 100-200 GB `Vec<(String, TrialBalance)>`
+/// hold that OOM-killed the 2000-entity regen).
+///
+/// `entity_contributions[account_code][entity_code] = net balance`
+/// (debit minus credit) — matches the in-line map the legacy
+/// [`build_consolidation_schedule`] builds at call time.
+pub fn build_consolidation_schedule_with_contributions(
+    pre_elim_tb: &AggregatedTb,
+    post_elim_tb: &AggregatedTb,
+    entity_contributions: &BTreeMap<String, BTreeMap<String, Decimal>>,
+    group_id: &str,
+    as_of_date: NaiveDate,
+) -> GroupResult<ConsolidationSchedule> {
+    // ── 1. Union the account codes across pre and post ────────────────────
+    let mut codes: BTreeSet<String> = BTreeSet::new();
+    codes.extend(pre_elim_tb.account_totals.keys().cloned());
+    codes.extend(post_elim_tb.account_totals.keys().cloned());
 
     // ── 3. Build one ScheduleLine per code ────────────────────────────────
     let mut lines: Vec<ScheduleLine> = Vec::with_capacity(codes.len());
