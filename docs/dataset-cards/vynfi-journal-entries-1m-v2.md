@@ -29,6 +29,12 @@ configs:
 > (`ConcentrationPipeline`). 13 measured structural metrics moved toward the
 > reference baseline; behavioral fidelity (Sajja 2026 P1-P4 framework) improved
 > vol-corrected composite **-43%** vs v1.
+>
+> **Need more rows for ML training?** A 10×-scale companion exists at
+> [`VynFi/vynfi-journal-entries-10m`](https://huggingface.co/datasets/VynFi/vynfi-journal-entries-10m)
+> — same generator, same lever stack, ~10.9 M lines. The 1M dataset stays
+> small for laptop-scale exploration; the 10M variant is the research-scale
+> training cube.
 
 ## What changed since v1
 
@@ -82,7 +88,8 @@ composites on IEEE-CIS.
 
 | Generator | Paradigm | Composite mean | vol-corrected | Source on P1 IETD |
 |---|---|--:|--:|--:|
-| **DataSynth v5.29 SOTA (v2, 1M scale)** | rule + process + post-process | 505.0× | **62.7×** | 152× |
+| **DataSynth v5.29 SOTA (v2, 1M scale, this dataset)** | rule + process + post-process | 505.0× | **62.7×** | 152× |
+| DataSynth v5.29 SOTA (10M companion, [`vynfi-journal-entries-10m`](https://huggingface.co/datasets/VynFi/vynfi-journal-entries-10m)) | same as above, larger sample | 251.3× | 65.8× | 152× |
 | **DataSynth v5.27 (v1)** | rule + process (no concentration) | 63.1× | 109.3× | 0× *(degenerate)* |
 | TabularARGN (paper) | learned autoregressive (single-row) | 36.3× | n/a | 30.7× |
 | CTGAN (paper) | learned GAN | 32.2× | n/a | 30.0× |
