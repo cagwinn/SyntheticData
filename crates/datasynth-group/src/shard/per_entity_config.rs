@@ -119,6 +119,57 @@ pub fn build_entity_generator_config(
     //     consolidated archive.
     cfg.banking.enabled = false;
 
+    // 3c. Per-entity scoping-budget scale (closes #148 — v5.29 regen of
+    //     enterprise-2000 OOM-killed the aggregate phase because each entity
+    //     emitted ~100 K JEs regardless of row_budget: document_flows,
+    //     manufacturing, period_close, and master_data generators each have
+    //     their own per-month / per-year counts that the preset wires
+    //     independent of `annual_transaction_volume`. At 2000 entities ×
+    //     ~700 MB / entity = ~1 TB raw + the aggregate phase loading 2000
+    //     trial balances into memory simultaneously → 228 GB RSS / OOM-kill.
+    //
+    //     Scale every process-count knob proportional to `row_budget /
+    //     REFERENCE_BUDGET` where REFERENCE_BUDGET = 100_000 is the volume
+    //     the preset is sized for. A "limited" scoping at row_budget=200
+    //     then gets ≈0.002× the chain counts → ~200 P2P-derived JEs
+    //     instead of 36 K. The full archive at 2000 entities lands in the
+    //     ~30 GB band the v5.10 release targeted.
+    const REFERENCE_BUDGET: u64 = 100_000;
+    let scale = (row_budget as f64 / REFERENCE_BUDGET as f64).clamp(0.001, 10.0);
+    let scale_usize = |n: usize| -> usize { ((n as f64) * scale).round().max(1.0) as usize };
+    let scale_u32 = |n: u32| -> u32 { ((n as f64) * scale).round().max(1.0) as u32 };
+
+    // P2P + O2C document-flow chain counts are derived from
+    // `master_data.{vendors,customers}.count` × period_months, so scaling
+    // master_data drives the chain count down proportionally. (The P2P /
+    // O2C structs themselves carry rates, not absolute counts.)
+    cfg.master_data.vendors.count = scale_usize(cfg.master_data.vendors.count).max(5);
+    cfg.master_data.customers.count = scale_usize(cfg.master_data.customers.count).max(5);
+    cfg.master_data.materials.count = scale_usize(cfg.master_data.materials.count).max(5);
+    cfg.master_data.fixed_assets.count = scale_usize(cfg.master_data.fixed_assets.count).max(3);
+    cfg.master_data.employees.count = scale_usize(cfg.master_data.employees.count).max(3);
+
+    // Manufacturing — disabled below 5K row_budget (limited tier).
+    // Above, scale production-order monthly throughput. Quality + cycle
+    // counts derive from production orders so scale once at the source.
+    if row_budget < 5_000 {
+        cfg.manufacturing.enabled = false;
+    } else {
+        cfg.manufacturing.production_orders.orders_per_month =
+            scale_u32(cfg.manufacturing.production_orders.orders_per_month).max(1);
+    }
+
+    // Audit workpapers — leave the `generate_workpapers` toggle to the
+    // scoping_profile (limited scopes already set it to `false`); no
+    // numeric count knob exists on `AuditGenerationConfig` to scale.
+
+    // 3d. Note for v3 sizing: master_data.{vendors,customers,materials}
+    //     scaling lands a "significant" entity (row_budget=5_000) at
+    //     0.05× → 15 vendors, 30 customers, 75 materials. A "limited"
+    //     entity (row_budget=200) lands at 0.002× → the 5-vendor floor.
+    //     This brings 2000-entity aggregate raw size from ~800 GB to
+    //     an expected ~30-40 GB, matching the v5.10 archive target.
+
     // 4. Replace companies with a single entry tailored to this shard.
     //    `fiscal_year_variant` defaults to "K4" in the schema — we hard-code
     //    it here since `default_fiscal_variant` is private to datasynth-config.
