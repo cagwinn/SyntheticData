@@ -167,15 +167,22 @@ defaults:
   accounting_standards: {{ enabled: true, leases_enabled: true }}
 
 scoping_profiles:
+  # Per-entity row budgets sized to land the 2000-entity archive at ~3 GB
+  # compressed / ~70 GB uncompressed — matches the v5.10 published archive
+  # (see HF VynFi/vynfi-group-audit-enterprise-2000 size_categories).
+  # IMPORTANT: per-entity orchestrator output isn't just JEs — it includes
+  # full master data, document flows, audit workpapers, financial reporting,
+  # cross-process links, etc. At enterprise scale even small row budgets
+  # produce sizeable per-entity output (~15-50 MB each for limited→significant).
   significant:
-    row_budget: 50_000
+    row_budget: 5_000
     process_models: [o2c, p2p, h2r, r2r, audit, manufacturing]
     audit: {{ generate_workpapers: true, min_team_size: 4, max_team_size: 8 }}
   material:
-    row_budget: 10_000
+    row_budget: 1_000
     audit: {{ generate_workpapers: true, min_team_size: 2, max_team_size: 4 }}
   limited:
-    row_budget: 2_000
+    row_budget: 200
     audit: {{ generate_workpapers: false, min_team_size: 1, max_team_size: 2 }}
 
 ownership:
