@@ -1,0 +1,7 @@
+/home/ubuntu/regen/run_b3_pipeline.log:Per-process fraud rates (observed):
+/home/ubuntu/regen/run_b3_pipeline.log-business_process
+/home/ubuntu/regen/run_b3_pipeline.log-R2R    0.092405
+/home/ubuntu/regen/run_b3_pipeline.log-P2P    0.072108
+/home/ubuntu/regen/run_b3_pipeline.log-O2C    0.062554
+/home/ubuntu/regen/run_b3_pipeline.log-A2R    0.052992
+/home/ubuntu/regen/run_b3_pipeline.log-H2R    0.043056

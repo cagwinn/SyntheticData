@@ -119,21 +119,24 @@ financial_reporting:
 # (datasynth_core::fraud_bias::apply_fraud_behavioral_bias).
 fraud:
   enabled: true
-  fraud_rate: 0.05           # baseline for unmapped processes
+  fraud_rate: 0.05
   document_fraud_rate: 0.07
   propagate_to_lines: true
-  # v5.30 B3 (#153) — per-process fraud rate overrides. Real audit data
-  # shows R2R period-close and P2P invoice processing carry higher fraud
-  # concentrations than O2C / H2R / A2R; this widens the GNN per-process
-  # AUC spread (was 0.914-0.925, target 0.88-0.95). Calibrated so the
-  # weighted average across default business_processes weights stays
-  # close to fraud_rate = 0.05.
-  per_process_rates:
-    R2R: 0.08                # 1.6x baseline — period-close hot spot
-    P2P: 0.06                # 1.2x baseline — invoice fraud
-    O2C: 0.05                # baseline — revenue manipulation lives here too
-    H2R: 0.03                # 0.6x baseline — payroll
-    A2R: 0.04                # 0.8x baseline — asset accounting
+  # v5.30 B3 (#153) — per-process fraud rate overrides are SUPPORTED but
+  # left commented out for the default SOTA config. The B3 eval at
+  # docs/baselines/2026-05-26-v5.30-b3-per-process-fraud/COMPARISON.md
+  # surfaced a trade-off: enabling per_process_rates closes the Sajja P1
+  # autocorr DR from 62.8x to 20.7x (TVAE-paper level) but doubles the
+  # P3 fanout DR (TP-pool cap × uneven fraud → tighter TP clustering).
+  # Net Sajja composite goes 121x -> 191x.
+  #
+  # Researchers can opt in by uncommenting:
+  # per_process_rates:
+  #   R2R: 0.08              # 1.6x baseline — period-close hot spot
+  #   P2P: 0.06              # 1.2x baseline — invoice fraud
+  #   O2C: 0.05              # baseline
+  #   H2R: 0.03              # 0.6x baseline — payroll
+  #   A2R: 0.04              # 0.8x baseline — asset accounting
 
 # 21% manual entries — ISA 240 relevant.
 user_personas:
