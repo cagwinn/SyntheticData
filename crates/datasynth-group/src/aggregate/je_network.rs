@@ -317,12 +317,14 @@ fn write_entity_parquet(out_dir: &Path, entity: &str, edges: &[JeNetworkEdge]) -
     write_parquet_batch(&path, &schema, &batch)
 }
 
-fn write_consolidated_parquet(
-    path: &Path,
+/// v5.31 C1 Phase 2: build a single RecordBatch from a slice of
+/// consolidated-row tuples. Factored out so the streaming writer can
+/// call it on batched buffers without rewriting the array-building
+/// logic.
+fn build_consolidated_record_batch(
+    schema: &Arc<Schema>,
     rows: &[(String, JeNetworkEdge, bool, Option<String>)],
-) -> GroupResult<()> {
-    let schema = consolidated_parquet_schema();
-
+) -> GroupResult<RecordBatch> {
     let edge_id: Vec<&str> = rows.iter().map(|(_, e, _, _)| e.edge_id.as_str()).collect();
     let document_id: Vec<String> = rows
         .iter()
@@ -401,9 +403,18 @@ fn write_consolidated_parquet(
         Arc::new(StringArray::from(eliminates_pair)),
     ];
 
-    let batch = RecordBatch::try_new(Arc::clone(&schema), columns)
+    let batch = RecordBatch::try_new(Arc::clone(schema), columns)
         .map_err(|e| GroupError::Aggregate(format!("je_network consolidated arrow build: {e}")))?;
+    Ok(batch)
+}
 
+#[allow(dead_code)]
+fn write_consolidated_parquet(
+    path: &Path,
+    rows: &[(String, JeNetworkEdge, bool, Option<String>)],
+) -> GroupResult<()> {
+    let schema = consolidated_parquet_schema();
+    let batch = build_consolidated_record_batch(&schema, rows)?;
     write_parquet_batch(path, &schema, &batch)
 }
 
@@ -421,6 +432,218 @@ fn write_parquet_batch(path: &Path, schema: &Arc<Schema>, batch: &RecordBatch) -
         .close()
         .map_err(|e| GroupError::Aggregate(format!("parquet close: {e}")))?;
     Ok(())
+}
+
+// ─── v5.31 C1 Phase 2 — streaming JE network writer ──────────────────────────
+
+/// Streaming JE-network writer for the aggregate phase.
+///
+/// **Why:** v5.31 C1 Phase 1 eliminated the `contributing_tbs` hold
+/// (~200 GB at 2k scale) but the 2026-05-27 2000-entity validation
+/// OOM-killed at 228 GB anyway because the *journal-entries* still
+/// got loaded into a 700+ GB on-disk → 200-400 GB in-memory vector
+/// (`contributing_jes: Vec<(String, Vec<JournalEntry>)>`). Phase 2
+/// closes that hold by streaming per-entity edges directly to disk
+/// during the aggregate walk — no consolidated edge vec ever
+/// materialises in memory.
+///
+/// Usage pattern from the streaming walk:
+/// ```ignore
+/// let mut writer = JeNetworkStreamingWriter::open(out_dir)?;
+/// for entity in entities {
+///     let jes = load_entity_journal_entries(entity)?;
+///     writer.write_entity_edges(&entity.code, &jes)?;
+///     // jes can be dropped here (after filtering to IC subset)
+/// }
+/// let summary = writer.finalize(&elim_jes)?;
+/// ```
+///
+/// The CSV writers stream-append row-by-row. The per-entity parquet
+/// is written per entity (one file each), so its memory cost is
+/// bounded by a single entity's edges. The consolidated parquet is
+/// **deferred** to Phase 3 — at 2000-entity scale it would still
+/// hit the OOM ceiling when buffering all edges into one Arrow
+/// RecordBatch. Consumers who need consolidated parquet can convert
+/// from the consolidated CSV with `pyarrow.csv.read_csv` or similar.
+pub struct JeNetworkStreamingWriter {
+    /// Consolidated CSV writer (open for streaming appends).
+    consol_csv: BufWriter<File>,
+    consol_csv_path: std::path::PathBuf,
+    /// v5.31 C1 Phase 2: Consolidated parquet writer — batches via
+    /// `pending_rows` to keep memory bounded by `PARQUET_BATCH_SIZE`.
+    consol_parquet: ArrowWriter<File>,
+    consol_parquet_path: std::path::PathBuf,
+    consol_parquet_schema: Arc<Schema>,
+    /// Buffered consolidated rows pending a parquet batch flush.
+    pending_rows: Vec<(String, JeNetworkEdge, bool, Option<String>)>,
+    /// Output root.
+    out_dir: std::path::PathBuf,
+    /// Running summary stats.
+    summary: JeNetworkSummary,
+}
+
+/// v5.31 C1 Phase 2: batch size for streaming parquet writes.
+/// At ~200 bytes/row this caps the buffer at ~10 MB regardless of
+/// total consolidated edge count.
+const PARQUET_BATCH_SIZE: usize = 50_000;
+
+impl JeNetworkStreamingWriter {
+    /// Open the streaming writer. Creates `{out_dir}/consolidated/`
+    /// and starts both a fresh `je_network.csv` (line-by-line stream)
+    /// and a fresh `je_network.parquet` (batched stream via ArrowWriter
+    /// with row groups every `PARQUET_BATCH_SIZE` rows).
+    pub fn open(out_dir: &Path) -> GroupResult<Self> {
+        let consol_dir = out_dir.join("consolidated");
+        std::fs::create_dir_all(&consol_dir).map_err(GroupError::Io)?;
+
+        // CSV writer
+        let consol_csv_path = consol_dir.join("je_network.csv");
+        let csv_file = File::create(&consol_csv_path).map_err(GroupError::Io)?;
+        let mut consol_csv = BufWriter::with_capacity(1024 * 1024, csv_file);
+        use std::io::Write;
+        writeln!(consol_csv, "{CONSOLIDATED_CSV_HEADER}").map_err(GroupError::Io)?;
+
+        // Parquet writer — batched, schema fixed at open()
+        let consol_parquet_path = consol_dir.join("je_network.parquet");
+        let consol_parquet_schema = consolidated_parquet_schema();
+        let pq_file = File::create(&consol_parquet_path).map_err(GroupError::Io)?;
+        let pq_props = WriterProperties::builder()
+            .set_compression(Compression::ZSTD(ZstdLevel::default()))
+            .build();
+        let consol_parquet =
+            ArrowWriter::try_new(pq_file, Arc::clone(&consol_parquet_schema), Some(pq_props))
+                .map_err(|e| {
+                    GroupError::Aggregate(format!("je_network parquet writer init: {e}"))
+                })?;
+
+        Ok(Self {
+            consol_csv,
+            consol_csv_path,
+            consol_parquet,
+            consol_parquet_path,
+            consol_parquet_schema,
+            pending_rows: Vec::with_capacity(PARQUET_BATCH_SIZE),
+            out_dir: out_dir.to_path_buf(),
+            summary: JeNetworkSummary::default(),
+        })
+    }
+
+    /// Emit one entity's edges. Writes per-entity CSV + parquet under
+    /// `{out_dir}/entities/{entity}/graphs/` and appends the same
+    /// rows (with `is_eliminated=false`) to the consolidated CSV.
+    ///
+    /// **Caller responsibility:** drop the source JEs (or filter to a
+    /// downstream-needed subset) after this call returns — the writer
+    /// retains nothing from `jes`.
+    pub fn write_entity_edges(
+        &mut self,
+        entity_code: &str,
+        jes: &[JournalEntry],
+    ) -> GroupResult<usize> {
+        let edges = build_je_network_edges(jes, JeNetworkMethod::A);
+        write_entity_csv(&self.out_dir, entity_code, &edges)?;
+        write_entity_parquet(&self.out_dir, entity_code, &edges)?;
+        // Append to consolidated CSV (is_eliminated=false, no elim pair link).
+        for e in &edges {
+            self.write_consolidated_row(entity_code, e, false, None)?;
+        }
+        let n = edges.len();
+        self.summary
+            .per_entity_edge_count
+            .push((entity_code.to_string(), n));
+        self.summary.consolidated_edge_count += n;
+        Ok(n)
+    }
+
+    /// Emit the elimination edges (consolidated CSV only — no per-entity
+    /// emit for eliminations). The elimination JE's `header.company_code`
+    /// is used as the entity code in the consolidated row, per the
+    /// v5.0 contract (elimination factory sets it to "CONSOLIDATION").
+    pub fn write_elim_edges(&mut self, elim_jes: &[JournalEntry]) -> GroupResult<()> {
+        let elim_edges = build_je_network_edges(elim_jes, JeNetworkMethod::A);
+        for (je, e) in elim_jes.iter().zip(elim_edges.iter()) {
+            let entity_code = je.header.company_code.clone();
+            self.write_consolidated_row(&entity_code, e, true, None)?;
+        }
+        self.summary.elim_edge_count = elim_edges.len();
+        self.summary.consolidated_edge_count += elim_edges.len();
+        Ok(())
+    }
+
+    /// Flush both writers and return the accumulated summary.
+    /// Drains any remaining pending parquet rows, closes the parquet
+    /// writer (writes footer + row group index), and flushes the CSV.
+    pub fn finalize(mut self) -> GroupResult<JeNetworkSummary> {
+        use std::io::Write;
+        // Flush any pending parquet rows before closing the writer.
+        if !self.pending_rows.is_empty() {
+            let batch =
+                build_consolidated_record_batch(&self.consol_parquet_schema, &self.pending_rows)?;
+            self.consol_parquet
+                .write(&batch)
+                .map_err(|e| GroupError::Aggregate(format!("je_network parquet flush: {e}")))?;
+            self.pending_rows.clear();
+        }
+        self.consol_parquet
+            .close()
+            .map_err(|e| GroupError::Aggregate(format!("je_network parquet close: {e}")))?;
+        self.consol_csv.flush().map_err(GroupError::Io)?;
+        self.summary.consolidated_csv_path = Some(self.consol_csv_path);
+        self.summary.consolidated_parquet_path = Some(self.consol_parquet_path);
+        Ok(self.summary)
+    }
+
+    fn write_consolidated_row(
+        &mut self,
+        entity_code: &str,
+        e: &JeNetworkEdge,
+        is_elim: bool,
+        elim_pair: Option<&str>,
+    ) -> GroupResult<()> {
+        use std::io::Write;
+        // ── CSV: stream-write line-by-line ─────────────────────────────
+        writeln!(
+            self.consol_csv,
+            "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}",
+            csv_escape(&e.edge_id),
+            csv_escape(&e.document_id.to_string()),
+            csv_escape(entity_code),
+            csv_escape(&e.posting_date.to_string()),
+            csv_escape(&e.from_account),
+            csv_escape(&e.to_account),
+            csv_escape(&e.from_line_id),
+            csv_escape(&e.to_line_id),
+            e.amount,
+            e.confidence,
+            csv_escape(&e.predecessor_edge_id),
+            csv_escape(&e.business_process),
+            e.is_fraud,
+            e.is_anomaly,
+            csv_escape(e.fraud_type.as_deref().unwrap_or("")),
+            csv_escape(e.ic_pair_id.as_deref().unwrap_or("")),
+            csv_escape(e.ic_partner_entity.as_deref().unwrap_or("")),
+            is_elim,
+            csv_escape(elim_pair.unwrap_or("")),
+        )
+        .map_err(GroupError::Io)?;
+
+        // ── Parquet: push into batch buffer; flush when full ───────────
+        self.pending_rows.push((
+            entity_code.to_string(),
+            e.clone(),
+            is_elim,
+            elim_pair.map(|s| s.to_string()),
+        ));
+        if self.pending_rows.len() >= PARQUET_BATCH_SIZE {
+            let batch =
+                build_consolidated_record_batch(&self.consol_parquet_schema, &self.pending_rows)?;
+            self.consol_parquet
+                .write(&batch)
+                .map_err(|e| GroupError::Aggregate(format!("je_network parquet write: {e}")))?;
+            self.pending_rows.clear();
+        }
+        Ok(())
+    }
 }
 
 #[cfg(test)]

@@ -277,11 +277,13 @@ pub fn run_aggregate(
         translated_tbs,
         entity_contributions,
         deferred_tbs,
-        contributing_jes,
+        ic_journal_entries,
+        mut je_network_writer,
         entities_missing,
     } = walk_aggregate_streaming(
         manifest,
         shards_dir,
+        out_dir,
         framework,
         &opts.cpi_series_by_currency,
         opts.tolerate_missing_shards,
@@ -299,8 +301,9 @@ pub fn run_aggregate(
 
     // ── 3. (already covered above by walk_aggregate_streaming) ──────────
 
-    // ── 4. Match IC pairs (Task 5.3) ────────────────────────────────────
-    let match_result = match_ic_pairs(manifest, &contributing_jes)?;
+    // ── 4. Match IC pairs (Task 5.3) — v5.31 C1 Phase 2: input is the
+    //      IC-filtered JE subset (~5 % of total) instead of all JEs.
+    let match_result = match_ic_pairs(manifest, &ic_journal_entries)?;
 
     // ── 5. Build + write coverage report (Task 5.7) ─────────────────────
     let coverage_report = build_coverage_report(&match_result);
@@ -312,16 +315,13 @@ pub fn run_aggregate(
     // ── 7. Convert to elimination JEs (Task 5.5) ────────────────────────
     let elim_jes = eliminations_to_journal_entries(&elim_result);
 
-    // ── 7b. v5.10 — emit per-entity + consolidated je_network artefacts.
-    // Hooks in here (after eliminations land but before TB consolidation
-    // rewrites contributing_jes) so we can mark elimination edges with
-    // is_eliminated=true while the original IC pair JEs are still in
-    // their entity-tagged form.
-    let je_network_summary = crate::aggregate::je_network::write_je_network_artefacts(
-        &contributing_jes,
-        &elim_jes,
-        out_dir,
-    )?;
+    // ── 7b. v5.31 C1 Phase 2: write elimination edges to the streaming
+    //      JE-network writer, then finalise. Per-entity edges already
+    //      flowed through the writer during walk_aggregate_streaming;
+    //      the elim edges only land in the consolidated CSV (per the
+    //      v5.0 contract — no per-entity emit for eliminations).
+    je_network_writer.write_elim_edges(&elim_jes)?;
+    let je_network_summary = je_network_writer.finalize()?;
     tracing::info!(
         "v5.10 je_network: {} per-entity files, {} elim edges, {} consolidated edges -> {:?}",
         je_network_summary.per_entity_edge_count.len(),
@@ -767,20 +767,32 @@ fn translate_one_entity(
 /// - `entity_contributions` — `account_code → entity_code → net` map
 ///   used by Chunk 8 consolidation_schedule (~200 MB at 2000 entities)
 /// - `deferred_tbs` — small (~200 entities, kept for equity-method
-///   in Chunk 7; refactoring this is Phase 2)
-/// - `contributing_jes` — kept as-is for IC matching (refactoring is
-///   Phase 2; large structure but separate code path)
+///   in Chunk 7; refactoring this is a future phase)
+/// - `ic_journal_entries` — **v5.31 C1 Phase 2**: only IC-pair-tagged
+///   JEs (typically <5 % of total emitted JEs). All non-IC JEs are
+///   dropped inside the walk after their edges flow through the
+///   streaming JE-network writer.
+/// - `je_network_summary` — running tally from
+///   `JeNetworkStreamingWriter` (the writer is closed at the end of
+///   the walk, so `consolidated_csv_path` is populated).
 /// - `entities_missing` — mirror of [`WalkOutcome`]
 ///
-/// The source TBs are **never materialised into a vector** — each TB
-/// drops at the end of its loop iteration.
+/// The source TBs and the full JE vectors are **never materialised
+/// across entities** — each entity's TB + JE vec drops at the end of
+/// its loop iteration; only the IC-filtered subset persists.
 struct StreamingWalkOutcome {
     pre_elim: AggregatedTb,
     translated_tbs: Vec<TranslatedTb>,
     /// `account_code → entity_code → net balance`
     entity_contributions: BTreeMap<String, BTreeMap<String, Decimal>>,
     deferred_tbs: Vec<(String, TrialBalance)>,
-    contributing_jes: Vec<(String, Vec<JournalEntry>)>,
+    /// v5.31 C1 Phase 2: only IC-pair-tagged JEs survive the walk.
+    /// Non-IC JEs flow through the JE-network writer + drop.
+    ic_journal_entries: Vec<(String, Vec<JournalEntry>)>,
+    /// v5.31 C1 Phase 2: the streaming JE-network writer. Stays open
+    /// past the walk so the driver can write the post-walk elimination
+    /// edges before calling `finalize()` to flush + close.
+    je_network_writer: crate::aggregate::je_network::JeNetworkStreamingWriter,
     entities_missing: Vec<String>,
 }
 
@@ -805,6 +817,7 @@ struct StreamingWalkOutcome {
 fn walk_aggregate_streaming(
     manifest: &GroupManifest,
     shards_dir: &Path,
+    out_dir: &Path,
     framework: AccountingFramework,
     cpi_series_by_currency: &BTreeMap<
         String,
@@ -824,8 +837,15 @@ fn walk_aggregate_streaming(
         Vec::with_capacity(manifest.ownership_graph.entities.len());
     let mut entity_contributions: BTreeMap<String, BTreeMap<String, Decimal>> = BTreeMap::new();
     let mut deferred_tbs: Vec<(String, TrialBalance)> = Vec::new();
-    let mut contributing_jes: Vec<(String, Vec<JournalEntry>)> = Vec::new();
+    let mut ic_journal_entries: Vec<(String, Vec<JournalEntry>)> = Vec::new();
     let mut entities_missing: Vec<String> = Vec::new();
+
+    // v5.31 C1 Phase 2: open the streaming JE-network writer once;
+    // each per-entity loop iteration writes its edges directly to
+    // disk (per-entity + consolidated CSV). No consolidated edge vec
+    // ever materialises in memory.
+    let mut je_network_writer =
+        crate::aggregate::je_network::JeNetworkStreamingWriter::open(out_dir)?;
 
     for entity in &manifest.ownership_graph.entities {
         let entity_dir = shards_dir.join("entities").join(&entity.code);
@@ -888,11 +908,28 @@ fn walk_aggregate_streaming(
                 )?;
                 translated_tbs.push(translated);
 
-                // 4. Stash JEs for IC matching (refactoring is Phase 2;
-                //    JE storage is large but separate from TB storage).
-                contributing_jes.push((entity.code.clone(), jes));
+                // 4. v5.31 C1 Phase 2: write JE-network edges for this
+                //    entity directly to disk (per-entity CSV/parquet +
+                //    consolidated CSV append). Frees the in-memory
+                //    consolidated edge vec that was the 2k OOM hotspot
+                //    after Phase 1.
+                je_network_writer.write_entity_edges(&entity.code, &jes)?;
 
-                // 5. `tb` drops here — never held past this iteration.
+                // 5. v5.31 C1 Phase 2: filter JEs to IC-pair-tagged
+                //    subset. The IC matcher only needs JEs whose
+                //    header carries an `ic_pair_id`; the rest of the
+                //    entity's JEs are no longer reachable past this
+                //    point. At v5.30 SOTA defaults the IC subset is
+                //    ~5 % of total JEs, dropping the cross-entity
+                //    `Vec<(String, Vec<JournalEntry>)>` hold from
+                //    ~200-400 GB to ~5-10 GB at 2k scale.
+                let ic_jes: Vec<JournalEntry> = jes
+                    .into_iter()
+                    .filter(|je| je.header.ic_pair_id.is_some())
+                    .collect();
+                ic_journal_entries.push((entity.code.clone(), ic_jes));
+
+                // 6. `tb` drops here — never held past this iteration.
             }
             ConsolidationMethod::EquityMethod
             | ConsolidationMethod::Proportional
@@ -903,6 +940,11 @@ fn walk_aggregate_streaming(
                 // (~200 entities × ~20 MB = ~4 GB max; manageable).
                 accumulate_entity_into_aggregate(&mut pre_elim, manifest, &entity.code, &tb)?;
                 deferred_tbs.push((entity.code.clone(), tb));
+                // Deferred-method entities do not feed IC matching or
+                // the consolidated je_network (per v5.0 contract — IC
+                // pair plans only span Parent/Full entities). `jes`
+                // drops here.
+                let _ = jes;
             }
         }
     }
@@ -910,12 +952,16 @@ fn walk_aggregate_streaming(
     entities_missing.sort();
     finalise_streaming_aggregate(&mut pre_elim);
 
+    // v5.31 C1 Phase 2: the writer stays open — the caller writes the
+    // elim edges + finalises after IC matching produces them. We
+    // hand the writer out of the walk via the outcome struct.
     Ok(StreamingWalkOutcome {
         pre_elim,
         translated_tbs,
         entity_contributions,
         deferred_tbs,
-        contributing_jes,
+        ic_journal_entries,
+        je_network_writer,
         entities_missing,
     })
 }
