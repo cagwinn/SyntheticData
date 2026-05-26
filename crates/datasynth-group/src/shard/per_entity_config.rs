@@ -251,7 +251,17 @@ fn lookup_row_budget(manifest: &GroupManifest, profile: &str) -> u64 {
 /// Callers who need exact control can bypass this helper entirely and
 /// construct `TransactionVolume::Custom(n)` themselves.
 fn volume_from_rows(rows: u64) -> TransactionVolume {
-    if rows <= 10_000 {
+    // Sub-TenK budgets (`limited` / `material` scoping tiers in
+    // enterprise_2000-class configs) must NOT be rounded up to TenK —
+    // that's the original #148 root cause: a limited entity with
+    // row_budget=200 emitted ~10 K JEs instead of ~200, and the
+    // ensemble of 2000 entities ran the aggregate phase OOM. Sub-TenK
+    // values get a `Custom(rows)` volume; bucketed values above TenK
+    // continue to use the canonical preset volumes (where the
+    // generator has tier-specific tuning baked in).
+    if rows < 10_000 {
+        TransactionVolume::Custom(rows)
+    } else if rows <= 10_000 {
         TransactionVolume::TenK
     } else if rows <= 100_000 {
         TransactionVolume::HundredK
@@ -371,10 +381,28 @@ mod tests {
     // ── volume_from_rows — boundary and inside-bucket coverage ────────────────
 
     #[test]
-    fn volume_from_rows_lower_boundary_is_tenk() {
-        // `0` lands in the TenK bucket since the boundaries are inclusive-upper.
-        assert!(matches!(volume_from_rows(0), TransactionVolume::TenK));
-        assert!(matches!(volume_from_rows(1), TransactionVolume::TenK));
+    fn volume_from_rows_sub_tenk_uses_custom() {
+        // Sub-TenK budgets (limited / material scoping in enterprise_2000-
+        // class configs) must NOT round up — that was the #148 root cause.
+        // Custom(rows) lets a row_budget=200 limited entity emit ~200 JEs
+        // rather than getting bumped to 10_000.
+        assert!(matches!(
+            volume_from_rows(200),
+            TransactionVolume::Custom(200)
+        ));
+        assert!(matches!(
+            volume_from_rows(1_000),
+            TransactionVolume::Custom(1_000)
+        ));
+        assert!(matches!(
+            volume_from_rows(5_000),
+            TransactionVolume::Custom(5_000)
+        ));
+        assert!(matches!(
+            volume_from_rows(9_999),
+            TransactionVolume::Custom(9_999)
+        ));
+        // Exact TenK boundary stays on the canonical tier.
         assert!(matches!(volume_from_rows(10_000), TransactionVolume::TenK));
     }
 
