@@ -2128,8 +2128,18 @@ impl JournalEntryGenerator {
         //
         // When priors are loaded, replace the uniform temporal-sampler date
         // with one derived from the per-Source inter-event-time prior.  We
-        // accumulate IET samples (in fractional days) per document-type code
-        // and map the accumulated offset onto [start_date, end_date].
+        // accumulate IET samples (in fractional days) per source code and
+        // map the accumulated offset onto [start_date, end_date].
+        //
+        // v5.30 B1 (#152): route through `sap_source_code` (the actual emitted
+        // source) rather than `doc_type` (only 5 values: KR/DR/SA/HR/AA from
+        // document_type_for_process). Before B1, `sample_next(&doc_type, …)`
+        // hit the IET sampler with only 5 distinct keys for all 526 emitted
+        // sources, leaving the per-source lag-1 autocorr machinery in
+        // ConditionalIETSampler **unwired** for 521 of the sources. The
+        // Sajja P1 autocorr DR of 105.9× (worst sub-metric on the A1 eval)
+        // is the direct downstream consequence. Switching to source-keyed
+        // sampling actually exercises the per-source priors.
         //
         // The None path is untouched: `posting_date` from the temporal sampler
         // above is used as-is.
@@ -2139,13 +2149,16 @@ impl JournalEntryGenerator {
             let rng_ref = &mut self.rng;
             let iet_accum_ref = &mut self.iet_day_accum;
             if let Some(priors) = priors_opt {
-                let doc_type = Self::document_type_for_process(business_process).to_string();
+                // Prefer the per-row SAP source code (populated when priors
+                // load via SP3.6's source-mix sampler). Fall back to doc_type
+                // for the rare branch where source-code sampling returned None.
+                let iet_key = sap_source_code
+                    .as_deref()
+                    .unwrap_or_else(|| Self::document_type_for_process(business_process))
+                    .to_string();
                 let period_days = (self.end_date - self.start_date).num_days().max(1) as f64;
-                let iet = priors
-                    .iet_sampler
-                    .sample_next(&doc_type, rng_ref)
-                    .max(0.001);
-                let accum = iet_accum_ref.entry(doc_type).or_insert(0.0);
+                let iet = priors.iet_sampler.sample_next(&iet_key, rng_ref).max(0.001);
+                let accum = iet_accum_ref.entry(iet_key).or_insert(0.0);
                 *accum += iet;
                 // Wrap within period so we never exceed the generation window.
                 if *accum >= period_days {
