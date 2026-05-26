@@ -334,8 +334,16 @@ impl SourceMixPrior {
         // lifts the per-source inter-event-time variance (FINDINGS sec.6: IET
         // variance is coupled to source breadth). Weight is proportional to
         // 1/rank^1.1, scaled to a fraction of the head's summed mass.
+        //
+        // v5.30 A3 (#150): TAIL_MASS reduced 0.30 → 0.15 to compress the
+        // synthetic-source vocabulary toward the reference shard. v5.29
+        // emitted 526 distinct sources vs reference ~287; this halves the
+        // Z-tail mass, expected to drop synth source-cardinality to ~390-440
+        // and tighten the Sajja P1 IET-distribution gap by ~10-15%. The
+        // trade-off is some IET-variance lift (the SP3 design intent of the
+        // Z-tail); documented in FINDINGS §6 update.
         const TAIL_N: usize = 500;
-        const TAIL_MASS: f64 = 0.30;
+        const TAIL_MASS: f64 = 0.15;
         let zipf: f64 = (1..=TAIL_N).map(|r| 1.0 / (r as f64).powf(1.1)).sum();
         for r in 1..=TAIL_N {
             let w = TAIL_MASS * (1.0 / (r as f64).powf(1.1)) / zipf;
