@@ -83,7 +83,7 @@ pub struct BehavioralFidelityReport {
     pub generator_version: String,
     pub seed: u64,
     pub generated_at: DateTime<Utc>,
-    pub real_corpus: CorpusSummary,
+    pub reference_corpus: CorpusSummary,
     pub synthetic: CorpusSummary,
     pub noise_floor: BaselineValues,
     pub per_entity: BTreeMap<String, EntityMetrics>,

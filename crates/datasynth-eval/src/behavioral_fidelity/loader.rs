@@ -12,7 +12,7 @@ use arrow::record_batch::RecordBatch;
 use chrono::{DateTime, NaiveDate, TimeZone, Utc};
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 
-use super::entity_profile::{real_corpus_aliases, synthetic_aliases};
+use super::entity_profile::{reference_corpus_aliases, synthetic_aliases};
 use super::error::{BehavioralFidelityError, BehavioralFidelityResult};
 use super::types::Record;
 
@@ -125,7 +125,7 @@ fn pick_alias_map(batch: &RecordBatch) -> HashMap<&'static str, &'static str> {
 fn pick_alias_map_from_headers(cols: &[String]) -> HashMap<&'static str, &'static str> {
     let has = |needle: &str| cols.iter().any(|c| c == needle);
     if has("Tarding Partner") || has("Functional Amount") {
-        real_corpus_aliases().into_iter().collect()
+        reference_corpus_aliases().into_iter().collect()
     } else {
         synthetic_aliases().into_iter().collect()
     }
@@ -293,7 +293,7 @@ mod tests {
     use parquet::arrow::ArrowWriter;
     use tempfile::NamedTempFile;
 
-    fn build_real_corpus_batch() -> RecordBatch {
+    fn build_reference_corpus_batch() -> RecordBatch {
         let schema = Arc::new(Schema::new(vec![
             Field::new("JE Number", DataType::Utf8, false),
             Field::new("GL Account Number", DataType::Utf8, false),
@@ -335,8 +335,8 @@ mod tests {
     }
 
     #[test]
-    fn load_parquet_real_corpus_shape() {
-        let batch = build_real_corpus_batch();
+    fn load_parquet_reference_corpus_shape() {
+        let batch = build_reference_corpus_batch();
         let tmp = NamedTempFile::new().unwrap();
         let parquet_path = tmp.path().with_extension("parquet");
         {

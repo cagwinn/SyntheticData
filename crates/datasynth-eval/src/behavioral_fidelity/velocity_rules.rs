@@ -12,7 +12,7 @@ use super::types::{Record, RuleSet, VelocityRuleKind, VelocityRuleSpec};
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RuleResult {
     pub id: String,
-    pub trigger_rate_real: f64,
+    pub trigger_rate_reference: f64,
     pub trigger_rate_syn: f64,
     pub abs_gap: f64,
 }
@@ -36,7 +36,7 @@ where
         gaps_sum += gap;
         results.push(RuleResult {
             id: rule.id.clone(),
-            trigger_rate_real: tr_real,
+            trigger_rate_reference: tr_real,
             trigger_rate_syn: tr_syn,
             abs_gap: gap,
         });

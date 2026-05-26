@@ -21,7 +21,7 @@ pub mod report;
 pub mod types;
 pub mod velocity_rules;
 
-pub use entity_profile::{gl_source_tp, real_corpus_aliases, synthetic_aliases};
+pub use entity_profile::{gl_source_tp, reference_corpus_aliases, synthetic_aliases};
 pub use error::{BehavioralFidelityError, BehavioralFidelityResult};
 pub use report::BehavioralFidelityReport;
 pub use types::{BehavioralFidelityConfig, EntityProfile, GateThresholds, Record, RuleSet};
@@ -124,7 +124,7 @@ pub fn compute_report(
         generator_version: SELF_VERSION.to_string(),
         seed: cfg.seed,
         generated_at: Utc::now(),
-        real_corpus: summary(real, &cfg.profile),
+        reference_corpus: summary(real, &cfg.profile),
         synthetic: summary(syn, &cfg.profile),
         noise_floor,
         per_entity,
@@ -599,8 +599,8 @@ mod tests {
         real.extend(make_records("SRC_B", &[6, 7, 8], "JB"));
         let cfg = BehavioralFidelityConfig::gl_default();
         let report = compute_report(&cfg, &real, &real).expect("compute_report");
-        assert_eq!(report.real_corpus.n_rows, 6);
-        assert_eq!(report.real_corpus.n_entities_primary, 2); // SRC_A, SRC_B
+        assert_eq!(report.reference_corpus.n_rows, 6);
+        assert_eq!(report.reference_corpus.n_entities_primary, 2); // SRC_A, SRC_B
         assert_eq!(report.synthetic.n_rows, 6);
     }
 

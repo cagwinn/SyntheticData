@@ -14,7 +14,7 @@ pub fn gl_source_tp() -> EntityProfile {
 /// Column-alias map from canonical name -> corpus column name.
 /// Synthetic-side mapping is identical for canonical names; the loader
 /// applies real-only renames first.
-pub fn real_corpus_aliases() -> [(&'static str, &'static str); 13] {
+pub fn reference_corpus_aliases() -> [(&'static str, &'static str); 13] {
     [
         ("Source", "Source"),
         ("GLAccount", "GL Account Number"),
@@ -70,8 +70,8 @@ mod tests {
     }
 
     #[test]
-    fn real_corpus_aliases_match_observed_columns() {
-        let aliases = real_corpus_aliases();
+    fn reference_corpus_aliases_match_observed_columns() {
+        let aliases = reference_corpus_aliases();
         let by_canon: std::collections::HashMap<_, _> = aliases.into_iter().collect();
         // corpus typo preserved
         assert_eq!(by_canon.get("TradingPartner"), Some(&"Tarding Partner"));
