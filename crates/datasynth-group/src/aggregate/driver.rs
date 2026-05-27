@@ -303,7 +303,10 @@ pub fn run_aggregate(
 
     // ── 4. Match IC pairs (Task 5.3) — v5.31 C1 Phase 2: input is the
     //      IC-filtered JE subset (~5 % of total) instead of all JEs.
-    let match_result = match_ic_pairs(manifest, &ic_journal_entries)?;
+    //      v5.31 C1 Phase 3: input consumed by value to eliminate the
+    //      double-clone hold in the IC matcher (~45 GB saving at 2k).
+    let match_result =
+        crate::aggregate::ic_matcher::match_ic_pairs_consuming(manifest, ic_journal_entries)?;
 
     // ── 5. Build + write coverage report (Task 5.7) ─────────────────────
     let coverage_report = build_coverage_report(&match_result);

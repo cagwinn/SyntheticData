@@ -190,10 +190,30 @@ pub enum UnmatchedReason {
 ///   output or a manifest mismatch).
 /// - [`GroupError::Aggregate`] if a pair_id has more than two observed
 ///   sides, or two sides with the same role.
+/// **Backwards-compatible borrow-based entry point.**
+///
+/// Clones the input into an owned `Vec` and delegates to
+/// [`match_ic_pairs_consuming`]. Most existing tests use this; the C1
+/// Phase 3 driver hot path uses the consuming variant to avoid the
+/// duplicate-JE-hold.
 pub fn match_ic_pairs(
     manifest: &GroupManifest,
     entity_jes: &[(String, Vec<JournalEntry>)],
 ) -> GroupResult<IcMatchResult> {
+    match_ic_pairs_consuming(manifest, entity_jes.to_vec())
+}
+
+pub fn match_ic_pairs_consuming(
+    manifest: &GroupManifest,
+    entity_jes: Vec<(String, Vec<JournalEntry>)>,
+) -> GroupResult<IcMatchResult> {
+    // v5.31 C1 Phase 3 — consume input by value to eliminate the
+    // double-clone hold (was: by_pair clones + matched/unmatched
+    // clones = ~90 GB at 2k scale). Now: drain entity_jes into
+    // by_pair (each JE moved once), then drain by_pair into matched
+    // / unmatched (each JE moved once again, never coexisting twice).
+    // Peak hold = 1 × JE count = ~45 GB at 2k.
+
     // Per-entity plan cache: keyed by entity code.  Each entry is a map
     // from `pair_id` to the plan that owns it, so we can look up role,
     // partner_entity, etc. in O(1) per JE.
@@ -202,14 +222,14 @@ pub fn match_ic_pairs(
     // Group observed JEs by pair_id.  Vec values keep insertion order for
     // diagnostics on bizarre shapes; we sort the final outputs separately.
     let mut by_pair: BTreeMap<IcPairId, Vec<ObservedSide>> = BTreeMap::new();
-    for (entity_code, jes) in entity_jes {
-        for je in jes {
+    for (entity_code, jes) in entity_jes.into_iter() {
+        for je in jes.into_iter() {
             let Some(pair_id) = je.header.ic_pair_id else {
                 continue;
             };
             by_pair.entry(pair_id).or_default().push(ObservedSide {
                 entity_code: entity_code.clone(),
-                je: je.clone(),
+                je,
             });
         }
     }
@@ -217,28 +237,30 @@ pub fn match_ic_pairs(
     let mut matched: Vec<IcMatchedPair> = Vec::new();
     let mut unmatched: Vec<UnmatchedSide> = Vec::new();
 
-    for (pair_id, sides) in &by_pair {
+    // Consume by_pair into the output vectors (matched / unmatched)
+    // without cloning the JEs again.
+    for (pair_id, mut sides) in by_pair.into_iter() {
         match sides.len() {
             1 => {
-                let side = &sides[0];
-                let plan = lookup_plan(&mut plan_cache, manifest, &side.entity_code, pair_id)?;
+                let side = sides.pop().expect("len == 1 checked");
+                let plan = lookup_plan(&mut plan_cache, manifest, &side.entity_code, &pair_id)?;
                 let reason = match plan.role {
                     IcRole::Seller => UnmatchedReason::MissingBuyerSide,
                     IcRole::Buyer => UnmatchedReason::MissingSellerSide,
                 };
                 unmatched.push(UnmatchedSide {
-                    pair_id: *pair_id,
+                    pair_id,
                     present_role: plan.role,
-                    present_entity: side.entity_code.clone(),
-                    present_je: side.je.clone(),
+                    present_entity: side.entity_code,
+                    present_je: side.je,
                     reason,
                 });
             }
             2 => {
                 let plan_a =
-                    lookup_plan(&mut plan_cache, manifest, &sides[0].entity_code, pair_id)?;
+                    lookup_plan(&mut plan_cache, manifest, &sides[0].entity_code, &pair_id)?;
                 let plan_b =
-                    lookup_plan(&mut plan_cache, manifest, &sides[1].entity_code, pair_id)?;
+                    lookup_plan(&mut plan_cache, manifest, &sides[1].entity_code, &pair_id)?;
 
                 // Identify which observed side is the seller and which is
                 // the buyer by consulting the plan cache.  Anything other
@@ -275,47 +297,64 @@ pub fn match_ic_pairs(
                 // byte-identical amounts, so any drift would be a
                 // contract bug rather than an engagement-level
                 // reconciliation break.
-                if matches!(
+                let drift_violation = if matches!(
                     manifest.matching.strategy,
                     crate::config::IcMatchingStrategy::EmergentFuzzy
                 ) {
-                    let seller_je = &sides[seller_idx].je;
-                    let buyer_je = &sides[buyer_idx].je;
-                    let seller_amount = seller_je.total_debit().abs();
-                    let buyer_amount = buyer_je.total_debit().abs();
+                    let seller_amount = sides[seller_idx].je.total_debit().abs();
+                    let buyer_amount = sides[buyer_idx].je.total_debit().abs();
                     let max_amount = seller_amount.max(buyer_amount);
                     if max_amount > Decimal::ZERO {
                         let drift = (seller_amount - buyer_amount).abs();
                         let drift_ratio = drift / max_amount;
-                        if drift_ratio > manifest.matching.tolerance_percent {
-                            // Both sides land in `unmatched` so the
-                            // coverage report attributes the drift to
-                            // both entities.
-                            for idx in [seller_idx, buyer_idx] {
-                                let plan = lookup_plan(
-                                    &mut plan_cache,
-                                    manifest,
-                                    &sides[idx].entity_code,
-                                    pair_id,
-                                )?;
-                                unmatched.push(UnmatchedSide {
-                                    pair_id: *pair_id,
-                                    present_role: plan.role,
-                                    present_entity: sides[idx].entity_code.clone(),
-                                    present_je: sides[idx].je.clone(),
-                                    reason: UnmatchedReason::AmountDriftAboveTolerance,
-                                });
-                            }
-                            continue;
-                        }
+                        drift_ratio > manifest.matching.tolerance_percent
+                    } else {
+                        false
                     }
+                } else {
+                    false
+                };
+
+                // Consume sides via swap_remove. To get both elements
+                // out by index safely, remove the higher index first.
+                let (high_idx, low_idx) = if seller_idx > buyer_idx {
+                    (seller_idx, buyer_idx)
+                } else {
+                    (buyer_idx, seller_idx)
+                };
+                let high = sides.swap_remove(high_idx);
+                let low = sides.swap_remove(low_idx);
+                let (seller, buyer) = if seller_idx > buyer_idx {
+                    (high, low)
+                } else {
+                    (low, high)
+                };
+
+                if drift_violation {
+                    // Both sides land in `unmatched` so the coverage
+                    // report attributes the drift to both entities.
+                    unmatched.push(UnmatchedSide {
+                        pair_id,
+                        present_role: IcRole::Seller,
+                        present_entity: seller.entity_code,
+                        present_je: seller.je,
+                        reason: UnmatchedReason::AmountDriftAboveTolerance,
+                    });
+                    unmatched.push(UnmatchedSide {
+                        pair_id,
+                        present_role: IcRole::Buyer,
+                        present_entity: buyer.entity_code,
+                        present_je: buyer.je,
+                        reason: UnmatchedReason::AmountDriftAboveTolerance,
+                    });
+                    continue;
                 }
                 matched.push(IcMatchedPair {
-                    pair_id: *pair_id,
-                    seller_entity: sides[seller_idx].entity_code.clone(),
-                    buyer_entity: sides[buyer_idx].entity_code.clone(),
-                    seller_je: sides[seller_idx].je.clone(),
-                    buyer_je: sides[buyer_idx].je.clone(),
+                    pair_id,
+                    seller_entity: seller.entity_code,
+                    buyer_entity: buyer.entity_code,
+                    seller_je: seller.je,
+                    buyer_je: buyer.je,
                 });
             }
             n => {
