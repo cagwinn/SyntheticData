@@ -119,31 +119,56 @@ pub fn build_entity_generator_config(
     //     consolidated archive.
     cfg.banking.enabled = false;
 
-    // 3b.bis. v5.31 — enable v5.30 SOTA fraud injection on every shard.
+    // 3b.bis. v5.31 — fraud config propagation from `GroupConfig.defaults.fraud`.
     //
-    // The 2026-05-27 T2 (GNN retrain) attempt blocked because the 2k
-    // regen had ZERO fraud labels — `create_preset()` returns
-    // `FraudConfig { enabled: false }` and `GroupConfig.defaults`
-    // doesn't (yet) propagate a `fraud:` section through to the
-    // per-entity orchestrator config. Hardcoding the v5.30 SOTA-mode
-    // fraud rates here is a pragmatic unblock for downstream ML
-    // training; a full schema-level propagation (read `defaults.fraud`
-    // from `GroupConfig`) is queued as a separate task.
+    // When the group config's `defaults:` block carries a `fraud:` key,
+    // deserialise it as a `FraudConfig` and apply to the per-entity
+    // orchestrator config. The 2026-05-27 hardcoded shim (commit
+    // e7428d8b) is replaced by this opt-in schema-driven path.
     //
-    // Same rates as `configs/examples/hf/journal_entries_1m_sota.yaml`:
-    // - line-level fraud_rate 0.05
-    // - document_fraud_rate 0.07 (cascades to JE lines via
-    //   propagate_to_lines)
-    // - propagate_to_lines = true (existing default)
+    // When `defaults.fraud` is absent OR malformed, fall through to the
+    // v5.30 SOTA-mode defaults — preserves the unblock for callers who
+    // haven't updated their group YAML.
     //
-    // Effective line-level fraud prevalence lands around 5-8 % depending
-    // on the doc-flow ratio of the entity's tier (see CLAUDE.md
-    // "fraud rate math"). The per-entity je_network export inherits
-    // these labels; downstream GNN training can use them as supervision.
-    cfg.fraud.enabled = true;
-    cfg.fraud.fraud_rate = 0.05;
-    cfg.fraud.document_fraud_rate = Some(0.07);
-    cfg.fraud.propagate_to_lines = true;
+    // Per the CLAUDE.md "fraud rate math": line-level rates ≥ 5 % +
+    // document-level rate ≥ 7 % yield ~5-8 % observed line-level fraud
+    // prevalence depending on doc-flow ratio per tier.
+    if let serde_yaml::Value::Mapping(defaults_map) = &manifest.defaults {
+        if let Some(fraud_yaml) = defaults_map.get("fraud") {
+            match serde_yaml::from_value::<datasynth_config::FraudConfig>(fraud_yaml.clone()) {
+                Ok(parsed_fraud) => {
+                    cfg.fraud = parsed_fraud;
+                    tracing::debug!(
+                        entity = %entity.code,
+                        fraud_enabled = cfg.fraud.enabled,
+                        fraud_rate = cfg.fraud.fraud_rate,
+                        "applied fraud config from GroupConfig.defaults.fraud"
+                    );
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        entity = %entity.code,
+                        error = %e,
+                        "GroupConfig.defaults.fraud failed to parse — falling back to SOTA defaults"
+                    );
+                    cfg.fraud.enabled = true;
+                    cfg.fraud.fraud_rate = 0.05;
+                    cfg.fraud.document_fraud_rate = Some(0.07);
+                    cfg.fraud.propagate_to_lines = true;
+                }
+            }
+        } else {
+            cfg.fraud.enabled = true;
+            cfg.fraud.fraud_rate = 0.05;
+            cfg.fraud.document_fraud_rate = Some(0.07);
+            cfg.fraud.propagate_to_lines = true;
+        }
+    } else {
+        cfg.fraud.enabled = true;
+        cfg.fraud.fraud_rate = 0.05;
+        cfg.fraud.document_fraud_rate = Some(0.07);
+        cfg.fraud.propagate_to_lines = true;
+    }
 
     // 3c. Per-entity scoping-budget scale (closes #148 — v5.29 regen of
     //     enterprise-2000 OOM-killed the aggregate phase because each entity

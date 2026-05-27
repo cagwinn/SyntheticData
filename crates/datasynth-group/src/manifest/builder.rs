@@ -90,6 +90,14 @@ pub struct GroupManifest {
     /// behaviour preserved byte-for-byte.
     #[serde(default)]
     pub matching: crate::config::IcMatchingConfig,
+    /// **v5.31** — raw `defaults:` YAML block from [`GroupConfig`],
+    /// forwarded verbatim so per-entity orchestrator configs can read
+    /// generator-level settings (e.g. `fraud:`, `anomaly_injection:`,
+    /// `distributions:`) that the manifest doesn't otherwise model.
+    /// Pre-v5.31 manifests deserialise to `Value::Null` via
+    /// `#[serde(default)]` — backwards-compat preserved.
+    #[serde(default)]
+    pub defaults: serde_yaml::Value,
 }
 
 /// Resolved engagement period.
@@ -291,6 +299,9 @@ pub fn build_manifest(cfg: &GroupConfig) -> GroupResult<GroupManifest> {
         // produced by `IcMatchingConfig::default()` match the v5.0
         // exact-match behaviour byte-for-byte.
         matching: cfg.intercompany.matching.clone(),
+        // v5.31: raw `defaults:` YAML block forwarded so per-entity
+        // configs can read generator-level settings like `fraud:`.
+        defaults: cfg.defaults.clone(),
     })
 }
 
