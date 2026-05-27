@@ -701,6 +701,21 @@ fn load_entity_journal_entries(
 
 /// v5.31 C1 — translate a **single** entity's TB.
 ///
+/// v5.31 C1 Phase 5 — read this process's resident-set size from
+/// `/proc/self/statm`. Returns `None` on non-Linux or read failure;
+/// the caller logs `0` in that case so the tracing line is still
+/// emitted. Used by the walk-loop RSS checkpoints to attribute the
+/// Phase 4 OOM trajectory to a specific accumulator.
+fn read_self_rss_kb() -> Option<u64> {
+    // `/proc/self/statm` fields: size resident shared text lib data dt
+    // — all in pages. We want field index 1 (resident).
+    let s = std::fs::read_to_string("/proc/self/statm").ok()?;
+    let pages: u64 = s.split_ascii_whitespace().nth(1)?.parse().ok()?;
+    // Page size is 4 KB on x86_64 Linux. Could call `sysconf(_SC_PAGESIZE)`
+    // for portability but the only platform we run on is x86_64 Linux.
+    Some(pages * 4)
+}
+
 /// Factored out of [`translate_all_contributing`] so the streaming
 /// aggregate walk can call it per-entity without materialising a
 /// `Vec<(String, TrialBalance)>`.  The signature mirrors the inner
@@ -851,7 +866,19 @@ fn walk_aggregate_streaming(
     let mut je_network_writer =
         crate::aggregate::je_network::JeNetworkStreamingWriter::open(out_dir)?;
 
-    for entity in &manifest.ownership_graph.entities {
+    // v5.31 C1 Phase 5 — RSS profiling.
+    //
+    // Periodically log peak RSS + the sizes of every long-lived
+    // accumulator. The Phase 4 OOM analysis surfaced a 218 GB linear
+    // climb at ~6 GB/min over 38 min, but the IC subset (the holding
+    // structure I theorised) is only 0.03 % of edges; ic_journal_entries
+    // is ~100 MB, not the 50 GB I'd estimated. The actual hotspot is
+    // unknown. These checkpoint logs let the post-OOM log inspection
+    // tell us which structure grows fastest.
+    let entity_count = manifest.ownership_graph.entities.len();
+    let log_every = (entity_count / 20).max(1); // ~20 samples across the walk
+
+    for (idx, entity) in manifest.ownership_graph.entities.iter().enumerate() {
         let entity_dir = shards_dir.join("entities").join(&entity.code);
         let tb_path = entity_dir.join("period_close").join("trial_balances.json");
 
@@ -951,10 +978,55 @@ fn walk_aggregate_streaming(
                 let _ = jes;
             }
         }
+
+        // v5.31 C1 Phase 5 RSS checkpoint — every ~5 % of entities,
+        // emit a structured log so the Phase 4 OOM trajectory can be
+        // attributed to a specific accumulator.
+        if (idx + 1) % log_every == 0 || idx + 1 == entity_count {
+            let rss_kb = read_self_rss_kb().unwrap_or(0);
+            let ic_je_count: usize = ic_journal_entries.iter().map(|(_, v)| v.len()).sum();
+            let pre_elim_accounts = pre_elim.account_totals.len();
+            tracing::info!(
+                target: "datasynth_group::c1_phase5",
+                entity_idx = idx + 1,
+                total_entities = entity_count,
+                rss_gb = rss_kb / 1024 / 1024,
+                pre_elim_accounts,
+                pre_elim_contributing = pre_elim.contributing_entities.len(),
+                pre_elim_deferred = pre_elim.deferred_entities.len(),
+                translated_tbs_n = translated_tbs.len(),
+                translated_tbs_total_lines = translated_tbs.iter().map(|t| t.lines.len()).sum::<usize>(),
+                entity_contributions_keys = entity_contributions.len(),
+                entity_contributions_total_pairs = entity_contributions.values().map(|m| m.len()).sum::<usize>(),
+                deferred_tbs_n = deferred_tbs.len(),
+                ic_journal_entries_entries = ic_journal_entries.len(),
+                ic_journal_entries_total_jes = ic_je_count,
+                "c1_phase5 checkpoint"
+            );
+        }
     }
 
     entities_missing.sort();
     finalise_streaming_aggregate(&mut pre_elim);
+
+    // v5.31 C1 Phase 5 — final per-component sizes after walk completes
+    // (before IC matching runs).
+    let final_rss_kb = read_self_rss_kb().unwrap_or(0);
+    let final_ic_jes: usize = ic_journal_entries.iter().map(|(_, v)| v.len()).sum();
+    tracing::info!(
+        target: "datasynth_group::c1_phase5",
+        rss_gb = final_rss_kb / 1024 / 1024,
+        rss_mb = final_rss_kb / 1024,
+        translated_tbs_n = translated_tbs.len(),
+        translated_tbs_lines = translated_tbs.iter().map(|t| t.lines.len()).sum::<usize>(),
+        entity_contributions_keys = entity_contributions.len(),
+        entity_contributions_total_pairs = entity_contributions.values().map(|m| m.len()).sum::<usize>(),
+        deferred_tbs_n = deferred_tbs.len(),
+        ic_journal_entries_n = ic_journal_entries.len(),
+        ic_journal_entries_total = final_ic_jes,
+        pre_elim_accounts = pre_elim.account_totals.len(),
+        "c1_phase5 walk-complete summary"
+    );
 
     // v5.31 C1 Phase 2: the writer stays open — the caller writes the
     // elim edges + finalises after IC matching produces them. We
