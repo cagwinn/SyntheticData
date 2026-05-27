@@ -22,7 +22,12 @@
 //! follow-up commits.
 
 mod knob;
+mod loop_runner;
 mod objective;
 
 pub use knob::{CalibrationKnob, KnobBounds, KnobClipResult, KnobValue};
+pub use loop_runner::{
+    CalibrationConfig, CalibrationLoop, Evaluator, EvaluatorError, ProposedPatch, Proposer,
+    RollbackPolicy, StepOutcome, StepReport,
+};
 pub use objective::{CalibrationObjective, ObjectiveMetric};
