@@ -119,6 +119,32 @@ pub fn build_entity_generator_config(
     //     consolidated archive.
     cfg.banking.enabled = false;
 
+    // 3b.bis. v5.31 — enable v5.30 SOTA fraud injection on every shard.
+    //
+    // The 2026-05-27 T2 (GNN retrain) attempt blocked because the 2k
+    // regen had ZERO fraud labels — `create_preset()` returns
+    // `FraudConfig { enabled: false }` and `GroupConfig.defaults`
+    // doesn't (yet) propagate a `fraud:` section through to the
+    // per-entity orchestrator config. Hardcoding the v5.30 SOTA-mode
+    // fraud rates here is a pragmatic unblock for downstream ML
+    // training; a full schema-level propagation (read `defaults.fraud`
+    // from `GroupConfig`) is queued as a separate task.
+    //
+    // Same rates as `configs/examples/hf/journal_entries_1m_sota.yaml`:
+    // - line-level fraud_rate 0.05
+    // - document_fraud_rate 0.07 (cascades to JE lines via
+    //   propagate_to_lines)
+    // - propagate_to_lines = true (existing default)
+    //
+    // Effective line-level fraud prevalence lands around 5-8 % depending
+    // on the doc-flow ratio of the entity's tier (see CLAUDE.md
+    // "fraud rate math"). The per-entity je_network export inherits
+    // these labels; downstream GNN training can use them as supervision.
+    cfg.fraud.enabled = true;
+    cfg.fraud.fraud_rate = 0.05;
+    cfg.fraud.document_fraud_rate = Some(0.07);
+    cfg.fraud.propagate_to_lines = true;
+
     // 3c. Per-entity scoping-budget scale (closes #148 — v5.29 regen of
     //     enterprise-2000 OOM-killed the aggregate phase because each entity
     //     emitted ~100 K JEs regardless of row_budget: document_flows,
