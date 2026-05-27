@@ -53499,5 +53499,20 @@
     "strategy": "manifest_driven",
     "coverage_target": 0.98,
     "tolerance_percent": "0"
+  },
+  "defaults": {
+    "accounting_framework": "ifrs",
+    "industry": "manufacturing",
+    "process_models": [
+      "o2c",
+      "p2p",
+      "h2r",
+      "r2r",
+      "audit"
+    ],
+    "accounting_standards": {
+      "enabled": true,
+      "leases_enabled": true
+    }
   }
 }
