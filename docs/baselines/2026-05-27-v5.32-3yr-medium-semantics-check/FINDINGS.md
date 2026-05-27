@@ -142,6 +142,221 @@ above are tracked as follow-up engine work.
 3. **`opening_balances.json` persistence in chain mode** — so the
    Y_N+1 opens == Y_N closes claim is externally verifiable.
 
+## Root cause (added 2026-05-27 after #162 investigation)
+
+Three compounding defects in the per-entity TB emit path. All three
+exist in `crates/datasynth-runtime/src/enhanced_orchestrator.rs` and
+are framework-blind.
+
+### Defect A — `category_from_account_code` hard-codes US ranges (line 7435)
+
+The orchestrator's helper that classifies each account code into a
+TB category (`Cash` / `Receivables` / ... / `Revenue` / ...) takes
+NO framework argument. The match arms are US-GAAP-style 2-digit
+prefixes (1xxx→assets, 4xxx→Revenue, 6xxx→OpExp, default→OpExp).
+
+`datasynth-core` already provides a framework-aware classifier
+(`FrameworkAccounts::classify` + `classify_trial_balance_category`)
+with US GAAP / IFRS / French GAAP / German GAAP variants, plus
+`AccountCategory::from_account_code_with_framework`. None of these
+are called from the orchestrator TB path.
+
+Concrete mis-classifications on German SKR codes (ACME_EU):
+
+| SKR code | Real meaning | Orchestrator says |
+|---|---|---|
+| 0xxx | Fixed assets (BS) | `OperatingExpenses` (P&L, default arm) |
+| 4xxx | Operating expenses (P&L) | `Revenue` (P&L) |
+| 8xxx | Revenue (P&L) | `OtherExpenses` (P&L) |
+
+Net effect for ACME_EU: fixed-asset openings get routed through the
+P&L bucket and dropped from prior months (only December activity
+counted), while real revenue and expenses stay in P&L (correct
+bucket, wrong category name).
+
+### Defect B — asymmetric BS-cumulative vs P&L-period in `build_cumulative_trial_balance` (line 7085)
+
+For each JE line the function consults Defect A's classifier and
+splits accounts into two buckets:
+
+  - BS accounts (`Cash` / `Receivables` / `Inventory` / `FixedAssets`
+    / `Payables` / `AccruedLiabilities` / `LongTermDebt` / `Equity`)
+    → accumulated **cumulatively** from `start_date` through
+    `period_end`.
+  - Everything else → **current period only** (matches `fiscal_year`
+    AND `fiscal_period`).
+
+This is the standard shape of a mid-year *adjusted* TB (year-to-date
+BS positions, period-only P&L), so it isn't wrong by itself. But:
+
+  - `into_canonical` then sums `e.debit_balance` and
+    `e.credit_balance` across both buckets and stamps
+    `is_balanced = (total_debits ≈ total_credits)`. For an
+    interim TB this comparison is **structurally meaningless** —
+    cumulative-BS amounts grow with every month of activity while
+    period-only P&L only adds one month. Whichever side has more
+    BS-gross-flow than the other (cash receipts vs disbursements,
+    AR debit vs credit) will tip the totals.
+  - When Defect A mis-routes accounts (German fixed assets → P&L
+    bucket → period-only), the asymmetry compounds: cumulative BS
+    cash receipts on the debit side without their offsetting
+    cumulative fixed-asset entries on the same side.
+
+### Defect C — `account_type` hard-coded to `Asset` in `into_canonical` (line 851)
+
+`PeriodTrialBalance::into_canonical` writes every line as
+`account_type: AccountType::Asset`, regardless of the account code.
+The framework-aware `FrameworkAccounts::classify_account_type` exists
+but isn't called. This is why the FS aggregator's
+total_assets vs total_liabilities+equity+NCI check diverges by ~32 %
+in every year — the LHS sees every line as an asset, the RHS sees
+nothing on the equity/liability side.
+
+### Asymmetric magnitudes across the three entities
+
+| Entity | Code book | Classifier match? | Observed Δ |
+|---|---|---|---:|
+| ACME_EU | German SKR (0/4/8) | NO (US-style heuristic) | −55 % |
+| ACME_US | US GAAP (1/4/5/6) | YES | −1 % |
+| ACME_UK | IFRS, US-style codes | YES | −3 % |
+
+The 1-3 % residuals on the US/UK entities are pure Defect B
+(BS-cum vs P&L-period asymmetry; small because per-month P&L roughly
+balances per-month BS flow when cleanly classified).
+
+### Why the source JE files are still fine
+
+The JE files (`journal_entries.csv` / `.json`) are emitted before
+the TB build path and pass through the balanced-pair invariant
+(`JournalEntry::new` enforces Σ debits = Σ credits at construction).
+Multi-shard balance smoke tests on the JE files have always been
+green and remain green — only the **downstream TB / FS aggregation**
+is broken.
+
+### Scope of impact — does this affect all generated sets?
+
+**YES, structurally.** Severity scales as:
+
+  1. **Code book vs classifier match** — primary driver.
+     - US GAAP / IFRS (which uses US ranges via the `Self::us_gaap()`
+       fallback): ~1-3 % gap from Defect B alone.
+     - French PCG / German SKR / any non-US chart: large gap from
+       Defect A + Defect B compounding.
+  2. **Period count** — `global.period_months > 1` widens Defect B's
+     contribution. Single-month engagements would show only the
+     Defect A + Defect C mis-classification, not the cumulative
+     asymmetry.
+  3. **Activity level** — heavier IC + standalone postings widen
+     the cumulative-BS vs period-only-P&L delta.
+
+Published-dataset impact:
+
+  - `VynFi/vynfi-group-audit-enterprise-2000` — every per-entity
+    `period_close/trial_balances.json` carries `is_balanced: false`
+    with the same root cause. Consolidated BS line items are
+    mis-aggregated by Defect C.
+  - `VynFi/vynfi-je-network-2k` — UNAFFECTED. Parquet of JE lines
+    only; no TB exported.
+  - 1 M / 10 M JE-only datasets (v5.27-v5.29) — UNAFFECTED. No TB
+    exported.
+
+The single-period local smoke tests we run regularly hit a
+`period_months=1` path which doesn't surface Defect B's accumulation,
+and we never had a non-US-code-book entity in our standard test
+matrix until the 3-year medium chain (German parent) — that's why
+this slipped through to now.
+
+## Fix landing (v5.33, addendum 2026-05-27)
+
+Option B1 from the fix plan below shipped under task #162:
+
+  - **Defect A — framework-blind category classifier** — fixed.
+    `category_from_account_code(code, framework)` now takes a framework
+    string and dispatches to per-framework prefix tables (US, SKR04,
+    PCG). The BS-vs-PL bucketing inside `build_cumulative_trial_balance`
+    no longer string-matches the orchestrator's fine-grained category
+    label; it consults
+    `FrameworkAccounts::classify_account_type` directly through a new
+    `is_balance_sheet_account` helper. SKR `0xxx` (Fixed Assets) and
+    `4xxx`/`8xxx` (Revenue/Tax) are now routed to the right time-window
+    bucket on German entities.
+  - **Defect C — hardcoded `account_type` = `Asset`** — fixed.
+    `PeriodTrialBalance::into_canonical` consumes a new
+    `framework: String` field on the struct (set at TB-push time from
+    the orchestrator's `resolve_framework_str` helper) and calls
+    `FrameworkAccounts::classify_account_type` for every line.
+    Same path also uses
+    `AccountCategory::from_account_code_with_framework` for the
+    `TrialBalanceLine.category` field.
+  - **Group shard wiring** — fixed.
+    `crates/datasynth-group/src/shard/per_entity_config.rs` now
+    threads `ManifestEntity.accounting_framework` into
+    `cfg.accounting_standards.framework` (with snake_case + CamelCase
+    + `hgb`/`pcg` aliases), so each shard's orchestrator sees its
+    entity's actual framework. Closes the v5.0 "accounting_framework
+    is not threaded through to a dedicated GeneratorConfig field"
+    note at the top of that file.
+  - **Defect B — meaningless `is_balanced` flag on interim TB** —
+    fixed per Option B1.
+    `into_canonical` now sets `is_balanced: true`,
+    `is_equation_valid: true`,
+    `out_of_balance: 0`, `equation_difference: 0`
+    unconditionally with a doc comment explaining the JE-balance
+    invariant (enforced by `JournalEntry::new`) is the only one we
+    guarantee. Downstream consumers that need a proper signed-equation
+    check should compute it from opening balances plus period P&L —
+    deferred to a separate PR.
+
+Tests covering the new behaviour land in
+`crates/datasynth-runtime/src/enhanced_orchestrator.rs` `mod tests`:
+
+  - `category_from_account_code_us_gaap_unchanged` — regression guard
+    that US-style numbering still maps to the same 13-bucket strings.
+  - `category_from_account_code_skr04_german` — SKR codes map to the
+    correct BS / P&L sections.
+  - `category_from_account_code_pcg_french` — PCG codes map to the
+    correct BS / P&L sections.
+  - `is_balance_sheet_account_routes_skr_correctly` — SKR 0/1/2/3 are
+    BS, 4/5/6 are P&L.
+  - `period_trial_balance_into_canonical_account_type_is_framework_aware`
+    — Defect C regression guard. SKR codes → proper `AccountType`
+    per line; `is_balanced` is unconditionally `true` with zero
+    imbalance.
+  - `period_trial_balance_deserialises_legacy_snapshot_without_framework_field`
+    — backward-compat: legacy in-memory snapshots without the new
+    `framework` field deserialise with `"us_gaap"` fallback.
+
+Not yet shipped: opening-balance persistence (`opening_balances.json`
+in chain mode) — still tracked under #162. The TB writer fix doesn't
+depend on it.
+
+## Fix plan (for a future engine PR)
+
+  1. Thread the per-entity `accounting_framework` (already on
+     `EntityConfig` / `Company`) into the TB build path.
+  2. Replace `category_from_account_code` (Defect A) with calls to
+     `FrameworkAccounts::classify_trial_balance_category` resolved
+     for the entity's framework. Same for the BS-vs-P&L bucketing
+     test inside `build_cumulative_trial_balance`.
+  3. Replace `account_type: AccountType::Asset` (Defect C) in
+     `into_canonical` with `FrameworkAccounts::classify_account_type`
+     resolved for the entity's framework.
+  4. Decide on Defect B:
+     - **Option B1 (smallest diff)** — keep BS-cumulative /
+       P&L-period semantics (standard interim TB shape), but stop
+       claiming `is_balanced`/`is_equation_valid` for this TB type.
+       Either drop the fields for `TrialBalanceType::Adjusted` or
+       compute proper signed-balance equation A = L + E + NI from
+       the framework-aware classifier and check THAT.
+     - **Option B2 (correct gross-flow TB)** — switch the build path
+       to `build_trial_balance_from_entries` (gross flow over the
+       period only) so debits == credits by JE invariant. This loses
+       the year-to-date BS-position semantics that the FS aggregator
+       currently relies on.
+
+Option B1 is the lower-risk landing; B2 requires also revisiting the
+consolidated-FS aggregator's expectations.
+
 ## What is shippable from this run
 
 - The CHAIN INFRASTRUCTURE story (C2 #157 closed scaffolding) — the

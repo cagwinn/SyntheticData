@@ -235,6 +235,19 @@ pub fn build_entity_generator_config(
         volume_weight: 1.0,
     }];
 
+    // 4a. v5.33 — thread the manifest entity's `accounting_framework`
+    //     into `cfg.accounting_standards.framework` so the orchestrator's
+    //     framework-aware TB classifier (`resolve_framework_str`) picks
+    //     up the per-entity framework when the entity's country isn't
+    //     one of the auto-mapped DE/FR/AT/BE/LU codes. Closes the v5.0
+    //     gap documented at the top of this file ("accounting_framework
+    //     is not threaded through to a dedicated GeneratorConfig field").
+    if let Some(fw_str) = entity.accounting_framework.as_deref() {
+        if let Some(fw_cfg) = parse_accounting_framework(fw_str) {
+            cfg.accounting_standards.framework = Some(fw_cfg);
+        }
+    }
+
     // 5. Validate.  Any failure here is effectively a builder bug — surface
     //    it with the entity code so the caller can pinpoint the shard.
     datasynth_config::validate_config(&cfg).map_err(|e| {
@@ -245,6 +258,25 @@ pub fn build_entity_generator_config(
     })?;
 
     Ok(cfg)
+}
+
+/// Parse the manifest's `accounting_framework` string (e.g. `"ifrs"`,
+/// `"us_gaap"`, `"french_gaap"`, `"german_gaap"`, `"dual_reporting"`)
+/// into the schema enum. Returns `None` for unrecognised values so the
+/// caller falls back to the preset default rather than overriding with
+/// a misleading framework selection.
+fn parse_accounting_framework(
+    s: &str,
+) -> Option<datasynth_config::schema::AccountingFrameworkConfig> {
+    use datasynth_config::schema::AccountingFrameworkConfig::*;
+    match s {
+        "us_gaap" | "UsGaap" | "us-gaap" => Some(UsGaap),
+        "ifrs" | "Ifrs" | "IFRS" => Some(Ifrs),
+        "dual_reporting" | "DualReporting" | "dual-reporting" => Some(DualReporting),
+        "french_gaap" | "FrenchGaap" | "french-gaap" | "pcg" => Some(FrenchGaap),
+        "german_gaap" | "GermanGaap" | "german-gaap" | "hgb" => Some(GermanGaap),
+        _ => None,
+    }
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

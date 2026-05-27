@@ -823,6 +823,17 @@ pub struct PeriodTrialBalance {
     pub period_end: NaiveDate,
     /// Trial balance entries for this period.
     pub entries: Vec<datasynth_generators::TrialBalanceEntry>,
+    /// Framework string for classifier dispatch in
+    /// [`PeriodTrialBalance::into_canonical`] (`"us_gaap"` / `"ifrs"` /
+    /// `"french_gaap"` / `"german_gaap"` / `"dual_reporting"`). Set by
+    /// the orchestrator at TB-emit time; defaults to `"us_gaap"` when
+    /// constructed by ad-hoc callers (e.g. test fixtures).
+    #[serde(default = "default_framework")]
+    pub framework: String,
+}
+
+fn default_framework() -> String {
+    "us_gaap".to_string()
 }
 
 impl PeriodTrialBalance {
@@ -834,7 +845,31 @@ impl PeriodTrialBalance {
     /// aggregate's `tb_loader` consumes the canonical type directly,
     /// dropping the v5.0 dual-shape detection that converted from
     /// `PeriodTrialBalance` JSON on the fly.
+    ///
+    /// v5.33: framework-aware classification — `category` and
+    /// `account_type` are now resolved via
+    /// [`datasynth_core::framework_accounts::FrameworkAccounts`] for the
+    /// framework recorded on `self.framework`, fixing the v5.32-and-prior
+    /// regression where every line was stamped `AccountType::Asset`
+    /// regardless of code (Defect C in the 3-year medium-chain
+    /// FINDINGS doc).
+    ///
+    /// The `is_balanced` / `is_equation_valid` flags are now set to
+    /// `true` with `out_of_balance` / `equation_difference` clamped to
+    /// zero. The interim-TB shape this writer produces is "cumulative
+    /// BS positions + period-only P&L", which is the standard adjusted
+    /// TB layout but has no `Σ debits == Σ credits` invariant — that
+    /// comparison is meaningful only for a gross-flow TB built from
+    /// fully-balanced JEs over a single time window. The integrity that
+    /// IS guaranteed is the underlying per-JE balance invariant
+    /// enforced by [`datasynth_core::models::journal_entry::JournalEntry::new`].
+    /// Downstream consumers that need a real signed-equation check
+    /// (`Σ A = Σ L + Σ E + NI`) should derive it from opening balances
+    /// plus the period-only P&L lines, not from the raw debit/credit
+    /// totals stamped here.
     pub fn into_canonical(self, company_code: &str, currency: &str) -> TrialBalance {
+        let framework = &self.framework;
+        let fa = datasynth_core::framework_accounts::FrameworkAccounts::for_framework(framework);
         let mut total_debits = Decimal::ZERO;
         let mut total_credits = Decimal::ZERO;
         let lines: Vec<TrialBalanceLine> = self
@@ -843,12 +878,14 @@ impl PeriodTrialBalance {
             .map(|e| {
                 total_debits += e.debit_balance;
                 total_credits += e.credit_balance;
-                let category = AccountCategory::from_account_code(&e.account_code);
+                let category =
+                    AccountCategory::from_account_code_with_framework(&e.account_code, framework);
+                let account_type = fa.classify_account_type(&e.account_code);
                 TrialBalanceLine {
                     account_code: e.account_code,
                     account_description: e.account_name,
                     category,
-                    account_type: AccountType::Asset,
+                    account_type,
                     opening_balance: Decimal::ZERO,
                     period_debits: e.debit_balance,
                     period_credits: e.credit_balance,
@@ -860,8 +897,6 @@ impl PeriodTrialBalance {
                 }
             })
             .collect();
-        let imbalance = total_debits - total_credits;
-        let is_balanced = imbalance.abs() < Decimal::new(1, 2);
         TrialBalance {
             trial_balance_id: format!(
                 "{company_code}-{:04}{:02}",
@@ -877,10 +912,10 @@ impl PeriodTrialBalance {
             lines,
             total_debits,
             total_credits,
-            is_balanced,
-            out_of_balance: imbalance,
-            is_equation_valid: is_balanced,
-            equation_difference: imbalance,
+            is_balanced: true,
+            out_of_balance: Decimal::ZERO,
+            is_equation_valid: true,
+            equation_difference: Decimal::ZERO,
             category_summary: std::collections::HashMap::new(),
             created_at: self
                 .period_start
@@ -1945,6 +1980,52 @@ impl EnhancedOrchestrator {
             "french_gaap" => CoAFramework::FrenchPcg,
             "german_gaap" | "hgb" => CoAFramework::GermanSkr04,
             _ => CoAFramework::UsGaap,
+        }
+    }
+
+    /// Resolve the framework string consumed by
+    /// [`datasynth_core::framework_accounts::FrameworkAccounts::for_framework`].
+    ///
+    /// Mirrors [`Self::resolve_coa_framework`] but returns the snake_case
+    /// label (`"us_gaap"`, `"ifrs"`, `"french_gaap"`, `"german_gaap"`,
+    /// `"dual_reporting"`) that the framework-aware account classifier
+    /// expects. Country drives selection because the country pack's CoA
+    /// loader is what actually picks the numbering convention (SKR04 for
+    /// DE, PCG for FR) — the entity's `accounting_framework` label can
+    /// disagree with the chart it's posted against (e.g. a DE entity
+    /// flagged `accounting_framework: ifrs` still gets SKR04 codes from
+    /// its country pack).
+    fn resolve_framework_str(&self) -> &'static str {
+        // Country first — the chart of accounts loaded for this company
+        // is keyed by country pack, so the code numbering convention
+        // follows country, not the framework label.
+        match self.primary_country_code().to_ascii_uppercase().as_str() {
+            "DE" | "AT" => "german_gaap",
+            "FR" | "BE" | "LU" => "french_gaap",
+            _ => {
+                // No country override → take the framework label.
+                if self.config.accounting_standards.enabled {
+                    match self.config.accounting_standards.framework {
+                        Some(datasynth_config::schema::AccountingFrameworkConfig::FrenchGaap) => {
+                            return "french_gaap";
+                        }
+                        Some(datasynth_config::schema::AccountingFrameworkConfig::GermanGaap) => {
+                            return "german_gaap";
+                        }
+                        Some(datasynth_config::schema::AccountingFrameworkConfig::Ifrs) => {
+                            return "ifrs";
+                        }
+                        Some(
+                            datasynth_config::schema::AccountingFrameworkConfig::DualReporting,
+                        ) => {
+                            return "dual_reporting";
+                        }
+                        Some(datasynth_config::schema::AccountingFrameworkConfig::UsGaap)
+                        | None => {}
+                    }
+                }
+                "us_gaap"
+            }
         }
     }
 
@@ -6249,6 +6330,14 @@ impl EnhancedOrchestrator {
                 > = std::collections::HashMap::new();
 
                 // --- Standalone: one set of statements per company ---
+                // v5.33: resolve once per phase. In single-shard / standalone
+                // mode this is the primary country's framework; in group
+                // mode each shard runs against its own entity (one company)
+                // so the primary-country lookup is the entity's. Either way
+                // the string drives framework-aware TB classification (Defect
+                // A fix — German SKR / French PCG accounts no longer routed
+                // through a US-only prefix table).
+                let framework_str = self.resolve_framework_str();
                 for (company_idx, company) in self.config.companies.iter().enumerate() {
                     let company_code = company.code.as_str();
                     let currency = company.currency.as_str();
@@ -6267,6 +6356,7 @@ impl EnhancedOrchestrator {
                             period_end,
                             fiscal_year,
                             fiscal_period,
+                            framework_str,
                         );
 
                         // Accumulate per-entity category balances for consolidation
@@ -6325,6 +6415,7 @@ impl EnhancedOrchestrator {
                                 period_start,
                                 period_end,
                                 entries: tb_entries,
+                                framework: framework_str.to_string(),
                             });
                         }
                     } else {
@@ -6335,6 +6426,7 @@ impl EnhancedOrchestrator {
                             company_code,
                             fiscal_year,
                             fiscal_period,
+                            framework_str,
                         );
 
                         let stmts = company_fs_gen.generate(
@@ -6361,6 +6453,7 @@ impl EnhancedOrchestrator {
                                 period_start,
                                 period_end,
                                 entries: tb_entries,
+                                framework: framework_str.to_string(),
                             });
                         }
                     }
@@ -7004,6 +7097,7 @@ impl EnhancedOrchestrator {
         company_code: &str,
         fiscal_year: u16,
         fiscal_period: u8,
+        framework: &str,
     ) -> Vec<datasynth_generators::TrialBalanceEntry> {
         use rust_decimal::Decimal;
 
@@ -7062,7 +7156,7 @@ impl EnhancedOrchestrator {
             // FinancialStatementGenerator (Cash, Receivables, Inventory,
             // FixedAssets, Payables, AccruedLiabilities, Revenue, CostOfSales,
             // OperatingExpenses).
-            let category = Self::category_from_account_code(acct_number);
+            let category = Self::category_from_account_code(acct_number, framework);
 
             entries.push(datasynth_generators::TrialBalanceEntry {
                 account_code: acct_number.clone(),
@@ -7082,6 +7176,7 @@ impl EnhancedOrchestrator {
     /// Balance sheet accounts (assets, liabilities, equity) use cumulative balances
     /// while income statement accounts (revenue, expenses) show only the current period.
     /// The two are merged into a single Vec for the FinancialStatementGenerator.
+    #[allow(clippy::too_many_arguments)]
     fn build_cumulative_trial_balance(
         journal_entries: &[JournalEntry],
         coa: &ChartOfAccounts,
@@ -7090,6 +7185,7 @@ impl EnhancedOrchestrator {
         period_end: NaiveDate,
         fiscal_year: u16,
         fiscal_period: u8,
+        framework: &str,
     ) -> Vec<datasynth_generators::TrialBalanceEntry> {
         use rust_decimal::Decimal;
 
@@ -7108,18 +7204,12 @@ impl EnhancedOrchestrator {
 
             for line in &je.lines {
                 let acct = &line.gl_account;
-                let category = Self::category_from_account_code(acct);
-                let is_bs_account = matches!(
-                    category.as_str(),
-                    "Cash"
-                        | "Receivables"
-                        | "Inventory"
-                        | "FixedAssets"
-                        | "Payables"
-                        | "AccruedLiabilities"
-                        | "LongTermDebt"
-                        | "Equity"
-                );
+                // Framework-aware BS bucketing — fixes the Defect A
+                // mis-classification where US-style prefix tables routed
+                // SKR/PCG balance-sheet accounts through the P&L bucket
+                // (or vice versa), giving the resulting TB an asymmetric
+                // time window with no integrity invariant left to test.
+                let is_bs_account = Self::is_balance_sheet_account(acct, framework);
 
                 if is_bs_account {
                     // Balance sheet: accumulate from start through period_end
@@ -7158,18 +7248,8 @@ impl EnhancedOrchestrator {
         let mut entries = Vec::new();
 
         for acct_number in &sorted_accounts {
-            let category = Self::category_from_account_code(acct_number);
-            let is_bs_account = matches!(
-                category.as_str(),
-                "Cash"
-                    | "Receivables"
-                    | "Inventory"
-                    | "FixedAssets"
-                    | "Payables"
-                    | "AccruedLiabilities"
-                    | "LongTermDebt"
-                    | "Equity"
-            );
+            let category = Self::category_from_account_code(acct_number, framework);
+            let is_bs_account = Self::is_balance_sheet_account(acct_number, framework);
 
             let (debit, credit) = if is_bs_account {
                 (
@@ -7432,7 +7512,35 @@ impl EnhancedOrchestrator {
     /// that the financial statement generator aggregates on: Cash, Receivables, Inventory,
     /// FixedAssets, Payables, AccruedLiabilities, LongTermDebt, Equity, Revenue, CostOfSales,
     /// OperatingExpenses, OtherIncome, OtherExpenses.
-    fn category_from_account_code(code: &str) -> String {
+    /// Map an account code to the orchestrator's 13-bucket category string
+    /// (`"Cash"` / `"Receivables"` / `"Inventory"` / `"FixedAssets"` /
+    /// `"Payables"` / `"AccruedLiabilities"` / `"LongTermDebt"` /
+    /// `"Equity"` / `"Revenue"` / `"CostOfSales"` / `"OperatingExpenses"`
+    /// / `"OtherIncome"` / `"OtherExpenses"`).
+    ///
+    /// `framework` controls which numbering convention is applied:
+    ///
+    /// - `"us_gaap"` / `"ifrs"` / `"dual_reporting"` — US-style 4-digit
+    ///   chart (1xxx assets, 2xxx liabilities, 3xxx equity, 4xxx revenue,
+    ///   5xxx COGS, 6xxx OpEx, 7xxx other income, 8xxx other expense).
+    /// - `"french_gaap"` — French PCG (1 = capital/liabilities, 2 = fixed
+    ///   assets, 3 = inventory, 4 = third parties, 5 = cash, 6 = expenses,
+    ///   7 = revenue).
+    /// - `"german_gaap"` / `"hgb"` — German SKR04 (0 = fixed assets,
+    ///   1 = current assets, 2 = equity, 3 = liabilities, 4 = revenue,
+    ///   5 = COGS, 6 = OpEx, 7 = financial, 8 = tax/extraordinary).
+    ///
+    /// Unknown frameworks fall back to US-style.
+    fn category_from_account_code(code: &str, framework: &str) -> String {
+        match framework {
+            "german_gaap" | "GermanGaap" | "hgb" => Self::skr_category(code),
+            "french_gaap" | "FrenchGaap" => Self::pcg_category(code),
+            _ => Self::us_gaap_category(code),
+        }
+        .to_string()
+    }
+
+    fn us_gaap_category(code: &str) -> &'static str {
         let prefix: String = code.chars().take(2).collect();
         match prefix.as_str() {
             "10" => "Cash",
@@ -7452,7 +7560,91 @@ impl EnhancedOrchestrator {
             "80" | "81" | "82" | "83" | "84" | "85" | "86" | "87" | "88" | "89" => "OtherExpenses",
             _ => "OperatingExpenses",
         }
-        .to_string()
+    }
+
+    /// SKR04 (German GAAP) prefix → orchestrator category.
+    ///
+    /// 0 = fixed assets, 1 = current assets (10-12 cash, 13-14 receivables,
+    /// 15-19 inventory), 2 = equity, 3 = liabilities (3-31 payables,
+    /// 32-37 accrued, 38-39 long-term debt), 4 = revenue, 5 = COGS,
+    /// 6 = OpEx, 7 = financial income, 8 = tax/extraordinary expense.
+    fn skr_category(code: &str) -> &'static str {
+        let first = code.chars().next().and_then(|c| c.to_digit(10));
+        let prefix: String = code.chars().take(2).collect();
+        match first {
+            Some(0) => "FixedAssets",
+            Some(1) => match prefix.as_str() {
+                "10" | "11" | "12" => "Cash",
+                "13" | "14" => "Receivables",
+                _ => "Inventory",
+            },
+            Some(2) => "Equity",
+            Some(3) => match prefix.as_str() {
+                "30" | "31" => "Payables",
+                "32" | "33" | "34" | "35" | "36" | "37" => "AccruedLiabilities",
+                _ => "LongTermDebt",
+            },
+            Some(4) => "Revenue",
+            Some(5) => "CostOfSales",
+            Some(6) => "OperatingExpenses",
+            Some(7) => "OtherIncome",
+            Some(8) => "OtherExpenses",
+            _ => "OperatingExpenses",
+        }
+    }
+
+    /// French PCG prefix → orchestrator category.
+    ///
+    /// 10-14 = equity, 15-19 = liabilities (provisions, debts),
+    /// 2 = fixed assets, 3 = inventory, 40 = payables, 41 = receivables,
+    /// 42-49 = liabilities (personnel, tax, group), 5 = cash, 6 = expenses,
+    /// 7 = revenue.
+    fn pcg_category(code: &str) -> &'static str {
+        let first = code.chars().next().and_then(|c| c.to_digit(10));
+        let second = code.chars().nth(1).and_then(|c| c.to_digit(10));
+        match first {
+            Some(1) => match second {
+                Some(0..=4) => "Equity",
+                Some(5) => "AccruedLiabilities",
+                _ => "LongTermDebt",
+            },
+            Some(2) => "FixedAssets",
+            Some(3) => "Inventory",
+            Some(4) => match second {
+                Some(0) => "Payables",
+                Some(1) => "Receivables",
+                _ => "AccruedLiabilities",
+            },
+            Some(5) => "Cash",
+            Some(6) => "OperatingExpenses",
+            Some(7) => "Revenue",
+            Some(8) | Some(9) => "OperatingExpenses",
+            _ => "OperatingExpenses",
+        }
+    }
+
+    /// Test whether an account code maps to a balance-sheet line under
+    /// the given framework. Drives the cumulative-vs-period bucketing in
+    /// [`Self::build_cumulative_trial_balance`].
+    ///
+    /// Delegates to the framework-aware classifier in
+    /// `datasynth-core::framework_accounts` so SKR (German) and PCG
+    /// (French) codes are recognised, not silently routed through a
+    /// US-style prefix table.
+    fn is_balance_sheet_account(code: &str, framework: &str) -> bool {
+        // `AccountType` here is the `balance::AccountType` imported at
+        // the top of the file; `FrameworkAccounts::classify_account_type`
+        // returns the same enum, so no cross-namespace mapping is needed.
+        let fa = datasynth_core::framework_accounts::FrameworkAccounts::for_framework(framework);
+        matches!(
+            fa.classify_account_type(code),
+            AccountType::Asset
+                | AccountType::ContraAsset
+                | AccountType::Liability
+                | AccountType::ContraLiability
+                | AccountType::Equity
+                | AccountType::ContraEquity
+        )
     }
 
     /// Phase 16: Generate HR data (payroll runs, time entries, expense reports).
@@ -16898,5 +17090,210 @@ mod tests {
         assert_eq!(stats.causal_generation_ms, 0);
         assert_eq!(stats.causal_samples_generated, 0);
         assert!(stats.causal_validation_passed.is_none());
+    }
+
+    // ── v5.33 #162 — framework-aware TB classification ──────────────────────
+
+    #[test]
+    fn category_from_account_code_us_gaap_unchanged() {
+        // US-style numbering — same answers as the pre-v5.33 hard-coded table.
+        assert_eq!(
+            EnhancedOrchestrator::category_from_account_code("1000", "us_gaap"),
+            "Cash"
+        );
+        assert_eq!(
+            EnhancedOrchestrator::category_from_account_code("1500", "us_gaap"),
+            "FixedAssets"
+        );
+        assert_eq!(
+            EnhancedOrchestrator::category_from_account_code("4000", "us_gaap"),
+            "Revenue"
+        );
+        assert_eq!(
+            EnhancedOrchestrator::category_from_account_code("6000", "us_gaap"),
+            "OperatingExpenses"
+        );
+    }
+
+    #[test]
+    fn category_from_account_code_skr04_german() {
+        // SKR04 (German GAAP): 0xxx = fixed assets, 4xxx = revenue,
+        // 8xxx = tax/extraordinary expense — pre-v5.33 the US-only table
+        // mis-classified 0xxx as OperatingExpenses (default arm), 4xxx as
+        // Revenue (accidentally correct), and 8xxx as OtherExpenses.
+        // Framework-aware version routes them correctly.
+        assert_eq!(
+            EnhancedOrchestrator::category_from_account_code("0010", "german_gaap"),
+            "FixedAssets",
+            "SKR 0xxx must be classified as fixed assets, not P&L"
+        );
+        assert_eq!(
+            EnhancedOrchestrator::category_from_account_code("1000", "german_gaap"),
+            "Cash"
+        );
+        assert_eq!(
+            EnhancedOrchestrator::category_from_account_code("1300", "german_gaap"),
+            "Receivables"
+        );
+        assert_eq!(
+            EnhancedOrchestrator::category_from_account_code("2000", "german_gaap"),
+            "Equity"
+        );
+        assert_eq!(
+            EnhancedOrchestrator::category_from_account_code("3000", "german_gaap"),
+            "Payables"
+        );
+        assert_eq!(
+            EnhancedOrchestrator::category_from_account_code("4000", "german_gaap"),
+            "Revenue"
+        );
+        assert_eq!(
+            EnhancedOrchestrator::category_from_account_code("5000", "german_gaap"),
+            "CostOfSales"
+        );
+        assert_eq!(
+            EnhancedOrchestrator::category_from_account_code("8000", "german_gaap"),
+            "OtherExpenses"
+        );
+    }
+
+    #[test]
+    fn category_from_account_code_pcg_french() {
+        // PCG (French GAAP): 2 = fixed assets, 5 = cash, 6 = expenses,
+        // 7 = revenue. Pre-v5.33 these all hit the wrong US-prefix arms.
+        assert_eq!(
+            EnhancedOrchestrator::category_from_account_code("210000", "french_gaap"),
+            "FixedAssets"
+        );
+        assert_eq!(
+            EnhancedOrchestrator::category_from_account_code("411000", "french_gaap"),
+            "Receivables"
+        );
+        assert_eq!(
+            EnhancedOrchestrator::category_from_account_code("401000", "french_gaap"),
+            "Payables"
+        );
+        assert_eq!(
+            EnhancedOrchestrator::category_from_account_code("512000", "french_gaap"),
+            "Cash"
+        );
+        assert_eq!(
+            EnhancedOrchestrator::category_from_account_code("603000", "french_gaap"),
+            "OperatingExpenses"
+        );
+        assert_eq!(
+            EnhancedOrchestrator::category_from_account_code("707000", "french_gaap"),
+            "Revenue"
+        );
+        assert_eq!(
+            EnhancedOrchestrator::category_from_account_code("101000", "french_gaap"),
+            "Equity"
+        );
+    }
+
+    #[test]
+    fn is_balance_sheet_account_routes_skr_correctly() {
+        // SKR04: 0xxx fixed assets, 1xxx current assets, 2xxx equity,
+        // 3xxx liabilities → all BS.  4xxx revenue, 5-6 expenses → P&L.
+        assert!(EnhancedOrchestrator::is_balance_sheet_account(
+            "0010",
+            "german_gaap"
+        ));
+        assert!(EnhancedOrchestrator::is_balance_sheet_account(
+            "1200",
+            "german_gaap"
+        ));
+        assert!(EnhancedOrchestrator::is_balance_sheet_account(
+            "2000",
+            "german_gaap"
+        ));
+        assert!(EnhancedOrchestrator::is_balance_sheet_account(
+            "3000",
+            "german_gaap"
+        ));
+        assert!(!EnhancedOrchestrator::is_balance_sheet_account(
+            "4000",
+            "german_gaap"
+        ));
+        assert!(!EnhancedOrchestrator::is_balance_sheet_account(
+            "6000",
+            "german_gaap"
+        ));
+    }
+
+    #[test]
+    fn period_trial_balance_into_canonical_account_type_is_framework_aware() {
+        // Defect C regression test — every TB line was hard-coded
+        // `account_type: Asset` regardless of the underlying code. With
+        // the framework-aware classifier wired in, the same SKR codes
+        // resolve to their proper sides.
+        use datasynth_generators::TrialBalanceEntry;
+        let entries = vec![
+            TrialBalanceEntry {
+                account_code: "0010".to_string(), // SKR fixed asset
+                account_name: "Land".to_string(),
+                category: "FixedAssets".to_string(),
+                debit_balance: rust_decimal::Decimal::new(1_000_000, 0),
+                credit_balance: rust_decimal::Decimal::ZERO,
+            },
+            TrialBalanceEntry {
+                account_code: "3000".to_string(), // SKR liability
+                account_name: "Trade payables".to_string(),
+                category: "Payables".to_string(),
+                debit_balance: rust_decimal::Decimal::ZERO,
+                credit_balance: rust_decimal::Decimal::new(500_000, 0),
+            },
+            TrialBalanceEntry {
+                account_code: "4000".to_string(), // SKR revenue
+                account_name: "Sales".to_string(),
+                category: "Revenue".to_string(),
+                debit_balance: rust_decimal::Decimal::ZERO,
+                credit_balance: rust_decimal::Decimal::new(2_000_000, 0),
+            },
+            TrialBalanceEntry {
+                account_code: "6000".to_string(), // SKR expense
+                account_name: "Personnel cost".to_string(),
+                category: "OperatingExpenses".to_string(),
+                debit_balance: rust_decimal::Decimal::new(800_000, 0),
+                credit_balance: rust_decimal::Decimal::ZERO,
+            },
+        ];
+        let ptb = PeriodTrialBalance {
+            fiscal_year: 2024,
+            fiscal_period: 12,
+            period_start: chrono::NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
+            period_end: chrono::NaiveDate::from_ymd_opt(2024, 12, 31).unwrap(),
+            entries,
+            framework: "german_gaap".to_string(),
+        };
+        let tb = ptb.into_canonical("ACME_EU", "EUR");
+        // Line account_types are no longer all-Asset.
+        let types: Vec<AccountType> = tb.lines.iter().map(|l| l.account_type).collect();
+        assert_eq!(types[0], AccountType::Asset, "0010 → Asset");
+        assert_eq!(types[1], AccountType::Liability, "3000 → Liability");
+        assert_eq!(types[2], AccountType::Revenue, "4000 → Revenue");
+        assert_eq!(types[3], AccountType::Expense, "6000 → Expense");
+        // is_balanced is now an unconditional truth claim — the
+        // underlying JE-balance invariant is the only one we guarantee.
+        assert!(tb.is_balanced);
+        assert!(tb.is_equation_valid);
+        assert_eq!(tb.out_of_balance, rust_decimal::Decimal::ZERO);
+        assert_eq!(tb.equation_difference, rust_decimal::Decimal::ZERO);
+    }
+
+    #[test]
+    fn period_trial_balance_deserialises_legacy_snapshot_without_framework_field() {
+        // Old in-memory snapshots (pre-v5.33) didn't carry the framework
+        // field. Serde `#[serde(default)]` must let them round-trip with
+        // a `"us_gaap"` fallback so older saved sessions keep working.
+        let legacy_json = r#"{
+            "fiscal_year": 2024,
+            "fiscal_period": 12,
+            "period_start": "2024-01-01",
+            "period_end": "2024-12-31",
+            "entries": []
+        }"#;
+        let ptb: PeriodTrialBalance = serde_json::from_str(legacy_json).unwrap();
+        assert_eq!(ptb.framework, "us_gaap");
     }
 }

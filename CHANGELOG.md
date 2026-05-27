@@ -5,6 +5,59 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v5.33 (TB writer framework-aware classification)
+
+### Fixed
+
+- **Per-entity TB writer is now framework-aware**. The v5.32 3-year
+  medium-chain semantics check (`docs/baselines/2026-05-27-v5.32-3yr-medium-semantics-check/FINDINGS.md`)
+  surfaced three pre-existing defects in the per-entity TB emit path:
+  every `TrialBalanceLine.account_type` was hard-coded to `Asset`,
+  the orchestrator's `category_from_account_code` shipped a US-only
+  prefix table that mis-routed German SKR (`0xxx` Fixed Assets,
+  `4xxx` Revenue, `8xxx` tax/extraordinary) and French PCG (`5x`
+  Cash, `6x` Expenses, `7x` Revenue) codes, and the resulting interim
+  TB's `is_balanced` flag compared a YTD-BS bucket against a
+  period-only-P&L bucket — a structurally meaningless test that
+  always returned false for any post-month-1 TB. Combined, these
+  drove the 55 % ACME_EU debit-credit gap and the ~32 %
+  consolidated A vs L+E+NCI divergence observed in the 3-year run.
+- `PeriodTrialBalance` now carries a `framework: String` field
+  populated by the orchestrator's new `resolve_framework_str` helper
+  (country-first, framework-label fallback). `into_canonical`
+  consumes it and dispatches to `FrameworkAccounts::classify_account_type`
+  (per-line `account_type`) +
+  `AccountCategory::from_account_code_with_framework` (per-line
+  `category`).
+- `build_cumulative_trial_balance` + `build_trial_balance_from_entries`
+  now take a `framework: &str` argument and use a new
+  `is_balance_sheet_account` helper (delegating to `FrameworkAccounts`)
+  for the cumulative-vs-period bucketing test — SKR/PCG balance-sheet
+  accounts are no longer routed through the P&L bucket on non-US
+  entities.
+- `crates/datasynth-group/src/shard/per_entity_config.rs` now threads
+  `ManifestEntity.accounting_framework` into
+  `cfg.accounting_standards.framework`, closing the v5.0 wiring gap
+  documented at the top of that file. Aliases accepted:
+  `us_gaap`/`ifrs`/`dual_reporting`/`french_gaap`/`pcg`/`german_gaap`/`hgb`.
+- `is_balanced` / `is_equation_valid` are now stamped `true` (with
+  `out_of_balance` / `equation_difference` = 0) on the interim TB
+  emit path, with an explicit doc comment that the per-JE balance
+  invariant (enforced at `JournalEntry::new`) is the only one we
+  guarantee from this writer. Downstream consumers needing a true
+  A = L + E + NI check should derive it from opening balances +
+  period-only P&L — deferred. (Option B1 per the FINDINGS plan.)
+
+Closes task #162 (TB writer balance + account_type classifier).
+Opening-balance persistence in chain mode (`opening_balances.json`)
+remains open under the same task.
+
+Six new unit tests in
+`crates/datasynth-runtime/src/enhanced_orchestrator.rs` `mod tests`
+cover US/SKR/PCG category dispatch, BS routing, framework-aware
+account-type stamping, and backward-compat deserialisation of legacy
+in-memory snapshots without the new `framework` field.
+
 ## v5.32 (C3 — adversarial calibration loop)
 
 Lands the closed-loop parameter-calibration framework: drive the
