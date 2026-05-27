@@ -25,6 +25,7 @@ mod history;
 mod knob;
 mod loop_runner;
 mod objective;
+mod proposer;
 mod safety;
 
 pub use history::{CalibrationHistory, HistoryError, HISTORY_SCHEMA_VERSION};
@@ -34,4 +35,5 @@ pub use loop_runner::{
     RollbackPolicy, StepOutcome, StepReport,
 };
 pub use objective::{CalibrationObjective, ObjectiveMetric};
+pub use proposer::{GreedyKnobProposer, RoundRobinProposer};
 pub use safety::{ClipCounts, KnobClipDiagnostics, OscillationDetector, WallClockBudget};
