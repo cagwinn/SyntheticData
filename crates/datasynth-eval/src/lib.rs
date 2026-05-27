@@ -33,6 +33,7 @@
 //! ```
 
 pub mod benchmarks;
+pub mod calibration;
 pub mod config;
 pub mod enhancement;
 pub mod error;
