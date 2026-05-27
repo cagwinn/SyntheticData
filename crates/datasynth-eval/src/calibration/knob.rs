@@ -13,11 +13,13 @@
 
 use std::fmt;
 
+use serde::{Deserialize, Serialize};
+
 /// One value a knob can hold.
 ///
 /// Strings round-trip via YAML; numbers are parsed/formatted when
 /// the caller writes a config patch.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum KnobValue {
     /// f64 — e.g. `fraud.fraud_rate = 0.02`.
     F64(f64),

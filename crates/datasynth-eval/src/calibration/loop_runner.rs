@@ -17,6 +17,8 @@
 
 use std::collections::BTreeMap;
 
+use serde::{Deserialize, Serialize};
+
 use crate::behavioral_fidelity::report::BehavioralFidelityReport;
 
 use super::knob::{CalibrationKnob, KnobValue};
@@ -81,7 +83,7 @@ impl Default for CalibrationConfig {
 
 /// One step's outcome. Persisted to the history so a long-running
 /// loop can resume after interruption.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StepReport {
     /// 0-indexed step number.
     pub iter: usize,
@@ -105,7 +107,7 @@ pub struct StepReport {
 }
 
 /// What the loop did with the proposed step.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum StepOutcome {
     /// Patch reduced loss enough to credit as improvement.
     Improved,
@@ -123,7 +125,7 @@ pub enum StepOutcome {
 }
 
 /// What a proposer suggests: a knob to change and what value to try.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProposedPatch {
     /// Index into the knobs slice.
     pub knob_index: usize,
