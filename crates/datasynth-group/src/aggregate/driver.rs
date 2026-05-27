@@ -681,6 +681,7 @@ fn walk_entity_archives(
 /// Read every JE the orchestrator emitted for `entity_code` from
 /// `entity_dir/journal_entries.json`.  Treats a missing file as zero
 /// JEs (defensive — see `walk_entity_archives` rustdoc).
+#[allow(dead_code)]
 fn load_entity_journal_entries(
     entity_dir: &Path,
     entity_code: &str,
@@ -697,6 +698,91 @@ fn load_entity_journal_entries(
     let bytes = std::fs::read(&path).map_err(GroupError::Io)?;
     let jes: Vec<JournalEntry> = serde_json::from_slice(&bytes)?;
     Ok(jes)
+}
+
+/// v5.31 C1 Phase 6 — streaming JSON-array parse for journal_entries.json.
+///
+/// Reads `entity_dir/journal_entries.json` (a JSON array of [`JournalEntry`])
+/// via `serde_json::Deserializer::from_reader` and yields one JE at a time
+/// through the `on_je` callback. **Never materialises the full
+/// `Vec<JournalEntry>`** — peak per-iteration allocation is one JE
+/// (~25 KB) rather than the legacy `load_entity_journal_entries`'s
+/// ~25-300 MB.
+///
+/// Why this matters: the Phase 5 diagnostic
+/// (`docs/baselines/2026-05-27-v5.31-c1-phase5-diagnostic/COMPARISON.md`)
+/// found that 178 MB of RSS climbed per entity even though tracked
+/// data structures only grew ~75 KB per entity — a 2 400× gap.
+/// Allocator-fragmentation from the per-iteration spike of JSON-parse
+/// String allocations was eating ~178 MB / entity even with mimalloc
+/// (since the small String allocations leave the heap too fragmented
+/// for the OS to reclaim pages). Streaming the parse eliminates the
+/// spike → no fragmentation → RSS stays flat.
+///
+/// Treats a missing file as zero JEs (defensive — see
+/// `walk_entity_archives` rustdoc).
+///
+/// # Errors
+///
+/// - [`GroupError::Io`] if the file cannot be opened.
+/// - [`GroupError::Serde`] if the JSON is malformed at any point.
+/// - Whatever error `on_je` returns (propagated through serde's
+///   error-conversion machinery).
+fn stream_entity_journal_entries<F>(
+    entity_dir: &Path,
+    entity_code: &str,
+    mut on_je: F,
+) -> GroupResult<usize>
+where
+    F: FnMut(JournalEntry) -> GroupResult<()>,
+{
+    let path = entity_dir.join("journal_entries.json");
+    if !path.exists() {
+        tracing::warn!(
+            entity = %entity_code,
+            path = %path.display(),
+            "no journal_entries.json found — treating as empty",
+        );
+        return Ok(0);
+    }
+    let file = std::fs::File::open(&path).map_err(GroupError::Io)?;
+    let reader = std::io::BufReader::with_capacity(64 * 1024, file);
+    let mut de = serde_json::Deserializer::from_reader(reader);
+
+    // Custom Visitor that drives the array iteration without ever
+    // materialising the whole sequence into a Vec.
+    struct JeStreamVisitor<F> {
+        on_je: F,
+        count: usize,
+    }
+    impl<'de, F> serde::de::Visitor<'de> for JeStreamVisitor<F>
+    where
+        F: FnMut(JournalEntry) -> GroupResult<()>,
+    {
+        type Value = usize;
+        fn expecting(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+            fmt.write_str("a JSON array of JournalEntry")
+        }
+        fn visit_seq<A>(mut self, mut seq: A) -> Result<usize, A::Error>
+        where
+            A: serde::de::SeqAccess<'de>,
+        {
+            while let Some(je) = seq.next_element::<JournalEntry>()? {
+                (self.on_je)(je).map_err(serde::de::Error::custom)?;
+                self.count += 1;
+            }
+            Ok(self.count)
+        }
+    }
+
+    let count = serde::de::Deserializer::deserialize_seq(
+        &mut de,
+        JeStreamVisitor {
+            on_je: &mut on_je,
+            count: 0,
+        },
+    )?;
+    Ok(count)
 }
 
 /// v5.31 C1 — translate a **single** entity's TB.
@@ -900,7 +986,6 @@ fn walk_aggregate_streaming(
         }
 
         let tb = load_entity_trial_balance(&entity_dir)?;
-        let jes = load_entity_journal_entries(&entity_dir, &entity.code)?;
 
         match entity.consolidation_method {
             ConsolidationMethod::Parent | ConsolidationMethod::Full => {
@@ -939,28 +1024,49 @@ fn walk_aggregate_streaming(
                 )?;
                 translated_tbs.push(translated);
 
-                // 4. v5.31 C1 Phase 2: write JE-network edges for this
-                //    entity directly to disk (per-entity CSV/parquet +
-                //    consolidated CSV append). Frees the in-memory
-                //    consolidated edge vec that was the 2k OOM hotspot
-                //    after Phase 1.
-                je_network_writer.write_entity_edges(&entity.code, &jes)?;
+                // 4. v5.31 C1 Phase 6 — stream the entity's
+                //    journal_entries.json one JE at a time, building
+                //    edges incrementally + filtering the IC subset
+                //    inline. NEVER materialises the full
+                //    `Vec<JournalEntry>` — Phase 5 diagnostic showed
+                //    that the per-iteration JSON-parse spike (~150-
+                //    300 MB per entity) fragmented the heap to 218 GB
+                //    by entity ~1200 at 2k scale. Streaming drops the
+                //    peak per-iteration alloc to ~25 KB (one JE), so
+                //    the same loop runs at ~10 GB RSS.
+                //
+                //    The `JeNetworkEdgeBuilder` maintains the
+                //    `line_id → edge_id` map across `push_je` calls
+                //    so cross-JE predecessor chains within this
+                //    entity (PO → invoice → payment doc chains)
+                //    resolve identically to the legacy
+                //    `build_je_network_edges(&jes, …)` slice call.
+                let mut edge_builder = datasynth_runtime::je_network::JeNetworkEdgeBuilder::new(
+                    datasynth_config::JeNetworkMethod::A,
+                );
+                let mut ic_jes: Vec<JournalEntry> = Vec::new();
+                let _je_count = stream_entity_journal_entries(&entity_dir, &entity.code, |je| {
+                    edge_builder.push_je(&je);
+                    if je.header.ic_pair_id.is_some() {
+                        ic_jes.push(je);
+                    }
+                    // `je` drops here on the non-IC path —
+                    // single-JE allocation reclaimed before the
+                    // next stream iteration → no fragmentation
+                    // spike.
+                    Ok(())
+                })?;
+                let edges = edge_builder.into_edges();
+                je_network_writer.write_entity_edges_prebuilt(&entity.code, &edges)?;
 
-                // 5. v5.31 C1 Phase 2: filter JEs to IC-pair-tagged
-                //    subset. The IC matcher only needs JEs whose
-                //    header carries an `ic_pair_id`; the rest of the
-                //    entity's JEs are no longer reachable past this
-                //    point. At v5.30 SOTA defaults the IC subset is
-                //    ~5 % of total JEs, dropping the cross-entity
-                //    `Vec<(String, Vec<JournalEntry>)>` hold from
-                //    ~200-400 GB to ~5-10 GB at 2k scale.
-                let ic_jes: Vec<JournalEntry> = jes
-                    .into_iter()
-                    .filter(|je| je.header.ic_pair_id.is_some())
-                    .collect();
+                // 5. IC subset retained for downstream IC matcher
+                //    (per v5.30 SOTA defaults this is ~0.03 % of all
+                //    JEs ≈ ~5-10 GB across all 2k entities, vs the
+                //    100-400 GB of holding every JE).
                 ic_journal_entries.push((entity.code.clone(), ic_jes));
 
-                // 6. `tb` drops here — never held past this iteration.
+                // 6. `tb`, `edges` drop here — never held past this
+                //    iteration.
             }
             ConsolidationMethod::EquityMethod
             | ConsolidationMethod::Proportional
@@ -973,9 +1079,9 @@ fn walk_aggregate_streaming(
                 deferred_tbs.push((entity.code.clone(), tb));
                 // Deferred-method entities do not feed IC matching or
                 // the consolidated je_network (per v5.0 contract — IC
-                // pair plans only span Parent/Full entities). `jes`
-                // drops here.
-                let _ = jes;
+                // pair plans only span Parent/Full entities). v5.31 C1
+                // Phase 6 — we no longer load JEs for these entities
+                // at all, saving the JSON-parse cost (~10-30 MB / entity).
             }
         }
 

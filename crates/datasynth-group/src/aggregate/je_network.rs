@@ -535,16 +535,41 @@ impl JeNetworkStreamingWriter {
     /// **Caller responsibility:** drop the source JEs (or filter to a
     /// downstream-needed subset) after this call returns — the writer
     /// retains nothing from `jes`.
+    ///
+    /// v5.31 C1 Phase 6: thin wrapper over
+    /// [`Self::write_entity_edges_prebuilt`] for callers that still
+    /// hold the full `Vec<JournalEntry>` in memory. New callers that
+    /// stream JEs from disk should use the prebuilt variant directly
+    /// after passing each JE through a
+    /// [`crate::aggregate::je_network::JeNetworkMethod`] builder.
+    #[allow(dead_code)]
     pub fn write_entity_edges(
         &mut self,
         entity_code: &str,
         jes: &[JournalEntry],
     ) -> GroupResult<usize> {
         let edges = build_je_network_edges(jes, JeNetworkMethod::A);
-        write_entity_csv(&self.out_dir, entity_code, &edges)?;
-        write_entity_parquet(&self.out_dir, entity_code, &edges)?;
-        // Append to consolidated CSV (is_eliminated=false, no elim pair link).
-        for e in &edges {
+        self.write_entity_edges_prebuilt(entity_code, &edges)
+    }
+
+    /// v5.31 C1 Phase 6 — write entity edges that the caller has
+    /// already built (typically via a streaming
+    /// [`datasynth_runtime::je_network::JeNetworkEdgeBuilder`] that
+    /// consumes JEs one at a time).
+    ///
+    /// Identical effect to [`Self::write_entity_edges`]: per-entity
+    /// CSV + parquet + consolidated CSV append. Splitting the build
+    /// step out of the write step is what lets the streaming caller
+    /// avoid materialising the full `Vec<JournalEntry>` per entity
+    /// (the JSON-parse-spike that drove the Phase 5 OOM at 2k scale).
+    pub fn write_entity_edges_prebuilt(
+        &mut self,
+        entity_code: &str,
+        edges: &[JeNetworkEdge],
+    ) -> GroupResult<usize> {
+        write_entity_csv(&self.out_dir, entity_code, edges)?;
+        write_entity_parquet(&self.out_dir, entity_code, edges)?;
+        for e in edges {
             self.write_consolidated_row(entity_code, e, false, None)?;
         }
         let n = edges.len();

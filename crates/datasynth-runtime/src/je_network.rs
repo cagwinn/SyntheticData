@@ -61,122 +61,202 @@ pub struct JeNetworkEdge {
 /// * `JeNetworkMethod::Cartesian` — full Cartesian debit × credit product
 ///   with proportional amount allocation; confidence = `1 / (n × m)`.
 pub fn build_je_network_edges(jes: &[JournalEntry], method: JeNetworkMethod) -> Vec<JeNetworkEdge> {
-    let mut edges = Vec::with_capacity(jes.len() * 2);
-    let mut line_id_to_edge_id: HashMap<String, String> = HashMap::with_capacity(jes.len() * 2);
-
+    let mut builder = JeNetworkEdgeBuilder::with_capacity(method, jes.len() * 2);
     for je in jes {
-        let h = &je.header;
+        builder.push_je(je);
+    }
+    builder.into_edges()
+}
 
-        let line_ids: Vec<String> = je
-            .lines
-            .iter()
-            .map(|l| {
-                l.transaction_id.clone().unwrap_or_else(|| {
-                    datasynth_core::models::JournalEntryLine::derive_transaction_id(
-                        l.document_id,
-                        l.line_number,
-                    )
-                })
-            })
-            .collect();
+/// v5.31 C1 Phase 6 — stateful, JE-at-a-time edge builder.
+///
+/// Maintains the `line_id → edge_id` mapping across `push_je` calls so
+/// cross-JE predecessor chains within an entity (e.g. payment-JE →
+/// invoice-JE → PO-JE document chains) resolve correctly **even when
+/// the caller streams JEs one at a time** rather than passing them as
+/// a single slice to [`build_je_network_edges`].
+///
+/// Use this when the caller wants to feed JEs from a streaming JSON
+/// parse (or other streaming source) without materialising the whole
+/// `Vec<JournalEntry>` in memory. The accumulated `edges` Vec grows as
+/// `push_je` is called and can be drained at any point via
+/// [`Self::drain_edges`].
+///
+/// Equivalent to calling [`build_je_network_edges`] with the same JEs
+/// passed as one slice — byte-identical output (same edge IDs, same
+/// predecessor resolution, same iteration order).
+pub struct JeNetworkEdgeBuilder {
+    method: JeNetworkMethod,
+    edges: Vec<JeNetworkEdge>,
+    line_id_to_edge_id: HashMap<String, String>,
+}
 
-        let debits: Vec<usize> = je
-            .lines
-            .iter()
-            .enumerate()
-            .filter(|(_, l)| l.debit_amount > Decimal::ZERO)
-            .map(|(i, _)| i)
-            .collect();
-        let credits: Vec<usize> = je
-            .lines
-            .iter()
-            .enumerate()
-            .filter(|(_, l)| l.credit_amount > Decimal::ZERO)
-            .map(|(i, _)| i)
-            .collect();
-        if debits.is_empty() || credits.is_empty() {
-            continue;
-        }
+impl JeNetworkEdgeBuilder {
+    /// Create a builder with the given method and zero initial capacity.
+    pub fn new(method: JeNetworkMethod) -> Self {
+        Self::with_capacity(method, 0)
+    }
 
-        if method == JeNetworkMethod::A && !(debits.len() == 1 && credits.len() == 1) {
-            continue;
-        }
-
-        let total_debit: Decimal = debits.iter().map(|i| je.lines[*i].debit_amount).sum();
-        let total_credit: Decimal = credits.iter().map(|i| je.lines[*i].credit_amount).sum();
-        if total_debit.is_zero() || total_credit.is_zero() {
-            continue;
-        }
-
-        let confidence: f64 = if debits.len() == 1 && credits.len() == 1 {
-            1.0
-        } else {
-            1.0 / (debits.len() * credits.len()) as f64
-        };
-
-        let bp = h
-            .business_process
-            .map(|bp| format!("{bp:?}"))
-            .unwrap_or_default();
-        let ic_pair_id_str = h.ic_pair_id.as_ref().map(|id| id.to_string());
-        let ic_partner = h.ic_partner_entity.clone();
-        let fraud_type_str = h.fraud_type.map(|ft| format!("{ft:?}"));
-
-        for &di in &debits {
-            let debit_line = &je.lines[di];
-            let to_line_id = &line_ids[di];
-            for &ci in &credits {
-                let credit_line = &je.lines[ci];
-                let from_line_id = &line_ids[ci];
-
-                // Edge id = UUID v5 of (document_id, debit.line_number,
-                // credit.line_number). Stable across regenerations.
-                let mut input = Vec::with_capacity(16 + 8);
-                input.extend_from_slice(h.document_id.as_bytes());
-                input.extend_from_slice(&debit_line.line_number.to_le_bytes());
-                input.extend_from_slice(&credit_line.line_number.to_le_bytes());
-                let edge_id = Uuid::new_v5(&Uuid::NAMESPACE_OID, &input).to_string();
-
-                // Proportional allocation matches
-                // TransactionGraphBuilder::add_journal_entry_debit_credit.
-                let proportion = (debit_line.debit_amount / total_debit)
-                    * (credit_line.credit_amount / total_credit);
-                let amount = debit_line.debit_amount * proportion;
-
-                let predecessor_edge_id: String = credit_line
-                    .predecessor_line_id
-                    .as_ref()
-                    .or(debit_line.predecessor_line_id.as_ref())
-                    .and_then(|tx_id| line_id_to_edge_id.get(tx_id).cloned())
-                    .unwrap_or_default();
-
-                edges.push(JeNetworkEdge {
-                    edge_id: edge_id.clone(),
-                    document_id: h.document_id,
-                    posting_date: h.posting_date,
-                    from_account: credit_line.gl_account.clone(),
-                    to_account: debit_line.gl_account.clone(),
-                    from_line_id: from_line_id.clone(),
-                    to_line_id: to_line_id.clone(),
-                    amount,
-                    confidence,
-                    predecessor_edge_id,
-                    business_process: bp.clone(),
-                    is_fraud: h.is_fraud,
-                    is_anomaly: h.is_anomaly,
-                    fraud_type: fraud_type_str.clone(),
-                    ic_pair_id: ic_pair_id_str.clone(),
-                    ic_partner_entity: ic_partner.clone(),
-                });
-
-                line_id_to_edge_id
-                    .entry(from_line_id.clone())
-                    .or_insert(edge_id);
-            }
+    /// Create a builder pre-sized for the expected total edge count.
+    pub fn with_capacity(method: JeNetworkMethod, capacity: usize) -> Self {
+        Self {
+            method,
+            edges: Vec::with_capacity(capacity),
+            line_id_to_edge_id: HashMap::with_capacity(capacity),
         }
     }
 
-    edges
+    /// Process one JE — append its edges to the internal `edges` vector,
+    /// resolving `predecessor_line_id` against the line→edge map built
+    /// from prior `push_je` calls.
+    pub fn push_je(&mut self, je: &JournalEntry) {
+        emit_je_edges(
+            je,
+            self.method,
+            &mut self.edges,
+            &mut self.line_id_to_edge_id,
+        );
+    }
+
+    /// Take the accumulated edges, leaving the builder empty (the
+    /// line→edge map is also cleared).
+    pub fn drain_edges(&mut self) -> Vec<JeNetworkEdge> {
+        self.line_id_to_edge_id.clear();
+        std::mem::take(&mut self.edges)
+    }
+
+    /// Consume the builder and return the accumulated edges.
+    pub fn into_edges(self) -> Vec<JeNetworkEdge> {
+        self.edges
+    }
+
+    /// Current edge count (useful for batched flushes from the streaming
+    /// caller).
+    pub fn edge_count(&self) -> usize {
+        self.edges.len()
+    }
+}
+
+/// Internal helper — emit edges for one JE into `out`, using
+/// `line_id_to_edge_id` for cross-JE predecessor resolution. Factored
+/// out so both [`build_je_network_edges`] (single-batch) and
+/// [`JeNetworkEdgeBuilder::push_je`] (streaming) share the exact same
+/// code path → byte-identical output.
+fn emit_je_edges(
+    je: &JournalEntry,
+    method: JeNetworkMethod,
+    out: &mut Vec<JeNetworkEdge>,
+    line_id_to_edge_id: &mut HashMap<String, String>,
+) {
+    let h = &je.header;
+
+    let line_ids: Vec<String> = je
+        .lines
+        .iter()
+        .map(|l| {
+            l.transaction_id.clone().unwrap_or_else(|| {
+                datasynth_core::models::JournalEntryLine::derive_transaction_id(
+                    l.document_id,
+                    l.line_number,
+                )
+            })
+        })
+        .collect();
+
+    let debits: Vec<usize> = je
+        .lines
+        .iter()
+        .enumerate()
+        .filter(|(_, l)| l.debit_amount > Decimal::ZERO)
+        .map(|(i, _)| i)
+        .collect();
+    let credits: Vec<usize> = je
+        .lines
+        .iter()
+        .enumerate()
+        .filter(|(_, l)| l.credit_amount > Decimal::ZERO)
+        .map(|(i, _)| i)
+        .collect();
+    if debits.is_empty() || credits.is_empty() {
+        return;
+    }
+
+    if method == JeNetworkMethod::A && !(debits.len() == 1 && credits.len() == 1) {
+        return;
+    }
+
+    let total_debit: Decimal = debits.iter().map(|i| je.lines[*i].debit_amount).sum();
+    let total_credit: Decimal = credits.iter().map(|i| je.lines[*i].credit_amount).sum();
+    if total_debit.is_zero() || total_credit.is_zero() {
+        return;
+    }
+
+    let confidence: f64 = if debits.len() == 1 && credits.len() == 1 {
+        1.0
+    } else {
+        1.0 / (debits.len() * credits.len()) as f64
+    };
+
+    let bp = h
+        .business_process
+        .map(|bp| format!("{bp:?}"))
+        .unwrap_or_default();
+    let ic_pair_id_str = h.ic_pair_id.as_ref().map(|id| id.to_string());
+    let ic_partner = h.ic_partner_entity.clone();
+    let fraud_type_str = h.fraud_type.map(|ft| format!("{ft:?}"));
+
+    for &di in &debits {
+        let debit_line = &je.lines[di];
+        let to_line_id = &line_ids[di];
+        for &ci in &credits {
+            let credit_line = &je.lines[ci];
+            let from_line_id = &line_ids[ci];
+
+            // Edge id = UUID v5 of (document_id, debit.line_number,
+            // credit.line_number). Stable across regenerations.
+            let mut input = Vec::with_capacity(16 + 8);
+            input.extend_from_slice(h.document_id.as_bytes());
+            input.extend_from_slice(&debit_line.line_number.to_le_bytes());
+            input.extend_from_slice(&credit_line.line_number.to_le_bytes());
+            let edge_id = Uuid::new_v5(&Uuid::NAMESPACE_OID, &input).to_string();
+
+            // Proportional allocation matches
+            // TransactionGraphBuilder::add_journal_entry_debit_credit.
+            let proportion = (debit_line.debit_amount / total_debit)
+                * (credit_line.credit_amount / total_credit);
+            let amount = debit_line.debit_amount * proportion;
+
+            let predecessor_edge_id: String = credit_line
+                .predecessor_line_id
+                .as_ref()
+                .or(debit_line.predecessor_line_id.as_ref())
+                .and_then(|tx_id| line_id_to_edge_id.get(tx_id).cloned())
+                .unwrap_or_default();
+
+            out.push(JeNetworkEdge {
+                edge_id: edge_id.clone(),
+                document_id: h.document_id,
+                posting_date: h.posting_date,
+                from_account: credit_line.gl_account.clone(),
+                to_account: debit_line.gl_account.clone(),
+                from_line_id: from_line_id.clone(),
+                to_line_id: to_line_id.clone(),
+                amount,
+                confidence,
+                predecessor_edge_id,
+                business_process: bp.clone(),
+                is_fraud: h.is_fraud,
+                is_anomaly: h.is_anomaly,
+                fraud_type: fraud_type_str.clone(),
+                ic_pair_id: ic_pair_id_str.clone(),
+                ic_partner_entity: ic_partner.clone(),
+            });
+
+            line_id_to_edge_id
+                .entry(from_line_id.clone())
+                .or_insert(edge_id);
+        }
+    }
 }
 
 #[cfg(test)]
