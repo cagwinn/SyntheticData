@@ -9766,7 +9766,13 @@ fn default_process_anomaly_rate() -> f64 {
     0.005
 }
 fn default_consolidation_outlier_rate() -> f64 {
-    0.0
+    // v5.30 B2 (#154) — small baseline so the synth heavy tail moves
+    // toward the reference shard's p99 / max relational_score (~20×)
+    // without overpowering downstream metrics. At 0.001, roughly 1 in
+    // 1000 JEs becomes a multi-100-line bridge-account posting —
+    // matching the observed corpus frequency of period-close /
+    // manual reclass / consolidation entries.
+    0.001
 }
 
 impl Default for AnomalyRateConfig {

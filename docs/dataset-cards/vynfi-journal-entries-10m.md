@@ -92,6 +92,28 @@ Lower is better; 1.0 = real-data 50/50-split noise floor.
   within-entity IET autocorrelation). DataSynth's rule-based joint JE
   generation does not have that bottleneck.
 
+### Methodology update — multi-seed variance (2026-05-27)
+
+The DRs above are computed from a single half-split of the reference
+shard (seed=42). A three-seed re-evaluation revealed substantial
+methodological single-shard variance:
+
+| sub-metric | 3-seed mean | std | CV |
+|---|--:|--:|--:|
+| P1 IETD W₁ | 37.4 | 21.1 | 56 % |
+| **P1 IET autocorr** | **29.8** | **30.8** | **103 %** ⚠️ |
+| P2 Active lifetime | 90.7 | 10.7 | 12 % |
+| **P2 Burst length** | **12.2** | **0.2** | **1.9 %** ✓ |
+| P3 Fanout | 298.9 | 75.3 | 25 % |
+| **Composite** | **93.8** | **23.7** | **25 %** |
+
+P1 autocorrelation DR is methodologically unstable (CV 103 %, range
+1.96–62.84). P2 burst length is the most reliable fidelity anchor.
+
+Single-shard DRs are reference points; the honest single-number
+Sajja-composite summary is **94 ± 24 (n=3 seeds)**. Future releases
+will report multi-seed mean + std as the headline.
+
 ## Quick start
 
 ```python
