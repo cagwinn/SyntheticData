@@ -1,0 +1,8 @@
+[
+  { "period": { "start_date": "2024-01-01", "length": "annual" },
+    "out_subdir": "2024" },
+  { "period": { "start_date": "2025-01-01", "length": "annual" },
+    "out_subdir": "2025" },
+  { "period": { "start_date": "2026-01-01", "length": "annual" },
+    "out_subdir": "2026" }
+]

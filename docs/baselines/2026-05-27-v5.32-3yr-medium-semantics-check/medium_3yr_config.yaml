@@ -1,0 +1,76 @@
+id: "ACME_MEDIUM_3YR"
+name: "ACME Medium-Group 3-Year Demo"
+presentation_currency: "EUR"
+# Period is overridden by the chain plan; this value just names year 1.
+period: { start_date: "2024-01-01", length: annual }
+seed: 0xDEADBEEFCAFEBABE
+
+defaults:
+  accounting_framework: ifrs
+  industry: manufacturing
+  process_models: [o2c, p2p, h2r, r2r, audit]
+  accounting_standards: { enabled: true, leases_enabled: true }
+
+scoping_profiles:
+  significant:
+    row_budget: 80_000
+    process_models: [o2c, p2p, h2r, r2r, audit, manufacturing]
+    audit: { generate_workpapers: true, min_team_size: 4, max_team_size: 6 }
+  material:
+    row_budget: 25_000
+    audit: { generate_workpapers: true, min_team_size: 2, max_team_size: 4 }
+
+ownership:
+  parent_entity_code: ACME_EU
+  entities:
+    - { code: ACME_EU, country: DE, functional_currency: EUR,
+        scoping_profile: significant, consolidation_method: parent,
+        accounting_framework: ifrs, industry: manufacturing }
+    - { code: ACME_US, country: US, functional_currency: USD,
+        scoping_profile: significant, consolidation_method: full,
+        ownership_percent: 1.0, parent_code: ACME_EU,
+        accounting_framework: us_gaap, industry: manufacturing }
+    - { code: ACME_UK, country: GB, functional_currency: GBP,
+        scoping_profile: material, consolidation_method: full,
+        ownership_percent: 0.80, parent_code: ACME_EU,
+        accounting_framework: ifrs, industry: manufacturing }
+
+intercompany:
+  relationships:
+    - { seller: ACME_EU, buyer: ACME_US, types: [goods_sale],
+        annual_volume: 4_000_000, transfer_pricing: cost_plus,
+        markup_percent: 0.08 }
+    - { seller: ACME_EU, buyer: ACME_UK, types: [goods_sale, royalty],
+        annual_volume: 2_000_000, transfer_pricing: cost_plus,
+        markup_percent: 0.10 }
+    - { seller: ACME_US, buyer: ACME_UK, types: [service_provided],
+        annual_volume: 800_000, transfer_pricing: cost_plus,
+        markup_percent: 0.12 }
+  matching: { strategy: manifest_driven, coverage_target: 0.98 }
+
+fx:
+  base_currency: EUR
+  rate_source: inline
+  rates:
+    "EUR/USD": { "2024-12-31": 1.0870, "2025-12-31": 1.1100, "2026-12-31": 1.1360 }
+    "EUR/GBP": { "2024-12-31": 0.8475, "2025-12-31": 0.8333, "2026-12-31": 0.8197 }
+  policy: { balance_sheet: closing, income_statement: average, equity: historical }
+
+audit:
+  engagement_id: "ACME_MEDIUM_3YR"
+  lead_auditor: BIG4_FRANKFURT
+  framework: isa
+  fsm_blueprint: "builtin:group_fsa"
+  group_materiality: { basis: revenue, percent: 0.01 }
+  component_scope_thresholds: { full_scope: 0.15, specific_scope: 0.05 }
+  generate_kams: true
+  generate_group_opinion: true
+
+tax:
+  pillar_two:       { enabled: true, jurisdictions: [DE, US, GB] }
+  cbc_report:       { enabled: true, reporting_jurisdiction: DE }
+  transfer_pricing: { master_file: true, local_files_for: [DE, US, GB] }
+
+output:
+  layout: per_entity_subtree
+  shared_masters_at_root: true
