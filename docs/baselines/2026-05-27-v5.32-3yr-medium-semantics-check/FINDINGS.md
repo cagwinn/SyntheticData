@@ -403,6 +403,51 @@ without a parallel current/non-current code-range carve-out land in
 the "current" bucket — the top-level A vs L+E+NCI identity is
 preserved either way.
 
+### Final VM validation (`medium_3yr_v533_1`, after v5.33.1 push)
+
+Same 3-year medium chain re-run against `ff631ee0`. Consolidated
+A vs L+E+NCI equation:
+
+| Year | v5.32 / v5.33 gap | v5.33.1 gap |
+|---|---|---|
+| 2024 | −1 380 M (32.4 %) | +37 M (**0.87 %**) |
+| 2025 | −1 327 M (30.5 %) | +86 M (**1.98 %**) |
+| 2026 | −1 382 M (31.6 %) | +4 M (**0.08 %**) |
+
+The consolidated BS identity now closes within 2 % across all three
+years (vs ~32 % pre-fix). The 1-2 % residual is the v5.33 Defect B
+residual — the per-entity TB writer's `is_balanced=true` claim is
+unconditional, but the underlying cumulative-BS vs period-only-P&L
+shape produces a small JE-balance-respecting tilt that propagates
+through. Closing this would need either opening-balance persistence
+(#163) so the equation can be checked against the proper YTD-P&L
+contribution, or a switch to a single-window TB shape per Option B2
+of the original fix plan. Neither is in v5.33.1's scope.
+
+NCI=0 in all three years vs the v5.32 baseline's −36 M / −97 M /
+−134 M. This is actually correct: the v5.32 NCI numbers were
+mis-classifier artefacts (some equity-natured codes in the
+3500-3599 range with mis-stamped account_type were being routed to
+NCI). The synthetic engine's actual NCI surface is the
+`nci_rollforward.json` overlay applied by
+`apply_nci_and_equity_method`, not line items in the consolidated
+TB itself. v5.33.1's classifier only carves NCI from Equity when
+both `account_type==Equity` AND the code is in `3500-3599` — neither
+SKR nor the engine's auto-generated US codes hit that range with
+`account_type==Equity`, so NCI=0 here is the consistent IFRS
+treatment.
+
+Per-entity TBs unchanged from v5.33 (only the aggregator was
+modified): all three entities still show `is_balanced=true` and
+the framework-correct account_type distribution.
+
+**Verdict**: #162 + #164 are closed. #163 (opening-balances
+persistence in chain mode) and the Defect B residual remain open
+as future engine work. The 3-year medium chain output at
+`/home/ubuntu/regen/data/medium_3yr_v533_1/` on the VM is the
+canonical post-fix reference; HF push is still gated on #163
+landing per the user instruction.
+
 ## Fix plan (for a future engine PR)
 
   1. Thread the per-entity `accounting_framework` (already on
