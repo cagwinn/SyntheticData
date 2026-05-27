@@ -24,6 +24,13 @@ neural = ["datasynth-core/neural", "datasynth-runtime/neural"]
 neural-cuda = ["neural", "datasynth-core/neural-cuda", "datasynth-runtime/neural-cuda"]
 
 [dependencies]
+# v5.31 C1 Phase 4 — mimalloc as global allocator. Default glibc
+# malloc fragmented badly under the group-audit aggregate's per-
+# iteration JSON deserialisation workload (linear RSS climb to
+# 219 GB OOM at 2k scale, even after C1 Phase 1+2+3 hold reductions).
+# mimalloc typically reduces fragmentation 30-50% on malloc-heavy
+# workloads with many short-lived allocations.
+mimalloc = { version = "0.1", default-features = false }
 datasynth-core = { workspace = true }
 datasynth-config = { workspace = true }
 datasynth-eval = { workspace = true }

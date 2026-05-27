@@ -1,5 +1,15 @@
 //! CLI for synthetic accounting data generation.
 
+// v5.31 C1 Phase 4 — global allocator override. mimalloc reduces RSS
+// fragmentation 30-50% on workloads with many short-lived allocations
+// (the group-audit aggregate's per-iteration JSON deserialisation
+// fragments default glibc malloc enough to drive a 2k regen to OOM at
+// 219 GB even after C1 Phase 1+2+3 hold reductions). No code changes
+// needed beyond this declaration; mimalloc transparently replaces
+// every `Box::new`, `Vec::with_capacity`, `String::from`, etc.
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 use datasynth_runtime::output_writer;
 
 use std::path::PathBuf;

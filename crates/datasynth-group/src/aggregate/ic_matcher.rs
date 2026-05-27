@@ -190,7 +190,7 @@ pub enum UnmatchedReason {
 ///   output or a manifest mismatch).
 /// - [`GroupError::Aggregate`] if a pair_id has more than two observed
 ///   sides, or two sides with the same role.
-/// **Backwards-compatible borrow-based entry point.**
+/// Backwards-compatible borrow-based entry point.
 ///
 /// Clones the input into an owned `Vec` and delegates to
 /// [`match_ic_pairs_consuming`]. Most existing tests use this; the C1

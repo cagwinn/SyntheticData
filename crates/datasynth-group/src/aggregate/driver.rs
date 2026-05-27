@@ -102,6 +102,7 @@ use crate::aggregate::fs::{
     build_statement_of_changes_in_equity, write_consolidated_fs, AccountNameDictionary,
     CashFlowInputs, ConsolidatedFinancialStatements, EquityChangesInputs, NotesInputs,
 };
+#[allow(unused_imports)]
 use crate::aggregate::ic_matcher::match_ic_pairs;
 use crate::aggregate::nci::{
     compute_nci_rollforward, ingest_opening_nci_balances, write_nci_rollforward, NciInputs,
