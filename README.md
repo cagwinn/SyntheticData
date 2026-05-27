@@ -32,7 +32,8 @@ Pre-generated reference datasets at [huggingface.co/VynFi](https://huggingface.c
 
 | Dataset | Scale | Description |
 |---------|------:|-------------|
-| [vynfi-group-audit-enterprise-2000](https://huggingface.co/datasets/VynFi/vynfi-group-audit-enterprise-2000) | 2 000 entities | Multinational ACME holding with 4 functional currencies, 4 759 IC pairs (91.6 % matched), full IFRS-compliant consolidated FS + schedule + notes + CTA + NCI + equity-method rollforwards. |
+| [vynfi-group-audit-enterprise-2000](https://huggingface.co/datasets/VynFi/vynfi-group-audit-enterprise-2000) | 2 000 entities | **Refreshed v5.31**. Multinational holding with 6 814 matched IC pairs (coverage 1.0), 13 628 elimination edges, 68.5 M consolidated `je_network` edges. Full IFRS-compliant consolidated FS + schedule + notes + CTA + NCI + equity-method rollforwards. Produced by the streaming-aggregate pipeline (C1, peak 0.382 GB RSS). |
+| [vynfi-je-network-2k](https://huggingface.co/datasets/VynFi/vynfi-je-network-2k) | 68.5 M edges | **New v5.31**. Standalone consolidated edge list from the 2 000-entity group regen — 19 columns including `entity_code`, `business_process`, `is_fraud`, `fraud_type`, `ic_pair_id`, `ic_partner_entity`, `is_eliminated`. Drop-in for GNN training (PyG / DGL). |
 | [vynfi-journal-entries-1m](https://huggingface.co/datasets/VynFi/vynfi-journal-entries-1m) | 2.1 M JE lines | Manufacturing-sector denormalised JE table with 6.92 % fraud rate, ISA 240 manual flag, GL chart of accounts. |
 | [vynfi-aml-100k](https://huggingface.co/datasets/VynFi/vynfi-aml-100k) | 749 K | Banking transactions with AML labels, 14 velocity features, 59 columns. |
 | [vynfi-audit-p2p](https://huggingface.co/datasets/VynFi/vynfi-audit-p2p) | 234 docs | P2P document chain (PO/GR/VI/Payment) with fraud labels. |
@@ -89,6 +90,13 @@ cargo build --release
   --config configs/examples/group/mini_acme.yaml \
   --out ./group_archive
 
+# Multi-period chain — period N+1 opens from period N's closing TB (v5.31)
+./target/release/datasynth-data group shard \
+  --manifest ./y1/manifest.json --shard-id S_0001 \
+  --prior-period-shards ./y1/ \
+  --prior-period-framework ifrs \
+  --out ./y2/
+
 # Counterfactual scenarios
 ./target/release/datasynth-data scenario list --config config.yaml
 ./target/release/datasynth-data scenario generate --config config.yaml --output ./output
@@ -96,6 +104,14 @@ cargo build --release
 # Auto-tuning loop: generate → evaluate → AI patch → regenerate
 ./target/release/datasynth-data generate --config config.yaml --output ./output \
   --auto-tune --max-iterations 3
+
+# Adversarial calibration loop (v5.32) — argparse + setup smoke
+./target/release/datasynth-data calibrate \
+  --config config.yaml \
+  --reference ./reference_shard \
+  --out ./calibration_out \
+  --max-iter 20 --seeds 3 --target 25.0 \
+  --dry-run
 
 # AI-powered config generation (set OPENAI_API_KEY, ANTHROPIC_API_KEY, or OPENROUTER_API_KEY)
 cargo build --release --features llm
@@ -129,6 +145,16 @@ The pipeline is a **three-phase model**:
 Output is IFRS / IAS 21 / IAS 28 / IFRS 10 compliant by construction.
 Multi-period engagements stitch opening balances + NCI + CTA + equity-method
 carryforwards forward through the chain helpers — no caller plumbing required.
+The closing-TB → opening-TB projection (v5.31) absorbs each period's net
+income into Retained Earnings, sign-normalises loss years to debit side, and
+preserves the accounting equation across the hand-off.
+
+The v5.31 streaming aggregate runs the consolidation phase with constant-
+memory per-entity processing. At 2 000-entity scale the full aggregate
+(IC matching + eliminations + IAS 21 translation + consolidated FS bundle)
+peaks at **0.382 GB RSS** in **65 minutes** — down from a 218 GB OOM ceiling
+on the prior version, a **−570 ×** RSS reduction. See
+[`docs/baselines/2026-05-27-v5.31-c1-phase6-7-success/COMPARISON.md`](docs/baselines/2026-05-27-v5.31-c1-phase6-7-success/COMPARISON.md).
 
 ```yaml
 # Excerpt — see configs/examples/group/mini_acme.yaml for the full file
@@ -263,6 +289,7 @@ journal entries:
 | LLM config generation | Natural language → YAML config (OpenAI / Anthropic / OpenRouter) | `llm` |
 | LLM template enrichment | Offline deterministic CLI: expand vendor / customer / material pools via any OpenAI-compatible endpoint. Cached YAML, byte-identical runs. | `llm` |
 | Auto-tune | Generate → evaluate → AI patch → regenerate closed loop | — |
+| **Adversarial calibration (v5.32)** | **Closed-loop knob tuning vs reference corpus — multi-seed loss averaging, oscillation detection, atomic-persisted resumable history (`datasynth-data calibrate`).** | **—** |
 | Adversarial testing | ONNX model boundary probing via `ort` | `adversarial` |
 | Anomaly designer | LLM-designed fraud schemes adapted to the control environment | — |
 | Tabular transformer | Masked column prediction for conditional generation | `neural` |
@@ -382,6 +409,7 @@ builds:
 | XXL dataset (200 K+ JEs, 3 companies, 36 months) | 20.6 s | 4.3 GB | CSV |
 | Mini-Acme `group generate` (5 entities, quarterly) | ~5 min | — | 1.5 GB |
 | ACME 2 000-entity `group generate` | 5 min 32 s | 60 GiB | 66 GB |
+| **2 000-entity `group aggregate` (v5.31 streaming)** | **65 min** | **0.382 GB** | **38 GB consolidated bundle** |
 | ACME archive packed (zstd −3) | 35 s | — | 3.1 GB |
 
 Per-entity output ranges from 34 MB (material profile) to 250 MB (flagship
