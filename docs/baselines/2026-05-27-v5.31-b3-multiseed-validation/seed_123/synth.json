@@ -1,0 +1,65 @@
+{
+  "generator_name": "DataSynth_v5.30_B3_seed123",
+  "dataset_name": "reference_shard_seed123",
+  "p1": {
+    "wasserstein_fraud": 38753.04746019718,
+    "wasserstein_legit": 24554.879999999845,
+    "ks_stat_fraud": 0.0518,
+    "autocorr_gap_fraud": 0.004452135309680288,
+    "n_fraud_iets_real": 20101,
+    "n_fraud_iets_syn": 19785
+  },
+  "p2": {
+    "wasserstein_burst_len": {
+      "300": 75.21021412154255,
+      "3600": 75.21021412154255,
+      "21600": 75.21021412154255
+    },
+    "wasserstein_burst_count": {
+      "300": 193.68060941828253,
+      "3600": 193.68060941828253,
+      "21600": 193.68060941828253
+    },
+    "wasserstein_active_lifetime_fraud": 33193970.526315786,
+    "wasserstein_active_lifetime_legit": 26365012.04819277,
+    "ks_active_lifetime_fraud": 1.0
+  },
+  "p3": {
+    "fanout_wasserstein": {
+      "trading_partner": 492.42857142857144
+    },
+    "clustering_coeff_real": 1.0,
+    "clustering_coeff_syn": 1.0,
+    "clustering_coeff_delta": 0.0,
+    "triangle_log_ratio": 9.092907519457457,
+    "component_size_wasserstein": 473.0,
+    "graph_built": true,
+    "note": ""
+  },
+  "p4": {
+    "per_rule_delta": {
+      "R1_cnt_1hr": 0.32409972299168976,
+      "R2_merch_24hr": 0.0,
+      "R3_amt_24hr": 0.0,
+      "R5_pm_7d": 0.0,
+      "R6_amt_spike": 0.04432132963988922
+    },
+    "mean_absolute_delta": 0.0736842105263158,
+    "per_rule_direction": {
+      "R1_cnt_1hr": 0.32409972299168976,
+      "R2_merch_24hr": 0.0,
+      "R3_amt_24hr": 0.0,
+      "R5_pm_7d": 0.0,
+      "R6_amt_spike": 0.04432132963988922
+    }
+  },
+  "composite_score": 189.33320851460167,
+  "raw_scores": {
+    "p1_w1_fraud": 41.14899261764249,
+    "p1_autocorr": 0.2758894973401453,
+    "p2_al_fraud": 80.88199445983379,
+    "p2_burstlen": 12.105852301579109,
+    "p3_fanout": 812.2533136966128,
+    "p4_vrtrigger": NaN
+  }
+}
