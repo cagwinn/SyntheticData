@@ -25,6 +25,18 @@ fn period_end() -> NaiveDate {
     NaiveDate::from_ymd_opt(2024, 3, 31).unwrap()
 }
 
+fn account_type_for_us_code(code: &str) -> datasynth_core::models::balance::AccountType {
+    use datasynth_core::models::balance::AccountType;
+    match code.chars().next() {
+        Some('1') => AccountType::Asset,
+        Some('2') => AccountType::Liability,
+        Some('3') => AccountType::Equity,
+        Some('4') => AccountType::Revenue,
+        Some('5') | Some('6') | Some('7') | Some('8') | Some('9') => AccountType::Expense,
+        _ => AccountType::Asset,
+    }
+}
+
 fn aggregate_account(code: &str, debit: Decimal, credit: Decimal) -> AggregatedAccount {
     AggregatedAccount {
         account_code: code.to_string(),
@@ -32,6 +44,7 @@ fn aggregate_account(code: &str, debit: Decimal, credit: Decimal) -> AggregatedA
         credit_total: credit,
         net_balance: debit - credit,
         contributing_entities: 1,
+        account_type: account_type_for_us_code(code),
     }
 }
 

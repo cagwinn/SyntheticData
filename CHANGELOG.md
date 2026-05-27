@@ -5,6 +5,51 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v5.33.1 (consolidated FS framework-aware classification)
+
+### Fixed
+
+- **Consolidated balance-sheet aggregator is now framework-aware**.
+  v5.33's per-entity TB writer fix closed Defects A/B/C at the
+  per-entity layer but VM validation on the 3-year `ACME_MEDIUM_3YR`
+  chain showed the consolidated FS A vs L+E+NCI gap stayed at ~32 %
+  across all three years — same shape as Defect A but in a different
+  code path. Root cause:
+  `crates/datasynth-group/src/aggregate/fs/balance_sheet.rs::classify_bs_section`
+  used a US-only numeric-range table (`1000-1399 CurrentAsset`,
+  `2000-2299 CurrentLiability`, `3000-3499 Equity`, `4xxx+ Excluded`).
+  On German SKR codes that routed `2xxx` (Equity in SKR) to
+  CurrentLiability and `3xxx` (Liability in SKR) to Equity — the
+  exact mis-classification driving the gap.
+- `AggregatedAccount` now carries an `account_type: AccountType`
+  field (with `#[serde(default)]` for backward-compat) populated by
+  `accumulate_tb` from each contributing
+  `TrialBalanceLine::account_type`. The per-entity TB writer's
+  framework-aware classification (v5.33's
+  `FrameworkAccounts::classify_account_type` call) now flows up
+  through aggregation rather than being thrown away.
+- `classify_bs_section` is replaced by
+  `classify_bs_section_from_account(code, &AggregatedAccount)` which
+  reads the top-level Asset / Liability / Equity / Revenue / Expense
+  decision from `account.account_type`. Code-prefix logic is retained
+  only for the current-vs-non-current refinement inside Asset /
+  Liability and the US `3500-3599` NCI carve-out within Equity.
+- Non-current asset ranges across the supported frameworks: SKR `0xxx`,
+  US `1500-1999`, PCG 6-digit `2xxxxx`. Non-current liability range:
+  US `2300-2999`. Everything else inside Asset / Liability defaults
+  to "current" so the top-level identity is preserved even when a
+  framework doesn't have a parallel current/non-current code-range
+  carve-out.
+
+Four new unit tests in `balance_sheet.rs` cover US/SKR/PCG dispatch
+end-to-end and a regression test for the contra-account variants.
+The 5 integration-test fixtures (`consolidated_{bs,cf,is,fs_writer}.rs`,
+`consolidation_schedule.rs`, `post_elim_with_nci.rs`) were updated to
+provide `account_type` per code — they previously implicitly relied
+on the framework-blind classifier, which is now removed.
+
+Closes task #164.
+
 ## v5.33 (TB writer framework-aware classification)
 
 ### Fixed

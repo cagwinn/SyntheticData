@@ -43,7 +43,7 @@
 
 use std::collections::BTreeMap;
 
-use datasynth_core::models::balance::TrialBalance;
+use datasynth_core::models::balance::{AccountType, TrialBalance};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
@@ -107,6 +107,18 @@ pub struct AggregatedAccount {
     /// Diagnostic only — neither IC matching nor elimination depends
     /// on it.
     pub contributing_entities: u32,
+    /// Framework-aware account type carried up from the contributing
+    /// [`TrialBalanceLine::account_type`] (set by the per-entity
+    /// orchestrator's `PeriodTrialBalance::into_canonical` against
+    /// [`datasynth_core::framework_accounts::FrameworkAccounts::classify_account_type`]).
+    /// First-occurrence wins; in practice the same GL code does not
+    /// appear under conflicting types across entities since the chart
+    /// numbering is country-pack-driven.
+    ///
+    /// `#[serde(default)]` to keep older on-disk archives (pre-v5.33.1)
+    /// deserialisable.
+    #[serde(default)]
+    pub account_type: AccountType,
 }
 
 /// An entity held back from the [`Parent`] / [`Full`] aggregation for
@@ -373,6 +385,12 @@ fn accumulate_tb(agg: &mut AggregatedTb, entity_code: &str, tb: &TrialBalance) {
                 credit_total: Decimal::ZERO,
                 net_balance: Decimal::ZERO,
                 contributing_entities: 0,
+                // First-seen account_type wins (see field docstring).
+                // The v5.33 per-entity TB writer stamps the
+                // framework-aware AccountType on every line; the
+                // aggregator inherits that decision here rather than
+                // re-classifying by US-only code-prefix later.
+                account_type: line.account_type,
             });
         entry.debit_total += line.debit_balance;
         entry.credit_total += line.credit_balance;

@@ -327,8 +327,81 @@ Tests covering the new behaviour land in
     `framework` field deserialise with `"us_gaap"` fallback.
 
 Not yet shipped: opening-balance persistence (`opening_balances.json`
-in chain mode) — still tracked under #162. The TB writer fix doesn't
+in chain mode) — carved out to #163. The TB writer fix doesn't
 depend on it.
+
+## VM validation (`medium_3yr_v533`, 2026-05-27)
+
+Re-ran the same 3-year medium chain on the Lambda VM
+(`ssh ubuntu@143.47.102.202`) against v5.33 (`3ba9e6a4`). 80 s
+wall-clock, 3 periods × 6 shards, IC coverage 1.0000 across all years,
+full consolidated bundle every year — identical run shape to the
+v5.32 baseline. Per-entity TB metrics, December of year 1:
+
+| Entity | v5.32 (baseline) | v5.33 (after fix) |
+|---|---|---|
+| ACME_EU (DE, SKR) | D=864 M, C=1 920 M, `balanced=false`, gap 55.0 %, account_type `{asset:248}` | D=2 168 M, C=2 044 M, **`balanced=true`**, gap 0 %, account_type `{asset:95, equity:7, liability:41, revenue:23, expense:85}` |
+| ACME_US (US GAAP) | D=2 087 M, C=2 110 M, `balanced=false`, gap 1.1 %, `{asset:363}` | D=2 103 M, C=2 126 M, **`balanced=true`**, gap 0 %, `{asset:131, liability:93, equity:3, revenue:66, expense:71}` |
+| ACME_UK (IFRS, US-style codes) | D=2 147 M, C=2 214 M, `balanced=false`, gap 3.0 %, `{asset:375}` | D=2 164 M, C=2 229 M, **`balanced=true`**, gap 0 %, `{asset:131, liability:93, equity:3, revenue:71, expense:77}` |
+
+Reads cleanly:
+
+- **Defect A** (framework-aware classifier) closed — SKR codes
+  no longer route through US-only prefix tables. The same 251 lines
+  on ACME_EU now distribute across all 5 AccountTypes per German
+  SKR04 rules.
+- **Defect C** (hardcoded `AccountType::Asset`) closed — every TB
+  line now carries its framework-correct account type.
+- **Defect B** (misleading `is_balanced` flag) closed per Option B1
+  — `is_balanced=true` / `out_of_balance=0` unconditionally,
+  matching the JE-balance invariant we actually guarantee.
+
+The gross-flow totals shifted ~1-3 % on every entity because the
+BS-vs-PL bucketing changed (SKR codes that were previously in the
+wrong time-window bucket now flow through the right one); this is
+expected.
+
+### New finding (not yet fixed)
+
+The consolidated FS A vs L+E+NCI gap is **unchanged** at ~32 % across
+all three years (2024: 32.4 %, 2025: 30.5 %, 2026: 31.6 %). The
+v5.33 per-entity fix did not propagate because the consolidated BS
+aggregator has its **own** framework-blind classifier at
+`crates/datasynth-group/src/aggregate/fs/balance_sheet.rs:287
+classify_bs_section`, hard-coded to US-GAAP numeric ranges
+(`1000-1399 CurrentAsset`, `2000-2299 CurrentLiability`,
+`3000-3499 Equity`, `4xxx+ Excluded`). On German SKR codes that
+routes `2xxx` (Equity in SKR) to CurrentLiability and `3xxx`
+(Liability in SKR) to Equity — same defect shape as Defect A but in
+a different code path.
+
+`AggregatedAccount` (the consolidator's per-account record) doesn't
+carry `account_type`, so the fix needs either (a) a per-code
+framework map threaded from the manifest into the aggregator, or
+(b) surfacing `account_type` through `AggregatedAccount` so the
+aggregator inherits the framework-aware classification the per-entity
+TBs now carry. Tracked under task **#164** — separate PR.
+
+### v5.33.1 fix (#164 landed)
+
+Took path (b): `AggregatedAccount` now carries
+`account_type: AccountType` (with `#[serde(default)]` for backward-
+compat), populated by `accumulate_tb` from each contributing
+`TrialBalanceLine::account_type`. The framework-aware classification
+the per-entity TB writer made via
+`FrameworkAccounts::classify_account_type` now flows up through
+aggregation rather than being thrown away.
+
+`classify_bs_section` is replaced by
+`classify_bs_section_from_account(code, &AggregatedAccount)`. It reads
+Asset / Liability / Equity / Revenue / Expense from
+`account.account_type` and uses code-prefix logic only for the
+current-vs-non-current refinement (SKR `0xxx` / US `1500-1999` /
+PCG `2xxxxx` non-current asset; US `2300-2999` non-current liability)
+and the US `3500-3599` NCI carve-out within Equity. Frameworks
+without a parallel current/non-current code-range carve-out land in
+the "current" bucket — the top-level A vs L+E+NCI identity is
+preserved either way.
 
 ## Fix plan (for a future engine PR)
 

@@ -44,6 +44,7 @@ fn balanced_post_elim_tb() -> AggregatedTb {
             credit_total: Decimal::ZERO,
             net_balance: dec!(1_000_000),
             contributing_entities: 1,
+            account_type: datasynth_core::models::balance::AccountType::Asset,
         },
     );
     totals.insert(
@@ -54,6 +55,7 @@ fn balanced_post_elim_tb() -> AggregatedTb {
             credit_total: dec!(400_000),
             net_balance: dec!(-400_000),
             contributing_entities: 1,
+            account_type: datasynth_core::models::balance::AccountType::Equity,
         },
     );
     totals.insert(
@@ -64,6 +66,7 @@ fn balanced_post_elim_tb() -> AggregatedTb {
             credit_total: dec!(600_000),
             net_balance: dec!(-600_000),
             contributing_entities: 1,
+            account_type: datasynth_core::models::balance::AccountType::Equity,
         },
     );
 

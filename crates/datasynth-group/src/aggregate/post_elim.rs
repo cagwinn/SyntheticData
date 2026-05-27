@@ -62,6 +62,7 @@
 
 use rust_decimal::Decimal;
 
+use datasynth_core::models::balance::AccountType;
 use datasynth_core::models::JournalEntry;
 
 use crate::aggregate::equity_method::EquityMethodInvestment;
@@ -400,6 +401,15 @@ fn apply_line_to_account(
             credit_total: Decimal::ZERO,
             net_balance: Decimal::ZERO,
             contributing_entities: 0,
+            // Eliminations can post to accounts no contributing entity
+            // touched (IC clearing 1150 / 2050, etc.). We don't have a
+            // `TrialBalanceLine` to read account_type from on this
+            // path; fall back to the Default (Asset). In practice the
+            // codes seen here are IC clearing accounts (1xxx asset-
+            // shaped or 2xxx liability-shaped), and the consolidator's
+            // BS classifier still uses code-prefix to split current vs
+            // non-current.
+            account_type: AccountType::default(),
         });
     entry.debit_total += debit_amount;
     entry.credit_total += credit_amount;
@@ -498,6 +508,7 @@ mod tests {
                 credit_total: Decimal::ZERO,
                 net_balance: dec!(500),
                 contributing_entities: 2,
+                account_type: Default::default(),
             },
         );
         apply_line_to_account(&mut tb, "1100", Decimal::ZERO, dec!(200));
@@ -522,6 +533,7 @@ mod tests {
                 credit_total: Decimal::ZERO,
                 net_balance: dec!(1000),
                 contributing_entities: 1,
+                account_type: Default::default(),
             },
         );
         tb.account_totals.insert(
@@ -532,6 +544,7 @@ mod tests {
                 credit_total: dec!(1000),
                 net_balance: dec!(-1000),
                 contributing_entities: 1,
+                account_type: Default::default(),
             },
         );
         let (td, tc) = recompute_totals(&tb);

@@ -69,7 +69,7 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
 use crate::aggregate::fs::account_names::AccountNameDictionary;
-use crate::aggregate::pre_elim::AggregatedTb;
+use crate::aggregate::pre_elim::{AggregatedAccount, AggregatedTb};
 use crate::errors::GroupResult;
 
 // ── Public types ──────────────────────────────────────────────────────────────
@@ -182,7 +182,13 @@ pub fn build_consolidated_balance_sheet_with_names(
     let mut nci: Vec<BsLine> = Vec::new();
 
     for (code, account) in &post_elim_tb.account_totals {
-        let section = classify_bs_section(code);
+        // v5.33.1: account_type now flows up from the per-entity TB
+        // writer's framework-aware classification — preferring it over
+        // the legacy US-only `classify_bs_section(code)` table closes
+        // the ~32 % A vs L+E+NCI gap on multi-framework groups (German
+        // SKR `2xxx` no longer routed to CurrentLiability, `3xxx` no
+        // longer routed to Equity, etc.).
+        let section = classify_bs_section_from_account(code, account);
         let line = match section {
             BsSection::CurrentAsset | BsSection::NonCurrentAsset => BsLine {
                 account_code: code.clone(),
@@ -282,25 +288,75 @@ enum BsSection {
     Excluded,
 }
 
-/// Classify a GL account into a balance-sheet section by leading-digit
-/// range.  Empty / non-numeric codes fall through to `Excluded`.
-fn classify_bs_section(code: &str) -> BsSection {
-    let n: u32 = match code.parse() {
-        Ok(n) => n,
-        Err(_) => return BsSection::Excluded,
-    };
-    match n {
-        1000..=1399 => BsSection::CurrentAsset,
-        1500..=1999 => BsSection::NonCurrentAsset,
-        2000..=2299 => BsSection::CurrentLiability,
-        2300..=2999 => BsSection::NonCurrentLiability,
-        3000..=3499 => BsSection::Equity,
-        3500..=3599 => BsSection::Nci,
-        // 1400-1499 are tax / derivative / other current/non-current
-        // assets per the chart; treat as current asset for v5.0 BS.
-        1400..=1499 => BsSection::CurrentAsset,
-        // 4xxx – 9xxx are P&L / OCI / memo / suspense — never on BS.
-        _ => BsSection::Excluded,
+/// Framework-aware BS section classifier.
+///
+/// Reads the top-level Asset/Liability/Equity/Revenue/Expense decision
+/// from the [`AggregatedAccount::account_type`] field — which was set
+/// by the per-entity orchestrator via
+/// `FrameworkAccounts::classify_account_type` (US / IFRS / SKR04 / PCG)
+/// — and then uses the code prefix to refine the current-vs-non-current
+/// split inside Asset / Liability and to carve NCI out of Equity.
+///
+/// The current/non-current refinement covers the common chart ranges
+/// across the supported frameworks:
+///
+/// - SKR04: `0xxx` = fixed assets (non-current), `1xxx` = current
+///   assets.
+/// - US/IFRS (US-style codes): `1000-1399` = current asset, `1500-1999`
+///   = non-current asset, `2000-2299` = current liability, `2300-2999`
+///   = non-current liability, `3500-3599` = NCI carve-out (US-only
+///   convention).
+/// - PCG: `2xxx` = fixed assets, `3xxx` = inventory (current),
+///   `4xxx` = receivables/payables (current), `5xxx` = cash (current).
+///
+/// Codes outside these ranges fall back to the "current" bucket for
+/// their account type — keeps a non-zero amount routed into the
+/// consolidated BS rather than silently dropped.
+fn classify_bs_section_from_account(code: &str, account: &AggregatedAccount) -> BsSection {
+    use datasynth_core::models::balance::AccountType;
+    let first = code.chars().next();
+    let n: Option<u32> = code.parse().ok();
+    match account.account_type {
+        AccountType::Asset | AccountType::ContraAsset => {
+            // Non-current asset ranges across the supported frameworks:
+            //   * SKR04: `0xxx` fixed assets.
+            //   * US/IFRS: `1500-1999`.
+            //   * PCG: 6-digit `2xxxxx` fixed assets.
+            // Anything else inside Asset is current.
+            let is_non_current = first == Some('0')
+                || matches!(n, Some(1500..=1999))
+                || (first == Some('2') && n.is_some_and(|v| (200_000..1_000_000).contains(&v)));
+            if is_non_current {
+                BsSection::NonCurrentAsset
+            } else {
+                BsSection::CurrentAsset
+            }
+        }
+        AccountType::Liability | AccountType::ContraLiability => {
+            // US/IFRS `2300-2999` is the canonical non-current
+            // liability range. SKR doesn't have a dedicated non-current
+            // sub-range that AccountType can distinguish from current;
+            // route everything else to current to preserve the
+            // top-level identity.
+            if matches!(n, Some(2300..=2999)) {
+                BsSection::NonCurrentLiability
+            } else {
+                BsSection::CurrentLiability
+            }
+        }
+        AccountType::Equity | AccountType::ContraEquity => {
+            // 3500-3599 is the US-style NCI carve-out. SKR/PCG don't
+            // have a parallel code-range carve-out; NCI on those
+            // entities still lands in the general Equity bucket here,
+            // and the NCI overlay applied by `apply_nci_and_equity_method`
+            // surfaces the controlling vs minority split separately.
+            if matches!(n, Some(3500..=3599)) {
+                BsSection::Nci
+            } else {
+                BsSection::Equity
+            }
+        }
+        AccountType::Revenue | AccountType::Expense => BsSection::Excluded,
     }
 }
 
@@ -322,18 +378,137 @@ fn sum(lines: &[BsLine]) -> Decimal {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use datasynth_core::models::balance::AccountType;
+
+    fn acct(code: &str, kind: AccountType) -> AggregatedAccount {
+        AggregatedAccount {
+            account_code: code.to_string(),
+            debit_total: Decimal::ZERO,
+            credit_total: Decimal::ZERO,
+            net_balance: Decimal::ZERO,
+            contributing_entities: 0,
+            account_type: kind,
+        }
+    }
+
+    // ── v5.33.1 framework-aware classifier ───────────────────────────
 
     #[test]
-    fn classifier_assigns_canonical_ranges() {
-        assert_eq!(classify_bs_section("1000"), BsSection::CurrentAsset);
-        assert_eq!(classify_bs_section("1399"), BsSection::CurrentAsset);
-        assert_eq!(classify_bs_section("1850"), BsSection::NonCurrentAsset);
-        assert_eq!(classify_bs_section("2000"), BsSection::CurrentLiability);
-        assert_eq!(classify_bs_section("2300"), BsSection::NonCurrentLiability);
-        assert_eq!(classify_bs_section("3000"), BsSection::Equity);
-        assert_eq!(classify_bs_section("3500"), BsSection::Nci);
-        assert_eq!(classify_bs_section("4000"), BsSection::Excluded);
-        assert_eq!(classify_bs_section("9999"), BsSection::Excluded);
-        assert_eq!(classify_bs_section(""), BsSection::Excluded);
+    fn classifier_us_gaap_canonical_ranges() {
+        // US/IFRS codes paired with the AccountType the per-entity TB
+        // writer would now produce.
+        let cases = [
+            ("1000", AccountType::Asset, BsSection::CurrentAsset),
+            ("1399", AccountType::Asset, BsSection::CurrentAsset),
+            ("1500", AccountType::Asset, BsSection::NonCurrentAsset),
+            ("1850", AccountType::Asset, BsSection::NonCurrentAsset),
+            ("2000", AccountType::Liability, BsSection::CurrentLiability),
+            (
+                "2300",
+                AccountType::Liability,
+                BsSection::NonCurrentLiability,
+            ),
+            ("3000", AccountType::Equity, BsSection::Equity),
+            ("3500", AccountType::Equity, BsSection::Nci),
+            ("4000", AccountType::Revenue, BsSection::Excluded),
+            ("6000", AccountType::Expense, BsSection::Excluded),
+        ];
+        for (code, kind, want) in cases {
+            assert_eq!(
+                classify_bs_section_from_account(code, &acct(code, kind)),
+                want,
+                "{code} ({kind:?})"
+            );
+        }
+    }
+
+    #[test]
+    fn classifier_skr_german_routes_correctly() {
+        // The defect: pre-v5.33.1, German SKR `2xxx` (Equity) was
+        // classified as CurrentLiability and `3xxx` (Liability) as
+        // Equity by the US-only prefix table — driving the 32 %
+        // consolidated A vs L+E+NCI gap on the ACME_MEDIUM_3YR
+        // engagement.  With AccountType carried up from the
+        // framework-aware per-entity TB, the sections now match the
+        // SKR semantics.
+        assert_eq!(
+            classify_bs_section_from_account("0010", &acct("0010", AccountType::Asset)),
+            BsSection::NonCurrentAsset,
+            "SKR 0xxx fixed assets → non-current asset"
+        );
+        assert_eq!(
+            classify_bs_section_from_account("1200", &acct("1200", AccountType::Asset)),
+            BsSection::CurrentAsset,
+            "SKR 1xxx current assets → current asset"
+        );
+        assert_eq!(
+            classify_bs_section_from_account("2000", &acct("2000", AccountType::Equity)),
+            BsSection::Equity,
+            "SKR 2xxx equity → Equity (NOT CurrentLiability)"
+        );
+        assert_eq!(
+            classify_bs_section_from_account("3000", &acct("3000", AccountType::Liability)),
+            BsSection::CurrentLiability,
+            "SKR 3xxx liability → CurrentLiability (NOT Equity)"
+        );
+        assert_eq!(
+            classify_bs_section_from_account("4000", &acct("4000", AccountType::Revenue)),
+            BsSection::Excluded,
+            "SKR 4xxx revenue → Excluded"
+        );
+        assert_eq!(
+            classify_bs_section_from_account("6000", &acct("6000", AccountType::Expense)),
+            BsSection::Excluded,
+            "SKR 6xxx opex → Excluded"
+        );
+    }
+
+    #[test]
+    fn classifier_pcg_french_routes_correctly() {
+        assert_eq!(
+            classify_bs_section_from_account("210000", &acct("210000", AccountType::Asset)),
+            BsSection::NonCurrentAsset,
+            "PCG 2xxxxx fixed assets → non-current asset"
+        );
+        assert_eq!(
+            classify_bs_section_from_account("411000", &acct("411000", AccountType::Asset)),
+            BsSection::CurrentAsset,
+            "PCG 411xxx customer receivables → current asset"
+        );
+        assert_eq!(
+            classify_bs_section_from_account("401000", &acct("401000", AccountType::Liability)),
+            BsSection::CurrentLiability,
+            "PCG 401xxx suppliers → current liability"
+        );
+        assert_eq!(
+            classify_bs_section_from_account("512000", &acct("512000", AccountType::Asset)),
+            BsSection::CurrentAsset,
+            "PCG 5xxxxx cash → current asset"
+        );
+        assert_eq!(
+            classify_bs_section_from_account("101000", &acct("101000", AccountType::Equity)),
+            BsSection::Equity,
+            "PCG 10xxxx capital → Equity"
+        );
+    }
+
+    #[test]
+    fn classifier_contra_variants_stay_on_bs() {
+        // ContraAsset / ContraLiability / ContraEquity still land on
+        // their respective BS sections — the consolidator already
+        // applies the correct sign flip via the debit_total/credit_total
+        // arithmetic upstream.
+        assert!(matches!(
+            classify_bs_section_from_account("1599", &acct("1599", AccountType::ContraAsset)),
+            BsSection::NonCurrentAsset | BsSection::CurrentAsset
+        ));
+        assert!(matches!(
+            classify_bs_section_from_account("2199", &acct("2199", AccountType::ContraLiability)),
+            BsSection::CurrentLiability | BsSection::NonCurrentLiability
+        ));
+        assert!(matches!(
+            classify_bs_section_from_account("3299", &acct("3299", AccountType::ContraEquity)),
+            BsSection::Equity
+        ));
     }
 }
