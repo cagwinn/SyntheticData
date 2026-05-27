@@ -120,10 +120,18 @@ pub struct StandaloneOptions {
     /// generating fresh openings.  Empty by default — single-period
     /// engagements see no behaviour change.
     ///
-    /// Auto-populated by [`generate_standalone_chain`] from the prior
-    /// period's `entities/{code}/period_close/trial_balances.json`
-    /// via [`crate::aggregate::opening_balance::read_prior_period_closing_tbs`]
-    /// followed by [`crate::aggregate::opening_balance::extract_opening_balances`].
+    /// **v5.31 C2 (#157)** — auto-populated by
+    /// [`generate_standalone_chain`] from the prior period's
+    /// `entities/{code}/period_close/trial_balances.json` via
+    /// [`crate::aggregate::opening_balance::read_prior_period_closing_tbs`]
+    /// followed by
+    /// [`datasynth_generators::balance::project_closing_to_opening`].
+    /// The projection (vs the legacy `extract_opening_balances`) is
+    /// what absorbs prior-period net income into Retained Earnings —
+    /// the orchestrator emits `Adjusted` TBs (not `PostClosing`), so
+    /// dropping P&L without absorbing it would silently lose the
+    /// period's earnings on the chain hand-off.
+    ///
     /// Callers using `generate_standalone` directly can populate this
     /// manually when they want to drive multi-period continuity
     /// without the chain helper.
@@ -131,6 +139,16 @@ pub struct StandaloneOptions {
         String,
         Vec<datasynth_core::models::balance::EntityOpeningBalance>,
     >,
+    /// **v5.31 C2 (#157)** — accounting framework used to project the
+    /// prior period's closing TB onto next-period opening balances.
+    /// Selects which account code holds Retained Earnings (US GAAP
+    /// `"3200"`, SKR03/04 `"2970"`, IFRS varies).  Only consulted by
+    /// [`generate_standalone_chain`] when computing carryover; the
+    /// per-period generation itself reads framework off the config.
+    /// Defaults to `"us_gaap"`.  Must match how the prior period was
+    /// generated — mismatches mean net income lands in the wrong
+    /// account.
+    pub closing_to_opening_framework: String,
 }
 
 impl Default for StandaloneOptions {
@@ -142,6 +160,7 @@ impl Default for StandaloneOptions {
             cgu_test_inputs: Vec::new(),
             entity_opening_balances: std::collections::BTreeMap::new(),
             cpi_series_by_currency: std::collections::BTreeMap::new(),
+            closing_to_opening_framework: "us_gaap".to_string(),
         }
     }
 }
@@ -404,23 +423,25 @@ pub fn generate_standalone_chain(
                     prior,
                     &entity_codes,
                 )?;
+                // **v5.31 C2 (#157)** — project each closing TB onto its
+                // opening positions via `project_closing_to_opening`,
+                // which absorbs the period's net income into Retained
+                // Earnings. The legacy `extract_opening_balances` used
+                // to live here, but it silently dropped P&L lines
+                // without absorbing them — correct only when the
+                // closing TB is already PostClosing (zero P&L). The
+                // orchestrator emits `Adjusted` TBs (still showing
+                // period P&L), so the legacy path lost net income on
+                // the chain hand-off.
                 let mut openings_by_entity: std::collections::BTreeMap<
                     String,
                     Vec<datasynth_core::models::balance::EntityOpeningBalance>,
                 > = std::collections::BTreeMap::new();
                 for (code, tb) in &closing_tbs {
-                    let group_openings =
-                        crate::aggregate::opening_balance::extract_opening_balances(tb);
-                    let core_openings: Vec<datasynth_core::models::balance::EntityOpeningBalance> =
-                        group_openings
-                            .into_iter()
-                            .map(|ob| datasynth_core::models::balance::EntityOpeningBalance {
-                                account_code: ob.account_code,
-                                account_type: ob.account_type,
-                                debit: ob.debit,
-                                credit: ob.credit,
-                            })
-                            .collect();
+                    let core_openings = datasynth_generators::balance::project_closing_to_opening(
+                        tb,
+                        &opts.closing_to_opening_framework,
+                    );
                     if !core_openings.is_empty() {
                         openings_by_entity.insert(code.clone(), core_openings);
                     }

@@ -553,6 +553,17 @@ enum GroupCommands {
         /// per-element shape.
         #[arg(long)]
         cpi_series: Option<PathBuf>,
+
+        /// **v5.31 C2 (#157)** — Accounting framework used to project
+        /// the prior period's closing TB onto next-period opening
+        /// balances. Selects which account holds Retained Earnings
+        /// (US GAAP `"3200"`, SKR03/04 `"2970"`, IFRS varies).
+        /// Defaults to `us_gaap` — pass `ifrs`, `french_gaap`,
+        /// `german_gaap`, or `dual_reporting` to match how prior
+        /// periods were generated. Mismatches make net income land in
+        /// the wrong account.
+        #[arg(long, default_value = "us_gaap")]
+        closing_to_opening_framework: String,
     },
 }
 
@@ -3665,6 +3676,7 @@ fn handle_group(command: GroupCommands) -> Result<()> {
             prior_period_aggregate,
             cgu_test_inputs,
             cpi_series,
+            closing_to_opening_framework,
         } => handle_group_generate_chain(
             &config,
             &periods,
@@ -3673,6 +3685,7 @@ fn handle_group(command: GroupCommands) -> Result<()> {
             prior_period_aggregate.as_deref(),
             cgu_test_inputs.as_deref(),
             cpi_series.as_deref(),
+            &closing_to_opening_framework,
         ),
     }
 }
@@ -4147,6 +4160,7 @@ fn handle_group_generate(
         parallel_shards,
         entity_opening_balances: std::collections::BTreeMap::new(),
         cpi_series_by_currency: std::collections::BTreeMap::new(),
+        closing_to_opening_framework: "us_gaap".to_string(),
     };
 
     let summary = match datasynth_group::generate_standalone(&cfg, out_path, &opts) {
@@ -4197,6 +4211,7 @@ fn handle_group_generate_chain(
     prior_period_aggregate: Option<&std::path::Path>,
     cgu_test_inputs_path: Option<&std::path::Path>,
     cpi_series_path: Option<&std::path::Path>,
+    closing_to_opening_framework: &str,
 ) -> Result<()> {
     use anyhow::Context;
     tracing::info!(
@@ -4207,6 +4222,7 @@ fn handle_group_generate_chain(
         prior_period_aggregate = ?prior_period_aggregate.map(|p| p.display().to_string()),
         cgu_test_inputs = ?cgu_test_inputs_path.map(|p| p.display().to_string()),
         cpi_series = ?cpi_series_path.map(|p| p.display().to_string()),
+        closing_to_opening_framework = closing_to_opening_framework,
         "group generate-chain: starting",
     );
 
@@ -4254,6 +4270,7 @@ fn handle_group_generate_chain(
         parallel_shards,
         entity_opening_balances: std::collections::BTreeMap::new(),
         cpi_series_by_currency,
+        closing_to_opening_framework: closing_to_opening_framework.to_string(),
     };
 
     let summaries = match datasynth_group::generate_standalone_chain(&cfg, periods, out_path, &opts)
