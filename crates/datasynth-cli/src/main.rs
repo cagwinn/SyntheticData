@@ -285,6 +285,74 @@ enum Commands {
         command: BehavioralCommands,
     },
 
+    /// **v5.32 C3 (#158)** — adversarial calibration loop.
+    ///
+    /// Drives the synthetic engine's tunable knobs so a chosen
+    /// gap metric (versus a reference corpus) converges. Wraps
+    /// the [`datasynth_eval::calibration`] primitives:
+    /// objective, knob set, iteration controller, history
+    /// persistence, safety rails. See
+    /// `docs/design/2026-05-27-c3-adversarial-calibration-design.md`.
+    ///
+    /// **Status**: CLI surface scaffolded; the real
+    /// orchestrator-backed evaluator is a follow-up (the engine
+    /// integration runs full generation per iteration so it
+    /// belongs in a VM-validated path). Use with `--dry-run` for
+    /// argparse + config-patch smoke testing.
+    Calibrate {
+        /// Path to the base group YAML configuration the loop
+        /// will mutate.
+        #[arg(short, long)]
+        config: PathBuf,
+
+        /// Reference corpus directory the BF eval compares synthetic
+        /// against. Same shape as `behavioral score --real <path>`.
+        #[arg(short, long)]
+        reference: PathBuf,
+
+        /// Output directory for the calibration trajectory,
+        /// per-iteration synth outputs, and the
+        /// `calibration_history.json` resume file.
+        #[arg(short, long)]
+        out: PathBuf,
+
+        /// Which scalar to minimise. One of:
+        ///   `bf_composite` (default headline mean),
+        ///   `bf_composite_median` (robust to outlier sub-metrics),
+        ///   `bf_composite_volume_corrected` (excludes volume-
+        ///   bounded metrics).
+        #[arg(long, default_value = "bf_composite")]
+        objective: String,
+
+        /// Maximum iterations before the loop gives up. Default 20.
+        #[arg(long, default_value_t = 20)]
+        max_iter: usize,
+
+        /// Seeds per iteration for multi-seed loss averaging. Per
+        /// the v5.31 T3 methodology finding, single-shard composite
+        /// CV ≈ 25 %; the default 3 amortises that variance.
+        #[arg(long, default_value_t = 3)]
+        seeds: usize,
+
+        /// Optional convergence target. Stops when the multi-seed
+        /// mean loss ≤ this. When omitted, the loop runs to
+        /// max-iter / patience exhaustion.
+        #[arg(long)]
+        target: Option<f64>,
+
+        /// Resume from an existing calibration_history.json file.
+        /// Knob state + best-tracker restored from the last step.
+        #[arg(long)]
+        resume: Option<PathBuf>,
+
+        /// Run the argparse + config-patch logic but skip the
+        /// actual generation/eval/loop. Useful for CI smoke +
+        /// validating the CLI surface without the engine
+        /// integration.
+        #[arg(long)]
+        dry_run: bool,
+    },
+
     /// Template pack management (v3.2.0+)
     ///
     /// Export the embedded default template pool as YAML starter
@@ -3499,6 +3567,28 @@ fn run_main() -> Result<()> {
             let exit_code = handle_behavioral(command)?;
             std::process::exit(exit_code);
         }
+
+        Commands::Calibrate {
+            config,
+            reference,
+            out,
+            objective,
+            max_iter,
+            seeds,
+            target,
+            resume,
+            dry_run,
+        } => handle_calibrate(
+            &config,
+            &reference,
+            &out,
+            &objective,
+            max_iter,
+            seeds,
+            target,
+            resume.as_deref(),
+            dry_run,
+        ),
     }
 }
 
@@ -6482,4 +6572,186 @@ fn handle_scenario_command(command: ScenarioCommands) -> Result<()> {
             Ok(())
         }
     }
+}
+
+/// **v5.32 C3 (#158)** — `datasynth-data calibrate` handler.
+///
+/// Scaffolding stage. The argparse, knob-set construction, config-
+/// patch logic, and history persistence all wire to the
+/// `datasynth_eval::calibration` primitives. The orchestrator-
+/// backed [`datasynth_eval::calibration::Evaluator`] that runs a
+/// full generation + BF eval per (knobs, seed) is the follow-up
+/// piece — it's a heavy VM-validated path, so we return a clear
+/// "not yet wired" error when `--dry-run` is omitted.
+///
+/// In `--dry-run` mode the handler:
+///   1. Validates argparse + loads the base GroupConfig.
+///   2. Echoes the resolved calibration parameters.
+///   3. Constructs (but does not run) the [`CalibrationLoop`].
+///   4. Exits with code 0.
+///
+/// This gives the CI a smoke test that the CLI surface compiles +
+/// argparses correctly without requiring the engine integration.
+#[allow(clippy::too_many_arguments)]
+fn handle_calibrate(
+    config_path: &std::path::Path,
+    reference_path: &std::path::Path,
+    out_path: &std::path::Path,
+    objective: &str,
+    max_iter: usize,
+    seeds: usize,
+    target: Option<f64>,
+    resume: Option<&std::path::Path>,
+    dry_run: bool,
+) -> Result<()> {
+    use anyhow::Context;
+    use datasynth_eval::calibration::{
+        CalibrationConfig, CalibrationLoop, CalibrationObjective, ObjectiveMetric,
+    };
+
+    tracing::info!(
+        config = %config_path.display(),
+        reference = %reference_path.display(),
+        out = %out_path.display(),
+        objective = objective,
+        max_iter = max_iter,
+        seeds = seeds,
+        target = ?target,
+        resume = ?resume.map(|p| p.display().to_string()),
+        dry_run = dry_run,
+        "calibrate: starting",
+    );
+
+    // Parse objective string.
+    let metric = match objective {
+        "bf_composite" => ObjectiveMetric::BfComposite,
+        "bf_composite_median" => ObjectiveMetric::BfCompositeMedian,
+        "bf_composite_volume_corrected" => ObjectiveMetric::BfCompositeVolumeCorrected,
+        other => {
+            eprintln!(
+                "calibrate: unknown --objective `{other}`. valid: \
+                 bf_composite, bf_composite_median, bf_composite_volume_corrected"
+            );
+            std::process::exit(2);
+        }
+    };
+
+    let mut obj = CalibrationObjective::default().with_metric(metric);
+    if let Some(t) = target {
+        obj = obj.with_target(t);
+    }
+
+    // Validate input paths.
+    if !config_path.exists() {
+        eprintln!("calibrate: --config `{}` not found", config_path.display());
+        std::process::exit(2);
+    }
+    if !reference_path.exists() {
+        eprintln!(
+            "calibrate: --reference `{}` not found",
+            reference_path.display()
+        );
+        std::process::exit(2);
+    }
+    std::fs::create_dir_all(out_path)
+        .with_context(|| format!("calibrate: mkdir {}", out_path.display()))?;
+
+    // Default knob set — first-cut inventory of the engine's most
+    // impactful tunables. Future revs may load this from a YAML
+    // sidecar so users can scope a calibration run to specific knobs.
+    let knobs = default_calibration_knobs();
+
+    let mut loop_ = CalibrationLoop::new(
+        obj,
+        knobs,
+        CalibrationConfig {
+            max_iterations: max_iter,
+            seeds_per_iteration: seeds,
+            ..CalibrationConfig::default()
+        },
+    );
+
+    // Resume hook.
+    if let Some(resume_path) = resume {
+        use datasynth_eval::calibration::CalibrationHistory;
+        let history = CalibrationHistory::load(resume_path).with_context(|| {
+            format!(
+                "calibrate: failed to load --resume `{}`",
+                resume_path.display()
+            )
+        })?;
+        history.apply_to(&mut loop_).with_context(|| {
+            "calibrate: --resume incompatible with this loop's objective / knob set".to_string()
+        })?;
+        tracing::info!(
+            steps_resumed = loop_.history.len(),
+            "calibrate: resumed from history",
+        );
+    }
+
+    println!("calibrate: setup OK");
+    println!("  objective       : {}", objective);
+    println!("  max_iter        : {}", max_iter);
+    println!("  seeds           : {}", seeds);
+    println!("  target          : {:?}", target);
+    println!("  knobs           : {}", loop_.knobs.len());
+    println!("  resumed history : {} steps", loop_.history.len());
+
+    if dry_run {
+        println!("calibrate: --dry-run set, exiting without running the loop");
+        return Ok(());
+    }
+
+    // The real generator-backed evaluator + Proposer drive go here.
+    // For now this is a stub — the engine integration is a separate
+    // follow-up that needs VM validation per CLAUDE.md.
+    eprintln!(
+        "calibrate: orchestrator-backed evaluator not yet wired (Piece 4b). \
+         Re-run with --dry-run to smoke-test the CLI surface, or wait for the \
+         VM-validated engine integration to land."
+    );
+    std::process::exit(2);
+}
+
+/// First-cut knob inventory for the calibration loop. Mirror the
+/// v5.30 SOTA manually-tuned knob set so the calibration loop has
+/// a sensible starting parameter space.
+///
+/// Each knob's `current` here is the v5.30 SOTA default; the loop
+/// reads each knob's path off this list and patches the GroupConfig
+/// before each generation. Bounds are the engine's documented
+/// safe ranges; `max_step` is calibrated to give the loop enough
+/// resolution to find a local minimum in ~10 iterations without
+/// overshooting.
+fn default_calibration_knobs() -> Vec<datasynth_eval::calibration::CalibrationKnob> {
+    use datasynth_eval::calibration::CalibrationKnob;
+    vec![
+        // Anomaly rates — most impactful knobs per the v5.30 SOTA
+        // tuning rounds.
+        CalibrationKnob::new_f64("fraud.fraud_rate", 0.02, 0.005, 0.10, 0.005),
+        CalibrationKnob::new_f64(
+            "anomaly_injection.rates.consolidation_outlier_rate",
+            0.001,
+            0.0,
+            0.01,
+            0.0005,
+        ),
+        CalibrationKnob::new_f64("fraud.document_fraud_rate", 0.05, 0.01, 0.20, 0.01),
+        // Concentration pipeline.
+        CalibrationKnob::new_f64(
+            "concentration.source_conditional_rarity.rate",
+            0.01,
+            0.0,
+            0.05,
+            0.005,
+        ),
+        CalibrationKnob::new_usize(
+            "concentration.trading_partner_pool.target_size",
+            12,
+            5,
+            50,
+            3.0,
+        ),
+        CalibrationKnob::new_f64("concentration.source_blanking.rate", 0.21, 0.0, 0.5, 0.02),
+    ]
 }
