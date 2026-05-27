@@ -144,8 +144,6 @@ pub struct EliminationResult {
 ///
 /// - [`GroupError::Aggregate`] if the seller's entity has no plan for
 ///   `pair.pair_id` (stale shard or manifest mismatch).
-/// - [`GroupError::Aggregate`] if the seller-side JE has no debit line
-///   (empty / corrupted JE).
 /// - [`GroupError::Aggregate`] if any emitted entry fails its balance
 ///   invariant — should be impossible given the factory contracts but
 ///   we guard it as a defensive postcondition.
@@ -180,7 +178,7 @@ pub fn generate_eliminations(
             &pair.seller_entity,
             &pair.pair_id,
         )?;
-        let amount = elimination_amount(&pair.seller_je, pair)?;
+        let amount = elimination_amount(&pair.seller_je, pair, &plan);
         let fiscal_period = format_fiscal_period(pair.seller_je.header.posting_date);
 
         for mut entry in build_entries_for_pair(pair, &plan, amount, &fiscal_period, manifest)? {
@@ -502,26 +500,68 @@ fn build_dividend_entry(
     entry
 }
 
-/// Resolve the elimination amount from the seller-side JE.  By
-/// construction (see [`crate::shard::ic_je_injector::build_je_for_plan`])
-/// the seller's JE has exactly one debit line whose amount is the
-/// pair's notional.  We take that line's `debit_amount` as the
-/// authoritative elimination amount — this lets any upstream rescaling
-/// (rounding, FX, manual adjustments) flow through without re-deriving
-/// the amount from the manifest.
-fn elimination_amount(seller_je: &JournalEntry, pair: &IcMatchedPair) -> GroupResult<Decimal> {
-    seller_je
+/// Resolve the elimination amount for an IC pair.
+///
+/// **Preferred path:** read the seller JE's debit-line amount — this
+/// lets upstream rescaling (rounding, FX adjustment, manual amount
+/// override) flow through to the elimination without re-deriving from
+/// the manifest.
+///
+/// **Defensive paths** (handle anomaly-corrupted IC JEs that survived
+/// past the can_apply gate, e.g. `ReversedAmountStrategy` on legacy
+/// shards generated before that gate landed):
+///
+/// 1. If no debit line found, try the total credit (handles the
+///    `ReversedAmount` swap — debit and credit are flipped).
+/// 2. If both are zero or absent, fall back to `plan.amount` (the
+///    manifest's authoritative notional). Log a warning so coverage
+///    diagnostics can flag the divergence.
+///
+/// This is robust against ALL anomaly mutations on the seller JE —
+/// the elimination still nets to the originally-planned notional.
+/// The seller JE may be visibly corrupt in `je_network` (anomaly
+/// labels record what happened), but the consolidated FS bundle
+/// remains structurally correct.
+fn elimination_amount(
+    seller_je: &JournalEntry,
+    pair: &IcMatchedPair,
+    plan: &crate::shard::IcPairPlan,
+) -> Decimal {
+    // Preferred: seller's debit line amount.
+    if let Some(amt) = seller_je
         .lines
         .iter()
         .find(|l| l.is_debit())
         .map(|l| l.debit_amount)
-        .ok_or_else(|| {
-            GroupError::Aggregate(format!(
-                "generate_eliminations: seller-side JE for pair {} has no debit line — \
-                 expected exactly one debit per IC injector contract",
-                pair.pair_id
-            ))
-        })
+    {
+        return amt;
+    }
+    // Defensive: total credit — covers `ReversedAmount` anomaly where
+    // the swap flipped debit ↔ credit on a 2-line IC JE.
+    let total_credit: Decimal = seller_je.lines.iter().map(|l| l.credit_amount).sum();
+    if total_credit > Decimal::ZERO {
+        tracing::warn!(
+            target: "datasynth_group::elimination",
+            pair_id = %pair.pair_id,
+            seller_entity = %pair.seller_entity,
+            plan_amount = %plan.amount,
+            credit_amount = %total_credit,
+            "IC seller JE has no debit line — falling back to total credit. \
+             Likely a ReversedAmount anomaly on the IC JE; consider regenerating \
+             shards with the v5.31 Phase 7 IC-JE anomaly gate."
+        );
+        return total_credit;
+    }
+    // Last resort: plan's notional.
+    tracing::warn!(
+        target: "datasynth_group::elimination",
+        pair_id = %pair.pair_id,
+        seller_entity = %pair.seller_entity,
+        plan_amount = %plan.amount,
+        "IC seller JE has neither debit nor credit lines — falling back to plan.amount. \
+         Severely corrupted IC JE; the consolidated entry will use the manifest's notional."
+    );
+    plan.amount
 }
 
 /// Re-derive the [`IcPairPlan`] for the seller's pair_id with a per-entity

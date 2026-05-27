@@ -817,7 +817,14 @@ impl InjectionStrategy for ReversedAmountStrategy {
     }
 
     fn can_apply(&self, entry: &JournalEntry) -> bool {
-        entry.lines.len() >= 2
+        // v5.31 C1 Phase 7: skip IC injector JEs. The IC elimination
+        // contract requires exactly one debit line at the seller's DR
+        // account; swapping debit↔credit on either line violates that
+        // contract and breaks the consolidated FS bundle. IC-pair
+        // amounts are deterministic by manifest, so picking them as
+        // anomaly targets adds no realism but does add correctness
+        // bugs at downstream consolidation time.
+        entry.lines.len() >= 2 && entry.header.ic_pair_id.is_none()
     }
 
     fn apply<R: Rng>(
