@@ -55,12 +55,32 @@ use super::{ConcentrationPass, ConcentrationStats};
 const PASS_NAME: &str = "consolidation_outlier";
 
 /// Default bridge accounts used when the config doesn't supply a list.
-/// Mix of clearing (1900/1950), other accruals (2900), equity (3900),
-/// inter-process clearing (5900), intercompany clearing (8900), and
-/// suspense (9900) — the corpus's actual heavy-tail JEs touch this
-/// kind of account set.
+///
+/// Each entry must exist in the canonical CoA seeded by
+/// `coa_generator::seed_canonical_accounts` so the
+/// `coa_coverage_invariant` test passes — every JE-line `gl_account`
+/// MUST be present in the chart of accounts. Mix of intangible-side
+/// (`1900` Goodwill, `1950` Accumulated Amortization), intercompany
+/// clearing (`1150` IC AR, `2050` IC AP), GR/IR + payment clearing
+/// (`2900` GR/IR, `1030` Wire), and 4 suspense buckets
+/// (`9000` General, `9100` Payroll, `9200` Bank Rec, `9300` IC
+/// Elimination) — the kind of account set the corpus's heavy-tail
+/// consolidation entries actually touch.
 pub(crate) const DEFAULT_BRIDGE_ACCOUNTS: &[&str] = &[
-    "1900", "1950", "2900", "2950", "3900", "3950", "5900", "5950", "8900", "8950", "9900", "9950",
+    // Intangible / amortization side — represents goodwill-impairment
+    // and amortization-true-up entries.
+    datasynth_core::accounts::intangible_accounts::GOODWILL,
+    datasynth_core::accounts::intangible_accounts::ACCUMULATED_AMORTIZATION,
+    // Control / clearing side.
+    datasynth_core::accounts::control_accounts::IC_AR_CLEARING,
+    datasynth_core::accounts::control_accounts::IC_AP_CLEARING,
+    datasynth_core::accounts::control_accounts::GR_IR_CLEARING,
+    datasynth_core::accounts::cash_accounts::WIRE_CLEARING,
+    // Suspense / reclass buckets.
+    datasynth_core::accounts::suspense_accounts::GENERAL_SUSPENSE,
+    datasynth_core::accounts::suspense_accounts::PAYROLL_CLEARING,
+    datasynth_core::accounts::suspense_accounts::BANK_RECONCILIATION_SUSPENSE,
+    datasynth_core::accounts::suspense_accounts::IC_ELIMINATION_SUSPENSE,
 ];
 
 pub struct ConsolidationOutlierPass {
