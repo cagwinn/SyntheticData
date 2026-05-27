@@ -12124,9 +12124,10 @@ impl EnhancedOrchestrator {
         // Back-compat: the legacy `anomaly_injection.source_conditional_rarity_rate`
         // key remains honored. If `concentration.source_conditional_rarity` is also
         // set in the same config, the unified DSL field wins.
-        let sota12_tagged: usize = {
+        let (sota12_tagged, consolidation_outlier_expanded): (usize, usize) = {
             use datasynth_config::schema::{
-                ConcentrationConfig, SourceConditionalRarityPassConfig,
+                ConcentrationConfig, ConsolidationOutlierPassConfig,
+                SourceConditionalRarityPassConfig,
             };
             use datasynth_generators::concentration::ConcentrationPipeline;
 
@@ -12143,9 +12144,29 @@ impl EnhancedOrchestrator {
                     });
                 }
             }
+            // v5.30 B2 (#154) — back-compat: surface
+            // `anomaly_injection.rates.consolidation_outlier_rate` as a
+            // `ConsolidationOutlierPassConfig` if the unified DSL didn't
+            // set one. Default 0.001 baseline shipped via the schema's
+            // `default_consolidation_outlier_rate` — only synthesise the
+            // pass when the rate is > 0, otherwise it's a no-op anyway.
+            if effective.consolidation_outlier.is_none() {
+                let rate = self
+                    .config
+                    .anomaly_injection
+                    .rates
+                    .consolidation_outlier_rate;
+                if rate > 0.0 {
+                    effective.enabled = true;
+                    effective.consolidation_outlier = Some(ConsolidationOutlierPassConfig {
+                        rate,
+                        ..Default::default()
+                    });
+                }
+            }
 
             if !effective.enabled {
-                0
+                (0, 0)
             } else {
                 let pipeline = ConcentrationPipeline::from_config(&effective).map_err(|e| {
                     SynthError::generation(format!(
@@ -12153,17 +12174,23 @@ impl EnhancedOrchestrator {
                     ))
                 })?;
                 if !pipeline.is_active() {
-                    0
+                    (0, 0)
                 } else {
                     // Per-pipeline seed disjoint from every other generator stream.
                     const CONCENTRATION_SEED_OFFSET: u64 = 0xC0_C3_E1_47_10_43_77_3B;
                     let stats =
                         pipeline.run(entries, self.seed.wrapping_add(CONCENTRATION_SEED_OFFSET));
-                    stats
+                    let sota12: usize = stats
                         .iter()
                         .filter(|s| s.pass == "source_conditional_rarity")
                         .map(|s| s.entries_modified)
-                        .sum()
+                        .sum();
+                    let consol: usize = stats
+                        .iter()
+                        .filter(|s| s.pass == "consolidation_outlier")
+                        .map(|s| s.entries_modified)
+                        .sum();
+                    (sota12, consol)
                 }
             }
         };
@@ -12183,6 +12210,15 @@ impl EnhancedOrchestrator {
             *by_type
                 .entry("SourceConditionalRarity".to_string())
                 .or_insert(0) += sota12_tagged;
+        }
+        // v5.30 B2 (#154): record the consolidation-outlier expansion
+        // count under a stable label key so the orchestrator's run
+        // report surfaces the heavy-tail emission rate alongside the
+        // other anomaly buckets.
+        if consolidation_outlier_expanded > 0 {
+            *by_type
+                .entry("ConsolidationOutlier".to_string())
+                .or_insert(0) += consolidation_outlier_expanded;
         }
 
         Ok(AnomalyLabels {

@@ -9671,6 +9671,16 @@ pub struct ConcentrationConfig {
     /// `AccountPairSubstitutionPass`) see full source coverage.
     #[serde(default)]
     pub source_blanking: Option<SourceBlankingPassConfig>,
+
+    /// v5.30 B2 (#154) — heavy-tail consolidation outlier emission.
+    /// Reshapes a small fraction of JEs (~0.001 typical) into
+    /// multi-100-line postings touching bridge / suspense / clearing
+    /// accounts. Lifts the synthetic relational_score p99/max
+    /// percentiles toward the corpus's heavy tail without distorting
+    /// the median. Honors `anomaly_injection.consolidation_outlier_rate`
+    /// as a back-compat alias — if both are set, this DSL field wins.
+    #[serde(default)]
+    pub consolidation_outlier: Option<ConsolidationOutlierPassConfig>,
 }
 
 /// Per-pass config for SourceConditionalRarityPass.
@@ -9701,6 +9711,67 @@ pub struct SourceBlankingPassConfig {
     /// Fraction of JEs whose `sap_source_code` should be nulled. Typical
     /// corpus-matching value `0.21`. Clamped to `[0.0, 1.0]` at runtime.
     pub rate: f64,
+}
+
+/// Per-pass config for ConsolidationOutlierPass (v5.30 B2 / #154).
+///
+/// Amounts are stored as `f64` here (schema layer) and converted to
+/// `rust_decimal::Decimal` in the pass constructor. The synthetic
+/// bridge-line amounts are log-uniformly distributed and the pp99
+/// metric reads scale rather than exact value, so the f64 → Decimal
+/// rounding is irrelevant for the heavy-tail signal we're trying to
+/// emit. Keeping `rust_decimal` out of `datasynth-config`'s direct
+/// dependency graph avoids a downstream crate-pull.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConsolidationOutlierPassConfig {
+    /// Fraction of JEs to reshape into multi-line bridge-account
+    /// postings. Typical baseline `0.001` (one in a thousand).
+    /// Clamped to `[0.0, 1.0]` at runtime.
+    pub rate: f64,
+    /// Minimum number of extra lines to append (always rounded up to
+    /// an even number — lines are added in balanced DR/CR pairs).
+    /// Default `50`.
+    #[serde(default = "default_consolidation_outlier_min_lines")]
+    pub min_extra_lines: usize,
+    /// Maximum number of extra lines to append. Default `200`.
+    #[serde(default = "default_consolidation_outlier_max_lines")]
+    pub max_extra_lines: usize,
+    /// Bridge / suspense / clearing accounts the appended lines use.
+    /// Empty (default) → use the pass's built-in default list.
+    #[serde(default)]
+    pub bridge_accounts: Vec<String>,
+    /// Minimum bridge-line amount (log-uniform draw). Default `100.0`.
+    #[serde(default = "default_consolidation_outlier_min_amount")]
+    pub line_amount_min: f64,
+    /// Maximum bridge-line amount (log-uniform draw). Default `50_000.0`.
+    #[serde(default = "default_consolidation_outlier_max_amount")]
+    pub line_amount_max: f64,
+}
+
+impl Default for ConsolidationOutlierPassConfig {
+    fn default() -> Self {
+        Self {
+            rate: 0.0,
+            min_extra_lines: default_consolidation_outlier_min_lines(),
+            max_extra_lines: default_consolidation_outlier_max_lines(),
+            bridge_accounts: Vec::new(),
+            line_amount_min: default_consolidation_outlier_min_amount(),
+            line_amount_max: default_consolidation_outlier_max_amount(),
+        }
+    }
+}
+
+fn default_consolidation_outlier_min_lines() -> usize {
+    50
+}
+fn default_consolidation_outlier_max_lines() -> usize {
+    200
+}
+fn default_consolidation_outlier_min_amount() -> f64 {
+    100.0
+}
+fn default_consolidation_outlier_max_amount() -> f64 {
+    50_000.0
 }
 
 /// Per-pass config for AccountPairSubstitutionPass (Phase 2).
