@@ -118,7 +118,12 @@ impl InjectionStrategy for AmountModificationStrategy {
     }
 
     fn can_apply(&self, entry: &JournalEntry) -> bool {
-        !entry.lines.is_empty()
+        // v5.31 C1 Phase 7+: skip IC injector JEs. Modifying the
+        // amount on either leg would create a seller/buyer mismatch
+        // that propagates as a silent consolidation error
+        // (eliminations net to the wrong notional). IC amounts are
+        // deterministic by manifest contract.
+        !entry.lines.is_empty() && entry.header.ic_pair_id.is_none()
     }
 
     fn apply<R: Rng>(
@@ -654,8 +659,11 @@ impl InjectionStrategy for SplitTransactionStrategy {
     }
 
     fn can_apply(&self, entry: &JournalEntry) -> bool {
-        // Can only split entries above threshold
-        entry.total_debit() > self.split_threshold
+        // v5.31 C1 Phase 7+: skip IC injector JEs. Splitting / scaling
+        // the IC amount would create a seller/buyer notional mismatch
+        // (the partner-side JE on the other entity is untouched).
+        // IC amounts are deterministic by manifest contract.
+        entry.total_debit() > self.split_threshold && entry.header.ic_pair_id.is_none()
     }
 
     fn apply<R: Rng>(
@@ -877,6 +885,13 @@ impl InjectionStrategy for TransposedDigitsStrategy {
     }
 
     fn can_apply(&self, entry: &JournalEntry) -> bool {
+        // v5.31 C1 Phase 7+: skip IC injector JEs. Transposing digits
+        // on the amount would create a seller/buyer notional mismatch
+        // (e.g. 12 345 → 13 245). IC amounts are deterministic by
+        // manifest contract.
+        if entry.header.ic_pair_id.is_some() {
+            return false;
+        }
         // Need at least one line with amount >= 10 (two digits to transpose)
         entry.lines.iter().any(|l| {
             let amount = if l.debit_amount > Decimal::ZERO {
@@ -1204,6 +1219,63 @@ mod tests {
         });
 
         entry
+    }
+
+    /// Helper: build a 2-line IC injector JE (1 DR + 1 CR at amount).
+    /// Mirrors `datasynth_group::shard::ic_je_injector::build_je_for_plan`
+    /// at the shape level so contract violations show up the same way.
+    fn create_test_ic_entry() -> JournalEntry {
+        use datasynth_core::models::IcPairId;
+        let mut entry = create_test_entry();
+        entry.header.ic_pair_id = Some(IcPairId::from_bytes([0xAB; 32]));
+        entry
+    }
+
+    /// v5.31 C1 Phase 7+ contract test: IC injector JEs MUST be skipped
+    /// by every contract-violating mutation strategy. Each gate is one
+    /// `entry.header.ic_pair_id.is_none()` line in `can_apply`; this
+    /// test pins the behaviour so a future refactor can't quietly
+    /// regress it.
+    #[test]
+    fn ic_je_is_skipped_by_contract_violating_strategies() {
+        let ic_entry = create_test_ic_entry();
+        let normal_entry = create_test_entry();
+
+        // ReversedAmount (the Phase 7 root cause).
+        assert!(
+            !ReversedAmountStrategy.can_apply(&ic_entry),
+            "ReversedAmountStrategy must skip IC JEs (debit/credit swap breaks elim contract)"
+        );
+        assert!(ReversedAmountStrategy.can_apply(&normal_entry));
+
+        // AmountModification — creates seller/buyer amount mismatch.
+        assert!(
+            !AmountModificationStrategy::default().can_apply(&ic_entry),
+            "AmountModificationStrategy must skip IC JEs"
+        );
+        assert!(AmountModificationStrategy::default().can_apply(&normal_entry));
+
+        // SplitTransaction — scales amounts down on one side only.
+        // Test on an entry above the split threshold.
+        let mut big_ic = create_test_ic_entry();
+        big_ic.lines[0].debit_amount = dec!(20000);
+        big_ic.lines[1].credit_amount = dec!(20000);
+        assert!(
+            !SplitTransactionStrategy::default().can_apply(&big_ic),
+            "SplitTransactionStrategy must skip IC JEs (silent seller/buyer notional drift)"
+        );
+        // And confirm it still applies on a similarly-sized non-IC entry.
+        let mut big_normal = create_test_entry();
+        big_normal.lines[0].debit_amount = dec!(20000);
+        big_normal.lines[1].credit_amount = dec!(20000);
+        assert!(SplitTransactionStrategy::default().can_apply(&big_normal));
+
+        // TransposedDigits — modifies amount digits on one side only.
+        assert!(
+            !TransposedDigitsStrategy.can_apply(&ic_entry),
+            "TransposedDigitsStrategy must skip IC JEs"
+        );
+        assert!(TransposedDigitsStrategy.can_apply(&normal_entry));
     }
 
     #[test]

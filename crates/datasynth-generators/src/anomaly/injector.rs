@@ -524,8 +524,19 @@ impl AnomalyInjector {
                     }
                 }
 
-                // Check for duplicate injection
+                // Check for duplicate injection.
+                //
+                // v5.31 C1 Phase 7+: skip duplication on IC injector
+                // JEs. Cloning an IC JE produces two JEs on the same
+                // entity carrying the same ic_pair_id, which makes the
+                // group IC matcher see 3 observed sides for that pair
+                // (the partner + both copies on this side) and fail
+                // hard with "expected at most 2 (one seller + one
+                // buyer)". IC postings are deterministic by manifest
+                // contract; duplication is a fraud-typology signal that
+                // doesn't apply to them.
                 if self.config.allow_duplicates
+                    && entry.header.ic_pair_id.is_none()
                     && matches!(
                         self.labels.last().map(|l| &l.anomaly_type),
                         Some(AnomalyType::Error(ErrorType::DuplicateEntry))
