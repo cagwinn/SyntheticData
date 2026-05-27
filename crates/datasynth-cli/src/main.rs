@@ -375,6 +375,27 @@ enum GroupCommands {
         /// runner emits.
         #[arg(short, long)]
         out: PathBuf,
+
+        /// **v5.31 C2 (#157)** — Optional path to the prior period's
+        /// shard output directory (the dir containing
+        /// `entities/{code}/period_close/trial_balances.json`). When
+        /// supplied, each entity in this shard opens with the prior
+        /// period's BS positions instead of the industry-mix
+        /// `OpeningBalanceGenerator` defaults. P&L lines from the
+        /// prior period zero out; net income is absorbed into
+        /// Retained Earnings. See
+        /// `docs/design/2026-05-27-c2-multi-period-design.md`.
+        #[arg(long)]
+        prior_period_shards: Option<PathBuf>,
+
+        /// Accounting framework for the closing → opening projection
+        /// (selects which account code holds Retained Earnings).
+        /// Defaults to `us_gaap` — pass `ifrs`, `french_gaap`,
+        /// `german_gaap`, or `dual_reporting` to match how the prior
+        /// period was generated. Only consulted when
+        /// `--prior-period-shards` is set.
+        #[arg(long, default_value = "us_gaap")]
+        prior_period_framework: String,
     },
 
     /// Run the aggregate / consolidation phase against a directory
@@ -3599,7 +3620,15 @@ fn handle_group(command: GroupCommands) -> Result<()> {
             manifest,
             shard_id,
             out,
-        } => handle_group_shard(&manifest, &shard_id, &out),
+            prior_period_shards,
+            prior_period_framework,
+        } => handle_group_shard(
+            &manifest,
+            &shard_id,
+            &out,
+            prior_period_shards.as_deref(),
+            &prior_period_framework,
+        ),
         GroupCommands::Aggregate {
             manifest,
             shards_dir,
@@ -3800,12 +3829,16 @@ fn handle_group_shard(
     manifest_path: &std::path::Path,
     shard_id: &str,
     out_path: &std::path::Path,
+    prior_period_shards: Option<&std::path::Path>,
+    prior_period_framework: &str,
 ) -> Result<()> {
     use anyhow::Context;
     tracing::info!(
         manifest = %manifest_path.display(),
         shard_id = shard_id,
         out = %out_path.display(),
+        prior_period_shards = ?prior_period_shards.map(|p| p.display().to_string()),
+        prior_period_framework = prior_period_framework,
         "group shard: starting",
     );
 
@@ -3840,12 +3873,47 @@ fn handle_group_shard(
         std::process::exit(2);
     }
 
+    if let Some(prior) = prior_period_shards {
+        if !prior.exists() {
+            eprintln!(
+                "group shard: --prior-period-shards `{}` does not exist",
+                prior.display()
+            );
+            std::process::exit(2);
+        }
+        if !prior.join("entities").exists() {
+            eprintln!(
+                "group shard: --prior-period-shards `{}` has no `entities/` subdir — \
+                 expected a prior `group shard` output directory",
+                prior.display()
+            );
+            std::process::exit(2);
+        }
+    }
+
     std::fs::create_dir_all(out_path)
         .with_context(|| format!("group shard: mkdir {}", out_path.display()))?;
 
-    let summary = match datasynth_group::shard::run_shard(&manifest, shard_id, out_path) {
-        Ok(s) => s,
-        Err(e) => group_error_exit(e, "shard"),
+    // v5.31 C2 (#157): when --prior-period-shards is set, dispatch to
+    // run_shard_chained, which loads each entity's prior closing TB,
+    // projects it to opening balances, and threads the result through
+    // the shard runner. The orchestrator's Phase 3b consumes the
+    // openings in place of the industry-mix generator.
+    let summary = match prior_period_shards {
+        Some(prior) => match datasynth_group::shard::run_shard_chained(
+            &manifest,
+            shard_id,
+            out_path,
+            prior,
+            prior_period_framework,
+        ) {
+            Ok(s) => s,
+            Err(e) => group_error_exit(e, "shard"),
+        },
+        None => match datasynth_group::shard::run_shard(&manifest, shard_id, out_path) {
+            Ok(s) => s,
+            Err(e) => group_error_exit(e, "shard"),
+        },
     };
 
     let entity_count = summary.entity_summaries.len();

@@ -10,6 +10,7 @@
 pub mod context;
 pub mod ic_je_injector;
 pub mod ic_plan;
+pub mod multi_period;
 pub mod per_entity_config;
 pub mod runner;
 
@@ -18,5 +19,6 @@ pub use ic_je_injector::{
     buyer_accounts, inject_ic_journal_entries, seller_accounts, InjectionCtx,
 };
 pub use ic_plan::{avg_amount, derive_ic_pair_plans, IcPairPlan, IcRole};
+pub use multi_period::{build_opening_balances_from_prior, run_shard_chained, DEFAULT_FRAMEWORK};
 pub use per_entity_config::build_entity_generator_config;
 pub use runner::{run_shard, EntitySummary, ShardSummary};
