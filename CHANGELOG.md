@@ -5,6 +5,152 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v5.32 (C3 — adversarial calibration loop)
+
+Lands the closed-loop parameter-calibration framework: drive the
+engine's tunable knobs so a chosen gap metric (vs a reference corpus)
+converges, with multi-seed variance averaging and built-in safety
+rails. Six pieces across the `datasynth-eval::calibration` module and
+the `datasynth-data calibrate` CLI; the orchestrator-backed
+`Evaluator` that runs full generation per `(knobs, seed)` is a
+VM-validated follow-up (Piece 4b).
+
+### Added
+
+- **Calibration objective + knob types** (`datasynth_eval::calibration`,
+  `0eb51139`). `CalibrationObjective` minimises one of the three BF
+  headline scalars (`composite_bf_score`, `composite_bf_median`,
+  `composite_bf_volume_corrected`); aggregates across seeds into
+  `(mean, std)` so the loop can reject sub-noise-floor "improvements"
+  per the v5.31 T3 methodology finding. `CalibrationKnob` carries a
+  config-tree path + current value + bounds + max-step budget; clipping
+  is type-checked + step-size-bounded + range-bounded with explicit
+  `KnobClipResult` tags.
+- **Iteration controller** (`5402e456`). `CalibrationLoop::step` runs
+  one multi-seed generate → eval → propose → accept/reject cycle.
+  Three rollback policies (Revert / Keep / HalveDamping) handle steps
+  that worsen loss. Pluggable `Evaluator` + `Proposer` traits so the
+  loop is mock-driven in tests and orchestrator-backed in production.
+- **Stock proposers** (`2dab3369`). `GreedyKnobProposer` does
+  coordinate-descent with per-knob direction memory; both ± directions
+  tried before a knob is marked exhausted. `RoundRobinProposer` is the
+  stateless +max_step-per-call sanity baseline.
+- **History persistence** (`01f9c294`). `CalibrationHistory` snapshots
+  the trajectory + best-tracker after every step; atomic JSON write
+  (write-to-tmp + rename); schema-versioned load (`HISTORY_SCHEMA_VERSION`
+  = `"1.0"`); `apply_to(&mut CalibrationLoop)` resume hook restores
+  each knob's last-recorded value.
+- **Safety rails** (`a2d8c54c`). `OscillationDetector` flags
+  sign-alternating Δ across a configurable window of same-knob steps;
+  `KnobClipDiagnostics` tracks per-knob low/high/in-range/type-mismatch
+  counts and surfaces "frequently clipped" knobs over a threshold;
+  `WallClockBudget` wraps an `Instant`-based budget for overnight runs.
+- **`datasynth-data calibrate` CLI** (`ee768366`). Subcommand with
+  `--config`, `--reference`, `--out`, `--objective`, `--max-iter`,
+  `--seeds`, `--target`, `--resume`, `--dry-run`. Six default knobs
+  spanning the most impactful v5.30 SOTA tunables. `--dry-run` smoke-
+  tests argparse + setup without orchestration; without `--dry-run` the
+  handler emits a clear "Piece 4b not yet wired" exit since the
+  generator-backed `Evaluator` is a VM-validated follow-up.
+- **Design doc** (`7e6556ba`) at
+  `docs/design/2026-05-27-c3-adversarial-calibration-design.md`.
+
+### Tests
+
+40+ unit tests across the calibration module — objective scalar
+lookups + multi-seed aggregation math, knob clipping (range / step /
+type-mismatch), iteration controller (single-step descent, full-run
+convergence, proposer exhaustion, rollback restoration), history
+round-trip + schema-mismatch rejection + resume restoration, safety
+rails (oscillation detection on alternating Δ vs monotonic walk, clip
+diagnostics, wall-clock expiration), proposer state machines.
+
+## v5.31 (C1 + C2 — streaming aggregate + multi-period carry-forward)
+
+Two consolidation-phase rewrites. C1 closes the 2 000-entity group
+regen OOM ceiling (218 GB → 0.382 GB peak, **−570×**) via streaming
+JSON parse + defensive IC elimination. C2 adds period-N+1 generation
+that opens from period-N's closing trial balance, with proper net-
+income absorption into Retained Earnings.
+
+### Added
+
+- **Streaming aggregate (C1, #156)** — seven phases (`b5dc9408`,
+  `50b64654`, `fc7e298f`, `28385e61`, `06f8f9ca`, `a1596d7e`,
+  `4ebb2206`) that incrementally collapse the aggregate-phase working
+  set. The load-bearing fixes are Phase 6 (`JeNetworkEdgeBuilder` +
+  streaming JSON-array `Visitor` — replaces `serde_json::from_slice::
+  <Vec<JournalEntry>>` per entity so per-iteration allocator
+  fragmentation collapses from ~178 MB / entity to ~75 KB / entity)
+  and Phase 7 (`elimination_amount` defensive fallback to total credit
+  → manifest plan amount + `ReversedAmountStrategy::can_apply`
+  IC-pair-id gate). Validated at 2k scale: peak 0.382 GB, 65 min
+  walltime, 6 814 IC pairs matched (coverage 1.0), 13 628 elimination
+  edges, 68.5 M consolidated `je_network` edges.
+- **Anomaly IC-JE contract audit (#160, `2c1da8e1`)** —
+  `AmountModificationStrategy`, `SplitTransactionStrategy`,
+  `TransposedDigitsStrategy`, and the `Duplication` call site gain a
+  `header.ic_pair_id.is_none()` gate so future shards can't corrupt
+  IC postings. Pinned by
+  `ic_je_is_skipped_by_contract_violating_strategies`.
+- **Multi-period generation (C2, #157)** — three pieces
+  (`cd4236d0`, `47dbdfff`, `e32fe019`). `project_closing_to_opening`
+  converter carries BS accounts, zeroes P&L, absorbs net income into
+  Retained Earnings (one-sided normalised for loss years).
+  `datasynth_group::shard::multi_period::build_opening_balances_from_prior`
+  + `run_shard_chained` thread per-entity closing TBs into next-period
+  shard runs. CLI: `datasynth-data group shard --prior-period-shards`
+  + `--prior-period-framework`. Same path also fixes a silent bug in
+  the existing `generate_standalone_chain` runner (was using a
+  BS-only `extract_opening_balances` that dropped P&L on `Adjusted`
+  TBs without absorbing it).
+- **`datasynth-data group generate-chain --closing-to-opening-framework`**
+  surfaces the framework knob from the chain CLI.
+
+### Documentation
+
+- C1 success doc at
+  `docs/baselines/2026-05-27-v5.31-c1-phase6-7-success/COMPARISON.md`
+  (`36650569`).
+- C2 design at `docs/design/2026-05-27-c2-multi-period-design.md`
+  (`1be60105`).
+- mini_acme manifest golden regenerated for the v5.31 `defaults` field
+  (`646fe4e8`).
+- HF datasets refreshed: new
+  [`VynFi/vynfi-je-network-2k`](https://huggingface.co/datasets/VynFi/vynfi-je-network-2k)
+  + v5.31 refresh of stale
+  [`VynFi/vynfi-group-audit-enterprise-2000`](https://huggingface.co/datasets/VynFi/vynfi-group-audit-enterprise-2000).
+
+### Fixed
+
+- CI clippy `doc_lazy_continuation` in `ic_matcher.rs` under
+  `-D warnings` (`2a0604a9`).
+
+## v5.30 (Tier-A + Tier-B SOTA round — Sajja metric wiring + heavy-tail outliers)
+
+Two-tier metric + emission round. Tier-A wires shipped infrastructure
+(P3 graph motifs, P4 velocity rules, Z-tail mass) into the Sajja exact
+eval. Tier-B adds the engine-side levers the eval surfaces (per-source
+IET, heavy-tail consolidation outliers, per-process fraud rates).
+
+### Added
+
+- **A1 — P3 graph motifs in Sajja exact eval** (`40ea4379`).
+- **A2 — P4 velocity rules on synth labels** (`10e75bba`).
+- **A3 — SP3 Z-tail mass tuned 0.30 → 0.15** to dampen tail-only
+  divergence.
+- **B1 — per-source IET sampler refinement** with overdispersion
+  control.
+- **B2 — `ConsolidationOutlierPass`** (#154, `975102dc` Phase 1a
+  variant + schema field, `0fa4da0d` default 0.001, `19873538` Phase
+  1b injector, `5cbde77f` CoA constant fix). Reshapes a Bernoulli(rate)
+  fraction of JEs into multi-100-line bridge-account postings (10
+  seeded suspense / clearing accounts) to lift the synthetic
+  `relational_score` p99/max toward the corpus's heavy tail without
+  distorting the median.
+- **B3 — per-process fraud rate distributions** (`b13b06ad`).
+- **HF card refresh** (multi-shard methodology note, `be7bd86d` + `8a2a4ec`).
+
 ## v5.29 (SOTA structural-fidelity round — corpus-grounded posting realism)
 
 Closes structural gaps surfaced by the corpus fingerprint study
