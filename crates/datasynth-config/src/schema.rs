@@ -9738,6 +9738,19 @@ pub struct AnomalyRateConfig {
     /// Process issue rate.
     #[serde(default = "default_process_anomaly_rate")]
     pub process_rate: f64,
+
+    /// v5.30 B2 (#154) — heavy-tail outlier JE rate. Fraction of
+    /// emitted JEs that get re-shaped into multi-100-line postings
+    /// touching bridge accounts. Models real consolidation entries,
+    /// period-end accruals, and manual reclasses. Default `0.0`
+    /// preserves v5.29 byte-identical output; opt in (e.g. `0.001`)
+    /// to lift synth p99/max relational_score percentiles toward the
+    /// reference shard's heavy tail (~20× vs synth's default ~12×).
+    #[serde(
+        default = "default_consolidation_outlier_rate",
+        alias = "consolidationOutlierRate"
+    )]
+    pub consolidation_outlier_rate: f64,
 }
 
 fn default_total_anomaly_rate() -> f64 {
@@ -9752,6 +9765,9 @@ fn default_error_anomaly_rate() -> f64 {
 fn default_process_anomaly_rate() -> f64 {
     0.005
 }
+fn default_consolidation_outlier_rate() -> f64 {
+    0.0
+}
 
 impl Default for AnomalyRateConfig {
     fn default() -> Self {
@@ -9760,6 +9776,7 @@ impl Default for AnomalyRateConfig {
             fraud_rate: default_fraud_anomaly_rate(),
             error_rate: default_error_anomaly_rate(),
             process_rate: default_process_anomaly_rate(),
+            consolidation_outlier_rate: default_consolidation_outlier_rate(),
         }
     }
 }

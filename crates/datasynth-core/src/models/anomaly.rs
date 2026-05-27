@@ -700,6 +700,17 @@ pub enum StatisticalAnomalyType {
     // HR/Payroll Anomalies
     /// Anomalous overtime patterns.
     OvertimeAnomaly,
+
+    // Heavy-tail Anomalies (v5.30 B2 / #154)
+    /// Multi-100-line journal entry touching bridge accounts —
+    /// models real consolidation entries, period-end accruals, or
+    /// manual reclasses. Lifts the synthetic p99 / max
+    /// relational_score percentiles into the band the reference
+    /// shard exhibits (20× vs synth's normal-mode 12×). Opt-in via
+    /// `anomaly_injection.consolidation_outlier_rate` (default 0.0
+    /// — preserves v5.29 byte-identical output for configs that
+    /// don't opt in).
+    ConsolidationOutlier,
 }
 
 impl StatisticalAnomalyType {
@@ -713,6 +724,10 @@ impl StatisticalAnomalyType {
             StatisticalAnomalyType::TrendBreak => 3,
             StatisticalAnomalyType::TransactionBurst => 4,
             StatisticalAnomalyType::ExactDuplicateAmount => 3,
+            // v5.30 B2 — multi-100-line bridge-account postings are
+            // among the highest-magnitude single-event anomalies the
+            // engine emits; rate them at 4 alongside TransactionBurst.
+            StatisticalAnomalyType::ConsolidationOutlier => 4,
             _ => 3,
         }
     }
