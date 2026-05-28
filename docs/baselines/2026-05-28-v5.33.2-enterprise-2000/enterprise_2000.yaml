@@ -1,0 +1,213 @@
+id: "ACME_ENTERPRISE_2000_2024_Q1"
+name: "ACME Enterprise — 2000-entity stress test"
+presentation_currency: "USD"
+period:
+  start_date: "2024-01-01"
+  length: quarterly
+seed: 0xCAFEBABEDEADBEEF
+
+defaults:
+  accounting_framework: ifrs
+  industry: manufacturing
+  process_models: [o2c, p2p, h2r, r2r, audit]
+  accounting_standards:
+    enabled: true
+    leases_enabled: false
+
+scoping_profiles:
+  flagship:
+    row_budget: 50000
+    process_models: [o2c, p2p, h2r, r2r, audit, manufacturing]
+    audit:
+      generate_workpapers: true
+      min_team_size: 6
+      max_team_size: 10
+  significant:
+    row_budget: 8000
+    process_models: [o2c, p2p, h2r, r2r, audit]
+    audit:
+      generate_workpapers: true
+      min_team_size: 3
+      max_team_size: 6
+  material:
+    row_budget: 1500
+    audit:
+      generate_workpapers: false
+      min_team_size: 1
+      max_team_size: 2
+  immaterial:
+    row_budget: 300
+    audit:
+      generate_workpapers: false
+      min_team_size: 1
+      max_team_size: 1
+
+ownership:
+  parent_entity_code: ACME_HQ
+  entities:
+    - code: ACME_HQ
+      country: US
+      functional_currency: USD
+      scoping_profile: flagship
+      consolidation_method: parent
+    - code: ACME_EUR
+      country: DE
+      functional_currency: EUR
+      scoping_profile: flagship
+      consolidation_method: full
+      ownership_percent: 1.0
+      parent_code: ACME_HQ
+    - code: ACME_UK
+      country: GB
+      functional_currency: GBP
+      scoping_profile: significant
+      consolidation_method: full
+      ownership_percent: 1.0
+      parent_code: ACME_HQ
+    - code: ACME_JP
+      country: JP
+      functional_currency: JPY
+      scoping_profile: significant
+      consolidation_method: full
+      ownership_percent: 0.85
+      parent_code: ACME_HQ
+  generated:
+    - count: 50
+      code_prefix: ACME_NA_SIG
+      country: [US, MX, CA]
+      functional_currency: USD
+      scoping_profile: significant
+      consolidation_method: full
+      ownership_percent_range: [0.65, 1.00]
+      parent_code: ACME_HQ
+    - count: 25
+      code_prefix: ACME_EU_SIG
+      country: [DE, FR, IT, ES, NL, BE, CH]
+      functional_currency: EUR
+      scoping_profile: significant
+      consolidation_method: full
+      ownership_percent_range: [0.55, 1.00]
+      parent_code: ACME_EUR
+    - count: 700
+      code_prefix: ACME_NA
+      country: [US, MX, CA]
+      functional_currency: USD
+      scoping_profile: material
+      consolidation_method: full
+      ownership_percent_range: [0.55, 1.00]
+      parent_code: ACME_HQ
+    - count: 350
+      code_prefix: ACME_EU
+      country: [DE, FR, IT, ES, NL, BE, CH]
+      functional_currency: EUR
+      scoping_profile: material
+      consolidation_method: full
+      ownership_percent_range: [0.55, 1.00]
+      parent_code: ACME_EUR
+    - count: 200
+      code_prefix: ACME_AS
+      country: [JP, KR, CN, SG, IN]
+      functional_currency: USD
+      scoping_profile: material
+      consolidation_method: full
+      ownership_percent_range: [0.51, 1.00]
+      parent_code: ACME_HQ
+    - count: 471
+      code_prefix: ACME_SMALL
+      country: [BR, AR, ZA, AU, MX, IN]
+      functional_currency: USD
+      scoping_profile: immaterial
+      consolidation_method: full
+      ownership_percent_range: [0.50, 1.00]
+      parent_code: ACME_HQ
+    - count: 200
+      code_prefix: ACME_JV
+      country: [BR, AR, ZA]
+      functional_currency: USD
+      scoping_profile: immaterial
+      consolidation_method: equity_method
+      ownership_percent_range: [0.20, 0.49]
+      parent_code: ACME_HQ
+
+intercompany:
+  relationships:
+    - pattern:
+        seller: ACME_HQ
+        buyer_scoping_profile: any
+      types: [management_fee]
+      per_pair_volume: 50000
+    - pattern:
+        seller: ACME_EUR
+        buyer_scoping_profile: significant
+      types: [goods_sale]
+      per_pair_volume: 250000
+    - pattern:
+        seller: ACME_UK
+        buyer_scoping_profile: significant
+      types: [royalty]
+      per_pair_volume: 100000
+    - seller: ACME_HQ
+      buyer: ACME_EUR
+      types: [goods_sale, management_fee]
+      annual_volume: 10000000
+      transfer_pricing: cost_plus
+      markup_percent: 0.08
+    - seller: ACME_HQ
+      buyer: ACME_UK
+      types: [goods_sale]
+      annual_volume: 5000000
+      transfer_pricing: cost_plus
+      markup_percent: 0.07
+  matching:
+    strategy: manifest_driven
+    coverage_target: 0.98
+
+fx:
+  base_currency: USD
+  rate_source: inline
+  rates:
+    "USD/EUR":
+      "2024-01-31": 0.9220
+      "2024-02-29": 0.9265
+      "2024-03-31": 0.9305
+    "USD/GBP":
+      "2024-01-31": 0.7910
+      "2024-02-29": 0.7905
+      "2024-03-31": 0.7950
+    "USD/JPY":
+      "2024-01-31": 148.10
+      "2024-02-29": 149.85
+      "2024-03-31": 151.20
+  policy:
+    balance_sheet: closing
+    income_statement: average
+    equity: historical
+
+audit:
+  engagement_id: "BIG4_ACME_2024_Q1"
+  lead_auditor: BIG4_NEWYORK
+  framework: isa
+  fsm_blueprint: "builtin:group_fsa"
+  group_materiality:
+    basis: revenue
+    percent: 0.005
+  component_scope_thresholds:
+    full_scope: 0.10
+    specific_scope: 0.03
+  generate_kams: true
+  generate_group_opinion: true
+
+tax:
+  pillar_two:
+    enabled: true
+    jurisdictions: [US, DE, GB, JP, FR, IT, ES, NL]
+  cbc_report:
+    enabled: true
+    reporting_jurisdiction: US
+  transfer_pricing:
+    master_file: true
+    local_files_for: [US, DE, GB, JP]
+
+output:
+  layout: per_entity_subtree
+  shared_masters_at_root: true
