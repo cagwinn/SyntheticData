@@ -10530,36 +10530,36 @@ impl EnhancedOrchestrator {
     }
 
     /// Phase 3b: Generate opening balances for each company.
+    ///
+    /// # Order of precedence
+    ///
+    /// 1. **v5.3 chain carryover** (ShardContext.opening_balances non-empty):
+    ///    convert each EntityOpeningBalance into a
+    ///    GeneratedOpeningBalance per company. This branch runs
+    ///    UNCONDITIONALLY — even when `balance.generate_opening_balances`
+    ///    is `false` — so a non-overlay preset that gets driven through
+    ///    `group generate-chain` still applies the prior-year carry-
+    ///    forward instead of silently dropping it.
+    /// 2. **`generate_opening_balances` flag**: if off (and no carryover),
+    ///    return empty Vec.
+    /// 3. **OpeningBalanceGenerator**: industry-mix sampler for the
+    ///    period-0 engagement.
     fn phase_opening_balances(
         &mut self,
         coa: &Arc<ChartOfAccounts>,
         stats: &mut EnhancedGenerationStatistics,
     ) -> SynthResult<Vec<GeneratedOpeningBalance>> {
-        if !self.config.balance.generate_opening_balances {
-            debug!("Phase 3b: Skipped (opening balance generation disabled)");
-            return Ok(Vec::new());
-        }
-        info!("Phase 3b: Generating Opening Balances");
-
         let start_date = NaiveDate::parse_from_str(&self.config.global.start_date, "%Y-%m-%d")
             .map_err(|e| SynthError::config(format!("Invalid start_date: {e}")))?;
         let fiscal_year = start_date.year();
 
-        // **v5.3** — When the shard context supplies prior-period
-        // opening-balance carryovers, use them directly instead of
-        // calling `OpeningBalanceGenerator`.  This implements multi-
-        // period continuity: period N+1 opens with period N's closing
-        // BS positions exactly, rather than re-rolling the industry-
-        // mix generator and losing the audit trail.
-        //
-        // Empty `opening_balances` (the v5.0–v5.2 default) falls
-        // through to the generator path — byte-identical behaviour
-        // for single-period engagements.
+        // 1. v5.3 chain carryover — runs unconditionally when present.
         if let Some(ctx) = &self.shard_context {
             if !ctx.opening_balances.is_empty() {
-                debug!(
-                    "Phase 3b: using v5.3 opening-balance carryover ({} accounts)",
-                    ctx.opening_balances.len()
+                info!(
+                    "Phase 3b: applying v5.3 opening-balance carryover ({} accounts × {} companies)",
+                    ctx.opening_balances.len(),
+                    self.config.companies.len(),
                 );
                 let mut results = Vec::new();
                 for company in &self.config.companies {
@@ -10620,15 +10620,19 @@ impl EnhancedOrchestrator {
                     });
                 }
                 stats.opening_balance_count = results.len();
-                info!(
-                    "Phase 3b: opening-balance carryover applied ({} companies)",
-                    results.len()
-                );
                 self.check_resources_with_log("post-opening-balances")?;
                 return Ok(results);
             }
         }
 
+        // 2. Generator path is opt-in via the config flag.
+        if !self.config.balance.generate_opening_balances {
+            debug!("Phase 3b: Skipped (opening balance generation disabled)");
+            return Ok(Vec::new());
+        }
+        info!("Phase 3b: Generating Opening Balances");
+
+        // 3. OpeningBalanceGenerator — industry-mix sampler for period 0.
         let industry = match self.config.global.industry {
             IndustrySector::Manufacturing => IndustryType::Manufacturing,
             IndustrySector::Retail => IndustryType::Retail,

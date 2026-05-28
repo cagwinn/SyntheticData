@@ -251,3 +251,25 @@ fn test_us_entity_carries_us_scalars() {
     assert_eq!(company.currency, "USD");
     assert_eq!(company.functional_currency, Some("USD".to_string()));
 }
+
+// ── v5.33.2 — opening-balance generation force-enabled ─────────────────────
+
+/// Regression guard for the v5.32 FINDINGS gap: the per-entity chain
+/// config must force-enable `balance.generate_opening_balances` so the
+/// orchestrator's Phase 3b runs for every shard. Without this, the
+/// schema default `false` flows through, Phase 3b silently skips, and
+/// `balance/opening_balances.json` never lands on disk — masking the
+/// v5.3 ShardContext carry-forward in chain runs.
+#[test]
+fn test_per_entity_config_force_enables_opening_balance_generation() {
+    let manifest = load_mini_acme_manifest();
+    for entity in &manifest.ownership_graph.entities {
+        let cfg = build_entity_generator_config(&manifest, entity)
+            .unwrap_or_else(|e| panic!("build must succeed for {}: {e}", entity.code));
+        assert!(
+            cfg.balance.generate_opening_balances,
+            "{}: opening-balance generation must be force-enabled for chain shards",
+            entity.code,
+        );
+    }
+}

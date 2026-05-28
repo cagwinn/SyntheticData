@@ -448,6 +448,52 @@ as future engine work. The 3-year medium chain output at
 canonical post-fix reference; HF push is still gated on #163
 landing per the user instruction.
 
+### v5.33.2 — #163 closed
+
+Root cause: `cfg.balance.generate_opening_balances` defaults to
+`false` and `per_entity_config.rs` never force-enabled it, so Phase
+3b was silently skipped on every chain shard. With the flag off
+the v5.3 `ShardContext.opening_balances` carryover also no-op'd at
+the early return.
+
+Two-part fix:
+
+  1. `per_entity_config.rs`: stamp
+     `cfg.balance.generate_opening_balances = true` on every shard,
+     same pattern as `financial_reporting.enabled`.
+  2. `enhanced_orchestrator.rs::phase_opening_balances`: restructure
+     so the v5.3 ShardContext carryover runs unconditionally when
+     present (defensive — protects future callers who flip the flag
+     off).
+
+Re-run on the VM
+(`/home/ubuntu/regen/data/medium_3yr_v533_2/`):
+
+| Year | ACME_EU | ACME_US | ACME_UK |
+|---|---|---|---|
+| 2024 | OK | OK | OK |
+| 2025 | OK (146/147 match) | OK (228/229 match) | OK (228/229 match) |
+| 2026 | OK (146/147 match) | OK (229/230 match) | OK (229/230 match) |
+
+All 9/9 `opening_balances.json` files persisted. 99.5%+ of common
+accounts match Y_N+1 opens to Y_N closes by magnitude. The
+documented convention difference: TB `closing_balance` is
+debit-normal (`debit_balance - credit_balance`, so liabilities and
+equity show negative); `opening_balances.json::balances` is
+natural-side (liabilities and equity show positive). The 1
+mismatch per entity per year is always account `3200` (retained
+earnings) — Y_N+1 opening RE = Y_N opening RE + Y_N net income,
+while Y_N closing TB shows pre-closing-entry RE. Correct
+closing-of-books behaviour, not a defect.
+
+Consolidated BS equation still closes within 2% (0.76% / 1.12% /
+0.03%), confirming v5.33.1's classifier fix isn't regressed.
+
+**Verdict update**: #162 + #163 + #164 closed. Only the Defect B
+residual (~1-2% structural BS gap from cumulative-BS vs
+period-only-P&L window asymmetry) remains, which is deferred per
+Option B1 of the original FINDINGS fix plan.
+
 ## Fix plan (for a future engine PR)
 
   1. Thread the per-entity `accounting_framework` (already on

@@ -107,6 +107,20 @@ pub fn build_entity_generator_config(
     //     with "missing shard archive". Force-enable it for every shard.
     cfg.financial_reporting.enabled = true;
 
+    // 3a-bis. v5.33.2 — force-enable opening-balance generation so the
+    //     orchestrator's Phase 3b actually runs for chain shards. Same
+    //     pattern as `financial_reporting.enabled`: schema default is
+    //     `false`, audit-overlay presets flip it `true` but the per-entity
+    //     chain config builder doesn't run an overlay, so Year-N+1 chain
+    //     shards were silently dropping the prior-year carry-forward
+    //     `ShardContext.opening_balances` even when present. With this
+    //     line, Phase 3b emits the per-company opening balance
+    //     (from the v5.3 carryover when ShardContext supplies it, or the
+    //     industry-mix generator otherwise) and `output_writer` writes
+    //     `balance/opening_balances.json` for every shard. Closes the v5.32
+    //     FINDINGS gap that blocked the C2 chain demonstration.
+    cfg.balance.generate_opening_balances = true;
+
     // 3b. Disable banking / KYC / AML generation in shard mode.
     //     `BankingConfig::enabled` defaults to `true` and the orchestrator
     //     emits per-entity banking JSON archives that average ~29 GB each

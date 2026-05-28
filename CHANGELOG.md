@@ -5,6 +5,53 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v5.33.2 (`opening_balances.json` persistence in chain mode)
+
+### Fixed
+
+- **`balance/opening_balances.json` now lands on disk for every chain
+  shard**. The v5.32 FINDINGS noted the file was missing across all
+  three years of the 3-year medium chain — Phase 3b in the
+  orchestrator was being silently skipped because
+  `cfg.balance.generate_opening_balances` defaults to `false` and the
+  per-entity chain config builder never force-enabled it. With the
+  flag off the v5.3 `ShardContext.opening_balances` carry-forward also
+  no-op'd at the early return, so Year N+1 chains were dropping the
+  prior-year closings the chain helper went to the trouble of
+  computing.
+- `crates/datasynth-group/src/shard/per_entity_config.rs` now stamps
+  `cfg.balance.generate_opening_balances = true` for every shard, the
+  same pattern already used for `financial_reporting.enabled`.
+- `phase_opening_balances` (in
+  `crates/datasynth-runtime/src/enhanced_orchestrator.rs`) is
+  restructured so the v5.3 `ShardContext.opening_balances` carryover
+  branch runs **unconditionally** when present — even if a future
+  caller flips the flag off, the chain still carries opens forward.
+- Regression guard:
+  `test_per_entity_config_force_enables_opening_balance_generation`
+  in `crates/datasynth-group/tests/per_entity_config.rs`.
+
+Closes task #163.
+
+VM validation on the 3-year `ACME_MEDIUM_3YR` chain (logged in
+`docs/baselines/2026-05-27-v5.32-3yr-medium-semantics-check/FINDINGS.md`):
+
+  - All 9 entity-year `opening_balances.json` files present.
+  - 99.5%+ of accounts in Y_N+1 opens match Y_N closes by magnitude.
+    The convention difference is the documented one: TB
+    `closing_balance` is debit-normal
+    (`debit_balance - credit_balance`, so liabilities/equity show
+    negative); `opening_balances.json::balances` is natural-side
+    (liabilities/equity show positive). Same magnitude on every
+    matched line.
+  - 1 expected mismatch per entity per year on account `3200`
+    (retained earnings) — the Y_N+1 opening RE = Y_N opening RE +
+    Y_N net income, while the Y_N closing TB shows pre-closing-entry
+    RE. That's correct closing-of-books behaviour, not a defect.
+- Consolidated BS equation still closes within 2 % across all three
+  years (0.76 % / 1.12 % / 0.03 %), confirming v5.33.1's classifier
+  fix isn't regressed.
+
 ## v5.33.1 (consolidated FS framework-aware classification)
 
 ### Fixed
