@@ -1,6 +1,6 @@
 # Tier A — re-measure the inverse-audit OOD gap (A10 VM runbook)
 
-**Goal.** Stage 2 of the inverse-audit capstone was gated on the OOD problem: real
+**Goal.** Stage 2 of the inverse-audit capstone was gated on the OOD problem: corpus
 GLs sit outside the synthetic "normal" manifold, so the SBI posterior collapsed to a
 Dirac at the prior floor (FINDINGS §6, degenerate everywhere). Since then the
 **ConcentrationPass central abstraction (#143)** landed on `main` (Phase 1 `3ffddcb8` +
@@ -147,7 +147,7 @@ distorts the normal manifold.
 ## Success criteria / decision
 
 - **If the ON corpus posterior moves off the Dirac floor** → fidelity bought
-  identifiability; Stage 2 gets real numbers; Tier C (rung-2 OT / latent-flow) becomes
+  identifiability; Stage 2 gets defensible numbers; Tier C (rung-2 OT / latent-flow) becomes
   the priority.
 - **If it still collapses** → the residual gap is the *joint/structural* manifold the
   per-marginal passes don't reach; the next fidelity lever (the central-concentration

@@ -427,7 +427,7 @@ enabler, not a nicety.
 
 **Why it matters + the prerequisite.** The residual envelope is only as sharp as the
 forward model's coverage of *normal*. Stage 1 is in-distribution, so the manifold is
-exact and detection is strong. On a real GL the forward-fidelity gap (the OOD problem,
+exact and detection is strong. On a corpus GL the forward-fidelity gap (the OOD problem,
 §6/§7) widens the residuals — and the v5.29 SOTA round + tuning (§9/§10) closed much of
 that structural gap, making the corpus the natural **Stage-2** target. Stage 2 needs
 the SAP-style multi-currency work (#128, **DONE** — `transactions.foreign_currency_rate`,
@@ -846,7 +846,7 @@ reproduces §12 (vs is_any unified 0.375/0.655; vs is_fraud density 0.697/0.912)
 **Conclusion + Tier-A synthesis.** Concentration realism is not a free lunch for the
 relational detector: the levers that improve marginal fidelity (A1: gl features toward corpus)
 bolt structural oddities onto an otherwise-clean base, which the relational residual conflates
-with anomalies. This aligns with A1: **for the relational detector, fit-on-self on the real
+with anomalies. This aligns with A1: **for the relational detector, fit-on-self on the
 corpus (Stage 2, §13) is the right deployment** — the corpus carries these structures natively
 and consistently, so the residual calibrates against them instead of treating bolted-on
 synthetic versions as anomalies. Tier A overall: (i) the global SBI posterior is the wrong
@@ -910,7 +910,7 @@ observability (a sequence/state-space model over the JE stream) — Tier C. Repr
 ## 19. Tier C-1 — productized hybrid on the corpus (2026-05-29)
 
 Tier B's hybrid (unsupervised residual + DataSynth-label-trained RF) was validated cross-GL
-on synthetic data. C-1 productizes it (`corpus_runner --rf-model`) and runs it on real corpus
+on synthetic data. C-1 productizes it (`corpus_runner --rf-model`) and runs it on corpus
 GL data (fit-on-self half-split) — the actual Stage-2 deployment, and the synthetic→corpus
 transfer test the A1 global-SBI arm failed.
 
@@ -935,11 +935,11 @@ Reproducible: `corpus_runner --mode half-split --rf-model rf_arm.joblib`.
 
 ot_flow rung-1 reconstructs within-JE debit↔credit pairings with a uniform (max-entropy)
 cost. Rung-2 learns the cost from the flows DataSynth reveals: a 2-line JE (1 debit, 1 credit)
-is an unambiguous ground-truth credit→debit edge — supervision a real GL can't give. On the
+is an unambiguous ground-truth credit→debit edge — supervision the corpus can't give. On the
 relational GL (10,279 JEs: 6,619 two-line / 3,660 multi-line; 6,733 ground-truth edges,
 369 distinct pairs):
 - **The learned cost is meaningful** — held-out 2-line edge ranking AUC 0.601 (cost(true edge)
-  < cost(random pair); 0.5 = no signal). The trivially-paired JEs carry a real, learnable
+  < cost(random pair); 0.5 = no signal). The trivially-paired JEs carry a genuine, learnable
   account-pairing cost.
 - **It sharpens multi-line reconstruction** — mean coupling entropy on multi-line JEs drops
   9.7% (rung-1 uniform 0.798 → rung-2 learned 0.721): the learned cost resolves the
@@ -986,6 +986,6 @@ The inverse-audit detector, end to end: **density** (per-JE fraud, PR-AUC 0.70/R
 (the hard families, +23% PR-AUC, cross-GL transfer) + **temporal observable** (the burst/
 cyclic families), all **hybridized** and **running on the corpus** (fit-on-self, no OOD
 collapse). The global SBI arm is retired for corpus use (scale-bound); the forward model's
-real role is as the **label source for the discriminative arms** and the **fit-on-self
+role is as the **label source for the discriminative arms** and the **fit-on-self
 manifold** the residuals deviate from. Remaining frontier: the grey-box state-space over G(t)
 for the relationship/trend families (C-2 follow-on) and detector-level rung-2 OT integration.
