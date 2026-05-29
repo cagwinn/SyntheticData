@@ -1023,3 +1023,21 @@ monthly activity CV, last-period share) + a supervised RF-CV ceiling. On the rel
 aggregates; it needs explicit per-account running-balance dynamics (cumulative balance
 persistence ratio, year-end closing-entry detection over fiscal_period). That's the next
 increment for #8. Reproducible: `inverse_audit.coa_reconstruct`.
+
+## 24. Research log — CoA reconstruction: running-balance dynamics + #8 conclusion (2026-05-29, autoloop)
+
+Increment 3 on #8. Added running-balance-dynamics features (balance persistence = |final|/max|run|,
+balance-to-flow, running-balance sign-changes) — the balance-sheet-vs-P&L axis. On the relational
+GL (319 accounts): nature 94.7% (unchanged); supervised RF-CV ceiling 0.367 → 0.395 (marginal —
+asset recall 0.47→0.54, revenue 0.18→0.26); unsupervised KMeans purity dipped (0.50→0.42, extra
+features add noise to k-means).
+
+**#8 conclusion: the JE cube robustly reconstructs account NATURE (debit/credit, 94.7%) but the
+fine 5-class type is only weakly identifiable — supervised ceiling ~0.40 even with balance
+dynamics.** On this GL the account types are not strongly behaviourally distinct beyond nature on
+aggregate flow/balance features (likely no clean year-end P&L closing in the window, and the
+generator's type→behaviour mapping isn't sharply separable). The one untried lever is RELATIONAL —
+an account's type from its flow-graph NEIGHBOURS (revenue pairs with AR, expense with AP, …) rather
+than aggregate stats (methodology-paper account-flow-graph → classification); a possible future
+return. Deliverable: nature-level CoA reconstruction (94.7%) + an honest fine-type identifiability
+bound. Pivoting the loop to #9. Reproducible: `inverse_audit.coa_reconstruct`.

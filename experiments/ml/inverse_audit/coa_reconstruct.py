@@ -26,7 +26,8 @@ import pandas as pd
 _DIGIT_TYPE = {"1": "asset", "2": "liability", "3": "equity",
                "4": "revenue", "5": "expense", "6": "expense", "7": "revenue"}
 _DEBIT_NATURE = {"asset", "expense"}
-_FEATURES = ["debit_frac", "net_frac", "log_act", "months_active_frac", "monthly_cv", "last_period_share"]
+_FEATURES = ["debit_frac", "net_frac", "log_act", "months_active_frac", "monthly_cv",
+             "last_period_share", "bal_persistence", "bal_to_flow", "runbal_signchg"]
 
 
 def account_features(df: pd.DataFrame) -> pd.DataFrame:
@@ -57,6 +58,22 @@ def account_features(df: pd.DataFrame) -> pd.DataFrame:
     tot_amt = am.groupby("gl_account")["amt"].sum()
     prof["last_period_share"] = (last_amt / (tot_amt + 1e-9)).reindex(prof.index).fillna(0.0)
     f = f.join(prof[["months_active_frac", "monthly_cv", "last_period_share"]]).fillna(0.0)
+
+    # Running-balance dynamics (the balance-sheet vs P&L axis). BS accounts persist a
+    # cumulative balance; P&L accounts net-accumulate then close toward ~0 at year-end.
+    d["dt"] = pd.to_datetime(d["posting_date"], errors="coerce", dayfirst=True)
+    ds = d.dropna(subset=["dt"]).sort_values("dt").copy()
+    ds["signed"] = ds["debit_amount"] - ds["credit_amount"]
+    ds["runbal"] = ds.groupby("gl_account")["signed"].cumsum()
+    gb = ds.groupby("gl_account")["runbal"]
+    final_bal = gb.last()
+    max_abs = gb.apply(lambda s: float(np.abs(s.to_numpy()).max()))
+    signchg = gb.apply(lambda s: int((np.sign(s.to_numpy()[1:]) != np.sign(s.to_numpy()[:-1])).sum())
+                       if len(s) > 1 else 0)
+    bal = pd.DataFrame({"final_bal": final_bal, "max_abs": max_abs, "signchg": signchg})
+    f["bal_persistence"] = (bal["final_bal"].abs() / (bal["max_abs"] + 1e-9)).reindex(f.index).fillna(0.0)
+    f["bal_to_flow"] = (bal["final_bal"].abs()).reindex(f.index).fillna(0.0) / (f["tot_deb"] + f["tot_cred"] + 1e-9)
+    f["runbal_signchg"] = (bal["signchg"].reindex(f.index).fillna(0.0)) / f["n_lines"].clip(lower=1)
     return f
 
 
