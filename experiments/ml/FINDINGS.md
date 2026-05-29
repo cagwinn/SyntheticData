@@ -1096,3 +1096,30 @@ size, not identifier):
 
 #10(b) done. #10(a) — detector-level rung-2 `cost_fn` integration — is the next increment.
 Reproducible: a sweep over `corpus_runner --mode half-split --rf-model rf_arm.joblib`.
+
+## 27. Research log — #10(a) rung-2 OT cost in the detector (2026-05-29, autoloop)
+
+Wired the rung-2 learned OT cost (`ot_cost`, from 2-line GT edges) through `graph_scorer`'s fit +
+score (new `cost_fn` param, default uniform) and A/B'd vs uniform on the relational GL:
+- unsupervised overall: uniform 0.2115/0.547 → rung2 0.2008/0.546 (~flat, marginally down).
+- LR-CV ceiling: 0.214/0.598 → 0.213/0.592 (~flat).
+- per-family: all deltas within ±0.01 noise (largest TrendBreak +0.045 but n=9; StatisticalOutlier
+  −0.013, Circular −0.010) — nothing systematic.
+
+**Finding: rung-2 reconstruction does NOT propagate to detection.** It sharpens within-JE
+reconstruction (C-3: −9.7% coupling entropy) but the detector's `edge_surprise` is dominated by the
+common double-entry pairs (which rung-2 leaves unchanged), so per-family ROC is unmoved — confirming
+the C-3 prediction. Rung-2's value is in reconstruction-quality applications (the methodology-paper
+account-flow-graph accuracy / suspense-account work), NOT anomaly detection; the `cost_fn` hook is
+now in place for that future use. **#10 complete → core backlog (#8/#9/#10) done.** Reproducible:
+`graph_scorer --rung2`.
+
+---
+
+### Autonomous-loop summary (5 increments, 2026-05-29)
+
+The hourly loop delivered: **#8** CoA-from-cube (nature 94.7%, fine-type bounded ~0.40); **#9** CUSUM
+temporal arm (overall ROC 0.623→0.649, TransactionBurst 0.55→0.71); **#10(b)** corpus hybrid sweep
+(RF transfers, non-degenerate, across all 6 clients); **#10(a)** rung-2-in-detector (null — confirms
+C-3). Core backlog exhausted. Optional deepenings (not yet done): #8 relational flow-graph-neighbour
+CoA classification; #9 full Kalman state-space over G(t).

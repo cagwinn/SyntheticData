@@ -113,9 +113,10 @@ def _je_tp_accounts(df: pd.DataFrame) -> dict[str, set[tuple[str, str]]]:
     return out
 
 
-def fit_graph_manifold(normal_df: pd.DataFrame) -> dict:
-    """Per-edge frequency + PageRank + tp set + tp-account pair set + per-account count."""
-    per = reconstruct_per_je(normal_df)
+def fit_graph_manifold(normal_df: pd.DataFrame, cost_fn=None) -> dict:
+    """Per-edge frequency + PageRank + tp set + tp-account pair set + per-account count.
+    cost_fn (optional, rung-2): learned within-JE OT cost passed to the flow reconstruction."""
+    per = reconstruct_per_je(normal_df, cost_fn=cost_fn)
     edge_w: dict[tuple[str, str], float] = {}
     for _, (flows, _) in per.items():
         for s, d, w in flows:
@@ -259,8 +260,8 @@ def _je_tps(df: pd.DataFrame) -> dict[str, list[str]]:
     return out
 
 
-def score_df(df: pd.DataFrame, manifold) -> pd.DataFrame:
-    per = reconstruct_per_je(df)
+def score_df(df: pd.DataFrame, manifold, cost_fn=None) -> pd.DataFrame:
+    per = reconstruct_per_je(df, cost_fn=cost_fn)
     # Build the AGGREGATE flow graph of *this* df and find its SCCs; accounts in
     # non-trivial SCCs that are NOT in the normal manifold's SCC set are participating
     # in cycles that didn't exist in normal — the cycle_novelty signal (Circular* families).
@@ -353,17 +354,26 @@ def main(argv=None) -> None:
     ap.add_argument("--test", type=Path, required=True)
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--assess-out", type=Path, default=None)
+    ap.add_argument("--rung2", action="store_true",
+                    help="rung-2: learn the within-JE OT cost from 2-line GT edges + use it for reconstruction")
     a = ap.parse_args(argv)
 
     nd = _load_lines(a.normal); td = _load_lines(a.test)
     print(f"[graph_scorer v3] fit on normal: lines={len(nd)} jes={nd['document_id'].nunique()}")
-    manifold = fit_graph_manifold(nd)
+    cost_fn = None
+    if a.rung2:
+        from inverse_audit.relational.ot_cost import _two_line_edges, learn_edge_cost, make_cost_fn
+        _edges = _two_line_edges(nd)
+        _cm, _dflt = learn_edge_cost(_edges)
+        cost_fn = make_cost_fn(_cm, _dflt)
+        print(f"[rung2] learned OT cost from {len(_edges)} 2-line GT edges ({len(_cm)} distinct pairs)")
+    manifold = fit_graph_manifold(nd, cost_fn=cost_fn)
     print(f"  manifold: edges={len(manifold['edge_p'])} nodes={len(manifold['pagerank'])} "
           f"tp_set={len(manifold['tp_set'])} tp_acc_set={len(manifold['tp_acc_set'])} "
           f"accounts_w_count={len(manifold['acc_count'])}")
 
-    n_scored = score_df(nd, manifold)
-    t_scored = score_df(td, manifold)
+    n_scored = score_df(nd, manifold, cost_fn=cost_fn)
+    t_scored = score_df(td, manifold, cost_fn=cost_fn)
     for c in _ALL_FEATURES:
         if c in t_scored.columns:
             t_scored[c + "_z"] = z_of(t_scored[c].to_numpy(), n_scored[c].to_numpy())
