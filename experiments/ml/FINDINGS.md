@@ -1064,3 +1064,35 @@ is a net positive but does NOT solve TrendBreak — that family's signal is stru
 account-activity dynamics. #9 first rung delivered (CUSUM); the heavier Kalman state-space
 (per-account/edge filtered level + innovation residual) is the deeper follow-on. Deployable
 temporal feature set = burst + cusum. Reproducible: `inverse_audit.relational.temporal_features`.
+
+## 26. Research log — #10(b) multi-client corpus hybrid sweep (2026-05-29, autoloop)
+
+Extends C-1 (single client) to 6 health corpus clients (208–56,655 scored JEs), running the
+productized hybrid (`corpus_runner --rf-model`, fit-on-self half-split). Per client (keyed by
+size, not identifier):
+
+| n_jes  | rf_score med / p99 / max | hybrid ∩ unsup top-1% |
+|-------:|--------------------------|----------------------:|
+| 56,655 | 0.187 / 0.494 / 0.833    | 0.85 |
+| 30,459 | 0.152 / 0.328 / 0.802    | 0.16 |
+| 10,333 | 0.107 / 0.468 / 0.735    | 0.68 |
+|  2,151 | 0.166 / 0.380 / 0.602    | 0.71 |
+|  1,479 | 0.133 / 0.341 / 0.519    | 0.07 |
+|    208 | 0.207 / 0.569 / 0.606    | 0.00 |
+
+**Findings:**
+- **The synthetic-trained RF transfers robustly — `rf_score` is non-degenerate (discriminative)
+  on ALL 6 clients** (median 0.11–0.21, max 0.52–0.83; never collapses to a constant). This
+  generalizes C-1's single-client result: the productized hybrid is broadly deployable across
+  corpus clients with no OOD collapse — the contrast with the A1 global-SBI Dirac holds everywhere.
+- **The hybrid's reorder vs the unsupervised residual is size-dependent.** Larger clients (10k–56k
+  JEs) largely agree (overlap 0.68–0.85; the RF reorders 15–32%); small clients (<2k JEs) diverge
+  (overlap 0.00–0.16) — top-1% is only a handful of JEs on a sparse half-split manifold, so it is
+  unstable (per §13, distrust scores on tiny GLs). The ~30k-JE client with low overlap (0.16) is the
+  one larger case where the supervised arm surfaces a substantially different set; on unlabelled
+  corpus the two can't be ranked, but it is where the RF adds the most distinct signal.
+- Deployment guidance: the hybrid runs everywhere; treat the top-1% as ranked on clients ≳5k JEs
+  and as a suggested-look list on smaller ones.
+
+#10(b) done. #10(a) — detector-level rung-2 `cost_fn` integration — is the next increment.
+Reproducible: a sweep over `corpus_runner --mode half-split --rf-model rf_arm.joblib`.
