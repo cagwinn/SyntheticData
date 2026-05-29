@@ -1004,3 +1004,22 @@ behaviour alone, validated against the account-number convention (1=asset / 2=li
   increment: add a balance-sheet-vs-P&L signal (account-balance persistence / period-reset) to
   split within each nature group — the missing axis for full 5-class type reconstruction.
 Reproducible: `inverse_audit.coa_reconstruct`.
+
+## 23. Research log — CoA reconstruction, 5-class + supervised ceiling (2026-05-29, autoloop)
+
+Increment 2 on #8. Added a balance-sheet-vs-P&L temporal signal (months-active fraction,
+monthly activity CV, last-period share) + a supervised RF-CV ceiling. On the relational GL
+(319 accounts):
+- nature 94.7% (unchanged — robust).
+- 5-class KMeans purity 0.498 / ARI 0.259; **supervised RF-CV ceiling only 0.367** — even a
+  label-trained model can't separate the 5 types from flow+activity features. Per-type
+  (supervised recall): asset 0.47, liability 0.41, expense 0.40, revenue 0.18, equity 0.00 (n=3).
+- The activity-temporal features did NOT crack the within-nature confusions (asset↔expense,
+  revenue↔equity↔liability); KMeans purity even dipped vs flow-only (0.53→0.50).
+
+**Finding: the JE cube's flow + activity features carry strong NATURE signal (debit vs credit,
+94.7%) but weak fine-TYPE signal (5-class ceiling 0.37).** The missing axis — balance-sheet
+(persistent running balance) vs P&L (period flows closed at year-end) — is not in activity
+aggregates; it needs explicit per-account running-balance dynamics (cumulative balance
+persistence ratio, year-end closing-entry detection over fiscal_period). That's the next
+increment for #8. Reproducible: `inverse_audit.coa_reconstruct`.
