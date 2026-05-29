@@ -1167,3 +1167,24 @@ weighting convention that doesn't materially affect the detector. The GPU living
 relational residual. Next P1 sub-steps: port edge_surprise/dormancy as import-time properties +
 settle the PR convention; then P2 (wire the residual as an ISA-315 risk input to the cortex).
 Artifacts: RustGraph `crates/rustgraph-engine/examples/inverse_audit_validate.rs` + comparator.
+
+## 30. Substrate P1 — COMPLETE: all relational features reproduce on the substrate (2026-05-29)
+
+Finished P1 by settling the PageRank convention + confirming the deterministic features (same
+account-flow graph, 325 nodes / 16,256 edges):
+- **PageRank settled — EXACT.** RustGraph's PageRank matches an UNWEIGHTED Python PageRank
+  (damping 0.85) at Pearson 1.0000 / Spearman 1.0000. The earlier 0.61/0.82 was purely
+  weighted-vs-unweighted — RustGraph's PR is correct; the detector adopts the unweighted convention
+  (centrality is near-null → zero detection impact).
+- **SCC / cycle_novelty — EXACT** (Jaccard 1.000, 156 == 156).
+- **edge_surprise — deterministic** (p_normal == edge_weight / total to 3e-15; surprise = −log p_normal).
+- **dormancy — deterministic** (IDF = log(N/(count+1)) from the `normal_je_count` node property; N=30,505).
+- tp_account_novelty / source_cond — set-membership / per-source frequency, deterministic.
+
+**P1 COMPLETE: the GPU living-graph faithfully reproduces every relational feature of the validated
+inverse-audit detector** — the two algorithmic features (SCC, PageRank) exactly, the rest as
+deterministic functions of the correctly-ingested graph (edge ingestion confirmed by SCC-exact).
+The confidence-first goal is met → the substrate can host the relational residual. Next: **P2** —
+wire the residual as an ISA-315 risk input to the RustGraph cortex (the contract exists:
+`cortex_pipeline` + `audit_isa315_risk_assessment`). Artifacts: RustGraph
+`examples/inverse_audit_validate.rs` + `scripts/inverse_audit_compare.py`.
