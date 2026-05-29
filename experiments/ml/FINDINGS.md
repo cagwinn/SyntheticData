@@ -906,3 +906,86 @@ exactly the "DataSynth powers both" thesis, now demonstrated for the relational 
 are "solved" (0.55–0.62, vs dormancy's 0.999); the residual gap needs cross-JE / temporal
 observability (a sequence/state-space model over the JE stream) — Tier C. Reproducible:
 `inverse_audit.relational.rf_arm` (model `rf_arm.joblib`, result `rf_arm_transfer.json`).
+
+## 19. Tier C-1 — productized hybrid on the corpus (2026-05-29)
+
+Tier B's hybrid (unsupervised residual + DataSynth-label-trained RF) was validated cross-GL
+on synthetic data. C-1 productizes it (`corpus_runner --rf-model`) and runs it on real corpus
+GL data (fit-on-self half-split) — the actual Stage-2 deployment, and the synthetic→corpus
+transfer test the A1 global-SBI arm failed.
+
+On a health corpus client (113,309 JEs, half-split → 56,655 scored, manifold 1,109 edges):
+- **The synthetic-trained RF transfers** — `rf_score` is non-degenerate and discriminative
+  (median 0.187, p99 0.494, max 0.833), NOT the Dirac collapse the global SBI posterior showed
+  (§16). The per-GL z-normalized relational features generalize synthetic→corpus precisely
+  because they're deviations-from-own-normal, not scale-bound absolutes.
+- **Hybrid hot list** (top-1% = 566 JE IDs) overlaps the unsupervised top-1% at 0.84 — the RF
+  reorders 16%, surfacing hard-family signatures the unsupervised residual ranks lower. (Corpus
+  is unlabelled → expert-review delta; the RF's value was label-validated cross-GL in §18.)
+- The unsupervised residual stays heavy-tailed (p50 0 / p99 17.4 / max 35.4) — a clean hot
+  list; dormancy + edge-surprise carry it (this consolidated client has tp_set=1, so the tp
+  features are inert, as §13 noted for single-counterparty entities).
+
+The full inverse-audit detector now runs end-to-end on corpus data — density (per-JE fraud) +
+unsupervised relational residual (dormancy/edge/cycle) + DataSynth-trained RF (hard families),
+hybridized — and it transfers without the OOD collapse that sinks the global SBI arm.
+Reproducible: `corpus_runner --mode half-split --rf-model rf_arm.joblib`.
+
+## 20. Tier C-3 — rung-2 supervised OT cost from ground-truth flows (2026-05-29)
+
+ot_flow rung-1 reconstructs within-JE debit↔credit pairings with a uniform (max-entropy)
+cost. Rung-2 learns the cost from the flows DataSynth reveals: a 2-line JE (1 debit, 1 credit)
+is an unambiguous ground-truth credit→debit edge — supervision a real GL can't give. On the
+relational GL (10,279 JEs: 6,619 two-line / 3,660 multi-line; 6,733 ground-truth edges,
+369 distinct pairs):
+- **The learned cost is meaningful** — held-out 2-line edge ranking AUC 0.601 (cost(true edge)
+  < cost(random pair); 0.5 = no signal). The trivially-paired JEs carry a real, learnable
+  account-pairing cost.
+- **It sharpens multi-line reconstruction** — mean coupling entropy on multi-line JEs drops
+  9.7% (rung-1 uniform 0.798 → rung-2 learned 0.721): the learned cost resolves the
+  transportation polytope more confidently than the uniform prior.
+
+This implements the methodology paper's rung-2 (cost learned from known flows) — the
+forward-model contribution only DataSynth enables. The effect is modest (the 369 common
+double-entry pairs dominate, so the global edge_p the detector already uses is little-changed);
+detector integration via the `cost_fn` hook (already present in `reconstruct_per_je`) is the
+wired next step, expected marginal. Reproducible: `inverse_audit.relational.ot_cost`.
+
+## 21. Tier C-2 — first cross-JE temporal observable (2026-05-29)
+
+Tier B's ceiling said the hard families' residual signal needs cross-JE observability. C-2
+adds the first temporal observable over the JE stream G(t): per-JE max-over-touched-accounts
+of the account's weekly-activity burst z-score + trend (level shift), from the 412-day /
+55-week GL. Measured via the Tier-B RF-CV harness (with vs without the temporal features):
+
+| family | base | +temporal |
+|---|---|---|
+| overall PR-AUC / ROC | 0.252 / 0.623 | 0.270 / 0.642 |
+| TransactionBurst    | 0.546 | 0.628 (+0.08) |
+| UnusualTiming       | 0.556 | 0.641 (+0.085) |
+| UnusualFrequency    | 0.587 | 0.638 (+0.05) |
+| CircularTransaction | 0.554 | 0.591 (+0.04) |
+| CentralityAnomaly   | 0.641 | 0.658 (+0.02) |
+| TrendBreak          | 0.618 | 0.493 (−0.13, n=9) |
+
+The burst observable lifts every temporal/cyclic family it targets (TransactionBurst,
+UnusualTiming, UnusualFrequency, Circular, Centrality) and overall PR-AUC +0.018 — confirming
+Tier B's diagnosis that the remaining signal lives in cross-JE temporal structure, not more
+per-JE features. TrendBreak regressed (n=9, tiny; the simple latter-vs-earlier trend feature
+doesn't match its injector mechanism). This is the tractable first rung; the full grey-box
+state-space (Kalman innovations / CUSUM over G(t), process-FSM-structured) — where TrendBreak
+and the relationship families would be modelled properly — is the larger follow-on the
+methodology papers (b27/b28) point to. Reproducible: `inverse_audit.relational.temporal_features`.
+
+---
+
+### Tier A→C synthesis (2026-05-29)
+
+The inverse-audit detector, end to end: **density** (per-JE fraud, PR-AUC 0.70/ROC 0.91) +
+**unsupervised relational residual** (dormancy 0.99, edge-rarity) + **DataSynth-trained RF**
+(the hard families, +23% PR-AUC, cross-GL transfer) + **temporal observable** (the burst/
+cyclic families), all **hybridized** and **running on the corpus** (fit-on-self, no OOD
+collapse). The global SBI arm is retired for corpus use (scale-bound); the forward model's
+real role is as the **label source for the discriminative arms** and the **fit-on-self
+manifold** the residuals deviate from. Remaining frontier: the grey-box state-space over G(t)
+for the relationship/trend families (C-2 follow-on) and detector-level rung-2 OT integration.

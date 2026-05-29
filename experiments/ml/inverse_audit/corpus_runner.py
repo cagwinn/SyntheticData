@@ -21,6 +21,7 @@ import pandas as pd
 
 from inverse_audit.relational.ot_flow import reconstruct_per_je  # noqa: F401  (used via score_df)
 from inverse_audit.relational.graph_scorer import (
+    _ALL_FEATURES,
     _SCORE_FEATURES,
     fit_graph_manifold,
     score_df,
@@ -70,6 +71,8 @@ def main(argv: list[str] | None = None) -> None:
                          "construction); half-split = shuffle by JE, fit on first half, score second "
                          "half (recovers all new-in-test signals)")
     ap.add_argument("--seed", type=int, default=42, help="deterministic half-split shuffle")
+    ap.add_argument("--rf-model", type=Path, default=None,
+                    help="optional rf_arm.joblib → apply the DataSynth-trained RF + emit hybrid hot list (Tier C-1)")
     ap.add_argument("--export-graph", action="store_true",
                     help="also emit the decoupled substrate JSON (no row content)")
     a = ap.parse_args(argv)
@@ -105,11 +108,34 @@ def main(argv: list[str] | None = None) -> None:
     scored = score_df(td, manifold)
     # z-baseline: normal-scored features if half-split (proper out-of-sample), else self.
     n_scored = score_df(nd, manifold) if a.mode == "half-split" else scored
-    for c in _SCORE_FEATURES:
+    # Compute _z for ALL features (the unsupervised relational_score still uses only the
+    # positive-prior _SCORE_FEATURES; the rest are needed when a supervised RF arm is applied).
+    for c in _ALL_FEATURES:
         if c in scored.columns and c in n_scored.columns:
             scored[c + "_z"] = z_of(scored[c].to_numpy(), n_scored[c].to_numpy())
     z_cols = [c + "_z" for c in _SCORE_FEATURES if (c + "_z") in scored.columns]
     scored["relational_score"] = scored[z_cols].fillna(0).sum(axis=1)
+
+    # Tier C-1: optional supervised hybrid arm. Apply a DataSynth-label-trained RF
+    # (rf_arm.joblib) to the corpus _z features and hybridise (rank-z-sum) with the
+    # unsupervised residual. The per-GL z-normalisation makes the synthetic-trained RF
+    # transferable to the corpus (fit-on-self), sidestepping the A1 SBI-OOD problem.
+    if a.rf_model:
+        import joblib
+        from scipy.stats import rankdata
+        # joblib.load is pickle-based; safe here — the model is OUR OWN artifact written by
+        # rf_arm.py (joblib.dump) on this trusted box, not a third-party/untrusted file.
+        bundle = joblib.load(a.rf_model)
+        rf, feats = bundle["rf"], bundle["features"]
+        for f in feats:
+            if f not in scored.columns:
+                scored[f] = 0.0
+        proba = rf.predict_proba(scored[feats].fillna(0).to_numpy())[:, 1]
+        scored["rf_score"] = proba
+        def _rz(x):
+            r = rankdata(x); return (r - r.mean()) / (r.std() + 1e-9)
+        scored["hybrid_score"] = _rz(scored["relational_score"].to_numpy()) + _rz(proba)
+
     scored.reset_index().to_parquet(a.out / "graph_scores.parquet")
 
     rs = scored["relational_score"].to_numpy()
@@ -136,6 +162,20 @@ def main(argv: list[str] | None = None) -> None:
     (a.out / "top1pct_je_ids.json").write_text(
         json.dumps({"n_jes": len(scored), "n_top1pct": n_top, "je_ids": top_ids}, indent=2))
     print(f"\ntop 1% candidates: {n_top:,} JE IDs written to {a.out}/top1pct_je_ids.json")
+
+    if a.rf_model and "hybrid_score" in scored.columns:
+        hyb_top = scored.nlargest(n_top, "hybrid_score").index.astype(str).tolist()
+        uns_top = set(scored.nlargest(n_top, "relational_score").index.astype(str))
+        overlap = len(set(hyb_top) & uns_top) / n_top
+        rfp = scored["rf_score"].to_numpy()
+        (a.out / "top1pct_hybrid_je_ids.json").write_text(json.dumps({
+            "n_top": n_top, "je_ids": hyb_top,
+            "overlap_with_unsup_top1pct": round(overlap, 3),
+            "rf_score": {"median": float(np.median(rfp)), "p99": float(np.percentile(rfp, 99)),
+                         "max": float(rfp.max())}}, indent=2))
+        print(f"HYBRID hot list: {n_top:,} JE IDs; overlap with unsup top-1% = {overlap:.2f}; "
+              f"rf_score med={np.median(rfp):.3f} p99={np.percentile(rfp, 99):.3f} max={rfp.max():.3f} "
+              f"-> {a.out}/top1pct_hybrid_je_ids.json")
 
     summary = {
         "mode": a.mode,
