@@ -989,3 +989,18 @@ collapse). The global SBI arm is retired for corpus use (scale-bound); the forwa
 role is as the **label source for the discriminative arms** and the **fit-on-self
 manifold** the residuals deviate from. Remaining frontier: the grey-box state-space over G(t)
 for the relationship/trend families (C-2 follow-on) and detector-level rung-2 OT integration.
+
+## 22. Research log — CoA reconstruction from the JE cube, no CoA mapping (2026-05-29, autoloop)
+
+First increment of the autonomous hourly research loop. Goal: infer account type from JE flow
+behaviour alone, validated against the account-number convention (1=asset / 2=liability /
+3=equity / 4=revenue / 5,6=expense). On the relational GL (319 typeable accounts):
+- **debit/credit-nature: 94.7% accuracy** — flow direction (`debit_frac`) cleanly reconstructs
+  whether an account is debit-nature (asset/expense) vs credit-nature (liability/equity/revenue).
+  The cube reveals account nature without the CoA file.
+- 5-class (KMeans on debit_frac / net_frac / log-activity): purity 0.530 / ARI 0.273 —
+  liability 0.91, expense 0.67, but asset 0.43 (confused with expense; both debit-nature) and
+  revenue 0.11 / equity 0.00 (all credit-nature, indistinguishable on these features). Next
+  increment: add a balance-sheet-vs-P&L signal (account-balance persistence / period-reset) to
+  split within each nature group — the missing axis for full 5-class type reconstruction.
+Reproducible: `inverse_audit.coa_reconstruct`.
