@@ -1141,3 +1141,29 @@ expense 0.28, revenue 0.18, equity 0.00) — the synthetic account types are onl
 relationally beyond nature. The relational lever is directionally confirmed (real added signal) but
 does not crack fine-type to a useful level on this GL. Nature reconstruction (94.7%) remains the
 robust CoA-from-cube deliverable. Reproducible: `inverse_audit.coa_neighbour`.
+
+## 29. Substrate P1 — confidence-first GPU port: SCC exact, PageRank a variant (2026-05-29)
+
+First step of the GPU-substrate roadmap (P1 GPU-port-detector → P2 cortex-wiring → P3 self-play).
+Confidence-first question: does RustGraph (the GPU living-graph DB) reproduce our validated Python
+detector's graph-analytic core? Exported the relational-GL account-flow graph (325 nodes / 16,256
+normal edges, carrying Python `pagerank_normal` + `in_normal_scc`) → ingested into RustGraph
+(`GpuGraphRuntime::from_weighted_edges`) → computed PageRank (living-graph runtime, CPU fallback) +
+SCC (Tarjan `SccAnalytic`, min-size 2) → compared (RustGraph example `inverse_audit_validate` +
+a Python comparator):
+- **SCC / cycle_novelty: EXACT — agreement 1.000, Jaccard 1.000 (156 == 156 nodes in non-trivial
+  SCCs).** RustGraph's Tarjan reproduces our `_scc_set` perfectly; the structurally-meaningful
+  relational feature is validated on the substrate.
+- **PageRank / centrality: rank-correlated (Spearman 0.82) but not equivalent (Pearson 0.61).**
+  Cause confirmed: RustGraph PageRank is UNWEIGHTED (uniform over out-degree) vs our Python PR
+  WEIGHTED (by flow amount). Low-stakes — `centrality` is a near-null detector feature (Tier-B ROC
+  ~0.49, RF importance 0.03); reconcile by adopting unweighted PR or adding weighted-PR support.
+- `edge_surprise` + `dormancy` + `source_cond` are deterministic counts (−log freq / IDF) →
+  trivially reproducible as import-time node/edge properties (no algorithm risk).
+
+**Confidence verdict: established.** The substrate ingests the account-flow graph correctly and
+reproduces the meaningful relational structure (SCC) exactly; the only gap is a documented PageRank
+weighting convention that doesn't materially affect the detector. The GPU living-graph can host the
+relational residual. Next P1 sub-steps: port edge_surprise/dormancy as import-time properties +
+settle the PR convention; then P2 (wire the residual as an ISA-315 risk input to the cortex).
+Artifacts: RustGraph `crates/rustgraph-engine/examples/inverse_audit_validate.rs` + comparator.
