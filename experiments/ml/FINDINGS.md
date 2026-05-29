@@ -1188,3 +1188,24 @@ The confidence-first goal is met → the substrate can host the relational resid
 wire the residual as an ISA-315 risk input to the RustGraph cortex (the contract exists:
 `cortex_pipeline` + `audit_isa315_risk_assessment`). Artifacts: RustGraph
 `examples/inverse_audit_validate.rs` + `scripts/inverse_audit_compare.py`.
+
+## 31. Substrate P2 — residual wired as an ISA-315 risk input to the cortex (2026-05-29)
+
+Wired the inverse-audit relational residual into RustGraph's cortex ISA-315 path. The cortex's L2
+`PerceptionState` consumes the per-JE `relational_score` stream (our residual replaces the native
+amount-outlier perception for the relational subsystem); flagged JEs fire the L4 grounded-AF ISA-315
+argumentation (residual-evidence + MUST-assess obligation attack the complacent "no-action" default
+→ AssessRisk). On the relational GL (10,277 JEs):
+- **Wiring validated end-to-end:** cortex L2 escalated 181 JEs (residual > 3σ); the L4 decision on a
+  flag = AssessRisk (complacent Out, obligation+evidence In); unflagged → complacent default holds.
+- **Escalation precision 0.619 / recall 0.106 vs `is_anomaly` (base rate 10.3%)** — the
+  residual-driven cortex escalates a focused hot list **6× enriched for true anomalies** (precision
+  0.62 at a conservative 3σ threshold; recall tunable via k). Without the residual the complacent
+  default stands — the detector is what surfaces the risk.
+
+This demonstrates L2(detector) → L3/L4(ISA-315 reasoning): the cortex consumes the detector's residual
+as a risk signal and produces ISA-315 AssessRisk decisions. (Uses the unsupervised `relational_score`;
+the stronger Tier-B hybrid would flow the same path with better separation — its trained model was on
+the now-terminated VM, regenerable locally.) Next P2 depth: aggregate to RMM-by-assertion/account +
+the AuditMethodology cortex integration contract / engagement runner. Then P3 (self-play). Artifact:
+RustGraph `examples/inverse_audit_cortex_isa315.rs`.
