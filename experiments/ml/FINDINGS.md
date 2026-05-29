@@ -1209,3 +1209,22 @@ the stronger Tier-B hybrid would flow the same path with better separation — i
 the now-terminated VM, regenerable locally.) Next P2 depth: aggregate to RMM-by-assertion/account +
 the AuditMethodology cortex integration contract / engagement runner. Then P3 (self-play). Artifact:
 RustGraph `examples/inverse_audit_cortex_isa315.rs`.
+
+## 32. Substrate P2-deepen — residual → methodology RMM-by-assertion (2026-05-29)
+
+Made the cortex's audit output methodology-grade. AuditMethodology has a real Bayesian RMM engine
+(`compute_rmm` over 12 ISA-cited factors → `RMMPosterior`, rmm_mean = IR×CR; 7 ISA-315 assertions).
+Built a bridge (`scripts/inverse_audit_rmm_bridge.py`): per-account residual signals from the
+detector's substrate (dormancy IDF, new-in-test SCC membership, new-in-test edges) → ISA-315
+(assertion, RMM-factor) `FactorEvidence` → `compute_rmm` → an RMM-by-(account, assertion) matrix.
+The signal→factor mapping touches one inherent + one control factor each so RMM=IR×CR elevates:
+dormancy → existence (FRAUD_SUSCEPTIBILITY + OVERRIDE_SIGNALS); new-SCC → existence
+(+RELATED_PARTY_DENSITY); new-edges → accuracy (ACCOUNT_COMPLEXITY + CONTROL_TEST_RESULTS).
+On the relational GL: priors-only baseline RMM = 0.101; **360 (account, assertion) pairs, all
+elevated** (top existence pairs 0.173 = IR 0.45 × CR 0.38, driven by dormancy+new-SCC+new-edges) —
+a methodology-grade RMM matrix ordered by the detector's signals.
+
+**P2-deepen done: the substrate emits ISA-315 RMM-by-assertion** (the shape `run_engagement` /
+the cortex `CortexInvocation` consume), driven by the inverse-audit residual — not just a per-JE
+flag. Evidence scaling is tunable to calibrate RMM levels to methodology thresholds. Next: **P3**
+(self-play). Artifact: AuditMethodology `scripts/inverse_audit_rmm_bridge.py`.
