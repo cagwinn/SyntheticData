@@ -1228,3 +1228,69 @@ a methodology-grade RMM matrix ordered by the detector's signals.
 the cortex `CortexInvocation` consume), driven by the inverse-audit residual — not just a per-JE
 flag. Evidence scaling is tunable to calibrate RMM levels to methodology thresholds. Next: **P3**
 (self-play). Artifact: AuditMethodology `scripts/inverse_audit_rmm_bridge.py`.
+
+## 33. Substrate P3.1 — autonomous-audit self-play: the closed round-trip + when audit memory pays off (2026-05-30)
+
+The substrate's L4 closed loop. A multi-period audit game (`inverse_audit/selfplay.py`): each round
+= one fiscal period. The ADVERSARY (DataSynth) posts a GL with embedded fraud; the AUDITOR (the
+substrate) ranks JEs by the density+relational residual (P1), BOOSTS each JE by its accounts'
+carried-forward risk priors (the cortex/methodology belief state, P2), investigates the top under a
+fixed audit budget, and UPDATES its belief from what it found — carrying it into the next period.
+That is audit doctrine: prior-period KNOWN findings raise the current period's RMM. Three auditor
+policies run on IDENTICAL worlds, each with its own belief trajectory: `memoryless` (residual only),
+`memory_flagged` (carry forward accounts it flagged — label-free, corpus-deployable), `memory_confirmed`
+(carry forward accounts where investigation CONFIRMED fraud — audit-faithful, prior-year known findings).
+Belief exposure is IDF-weighted so ubiquitous control accounts don't swamp the fraud-enriched ones.
+
+**Operationally proven, fully local.** Lean generation (banking/ESG/treasury/tax/project/mfg/process-
+mining disabled — irrelevant to the GL audit) takes a single-company manufacturing/small 12-month
+period from ~12 s / 2.6 GB to **~0.4 s / 0.2 GB** (no OOM), so a 6-period 3-policy loop runs in ~2 min
+on the dev box. The round-trip closes end-to-end: gen → detect → boost → investigate → confirm →
+carry-forward → re-gen, with score-caching (the residual is label-free, so label overlays reuse scores).
+
+**Headline (default DGP) — audit memory is NEUTRAL, and that is an honest, diagnosable finding.**
+6 periods, manufacturing/small, fraud 0.04 + anomaly 0.04, budget 5 %: mean Δrecall@budget (rounds ≥1)
+= flagged −0.002, confirmed −0.009; ΔPR-AUC ≈ −0.005. Fraud *recurs* at 57–78 accounts each period —
+but those are the ubiquitous control accounts (cash/AP/revenue) that carry fraud *every* period simply
+because all flow passes through them (fraud rate there ≈ the 3–4 % base rate, not enriched), and the
+engine re-draws the specific fraud targets independently each period. **There is no account-localized
+*continuity* for per-account memory to exploit** — so refitting the residual fresh each period is as
+good as carrying a belief.
+
+**Scientific control — a PERSISTENT ADVERSARY proves the machinery AND quantifies the condition.**
+A fixed set of bad-actor accounts re-offends every period; their transactions are *real, residual-
+normal* JEs relabelled, so the residual *cannot* catch them on their own merits — **only cross-period
+account memory can**. Sweeping the carry-forward weight β (2 bad-actor accounts, rate 0.3, reusing the
+same scored worlds):
+
+| β | Δrecall on bad actor (confirmed) | Δrecall (flagged) | ΔPR-AUC (confirmed) |
+|---|---|---|---|
+| 1.5 | **+0.015** | +0.011 | −0.003 |
+| 3.0 | **+0.034** | +0.015 | −0.008 |
+| 6.0 | **+0.047** | +0.037 | −0.024 |
+| 10.0 | **+0.063** | +0.044 | −0.042 |
+
+Monotone in β; `confirmed > flagged` at every β (prior-year *known* findings beat label-free
+flagging); the explicit tradeoff is recall-on-the-hidden-bad-actor vs PR-AUC on residual-detectable
+fraud (the boost adds rank-noise on what the residual already sees). **The loop's memory works exactly
+as designed: it catches the bad actor the label-free residual is blind to.** So the neutral default
+headline is a precise *conditional*: **per-account audit memory pays off iff fraud has account
+continuity** — which a real fraudster has (the same actor re-offends), and which a *smart* adversary
+then breaks by relocating fraud to un-watched accounts (the P3.2 arms race).
+
+**Closes to the methodology brain** (`inverse_audit/selfplay_rmm.py`, AuditMethodology venv): the
+audit-faithful auditor's evolved confirmed-finding belief → carried-forward `FactorEvidence`
+(FRAUD_SUSCEPTIBILITY + CONTROL_TEST_RESULTS + OVERRIDE_SIGNALS) → `compute_rmm` → account-level
+ISA-315 RMM. Priors-only baseline RMM = 0.101; 39/40 carried accounts elevated; the persistent bad
+actors **2110 (RMM 0.116) and 4900 (0.103) both above baseline**. This completes the substrate chain:
+**residual (P1) → cortex ISA-315 (P2) → temporal self-play belief (P3.1) → methodology RMM**. Known
+limitation honestly surfaced: the max-prior belief representation over-weights high-volume control
+accounts (cash ranks top) — the *residual* density isolates statistically-unusual accounts (period-
+close 9xxx) but is blind to the residual-normal bad actor; refining the belief aggregation
+(account-pair / archetype granularity) is P3.2 work.
+
+**P3.1 done.** The closed loop is the substrate for P3.2 — the ADAPTIVE adversary (concealment
+responds to which accounts get watched → relocate to evade), measuring the detection-vs-evasion
+equilibrium. Artifacts: `inverse_audit/selfplay.py`, `inverse_audit/selfplay_rmm.py`; runs
+`/tmp/sp_full/self_play_{baseline,persistent}.json` + `selfplay_rmm_matrix.json` (synthetic mfg, no
+corpus).
