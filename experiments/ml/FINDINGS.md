@@ -1123,3 +1123,21 @@ temporal arm (overall ROC 0.623→0.649, TransactionBurst 0.55→0.71); **#10(b)
 (RF transfers, non-degenerate, across all 6 clients); **#10(a)** rung-2-in-detector (null — confirms
 C-3). Core backlog exhausted. Optional deepenings (not yet done): #8 relational flow-graph-neighbour
 CoA classification; #9 full Kalman state-space over G(t).
+
+## 28. Research log — #8 deepening: relational-neighbour CoA classification (2026-05-29, autoloop)
+
+Tests whether account-type is more identifiable from an account's flow-graph NEIGHBOURS (which
+accounts it co-occurs with) than from its own aggregate stats (§24 ceiling ~0.40). Built the JE
+co-occurrence matrix → log-weight + TruncatedSVD(24) → per-account neighbour embedding
+(account2vec); supervised RF-CV 5-class on the relational GL (319 accounts):
+- aggregate features: 0.395 (= §24 baseline).
+- neighbour embedding alone: 0.292 (weaker alone).
+- **combined: 0.439 — the best yet (+0.044 over aggregate)**.
+
+**Finding: the relational-neighbour profile carries COMPLEMENTARY type signal** — combined with the
+aggregate flow/balance features it lifts the fine 5-class ceiling 0.40 → 0.44, the highest so far.
+But the lift is modest and 5-class stays hard (neighbour per-type recall: asset 0.39, liability 0.30,
+expense 0.28, revenue 0.18, equity 0.00) — the synthetic account types are only weakly distinct
+relationally beyond nature. The relational lever is directionally confirmed (real added signal) but
+does not crack fine-type to a useful level on this GL. Nature reconstruction (94.7%) remains the
+robust CoA-from-cube deliverable. Reproducible: `inverse_audit.coa_neighbour`.
