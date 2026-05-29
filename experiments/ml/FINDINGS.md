@@ -1041,3 +1041,26 @@ an account's type from its flow-graph NEIGHBOURS (revenue pairs with AR, expense
 than aggregate stats (methodology-paper account-flow-graph → classification); a possible future
 return. Deliverable: nature-level CoA reconstruction (94.7%) + an honest fine-type identifiability
 bound. Pivoting the loop to #9. Reproducible: `inverse_audit.coa_reconstruct`.
+
+## 25. Research log — #9 CUSUM change-detection over G(t) (2026-05-29, autoloop)
+
+Increment on #9: added a two-sided CUSUM change statistic over each account's weekly-activity
+series (the grey-box "innovations over G(t)" first rung) — to catch sustained level shifts the
+C-2 point-spike burst feature misses. RF-CV (base / +burst / +cusum) on the relational GL:
+- overall: 0.252/0.623 → 0.270/0.642 → **0.271/0.649** (cusum adds a small overall lift).
+- per-family ROC (base / +burst / +cusum):
+  - TransactionBurst    0.546 / 0.628 / **0.707**  (cusum +0.079 — a sustained burst IS a level shift)
+  - CentralityAnomaly   0.641 / 0.658 / **0.687**  (cusum +0.029)
+  - CircularTransaction 0.554 / 0.591 / **0.606**
+  - UnusualTiming       0.556 / 0.641 / 0.638
+  - UnusualFrequency    0.587 / 0.638 / 0.605      (cusum slightly hurts)
+  - TrendBreak          0.618 / 0.493 / 0.468      (temporal features HURT it)
+
+**Findings:** CUSUM change-detection adds clear value for the burst / centrality / cyclic families
+and lifts the overall temporal arm (ROC 0.623→0.649). But TrendBreak (n=9) is *best served by the
+structural features alone* — the temporal features (burst then cusum) only add noise for it
+(0.618→0.49→0.47), and its tiny n makes any per-family estimate high-variance. So the CUSUM rung
+is a net positive but does NOT solve TrendBreak — that family's signal is structural, not in
+account-activity dynamics. #9 first rung delivered (CUSUM); the heavier Kalman state-space
+(per-account/edge filtered level + innovation residual) is the deeper follow-on. Deployable
+temporal feature set = burst + cusum. Reproducible: `inverse_audit.relational.temporal_features`.

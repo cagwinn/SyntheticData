@@ -53,7 +53,26 @@ def temporal_features(df: pd.DataFrame) -> pd.DataFrame:
         mad = order["mad"].iloc[0]
         trend_map[acct] = float((late - early) / max(mad, 1e-9))
 
-    # per-JE: week + touched accounts → max burst, max |trend|
+    # per-account CUSUM change statistic (two-sided, on standardised weekly counts) — the
+    # grey-box "innovations over G(t)" rung: detects sustained level shifts (TrendBreak) that
+    # the point-spike burst feature misses. S+_t=max(0,S+_{t-1}+z_t-K), S-_t=max(0,S-_{t-1}-z_t-K).
+    cusum_map: dict[tuple[str, str], float] = {}
+    K = 0.5  # slack ≈ half a std
+    for acct, g in aw.groupby("gl_account"):
+        order = g.assign(wi=g["week"].map(wk_idx)).sort_values("wi")
+        x = order["cnt"].to_numpy().astype(float)
+        if len(x) < 3:
+            for w in order["week"]:
+                cusum_map[(acct, w)] = 0.0
+            continue
+        z = (x - x.mean()) / (x.std() + 1e-9)
+        sp = sm = 0.0
+        for zi, w in zip(z, order["week"]):
+            sp = max(0.0, sp + zi - K)
+            sm = max(0.0, sm - zi - K)
+            cusum_map[(acct, w)] = float(max(sp, sm))
+
+    # per-JE: week + touched accounts → max burst, max |trend|, max cusum
     je_week = d.groupby("document_id")["week"].first().to_dict()
     je_accts = d.groupby("document_id")["gl_account"].apply(set).to_dict()
     rows = []
@@ -61,7 +80,8 @@ def temporal_features(df: pd.DataFrame) -> pd.DataFrame:
         w = je_week.get(je)
         b = max((burst_map.get((a, w), 0.0) for a in accts), default=0.0)
         t = max((abs(trend_map.get(a, 0.0)) for a in accts), default=0.0)
-        rows.append({"je_id": str(je), "acct_burst_max": b, "acct_trend_max": t})
+        c = max((cusum_map.get((a, w), 0.0) for a in accts), default=0.0)
+        rows.append({"je_id": str(je), "acct_burst_max": b, "acct_trend_max": t, "acct_cusum_max": c})
     out = pd.DataFrame(rows).set_index("je_id")
     return out
 
@@ -87,7 +107,7 @@ def main(argv: list[str] | None = None) -> None:
     sc = pd.read_parquet(a.scores)
     sc["je_id"] = sc["je_id"].astype(str) if "je_id" in sc.columns else sc.index.astype(str)
     sc = sc.set_index("je_id") if "je_id" in sc.columns else sc
-    j = sc.join(tf, how="left").fillna({"acct_burst_max": 0.0, "acct_trend_max": 0.0})
+    j = sc.join(tf, how="left").fillna({"acct_burst_max": 0.0, "acct_trend_max": 0.0, "acct_cusum_max": 0.0})
     if a.out:
         j.reset_index().to_parquet(a.out)
 
@@ -97,26 +117,29 @@ def main(argv: list[str] | None = None) -> None:
         from sklearn.metrics import average_precision_score, roc_auc_score
         y = j["is_anomaly_je"].fillna(False).astype(int).to_numpy()
         zc = [c for c in j.columns if c.endswith("_z")]
-        tcols = ["acct_burst_max", "acct_trend_max"]
+        burst_cols = ["acct_burst_max", "acct_trend_max"]
+        cusum_cols = burst_cols + ["acct_cusum_max"]
         def rfcv(cols):
             X = j[cols].fillna(0).to_numpy()
             p = cross_val_predict(RandomForestClassifier(n_estimators=400, class_weight="balanced_subsample",
                                   n_jobs=-1, random_state=0), X, y, cv=5, method="predict_proba")[:, 1]
             return p
-        p_base, p_temp = rfcv(zc), rfcv(zc + tcols)
+        p_base, p_burst, p_cusum = rfcv(zc), rfcv(zc + burst_cols), rfcv(zc + cusum_cols)
         at = j["anomaly_type"]; nrm = ~y.astype(bool)
+        ap_, rc_ = average_precision_score, roc_auc_score
         def per(s, fam):
             isf = (at == fam).fillna(False).to_numpy()
             if isf.sum() < 5: return None
             m = isf | nrm
-            return round(roc_auc_score(isf[m].astype(int), s[m]), 3)
-        print(f"RF-CV overall:  base {average_precision_score(y,p_base):.4f}/{roc_auc_score(y,p_base):.3f}"
-              f"   +temporal {average_precision_score(y,p_temp):.4f}/{roc_auc_score(y,p_temp):.3f}")
-        print("per-family ROC (base / +temporal):")
+            return round(rc_(isf[m].astype(int), s[m]), 3)
+        print(f"RF-CV overall:  base {ap_(y,p_base):.4f}/{rc_(y,p_base):.3f}"
+              f"   +burst {ap_(y,p_burst):.4f}/{rc_(y,p_burst):.3f}"
+              f"   +cusum {ap_(y,p_cusum):.4f}/{rc_(y,p_cusum):.3f}")
+        print("per-family ROC (base / +burst / +cusum):")
         for fam in _TEMPORAL_FAMS:
-            b, t = per(p_base, fam), per(p_temp, fam)
+            b = per(p_base, fam); bu = per(p_burst, fam); cu = per(p_cusum, fam)
             if b is not None:
-                print(f"  {fam:24s} {b:.3f} / {t:.3f}")
+                print(f"  {fam:24s} {b:.3f} / {bu:.3f} / {cu:.3f}")
 
 
 if __name__ == "__main__":
