@@ -769,3 +769,140 @@ honest read of the round is that the architectural cost is now greater than the
 single-time cost of building the **shared concentration abstraction** the next round
 is designed around (spec: `docs/superpowers/specs/2026-05-23-central-abstraction-
 proposal.md`).
+
+## 16. Tier A1 — re-measuring the OOD gap after ConcentrationPass (2026-05-29)
+
+The #143 ConcentrationPass central abstraction (source-conditional rarity, trading-partner
+pool, account-pair substitution vs a corpus PMF, source blanking, consolidation outlier)
+landed on `main` after the §6 "closing lines-per-JE alone doesn't make the corpus
+identifiable" result. Tier A1 asks: does the wider manifold now contain the corpus?
+
+Setup (A10 VM): two SBI campaigns sharing one θ prior (`fraud.fraud_rate`, `amount_mu`,
+`amount_sigma`), 1500 sims each, identical except `concentration.enabled` — OFF vs ON
+(all six passes; `account_pair_substitution` against a 584-source / 66k-pair corpus PMF
+built by the vectorized `emit_pmf_fast.py`). Train the amortized posterior on each, apply
+to the pooled-corpus 29-dim summary x (45 clients / ~21M JEs) + a training-free
+Mahalanobis probe of corpus-x → synth-cloud.
+
+**Result — the corpus posterior stays a degenerate Dirac under BOTH arms** (collapse to
+prior corners, zero-width CIs): fraud_rate 0.000, amount_mu 3.000, amount_sigma 2.600 (OFF)
+/ 2.594 (ON). ConcentrationPass does not move the corpus onto the SBI manifold.
+
+**Decomposition — where the OOD lives:**
+- Full-vector Mahalanobis (OFF 14383 / ON 15447) is dominated by a **posting-lag artifact**:
+  corpus lag_std ≈ 8353 days, lag_mean ≈ −1620 days (z ≈ 1e4) vs synth ~1.4 / 0.1 —
+  sentinel/placeholder effective-dates or genuine multi-year accrual gaps. Concentration-
+  irrelevant; clip/exclude for any SBI-on-corpus probe (data semantics, not a fidelity lever).
+- On the **concentration-relevant subspace** (source/gl/lpje) ON is still not closer
+  (maha 86 → 108), but per-feature it is informative:
+  - `account_pair_substitution` moved GL-account structure toward corpus — gl_n_log
+    4.80→5.62, gl_top5_share 0.564→0.490, gl_entropy 3.16→3.71 (all correct direction).
+  - `source_blanking` pushed source entropy the WRONG way (2.85→2.79; corpus 3.91 is
+    higher) by concentrating mass on the blank category.
+  - `consolidation_outlier` @0.001 was far too rare to touch corpus lpje_std=99.6 (synth 35).
+- Irreducible gaps: **scale** (gl_n_log ⇒ ~122 synth accounts vs ~15,600 corpus; line-count
+  tail) and **data semantics** (lag) — neither addressed by #143.
+- Both flows overfit (val_nll diverged to +5.8/+3.8; the saved model is the early-epoch
+  best), but the corpus collapse is an OOD-input effect independent of that.
+
+**Conclusion.** The global SBI posterior is the wrong tool at corpus scale: an amortized
+posterior trained on small/feasible campaign GLs collapses on scale + semantics when
+applied to enterprise GLs (15k accounts, millions of lines), before structural fidelity
+registers. This is precisely why the **relational fit-on-self residual (Stage 2, §13)
+already works** — it fits on the corpus's own scale and sidesteps the SBI OOD entirely.
+Tier-A verdict: stop investing in the global-SBI arm for corpus use; the label-free
+relational residual + detector depth (Tier B) is the productive path. Aggregate artifacts
+(`ood_probe.json`, `recovered_{off,on}.json`) archived at
+`~/DEV/local-artifacts/inverse_audit_tierA/`.
+
+## 17. Tier A2 — does corpus-realism (ConcentrationPass) preserve detection? (2026-05-29)
+
+A1 showed the global SBI arm can't reach corpus scale. A2 asks the complementary question
+for the *detector*: if we sharpen the synthetic normal manifold toward corpus realism (the
+six #143 passes), does the unified routed detector's labelled-anomaly PR-AUC hold? Same
+labelled mixed GL (healthcare/medium, fraud_rate 0.04 + anomaly 0.06, seed 7) generated with
+concentration OFF (= §12 baseline) vs ON, scored by the three-arm unified detector. OFF
+reproduces §12 (vs is_any unified 0.375/0.655; vs is_fraud density 0.697/0.912).
+
+| target | arm | OFF (PR-AUC/ROC) | ON (PR-AUC/ROC) |
+|---|---|---|---|
+| is_fraud   | density    | 0.697 / 0.912 | **0.697 / 0.907** |
+| is_fraud   | unified    | 0.668 / 0.916 | 0.688 / 0.907 |
+| is_anomaly | relational | 0.137 / 0.544 | **0.102 / 0.532** |
+| is_any     | unified    | 0.375 / 0.655 | **0.343 / 0.633** |
+
+**Findings:**
+- **Per-JE fraud detection (density) is robust to corpus realism** — PR-AUC identical (0.697),
+  ROC flat (0.912→0.907). Sharpening the manifold toward corpus marginals does not degrade
+  the strongest arm; realism ≠ noise for the density residual.
+- **The relational arm degrades under ConcentrationPass** — is_anomaly relational 0.137→0.102,
+  is_any unified 0.375→0.343 — and the drop is *understated* because the ON GL has more
+  labelled positives (is_any n_pos 1151→1238, which raises the PR-AUC base rate). Mechanism:
+  the passes inject structure the account-flow residual reads as unusual —
+  `account_pair_substitution` writes out-of-CoA corpus accounts (165-account WARN),
+  `consolidation_outlier` adds bridge-account JEs — raising the residual floor and diluting
+  separation from the injected relational anomalies.
+
+**Conclusion + Tier-A synthesis.** Concentration realism is not a free lunch for the
+relational detector: the levers that improve marginal fidelity (A1: gl features toward corpus)
+bolt structural oddities onto an otherwise-clean base, which the relational residual conflates
+with anomalies. This aligns with A1: **for the relational detector, fit-on-self on the real
+corpus (Stage 2, §13) is the right deployment** — the corpus carries these structures natively
+and consistently, so the residual calibrates against them instead of treating bolted-on
+synthetic versions as anomalies. Tier A overall: (i) the global SBI posterior is the wrong
+tool at corpus scale; (ii) concentration-realism preserves per-JE fraud but degrades the
+relational arm ⇒ invest in the **label-free relational fit-on-self residual + Tier-B detector
+depth** (close the hard families, break the z-sum plateau), validated on the corpus directly,
+not on synthetic-with-concentration. Artifacts at `~/DEV/local-artifacts/inverse_audit_tierA/`.
+
+## 18. Tier B — closing the hard relational families + breaking the z-sum plateau (2026-05-29)
+
+§12 left the relational arm plateaued: the unsupervised z-sum reaches PR-AUC ~0.21 /
+ROC ~0.55, with the hard families (NewCounterparty, MissingRelationship, UnusualAccountPair,
+Circular*, TransferPricing) stuck near random. Tier B attacks this two ways.
+
+**(a) Hand-engineered features — NULL.** Added `centrality_delta_max` (test-graph PageRank −
+normal PageRank; for CentralityAnomaly) and `tp_account_source_novelty` ((tp,account,source)
+triple novelty; for NewCounterparty/MissingRelationship). Both failed: the triple novelty
+NEVER fires (the injector reuses existing tp/account/source combos in a single-company GL →
+test triples ⊆ normal), and `centrality_delta_max` scores 0.533 on CentralityAnomaly — below
+the incumbent `centrality_max` (0.586). The LR-CV ceiling was unchanged (0.214/0.598). The
+hard families' signal is not in any single new per-JE graph observable.
+
+**(b) The plateau IS breakable — by nonlinear supervision, not new features.** A RandomForest
+over the EXISTING relational features (trainable because DataSynth supplies the labels) reaches
+RF-CV 0.252/0.623 — above the linear LR ceiling (0.214/0.598) and the unsupervised sum
+(0.211/0.547) — lifting every hard family above random. The lift is driven by
+`source_cond_edge_surprise_max` (RF importance 0.41) and `coupling_entropy` (0.17) — the latter
+anti-correlated as a single feature (ROC 0.468, hence excluded from the unsupervised sum) but
+valuable in nonlinear interaction. The hand-features are dead weight (tri-novelty 0.00,
+centrality_delta 0.02).
+
+**Cross-GL transfer (deployability) + the hybrid.** Train the RF on one labelled relational GL
+(seed 7), apply to an unseen one (seed 23). The RF transfers and beats the unsupervised sum on
+every hard family; the unsupervised sum still wins on dormancy (which it nails at 0.999). The
+deployable detector is the HYBRID = rank-z-sum(unsupervised residual, RF):
+
+| metric | unsup | RF | hybrid |
+|---|---|---|---|
+| overall PR-AUC / ROC    | 0.234 / 0.566 | 0.152 / 0.624 | **0.288 / 0.631** |
+| DormantAccountActivity  | 0.999 | 0.904 | **0.999** |
+| MissingRelationship     | 0.480 | 0.619 | 0.588 |
+| CentralityAnomaly       | 0.474 | 0.619 | 0.580 |
+| TransferPricingAnomaly  | 0.519 | 0.614 | 0.608 |
+| NewCounterparty         | 0.533 | 0.562 | **0.584** |
+| UnusualAccountPair      | 0.508 | 0.565 | 0.574 |
+| CircularTransaction     | 0.439 | 0.586 | 0.523 |
+
+The hybrid keeps dormancy perfect, lifts every hard family above the unsupervised baseline,
+and improves overall PR-AUC +23%. It deploys WITHOUT test labels (train the RF once on
+synthetic labelled relational GLs; the per-GL z-normalized features generalize cross-GL),
+which sidesteps the A1 SBI-OOD problem (fit-on-self features, not a scale-bound global posterior).
+
+**Conclusion.** The §12 plateau was an artifact of the unsupervised additive combination, not a
+signal ceiling. The hard families are weakly learnable by a DataSynth-label-trained nonlinear
+model that transfers across GLs — the discriminative complement to the generative residual,
+exactly the "DataSynth powers both" thesis, now demonstrated for the relational families. None
+are "solved" (0.55–0.62, vs dormancy's 0.999); the residual gap needs cross-JE / temporal
+observability (a sequence/state-space model over the JE stream) — Tier C. Reproducible:
+`inverse_audit.relational.rf_arm` (model `rf_arm.joblib`, result `rf_arm_transfer.json`).

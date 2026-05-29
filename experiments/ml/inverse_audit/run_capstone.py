@@ -32,6 +32,8 @@ def main(argv: list[str] | None = None) -> None:
     ap.add_argument("--complexity", default="medium")
     ap.add_argument("--fraud-rate", type=float, default=0.04)
     ap.add_argument("--anomaly-rate", type=float, default=0.06)
+    ap.add_argument("--concentration", default=None,
+                    help="PMF path → enable #143 ConcentrationPass (A2 corpus-realism)")
     ap.add_argument("--seed", type=int, default=7)
     ap.add_argument("--skip-generate", action="store_true",
                     help="reuse existing normal/ + test/ under --root")
@@ -40,13 +42,15 @@ def main(argv: list[str] | None = None) -> None:
     R.mkdir(parents=True, exist_ok=True)
 
     if not a.skip_generate:
-        sh("inverse_audit.generate_mixed",
-           "--out", str(R),
-           "--industry", a.industry,
-           "--complexity", a.complexity,
-           "--fraud-rate", str(a.fraud_rate),
-           "--anomaly-rate", str(a.anomaly_rate),
-           "--seed", str(a.seed))
+        gen_args = ["--out", str(R),
+                    "--industry", a.industry,
+                    "--complexity", a.complexity,
+                    "--fraud-rate", str(a.fraud_rate),
+                    "--anomaly-rate", str(a.anomaly_rate),
+                    "--seed", str(a.seed)]
+        if a.concentration:
+            gen_args += ["--concentration", a.concentration]
+        sh("inverse_audit.generate_mixed", *gen_args)
 
     # density + relational + unified + observability map (unified_score shells out to both arms)
     sh("inverse_audit.unified_score", "--root", str(R), "--out", str(R / "unified.json"))

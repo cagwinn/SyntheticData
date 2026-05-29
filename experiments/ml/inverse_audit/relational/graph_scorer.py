@@ -37,8 +37,18 @@ _LOG_EPS = 30.0
 _SCORE_FEATURES = ("edge_surprise_max", "edge_surprise_w",
                    "tp_account_novelty", "account_dormancy_max",
                    "cycle_novelty", "source_cond_edge_surprise_max")
+# Tier-B candidate features — computed + per-feature ROC + LR-CV, but NOT in the
+# deployable sum yet. Promote to _SCORE_FEATURES only if per-feature ROC is positive
+# (v2 lesson: null features dilute the unweighted sum).
+#   centrality_delta_max      : max over touched accounts of (test_PR - normal_PR), >=0 —
+#                               an account that became MORE central in test (CentralityAnomaly)
+#   tp_account_source_novelty : count of (tp, account, source) TRIPLES new vs normal —
+#                               source context sharpens the (tp, account) pair for the
+#                               NewCounterparty / MissingRelationship families
+_CANDIDATE_FEATURES = ("centrality_delta_max", "tp_account_source_novelty")
 # all features computed (for per-feature ROC reporting / LR-CV)
-_ALL_FEATURES = _SCORE_FEATURES + ("back_edge", "centrality_max", "tp_novelty", "coupling_entropy")
+_ALL_FEATURES = (_SCORE_FEATURES + _CANDIDATE_FEATURES
+                 + ("back_edge", "centrality_max", "tp_novelty", "coupling_entropy"))
 
 
 def _load_lines(d: Path) -> pd.DataFrame:
@@ -116,9 +126,20 @@ def fit_graph_manifold(normal_df: pd.DataFrame) -> dict:
     tp_set: set[str] = set()
     if "trading_partner" in normal_df.columns:
         tp_set = set(normal_df["trading_partner"].dropna().astype(str).unique())
+    je_tp_acc = _je_tp_accounts(normal_df)
     tp_acc_set: set[tuple[str, str]] = set()
-    for pairs in _je_tp_accounts(normal_df).values():
+    for pairs in je_tp_acc.values():
         tp_acc_set.update(pairs)
+    # (tp, account, source) triples in normal — source context for the NewCounterparty /
+    # MissingRelationship families (tp_account_source_novelty candidate).
+    tp_acc_src_set: set[tuple[str, str, str]] = set()
+    if "source" in normal_df.columns:
+        _je_src0 = (normal_df.groupby("document_id", sort=False)["source"]
+                             .first().astype(str).to_dict())
+        for je_id, pairs in je_tp_acc.items():
+            src = str(_je_src0.get(je_id, "nan"))
+            for (t, a) in pairs:
+                tp_acc_src_set.add((t, a, src))
     # per-account JE count in normal (for dormancy proxy)
     acc_count: dict[str, int] = {}
     if "gl_account" in normal_df.columns:
@@ -145,7 +166,8 @@ def fit_graph_manifold(normal_df: pd.DataFrame) -> dict:
             t = sum(edges.values()) or 1.0
             edge_p_by_source[src] = {k: v / t for k, v in edges.items()}
     return {"edge_p": edge_p, "pagerank": pr, "tp_set": tp_set,
-            "tp_acc_set": tp_acc_set, "acc_count": acc_count,
+            "tp_acc_set": tp_acc_set, "tp_acc_src_set": tp_acc_src_set,
+            "acc_count": acc_count,
             "normal_scc_set": normal_scc_set,
             "edge_p_by_source": edge_p_by_source,
             "n_normal_jes": len(per)}
@@ -153,9 +175,11 @@ def fit_graph_manifold(normal_df: pd.DataFrame) -> dict:
 
 def score_je(flows, je_tp: list[str] | None,
              je_tp_acc_pairs: set[tuple[str, str]] | None,
-             manifold, je_source: str | None = None) -> dict:
+             manifold, je_source: str | None = None,
+             test_pr: dict | None = None) -> dict:
     edge_p = manifold["edge_p"]; pr = manifold["pagerank"]
     tp_set = manifold["tp_set"]; tp_acc_set = manifold["tp_acc_set"]
+    tp_acc_src_set = manifold.get("tp_acc_src_set", set())
     acc_count = manifold["acc_count"]
     edge_p_by_src = manifold.get("edge_p_by_source", {})
     src_p = edge_p_by_src.get(str(je_source), {}) if je_source else {}
@@ -174,8 +198,11 @@ def score_je(flows, je_tp: list[str] | None,
         if src_p:
             ps = src_p.get((s, d), _EPS)
             src_sur.append(min(-np.log(ps), _LOG_EPS))
+    cdelta = 0.0
     for a in accts:
         cmax = max(cmax, pr.get(a, 0.0))
+        if test_pr is not None:
+            cdelta = max(cdelta, float(test_pr.get(a, 0.0)) - float(pr.get(a, 0.0)))
     sur_a = np.asarray(sur); w_a = np.asarray(wts)
     novel_tp = 0
     if je_tp and tp_set:
@@ -185,6 +212,13 @@ def score_je(flows, je_tp: list[str] | None,
         novel_pair = sum(1 for p in je_tp_acc_pairs if p not in tp_acc_set)
     elif je_tp_acc_pairs:    # normal has no tp dimension => count all as novel
         novel_pair = len(je_tp_acc_pairs)
+    novel_triple = 0
+    if je_tp_acc_pairs and tp_acc_src_set:
+        _src = str(je_source)
+        novel_triple = sum(1 for (t, a) in je_tp_acc_pairs
+                           if (t, a, _src) not in tp_acc_src_set)
+    elif je_tp_acc_pairs and je_source is not None:
+        novel_triple = len(je_tp_acc_pairs)
     # Dormancy proxy = IDF of touched accounts: log(N_total_account_activity / (account_count + 1)).
     # High when the account is rarely touched in normal => dormant-ish. Per-JE: max over accounts.
     n_acc = max(sum(acc_count.values()), 1)
@@ -199,6 +233,8 @@ def score_je(flows, je_tp: list[str] | None,
             "tp_account_novelty": int(novel_pair),
             "account_dormancy_max": dorm_max,
             "source_cond_edge_surprise_max": float(max(src_sur)) if src_sur else 0.0,
+            "centrality_delta_max": float(cdelta),
+            "tp_account_source_novelty": int(novel_triple),
             "coupling_entropy": 0.0,            # filled by caller from ot_flow
             "n_edges": len(flows)}
 
@@ -234,6 +270,7 @@ def score_df(df: pd.DataFrame, manifold) -> pd.DataFrame:
             df_edge_w[(s, d)] = df_edge_w.get((s, d), 0.0) + w
     df_scc = _scc_set(df_edge_w)
     new_scc_accts = df_scc - manifold.get("normal_scc_set", set())
+    df_pr = _pagerank(df_edge_w)   # test-graph PageRank for centrality_delta
 
     tps = _je_tps(df)
     tp_accs = _je_tp_accounts(df)
@@ -247,7 +284,7 @@ def score_df(df: pd.DataFrame, manifold) -> pd.DataFrame:
     rows = []
     for je_id, (flows, h) in per.items():
         f = score_je(flows, tps.get(je_id), tp_accs.get(je_id),
-                     manifold, je_source=je_src.get(je_id))
+                     manifold, je_source=je_src.get(je_id), test_pr=df_pr)
         f["je_id"] = je_id
         f["coupling_entropy"] = h
         accts = {s for s, d, _ in flows} | {d for s, d, _ in flows}

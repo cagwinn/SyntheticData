@@ -41,7 +41,10 @@ def main(argv: list[str] | None = None) -> None:
         amt = c["distributions"].setdefault("amounts", {})
         amt["enabled"] = True
         amt["distribution_type"] = "log_normal"
-        amt.setdefault("components", [{"weight": 1.0, "mu": 7.0, "sigma": 1.2, "label": "base"}])
+        # Force (not setdefault): `init` now emits `components: []`, which fails
+        # `validate` ("components cannot be empty when enabled"). simulate.py
+        # overrides this per-θ anyway, but keep the bare base valid.
+        amt["components"] = [{"weight": 1.0, "mu": 7.0, "sigma": 1.2, "label": "base"}]
     c.setdefault("global", {})["period_months"] = 1
 
     a.out.write_text(yaml.safe_dump(c))
