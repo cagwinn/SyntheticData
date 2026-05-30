@@ -1354,3 +1354,52 @@ DataSynth sim → residual detector (P1) → cortex ISA-315 (P2) → temporal se
 RMM (P3.1) → adaptive detection-vs-evasion equilibrium (P3.2). Next research: relocation-invariant
 (archetype-level) audit memory; corpus transfer of the label-free arm; the rung-2 OT within-JE
 reconstruction on the GPU substrate.
+
+## 35. Substrate P3.3 — beating the relocating adversary: persistence, not generalisation (2026-05-30)
+
+P3.2 left the adversary one winning move — flee to un-watched HIGH-volume accounts. The obvious
+counter is "make the carried belief RELOCATION-INVARIANT: key it on the account CLASS (the fraud's
+MO) instead of the account code, so switching accounts within the class doesn't reset the prior."
+`inverse_audit/selfplay_invariant.py` builds it (the `Auditor` machinery is generic over its key-map,
+so node memory passes je→accounts and class memory passes je→[account_class]; the adversary's heat
+sensor matches the auditor's granularity, so against class memory it sees its whole class lit up and
+finds no fresh in-class hideout). The adversary hides in a single class (A.F, 11 accounts), highvol
+evasion, 12 fresh periods. Four arms: static/node (ceiling), adaptive/node (the evadable P3.2
+auditor), adaptive/ARCHETYPE (class memory), adaptive/memoryless (floor).
+
+**Result 1 — class-keyed "relocation-invariant" memory FAILS** (the intuitive fix is wrong). At
+EVERY auditor-persistence λ ∈ {0.15..0.8}, class (and sub-class) memory sits flat at ~0.068 recall —
+on the memoryless FLOOR. Keying on the accounting class is too COARSE: the class is touched by far
+more JEs than the adversary's fraud, so boosting it floods the 5 % investigation budget with the
+whole class. The bad-actor PR-AUC does double (0.006 → 0.014 — the ranking signal is real) but stays
+far too weak to clear a tight budget against residual-detectable background fraud.
+
+**Result 2 — the effective counter is PERSISTENCE, not generalisation.** Slow-decay node memory
+(low EWMA λ) accumulates the adversary's TRAIL — it never forgets a past hideout — and in a finite
+pool that corners the adversary as it burns through its hiding spots. The node evasion gap
+(static − adaptive recall) across 12 periods:
+
+```
+  λ (auditor decay)   0.15    0.2     0.35    0.5     0.8
+  node evasion gap   −0.005  −0.007  +0.010  +0.020  −0.001     (+ = evasion wins; − = auditor corners)
+```
+
+At λ ≈ 0.2 the gap goes NEGATIVE — the persistent auditor beats even its own static ceiling
+(adaptive/node 0.110 vs ceiling 0.103, vs the 0.069 floor). The cornering is a clear temporal climb:
+at λ 0.2 the adaptive/node recall rises from 0.063 (rounds 1–4, evasion working) to 0.145 (rounds
+8–11, +0.082) as the adversary makes its 6th relocation and exhausts the pool while slow memory holds
+every prior hideout lit. The vulnerable regime is MID λ (0.5, gap +0.020): the auditor forgets fast
+enough that the adversary can cycle back to cooled accounts.
+
+**The lesson (counterintuitive, actionable):** to beat a relocating adversary, make the auditor's
+memory PERSISTENT (don't forget past hideouts) — NOT coarser (don't generalise to the accounting
+class). Generalisation dilutes; persistence accumulates the trail. A genuinely fraud-SPECIFIC
+relocation invariant — the colluding COUNTERPARTY node, a single account every fraud JE shares
+regardless of booking-account moves — would be the tightest counter, but demonstrating it needs an
+adversary model with an explicit fixed beneficiary (injected fraud edges), beyond this relabel-overlay;
+that is the next modelling step. Artifacts: `inverse_audit/selfplay_invariant.py`; runs
+`/tmp/sp_inv/invariant_lam{0.2_corner,0.5_evasion}.json` (synthetic mfg, no corpus).
+
+**P3 fully closed (P3.1 loop + P3.2 equilibrium + P3.3 the relocation counter).** Open research:
+counterparty-node (fraud-specific) invariant memory; corpus transfer of the label-free arm; rung-2 OT
+within-JE reconstruction on the GPU substrate.

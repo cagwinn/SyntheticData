@@ -63,24 +63,28 @@ class AdaptiveAdversary:
         chosen = set(cand[: int(self.rate * len(cand))])
         return j["je_id"].isin(chosen).to_numpy()
 
-    def observe_and_relocate(self, auditor: Auditor) -> int:
-        """Flee active accounts the auditor now watches (prior above pool median) to the
-        freshest (lowest-prior) un-used pool accounts. Returns #relocations this round."""
+    def observe_and_relocate(self, auditor: Auditor, heat_fn=None) -> int:
+        """Flee active accounts the auditor now watches (heat above pool median) to the
+        freshest (lowest-heat) un-used pool accounts. `heat_fn(account)->float` reports the
+        auditor's attention on an account AT THE AUDITOR'S OWN GRANULARITY (account-code for
+        node memory; the account's CLASS for relocation-invariant memory — so an adversary
+        facing class memory sees its whole class lit up and finds no fresh in-class hideout).
+        Defaults to the node-level carried prior. Returns #relocations this round."""
         if not self.evasion:
             return 0
-        prior = auditor.prior
-        pp = sorted(prior.get(a, 0.0) for a in self.pool)
+        heat = heat_fn if heat_fn is not None else (lambda a: auditor.prior.get(a, 0.0))
+        pp = sorted(heat(a) for a in self.pool)
         med = pp[len(pp) // 2] if pp else 0.0
-        burned = [a for a in self.active if prior.get(a, 0.0) > max(med, 1e-9)]
+        burned = [a for a in self.active if heat(a) > max(med, 1e-9)]
         if not burned:
             return 0
         fresh_pool = [a for a in self.pool if a not in self.active]
         if self.strategy == "highvol":
-            # blend into volume: among the un-watched (prior <= median), prefer HIGHEST volume
-            cool = [a for a in fresh_pool if prior.get(a, 0.0) <= med]
+            # blend into volume: among the un-watched (heat <= median), prefer HIGHEST volume
+            cool = [a for a in fresh_pool if heat(a) <= med]
             avail = sorted(cool or fresh_pool, key=lambda a: (-self.df.get(a, 0), a))
         else:                              # 'coldest' — flee to the least-watched account
-            avail = sorted(fresh_pool, key=lambda a: (prior.get(a, 0.0), a))
+            avail = sorted(fresh_pool, key=lambda a: (heat(a), a))
         moved = 0
         for b in burned:
             if avail:
