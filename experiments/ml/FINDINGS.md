@@ -1403,3 +1403,49 @@ that is the next modelling step. Artifacts: `inverse_audit/selfplay_invariant.py
 **P3 fully closed (P3.1 loop + P3.2 equilibrium + P3.3 the relocation counter).** Open research:
 counterparty-node (fraud-specific) invariant memory; corpus transfer of the label-free arm; rung-2 OT
 within-JE reconstruction on the GPU substrate.
+
+## 36. Substrate P3.3b — the counterparty-node invariant: relocation, decisively beaten (2026-05-30)
+
+P3.3 left the tightest counter unbuilt because the relabel-overlay couldn't express it: a fraud-
+SPECIFIC relocation invariant — the colluding COUNTERPARTY. `inverse_audit/selfplay_counterparty.py`
+models it directly. A realistic fraud has a fixed beneficiary: money always moves to/from the same
+account C, even as the fraudster varies the OTHER leg (the booking account B) to avoid a pattern. So
+every fraud JE shares the node C regardless of where B moves. Each period the adversary INJECTS
+synthetic fraud JEs {B_t, C}: a small `sloppy_frac`=0.15 are residual-detectable (they bootstrap the
+auditor's attention on C — a few careless entries or a tip), the rest are residual-INVISIBLE (scores
+drawn from the normal band — catchable ONLY via memory on the pinned C). B relocates under audit
+pressure (highvol); C is pinned. The counterparty fraud is ranked against the NORMAL background it
+hides in (the engine's residual-detectable anomalies are a separate, already-solved problem). 12
+periods. Arms: static/node (B fixed, ceiling), adaptive/node (B relocates, node memory sees C),
+adaptive/BLIND (B relocates, node memory but C EXCLUDED from the keys — the ablation), floor (memoryless).
+
+**Result — the counterparty endpoint DECISIVELY neutralises relocation.** Mean recall on the
+counterparty fraud (rounds ≥1): static/node **1.000**, adaptive/node **1.000**, adaptive/BLIND
+**0.038**, floor 0.140. The dynamics are crisp: round 0 catches only the sloppy 15 % (all arms 0.14,
+no memory yet); those confirm, the prior on C climbs **38 → 555**, and from round 1 node memory catches
+**100 %** of the counterparty fraud — EVEN AS THE BOOKING ACCOUNT RELOCATES EVERY PERIOD — because
+every fraud JE shares the pinned C. The BLIND ablation (C removed from the keys) collapses to 0.038 —
+*below the memoryless floor*: memory keyed on the relocating leg actively wastes budget on stale
+accounts. So +0.96 of the recovery is attributable, cleanly, to tracking the counterparty endpoint.
+
+**The dilution boundary — C must be DISTINCT.** Sweeping the counterparty's volume:
+
+```
+  C document-frequency   111    379    1,559   4,680
+  adaptive/node recall   1.000  0.516  0.147   0.133   (floor 0.140)
+```
+
+A distinct (low/mid-volume) counterparty is a sharp handle → full neutralisation; a ubiquitous one
+(touched by ~everything) provides no signal — boosting it just floods the budget with its own normal
+JEs → no better than memoryless. **This closes the loop to P3.2:** the adversary's ONLY escape from
+counterparty-tracking is to route fraud through a HIGH-VOLUME counterparty — i.e. *blend into volume*
+— which is the very same horn of the P3.2 dilemma (hide from memory OR blend into volume, not both).
+
+**The relocation-counter arc, complete.** Class memory (P3.3) is too coarse (fails); persistence
+(P3.3) corners only partially in a finite pool; the COUNTERPARTY-NODE invariant (P3.3b) is decisive
+when the beneficiary is distinct — and the residual+memory two-arm squeeze means the adversary's only
+evasion (a high-volume counterparty) lands it back in the residual's sights. The unifying law across
+P3.2–P3.3b: **a fraud cannot simultaneously be persistence-invisible (relocate), memory-invisible
+(no distinct shared endpoint), and residual-invisible (blend in volume) — the substrate's arms close
+off the corners pairwise.** Artifacts: `inverse_audit/selfplay_counterparty.py`; runs
+`/tmp/sp_inv/counterparty_{distinct_v120,ubiquitous_v6000}.json` (synthetic mfg, no corpus).
