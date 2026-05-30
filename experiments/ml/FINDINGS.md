@@ -1294,3 +1294,63 @@ responds to which accounts get watched → relocate to evade), measuring the det
 equilibrium. Artifacts: `inverse_audit/selfplay.py`, `inverse_audit/selfplay_rmm.py`; runs
 `/tmp/sp_full/self_play_{baseline,persistent}.json` + `selfplay_rmm_matrix.json` (synthetic mfg, no
 corpus).
+
+## 34. Substrate P3.2 — adaptive adversary: the detection-vs-evasion equilibrium (2026-05-30)
+
+True self-play (`inverse_audit/selfplay_adaptive.py`). The adversary holds a small `active` set of
+bad-actor accounts drawn from a hiding `pool` (mid-volume accounts), places residual-NORMAL fraud
+there (only memory can catch it), then OBSERVES the auditor's heat (the carried-forward prior) and
+FLEES any account the auditor now watches. The auditor is the P3.1 memory auditor. Three arms on
+identical worlds: `static_vs_memory` (adversary stays → auditor learns it, the ceiling),
+`adaptive_vs_memory` (the arms race), `adaptive_vs_memoryless` (the floor — no watch-list to flee,
+and the memoryless auditor can't catch residual-normal fraud). Headline = the EVASION GAP
+(static−adaptive recall on the bad actor): how much fleeing claws back. Generation+scoring is done
+once per period; the λ (auditor adaptation) and pool (hiding room) knobs apply to the scored frame,
+so a full phase grid reuses the 8 scored rounds (seconds per cell).
+
+**Two evasion strategies give opposite results — the deep finding.** Phase grid, mean recall on the
+bad actor (rounds ≥1), manufacturing/small, budget 5 %, β 3.0, 8 periods:
+
+```
+                 EVASION GAP (static − adaptive);  + = fleeing helps the adversary
+   pool→            6        12        24
+ coldest λ0.2    +0.008    −0.002    −0.021      coldest = flee to the LEAST-watched account
+ coldest λ0.5    −0.000    +0.001    −0.025      highvol = flee to un-watched but HIGHEST-volume
+ coldest λ0.8    +0.003    +0.004    −0.031
+ highvol λ0.2    +0.003    +0.006    +0.009
+ highvol λ0.5    +0.005    +0.008    +0.014
+ highvol λ0.8    +0.005    +0.011    +0.023
+```
+
+- **Naive evasion (flee to the coldest account) BACKFIRES at scale** (gap −0.02 to −0.03, pool 24):
+  the least-watched accounts are precisely the LOW-volume ones (they accumulate the least confirmed
+  exposure → lowest prior), and relocating the same fraud volume there makes it MORE conspicuous to
+  the residual (the floor rises 0.058 → 0.082). **You can hide from the auditor's memory or blend
+  into volume — not both.** The residual arm (catches volume-conspicuous fraud) and the memory arm
+  (catches persistence) cover each other's blind spots; a naive flee walks out of one into the other.
+- **Smart evasion (flee to un-watched HIGH-volume accounts) WORKS — partially.** Positive gap up to
+  +0.023, growing with hiding room (pool) and auditor aggressiveness (λ). Blending into volume while
+  dodging heat is the adversary's best response. **But it never escapes:** even at its best
+  (highvol, λ 0.8, pool 24) the memory auditor still scores 0.086 vs the 0.050 floor (+0.036) — the
+  adversary claws back ≈¼ of memory's gain, not all of it.
+
+**Equilibrium: auditor-favourable, graceful, not a knockout.** Against the best adaptive evasion the
+residual+memory substrate degrades smoothly (retains ~¾ of its memory advantage) rather than
+collapsing; the naive adversary it actively punishes. Across 18 phase cells the smart adversary's
+evasion gap stays bounded (≤ +0.023) and memory always beats the floor. The cost of the auditor's
+account-identity memory is that a volume-blending adversary can bound (not erase) its value by
+switching accounts.
+
+**The auditor's counter (→ P3.3 / future):** account-identity memory is dodgeable by switching
+accounts; make the carried belief RELOCATION-INVARIANT — key it on account-pair / archetype /
+counterparty structure rather than account code, so moving accounts doesn't reset the prior. That is
+the same finer-granularity refinement P3.1 flagged, now motivated game-theoretically: the adversary's
+only successful move (switch to a fresh high-volume account) is exactly what archetype-level memory
+would neutralise. Artifacts: `inverse_audit/selfplay_adaptive.py`; runs `/tmp/sp_adapt/adaptive_*.json`
+(coldest default, coldest-p24 backfire, highvol-p24 best-evasion) (synthetic mfg, no corpus).
+
+**P3 done (P3.1 loop + P3.2 adaptive-adversary equilibrium).** The substrate is complete end-to-end:
+DataSynth sim → residual detector (P1) → cortex ISA-315 (P2) → temporal self-play belief + methodology
+RMM (P3.1) → adaptive detection-vs-evasion equilibrium (P3.2). Next research: relocation-invariant
+(archetype-level) audit memory; corpus transfer of the label-free arm; the rung-2 OT within-JE
+reconstruction on the GPU substrate.
