@@ -1,0 +1,15 @@
+# Rung-2 OT within-JE reconstruction — GPU-VM evaluation dependencies.
+#
+# torch is the ONLY GPU-specific dependency; install the CUDA build from the PyTorch wheel index
+# matched to the VM's driver (cu121 shown — check `nvidia-smi`), e.g.:
+#     pip install torch --index-url https://download.pytorch.org/whl/cu121
+# The rest are the standard experiments-ml deps (the numpy backend + the scorers need them); the
+# numpy backend runs the identical batched Sinkhorn on CPU as the correctness / fallback path.
+torch>=2.1            # GPU batched Sinkhorn (ot_gpu backend="torch"); CUDA wheel — see note above
+numpy>=1.26
+pandas>=2.0
+scikit-learn>=1.3     # PR-AUC / ROC in ot_eval
+scipy>=1.11
+pyarrow>=14           # corpus parquet IO
+pyyaml>=6             # only if generating synthetic GLs via datasynth-data on the VM
+joblib>=1.3           # only if applying the rf_arm.joblib hybrid (Tier C-1)

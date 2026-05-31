@@ -1498,3 +1498,45 @@ core thesis — the productive arm is the label-free fit-on-self residual + memo
 global model — directly on corpus data. Artifacts: `inverse_audit/selfplay_corpus.py`; SHA-tagged
 per-client aggregates under `/tmp/corpus_sweep2/` (aggregate recalls + residual percentiles only; no
 client identity, paths, amounts, or row content).
+
+## 38. Rung-2 OT within-JE reconstruction — GPU-batched Sinkhorn + the GPU-VM eval package (2026-05-31)
+
+The GL stores only line marginals; the true debit↔credit pairing inside a multi-line JE is projected
+away into a transportation polytope. Rung-1 (`ot_flow`) reconstructs it with entropic OT (Sinkhorn)
+under a uniform cost; rung-2 (`ot_cost`) learns the cost from the unambiguous 2-line JEs (a 2-line JE
+IS a ground-truth `credit→debit` edge → `cost = -log P(credit→debit)`) and disambiguates the
+multi-line polytope. Both existed as numpy CPU prototypes. This round makes rung-2 GPU-scale and
+builds the evaluation package.
+
+**Built + validated (CPU):**
+- `relational/ot_gpu.py` — batched Sinkhorn (numpy + torch backends); `reconstruct_per_je_gpu` buckets
+  JEs by exact (m,n) shape and runs Sinkhorn as batched matrix products, a drop-in for
+  `ot_flow.reconstruct_per_je`. **Numpy-batched reproduces the per-JE reference to ≤ 1.2e-13**
+  (`--selftest`); the torch path mirrors the math via `bmm` (VM-validated by `--selftest --backend torch`).
+- `graph_scorer.fit_graph_manifold` / `score_df` gained a backward-compatible `recon_fn` hook to inject
+  the GPU reconstructor into the whole relational pipeline (default = numpy ot_flow).
+- `relational/ot_eval.py` — rung-1 vs rung-2 detector-impact (synthetic, labelled: PR-AUC per relational
+  family) + corpus aggregate (entropy distribution).
+- `relational/run_gpu_eval.py` + `requirements-gpu.txt` + `docs/.../2026-05-31-rung2-ot-gpu-eval-runbook.md`
+  — the single VM entrypoint (parity → 3-backend throughput → rung-1-vs-rung-2 entropy) and runbook.
+
+**Where rung-2 matters — scoped by the data.** On synthetic `manufacturing/small` (JEs ~2–6 lines)
+rung-2's detector impact is negligible (Δ coupling-entropy PR-AUC +0.0004, Δ relational PR-AUC −0.027,
+per-family ROC gains ±0.005) — **there is almost no within-JE pairing ambiguity to resolve** when JEs
+are tiny. The value appears at production scale: corpus JEs reach **p99 ≈ 184–194 lines, max 2,254–2,838
+lines** (nontrivial polytopes), and there rung-2 **reduces multi-line coupling entropy by ~4.5 %**
+(0.559 → 0.533) — the learned 2-line-edge cost resolves the multi-line pairing more confidently. So the
+rung-2 + GPU question is a CORPUS question, which is exactly what the VM package targets.
+
+**Why GPU.** The per-JE Sinkhorn is `O(m·n·iters)`; a 2,838-line JE is a 2,838² cost matrix × 400
+iters, and the large clients have 250k–714k JEs. On CPU the per-JE and numpy-batched paths are
+comparable (batching helps only as parallelism); the speedup is the torch backend batching exact-shape
+buckets on CUDA — measured by `run_gpu_eval`'s `gpu_speedup_vs_perje` on the VM. Marginals are satisfied
+exactly in every backend (balance preserved).
+
+**Status: rung-2 reconstruction is GPU-ready and the eval package is complete; the at-scale GPU run
+(parity, speedup, per-client rung-2 entropy reduction, optional synthetic detector-impact) is the
+VM step** — run per the runbook on an A10/A100, aggregate outputs only. Artifacts:
+`inverse_audit/relational/{ot_gpu,ot_eval,run_gpu_eval}.py`, `requirements-gpu.txt`, the runbook;
+local validation runs `/tmp/ot_eval_{syn,corpus}.json`, `/tmp/rung2_report.json` (synthetic mfg +
+corpus aggregate; no row content).

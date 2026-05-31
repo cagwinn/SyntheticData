@@ -113,10 +113,12 @@ def _je_tp_accounts(df: pd.DataFrame) -> dict[str, set[tuple[str, str]]]:
     return out
 
 
-def fit_graph_manifold(normal_df: pd.DataFrame, cost_fn=None) -> dict:
+def fit_graph_manifold(normal_df: pd.DataFrame, cost_fn=None, recon_fn=None) -> dict:
     """Per-edge frequency + PageRank + tp set + tp-account pair set + per-account count.
-    cost_fn (optional, rung-2): learned within-JE OT cost passed to the flow reconstruction."""
-    per = reconstruct_per_je(normal_df, cost_fn=cost_fn)
+    cost_fn (optional, rung-2): learned within-JE OT cost passed to the flow reconstruction.
+    recon_fn (optional): swap the per-JE reconstructor — e.g. ot_gpu.reconstruct_per_je_gpu (GPU
+    batched Sinkhorn) for corpus-scale; defaults to the numpy ot_flow.reconstruct_per_je."""
+    per = (recon_fn or reconstruct_per_je)(normal_df, cost_fn=cost_fn)
     edge_w: dict[tuple[str, str], float] = {}
     for _, (flows, _) in per.items():
         for s, d, w in flows:
@@ -260,8 +262,8 @@ def _je_tps(df: pd.DataFrame) -> dict[str, list[str]]:
     return out
 
 
-def score_df(df: pd.DataFrame, manifold, cost_fn=None) -> pd.DataFrame:
-    per = reconstruct_per_je(df, cost_fn=cost_fn)
+def score_df(df: pd.DataFrame, manifold, cost_fn=None, recon_fn=None) -> pd.DataFrame:
+    per = (recon_fn or reconstruct_per_je)(df, cost_fn=cost_fn)
     # Build the AGGREGATE flow graph of *this* df and find its SCCs; accounts in
     # non-trivial SCCs that are NOT in the normal manifold's SCC set are participating
     # in cycles that didn't exist in normal — the cycle_novelty signal (Circular* families).
