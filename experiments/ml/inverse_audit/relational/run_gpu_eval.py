@@ -47,8 +47,8 @@ def main(argv=None) -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--gl-parquet", type=Path, required=True,
                     help="one corpus GL parquet for throughput + entropy (runtime only)")
-    ap.add_argument("--size-cap", type=int, default=1024,
-                    help="JEs with >cap lines/side use the exact per-JE solver; high on a big GPU")
+    ap.add_argument("--size-cap", type=int, default=2048,
+                    help="skip JEs with >cap lines/side (pathological batch JEs; corpus has up to ~100k)")
     ap.add_argument("--device", default="cuda")
     ap.add_argument("--throughput-backends", default="perje,numpy,torch")
     ap.add_argument("--out", type=Path, default=Path("/tmp/rung2_gpu_report.json"))
@@ -113,8 +113,12 @@ def main(argv=None) -> None:
     # 3. RUNG-1 vs RUNG-2 entropy (learned cost resolves multi-line pairing more confidently)
     print("\n[3] RUNG-1 (uniform) vs RUNG-2 (learned cost) — coupling entropy")
     be = "torch" if _HAS_TORCH else "numpy"
-    per1 = reconstruct_per_je_gpu(df, cost_fn=None, backend=be, device=a.device, size_cap=a.size_cap)
+    sk = {}
+    per1 = reconstruct_per_je_gpu(df, cost_fn=None, backend=be, device=a.device, size_cap=a.size_cap, skipped=sk)
     per2 = reconstruct_per_je_gpu(df, cost_fn=cost_fn, backend=be, device=a.device, size_cap=a.size_cap)
+    report["skipped_pathological_jes"] = {"n_skipped": sk.get("n_skipped", 0),
+                                          "max_lines_seen": sk.get("max_seen", 0), "size_cap": a.size_cap}
+    print(f"  skipped {sk.get('n_skipped',0)} pathological JEs (max lines seen={sk.get('max_seen',0)}, cap={a.size_cap})")
     # restrict to multi-line JEs (where the polytope is non-trivial; 2-line JEs are forced)
     multi = set(lpje[lpje > 2].index.astype(str))
     h1 = np.mean([h for j, (_f, h) in per1.items() if j in multi]) if multi else 0.0

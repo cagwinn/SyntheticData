@@ -102,13 +102,16 @@ def _entropy(X):
 def reconstruct_per_je_gpu(df, account_col="gl_account", debit_col="debit_amount",
                            credit_col="credit_amount", je_col="document_id",
                            cost_map=None, default=0.0, cost_fn=None, eps=0.05, iters=400,
-                           backend="numpy", device="cuda", size_cap=48, batch_cap=4096):
-    """Drop-in GPU/batched replacement for ot_flow.reconstruct_per_je. Buckets JEs by (m,n) shape,
-    runs batched Sinkhorn per bucket; JEs with m or n > size_cap use the exact numpy per-JE solver.
-    Rung-2 cost supplied either as a `cost_map` (+default) or a `cost_fn(creds, debs)->matrix`
-    (the graph_scorer interface). Returns {je_id: ([(credit, debit, amount), ...], coupling_entropy)}."""
+                           backend="numpy", device="cuda", size_cap=2048, batch_cap=4096,
+                           skipped=None):
+    """Drop-in GPU/batched replacement for ot_flow.reconstruct_per_je. Buckets JEs by exact (m,n)
+    shape and runs batched Sinkhorn per bucket (even a unique large shape is a size-1 bucket — no
+    padding waste). JEs with m or n > `size_cap` are SKIPPED: corpus GLs contain pathological
+    batch/allocation JEs up to ~100k lines (a 100k² cost matrix is infeasible); these structural
+    outliers are not reconstructed. Pass a dict as `skipped` to receive {"n_skipped", "max_seen"}.
+    Rung-2 cost supplied as a `cost_map` (+default) or a `cost_fn(creds, debs)->matrix`.
+    Returns {je_id: ([(credit, debit, amount), ...], coupling_entropy)}."""
     import pandas as pd
-    from inverse_audit.relational.ot_flow import reconstruct_je
 
     def _cost(creds, debs):
         if cost_fn is not None:
@@ -118,8 +121,9 @@ def reconstruct_per_je_gpu(df, account_col="gl_account", debit_col="debit_amount
         return np.array([[cost_map.get((str(c), str(d)), default) for d in debs] for c in creds])
     _has_cost = cost_fn is not None or cost_map is not None
 
-    # collect per-JE (credit accts/amts, debit accts/amts)
-    jes, big = [], []
+    # collect per-JE (credit accts/amts, debit accts/amts); skip pathologically large ones
+    jes = []
+    n_skipped, max_seen = 0, 0
     for je_id, g in df.groupby(je_col, sort=False):
         deb = pd.to_numeric(g[debit_col], errors="coerce").fillna(0.0).to_numpy()
         cred = pd.to_numeric(g[credit_col], errors="coerce").fillna(0.0).to_numpy()
@@ -127,15 +131,16 @@ def reconstruct_per_je_gpu(df, account_col="gl_account", debit_col="debit_amount
         di = np.where(deb > 0)[0]; ci = np.where(cred > 0)[0]
         if di.size == 0 or ci.size == 0:
             continue
-        item = (str(je_id), acct[ci], cred[ci], acct[di], deb[di])
-        (big if (ci.size > size_cap or di.size > size_cap) else jes).append(item)
+        max_seen = max(max_seen, ci.size, di.size)
+        if ci.size > size_cap or di.size > size_cap:
+            n_skipped += 1
+            continue
+        jes.append((str(je_id), acct[ci], cred[ci], acct[di], deb[di]))
+    if skipped is not None:
+        skipped["n_skipped"] = n_skipped; skipped["max_seen"] = int(max_seen)
 
     out: dict[str, tuple[list, float]] = {}
-    # big JEs: exact per-JE numpy solver (rare; avoids huge padded batches)
-    for je_id, ca, cv, da, dv in big:
-        out[je_id] = reconstruct_je(ca, cv, da, dv, cost=(_cost(ca, da) if _has_cost else None), eps=eps)
-
-    # bucket the rest by (m_credit, n_debit)
+    # bucket by (m_credit, n_debit) — exact shape, no padding
     buckets: dict[tuple[int, int], list] = {}
     for it in jes:
         buckets.setdefault((len(it[1]), len(it[3])), []).append(it)

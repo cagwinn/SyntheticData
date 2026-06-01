@@ -1540,3 +1540,43 @@ VM step** — run per the runbook on an A10/A100, aggregate outputs only. Artifa
 `inverse_audit/relational/{ot_gpu,ot_eval,run_gpu_eval}.py`, `requirements-gpu.txt`, the runbook;
 local validation runs `/tmp/ot_eval_{syn,corpus}.json`, `/tmp/rung2_report.json` (synthetic mfg +
 corpus aggregate; no row content).
+
+## 39. Rung-2 OT — the GPU-VM run: an honest negative on GPU value (2026-06-01)
+
+Ran the package on an A10 (24 GB, the proven config; torch 2.7 + CUDA) over 4 corpus clients spanning
+494 → 941k JEs (max lines/JE 50 → 24,552). The result is a clean, valuable **negative**: the GPU does
+not accelerate this workload.
+
+| client | JEs | max lines/JE | speedup (torch vs per-JE) | rung-2 Δ coupling-entropy |
+|---|---|---|---|---|
+| client A | 9,688 | 50 | **1.1×** | **−6.0 %** (0.541→0.508) |
+| client B | 72,139 | 901 | 1.1× | 0.0 % |
+| client C | 494 | 24,552 (p99 8,222) | **0.96×** (torch *slower*) | 0.0 % |
+| client D | 941,119 | 991 | 1.0× | 0.1 % |
+
+**GPU parity is perfect** (torch float64 reproduces numpy bit-for-bit on the A10: entropy/flow diff
+0.0e0). But **no client shows a GPU speedup — including the one with 8,222-line JEs** (torch 88.3 s vs
+numpy 84.7 s). The backend-invariance is conclusive: if the Sinkhorn were the bottleneck, the GPU
+would crush numpy on 8,222² matrices; since the three backends are within noise, the cost is in the
+**per-JE Python handling that is identical across backends** — `groupby` iteration over many tiny JEs
+(client D: 223 µs/JE × 941k JEs = 210 s, JEs are 2 lines so the Sinkhorn is trivial), and **dense-
+coupling extraction** on the few huge JEs (entropic OT couplings are DENSE, so an 8,222-line JE
+produces ~67 M flow tuples to materialise). The GPU-able Sinkhorn is never the bottleneck. The
+pathological-JE skip works as designed (client C skipped its 24,552- and 13,415-line JEs at cap 12,000).
+
+**Rung-2's reconstruction benefit is real but client-dependent.** The learned 2-line-edge cost reduces
+multi-line coupling entropy **6 % on client A** (which has dense 2-line ground truth: 4,965 GT edges over
+4,723 multi-line JEs) but **~0 % on the others** — client C has only **8** 2-line GT edges (almost no
+ground truth to learn from → cost defaults to uniform), and client B/client D have ample GT edges but their
+multi-line account-pairs don't overlap the 2-line flows. So rung-2 helps only where the 2-line flows
+cover the multi-line structure.
+
+**Verdict + redirection.** Combined with §38 (rung-2 detector-impact ~null on synthetic small-JE GLs)
+and the unproven detector lift on corpus, the **rung-2-OT-on-GPU direction is low-value**: (1) the
+within-JE OT reconstruction is Python-handling-bound, not compute-bound, so GPU is the wrong lever —
+the real fix is vectorising / sparsifying the coupling→edge aggregation (threshold the dense coupling;
+aggregate to edges without per-JE tuple lists) or moving reconstruction into the engine; (2) rung-2's
+entropy gain is inconsistent and its detection value unproven. The validated assets (GPU-parity batched
+Sinkhorn, the eval harness, the pathological-JE skip) stay; the recommendation is to bank the
+reconstruction-quality result and NOT pursue a GPU reconstruction pipeline. Aggregate reports archived
+locally (`~/DEV/local-artifacts/rung2_gpu_vm_2026-06-01/rep_je*.json`); A10 VM can be torn down.

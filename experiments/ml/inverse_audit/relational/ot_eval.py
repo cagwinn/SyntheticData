@@ -41,11 +41,12 @@ from inverse_audit.relational.ot_cost import _two_line_edges, learn_edge_cost, m
 from inverse_audit.relational.ot_gpu import _HAS_TORCH, reconstruct_per_je_gpu
 
 
-def _recon_fn(backend: str, device: str, size_cap: int = 48):
+def _recon_fn(backend: str, device: str, size_cap: int = 2048):
     if backend == "perje":
         return None                                          # graph_scorer's default numpy ot_flow
-    # size_cap: JEs with >size_cap lines on a side use the exact per-JE solver. On the torch backend
-    # set this high (the VM GPU batches even huge JEs as size-1 exact-shape buckets — no padding waste).
+    # size_cap: JEs with >size_cap lines on a side are SKIPPED (pathological batch/allocation JEs —
+    # corpus has JEs up to ~100k lines; a 100k² cost matrix is infeasible). The GPU batches everything
+    # else as exact-shape buckets (a unique large shape = a size-1 bucket; no padding waste).
     return functools.partial(reconstruct_per_je_gpu, backend=("torch" if backend == "torch" else "numpy"),
                              device=device, size_cap=size_cap)
 
@@ -86,8 +87,8 @@ def main(argv=None) -> None:
     ap.add_argument("--parquet", type=Path, help="corpus GL parquet (runtime only; aggregate out)")
     ap.add_argument("--backend", default="numpy", choices=("perje", "numpy", "torch"))
     ap.add_argument("--device", default="cuda")
-    ap.add_argument("--size-cap", type=int, default=48,
-                    help="JEs with >size-cap lines/side use the exact per-JE solver; raise on the VM GPU")
+    ap.add_argument("--size-cap", type=int, default=2048,
+                    help="skip JEs with >size-cap lines/side (pathological batch JEs; corpus has up to ~100k)")
     ap.add_argument("--out", type=Path, default=Path("/tmp/ot_eval.json"))
     a = ap.parse_args(argv)
     recon = _recon_fn(a.backend, a.device, a.size_cap)
