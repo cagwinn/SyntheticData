@@ -1617,14 +1617,17 @@ fn run_main() -> Result<()> {
 
                     phase_config.show_progress = true;
 
-                    // Use conservative defaults for document generation counts
-                    phase_config.p2p_chains = phase_config.p2p_chains.min(50);
-                    phase_config.o2c_chains = phase_config.o2c_chains.min(50);
-                    phase_config.vendors_per_company = phase_config.vendors_per_company.min(20);
-                    phase_config.customers_per_company = phase_config.customers_per_company.min(30);
-                    phase_config.materials_per_company = phase_config.materials_per_company.min(50);
-                    phase_config.assets_per_company = phase_config.assets_per_company.min(20);
-                    phase_config.employees_per_company = phase_config.employees_per_company.min(30);
+                    // DB-E2: conservative caps apply to DEMO runs only. A config-driven run honors
+                    // the user's requested master_data.*.count (the Data Builder needs controllable N).
+                    if demo {
+                        phase_config.p2p_chains = phase_config.p2p_chains.min(50);
+                        phase_config.o2c_chains = phase_config.o2c_chains.min(50);
+                        phase_config.vendors_per_company = phase_config.vendors_per_company.min(20);
+                        phase_config.customers_per_company = phase_config.customers_per_company.min(30);
+                        phase_config.materials_per_company = phase_config.materials_per_company.min(50);
+                        phase_config.assets_per_company = phase_config.assets_per_company.min(20);
+                        phase_config.employees_per_company = phase_config.employees_per_company.min(30);
+                    }
 
                     EnhancedOrchestrator::new(cfg, phase_config)?
                 }

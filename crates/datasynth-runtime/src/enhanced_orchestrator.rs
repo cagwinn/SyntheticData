@@ -477,12 +477,15 @@ impl PhaseConfig {
             inject_anomalies: cfg.fraud.enabled || cfg.anomaly_injection.enabled,
             inject_data_quality: cfg.data_quality.enabled,
 
-            // Count defaults (CLI can override after calling this method)
-            vendors_per_company: 50,
-            customers_per_company: 100,
-            materials_per_company: 200,
-            assets_per_company: 50,
-            employees_per_company: 100,
+            // DB-E1: honor master_data.*.count from the YAML (was hardcoded 50/100/200/50/100).
+            // The product's single-period CLI path calls from_config, so these now drive generation.
+            vendors_per_company: cfg.master_data.vendors.count,
+            customers_per_company: cfg.master_data.customers.count,
+            materials_per_company: cfg.master_data.materials.count,
+            assets_per_company: cfg.master_data.fixed_assets.count,
+            // employees: the generator derives headcount from department-pool sizing, so this field
+            // is currently advisory; fully honoring it is deferred (employee_generator rework).
+            employees_per_company: cfg.master_data.employees.count,
             p2p_chains: 100,
             o2c_chains: 100,
             audit_engagements: 5,
