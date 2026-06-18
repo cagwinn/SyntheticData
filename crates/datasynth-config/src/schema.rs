@@ -3593,6 +3593,10 @@ pub struct P2PFlowConfig {
     /// Rate of early payment discounts being taken
     #[serde(default)]
     pub early_payment_discount_rate: Option<f64>,
+    /// DB-E4: explicit P2P chain count. When Some, overrides the derived count (then clamped to the
+    /// vendors x2 x months ceiling). None (default) keeps the derived behaviour — back-compatible.
+    #[serde(default)]
+    pub count: Option<usize>,
 }
 
 fn default_three_way_match_rate() -> f64 {
@@ -3643,6 +3647,7 @@ impl Default for P2PFlowConfig {
             payment_behavior: P2PPaymentBehaviorConfig::default(),
             over_delivery_rate: None,
             early_payment_discount_rate: None,
+            count: None,
         }
     }
 }
@@ -3790,6 +3795,10 @@ pub struct O2CFlowConfig {
     /// Rate of late payments
     #[serde(default)]
     pub late_payment_rate: Option<f64>,
+    /// DB-E4: explicit O2C chain count. When Some, overrides the derived count (then clamped to the
+    /// customers x2 x months ceiling). None (default) keeps the derived behaviour — back-compatible.
+    #[serde(default)]
+    pub count: Option<usize>,
 }
 
 fn default_credit_check_failure_rate() -> f64 {
@@ -3835,6 +3844,7 @@ impl Default for O2CFlowConfig {
             cash_discount: CashDiscountConfig::default(),
             payment_behavior: O2CPaymentBehaviorConfig::default(),
             late_payment_rate: None,
+            count: None,
         }
     }
 }

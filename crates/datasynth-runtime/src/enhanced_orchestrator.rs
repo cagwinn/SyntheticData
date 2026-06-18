@@ -11138,11 +11138,15 @@ impl EnhancedOrchestrator {
             .map_err(|e| SynthError::config(format!("Invalid start_date: {e}")))?;
 
         // Generate P2P chains
-        // Cap at ~2 POs per vendor per month to keep spend concentration realistic
+        // Cap at ~2 POs per vendor per month to keep spend concentration realistic. DB-E4: an
+        // explicit document_flows.p2p.count overrides the derived phase_config count (then clamped).
         let months = (self.config.global.period_months as usize).max(1);
         let p2p_count = self
-            .phase_config
-            .p2p_chains
+            .config
+            .document_flows
+            .p2p
+            .count
+            .unwrap_or(self.phase_config.p2p_chains)
             .min(self.master_data.vendors.len() * 2 * months);
         let pb = self.create_progress_bar(p2p_count as u64, "Generating P2P Document Flows");
 
@@ -11216,10 +11220,14 @@ impl EnhancedOrchestrator {
         }
 
         // Generate O2C chains
-        // Cap at ~2 SOs per customer per month to keep order volume realistic
+        // Cap at ~2 SOs per customer per month to keep order volume realistic. DB-E4: an explicit
+        // document_flows.o2c.count overrides the derived phase_config count (then clamped).
         let o2c_count = self
-            .phase_config
-            .o2c_chains
+            .config
+            .document_flows
+            .o2c
+            .count
+            .unwrap_or(self.phase_config.o2c_chains)
             .min(self.master_data.customers.len() * 2 * months);
         let pb = self.create_progress_bar(o2c_count as u64, "Generating O2C Document Flows");
 
