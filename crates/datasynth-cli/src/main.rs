@@ -5793,13 +5793,15 @@ fn create_safe_demo_preset() -> GeneratorConfig {
 
 /// Apply safety limits to a loaded configuration.
 fn apply_safety_limits(config: &mut GeneratorConfig) {
-    // Limit period to 12 months max
-    if config.global.period_months > 12 {
+    // Limit period to the schema maximum (config validation allows 1..=120 months; the prior 12
+    // truncation silently capped multi-year horizons below the schema, blocking fiscal-year-spanning
+    // generation). Aligns the CLI guard with `period_months: 1-120` — a no-op for any <=12-month build.
+    if config.global.period_months > 120 {
         tracing::warn!(
-            "Safety limit: period_months truncated from {} to 12",
+            "Safety limit: period_months truncated from {} to 120",
             config.global.period_months
         );
-        config.global.period_months = 12;
+        config.global.period_months = 120;
     }
 
     // Limit transaction volume

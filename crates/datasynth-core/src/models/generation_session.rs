@@ -109,6 +109,19 @@ pub struct SessionState {
     /// SHA-256 hash of the config that created this session, used to
     /// detect config drift on resume.
     pub config_hash: String,
+    /// Post-close balance-sheet carry-forward for the *next* fiscal year.
+    ///
+    /// Populated at the end of each FY (when `periods.len() > 1`) from that
+    /// FY's POST-CLOSE GL position, balance-sheet accounts only, sorted by
+    /// account code. The next FY's generation installs these as its opening
+    /// balances via `ShardContext`, so it opens at the prior FY's closing
+    /// balance sheet (P&L reset to zero, retained earnings rolled forward).
+    ///
+    /// `serde(default, skip_serializing_if)` keeps a single-FY / FY1 `.dss`
+    /// byte-identical: the field never serializes when empty, and older
+    /// `.dss` files without the key still deserialize.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub carry_forward: Vec<crate::models::balance::EntityOpeningBalance>,
 }
 
 impl SessionState {
@@ -122,6 +135,7 @@ impl SessionState {
             entity_counts: EntityCounts::default(),
             generation_log: Vec::new(),
             config_hash,
+            carry_forward: Vec::new(),
         }
     }
 }

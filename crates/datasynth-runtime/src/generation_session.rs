@@ -7,6 +7,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use chrono::Datelike;
 use datasynth_config::GeneratorConfig;
 use datasynth_core::models::generation_session::{
     add_months, advance_seed, BalanceState, DocumentIdState, EntityCounts, GenerationPeriod,
@@ -89,6 +90,7 @@ impl GenerationSession {
             entity_counts: EntityCounts::default(),
             generation_log: Vec::new(),
             config_hash,
+            carry_forward: Vec::new(),
         };
 
         Ok(Self {
@@ -176,9 +178,79 @@ impl GenerationSession {
         fs::create_dir_all(&output_path)
             .map_err(|e| SynthError::generation(format!("Failed to create output dir: {e}")))?;
 
-        let orchestrator = EnhancedOrchestrator::new(period_config, self.phase_config.clone())?;
+        // In a multi-fiscal-year session the year-end close + carry-forward below is authoritative:
+        // it runs the COMPLETE income-statement close (rev/exp → income summary → retained earnings)
+        // per fiscal year. Suppress the orchestrator's own one-sided net-income→RE close so RE is
+        // not posted twice (the 3200 double-count blocker). A lone-period session (periods.len()==1)
+        // runs NO session close, so it keeps the orchestrator's close — unchanged.
+        let mut period_phase_config = self.phase_config.clone();
+        period_phase_config.skip_income_statement_close = self.periods.len() > 1;
+        let orchestrator = EnhancedOrchestrator::new(period_config, period_phase_config)?;
         let mut orchestrator = orchestrator.with_output_path(&output_path);
-        let result = orchestrator.generate()?;
+
+        // ---------------------------------------------------------------
+        // Year-boundary opening carry-forward (inject BEFORE generate()).
+        // Seed this FY's openings from the prior FY's POST-CLOSE balance
+        // sheet (computed at the end of the prior period and stored on
+        // `self.state.carry_forward`). FY1 (period_cursor == 0) is skipped,
+        // so it still opens with fresh OpeningBalanceGenerator openings.
+        // When the carry-forward is non-empty, the orchestrator's v5.3
+        // carryover branch (phase_opening_balances) REPLACES its generated
+        // openings with these values. This branch draws no RNG.
+        // ---------------------------------------------------------------
+        if self.state.period_cursor > 0 {
+            let opening_balances = std::mem::take(&mut self.state.carry_forward);
+            if !opening_balances.is_empty() {
+                orchestrator.set_shard_context(crate::shard_context::ShardContext {
+                    entity_code: self
+                        .config
+                        .companies
+                        .first()
+                        .map(|c| c.code.clone())
+                        .unwrap_or_default(),
+                    entity_seed: [0u8; 32],
+                    extra_journal_entries: Vec::new(),
+                    opening_balances,
+                });
+            }
+        }
+
+        let mut result = orchestrator.generate()?;
+
+        // ---------------------------------------------------------------
+        // Year-end close + next-FY carry-forward (multi-FY runs only).
+        // Gated on `self.periods.len() > 1` so a lone-period session is a
+        // strict no-op (single-FY builds never enter the session at all —
+        // see the CLI `use_session` gate). The appended closing entries
+        // MUST land in `result.journal_entries` BEFORE the per-period
+        // writer below, so the books on disk show the close.
+        // ---------------------------------------------------------------
+        if self.periods.len() > 1 {
+            self.close_and_carry_forward(&period, &mut result);
+        }
+
+        // Persist this period's full output tree to its sub-directory. The orchestrator
+        // returns the result in-memory; without this explicit write (mirroring the
+        // single-generate CLI path) session-mode period dirs are left empty. The
+        // orchestrator's NumericModeGuard resets the decimal mode on return, so re-apply
+        // it before serialization (same fix as the single-generate path, issue #102).
+        datasynth_core::serde_decimal::set_numeric_native(
+            self.config.output.numeric_mode == datasynth_config::NumericMode::Native,
+        );
+        let write_result = crate::output_writer::write_all_output_with_layout(
+            &result,
+            &output_path,
+            self.config.output.export_layout,
+            &self.config.output.formats,
+            self.config.graph_export.je_network.method,
+        );
+        datasynth_core::serde_decimal::set_numeric_native(false);
+        write_result.map_err(|e| {
+            SynthError::generation(format!(
+                "Failed to write period '{}' output: {e}",
+                period.label
+            ))
+        })?;
 
         let duration = start.elapsed().as_secs_f64();
 
@@ -296,6 +368,255 @@ impl GenerationSession {
             anomaly_count,
             duration_secs: duration,
         }))
+    }
+
+    /// Append standard year-end closing entries to `result`, then compute the
+    /// POST-close balance-sheet carry-forward for the next fiscal year.
+    ///
+    /// Steps:
+    ///   1. Build the close trial balance from `result.journal_entries` as a
+    ///      NATURAL-MAGNITUDE positive map (revenue credit-normal → positive,
+    ///      expense debit-normal → positive). The close generator adds each
+    ///      account's value directly as the side amount on its natural side
+    ///      (see `year_end.rs::close_revenue_accounts`/`close_expense_accounts`),
+    ///      so a raw debit-net would roll revenue the wrong way.
+    ///   2. Run [`YearEndCloseGenerator`] over that TB, NAMESPACE the closing
+    ///      entries' references per FY (the generator's counter resets each
+    ///      `new`, so `YECL-*-00000001` would collide across years), and
+    ///      `extend` them onto `result.journal_entries` BEFORE the period
+    ///      writer runs.
+    ///   3. Recompute the post-close GL net (now including the closing
+    ///      entries), keep ONLY balance-sheet accounts, decompose each into a
+    ///      debit/credit side typed (contra-aware) off the CoA, sort by
+    ///      account code, and store on `self.state.carry_forward` for the next
+    ///      FY's opening injection.
+    ///
+    /// Only called for multi-FY runs (`self.periods.len() > 1`); draws no RNG.
+    fn close_and_carry_forward(
+        &mut self,
+        period: &GenerationPeriod,
+        result: &mut crate::enhanced_orchestrator::EnhancedGenerationResult,
+    ) {
+        use datasynth_core::models::balance::{AccountType as BalAccountType, EntityOpeningBalance};
+        use datasynth_core::models::{AccountType as CoaAccountType, YearEndClosingSpec};
+        use datasynth_core::FrameworkAccounts;
+        use datasynth_generators::period_close::{YearEndCloseConfig, YearEndCloseGenerator};
+        use rust_decimal::Decimal;
+        use std::collections::HashMap;
+
+        let company_code = self
+            .config
+            .companies
+            .first()
+            .map(|c| c.code.clone())
+            .unwrap_or_default();
+        let fiscal_year = period.end_date.year();
+
+        // --- Classify revenue/expense off the emitted CoA (robust across ----
+        // frameworks — SKR04/PCG don't use 4=revenue/5-6=expense prefixes).
+        // The full account code IS the "prefix" the close matches on, so
+        // `account.starts_with(code)` matches exactly.
+        let mut revenue_accounts: Vec<String> = Vec::new();
+        let mut expense_accounts: Vec<String> = Vec::new();
+        for acct in &result.chart_of_accounts.accounts {
+            match acct.account_type {
+                CoaAccountType::Revenue => revenue_accounts.push(acct.account_number.clone()),
+                CoaAccountType::Expense => expense_accounts.push(acct.account_number.clone()),
+                _ => {}
+            }
+        }
+
+        // --- Income-summary / RE / dividends accounts come from the framework
+        // map (no dedicated CoA sub_type for income-summary / dividends). The
+        // framework string mirrors `EnhancedOrchestrator::resolve_framework_str`
+        // (country first, then the accounting-standards label) so these codes
+        // match the chart the orchestrator actually emitted.
+        let fa = FrameworkAccounts::for_framework(self.resolve_framework_str());
+
+        // --- (1) Build the close TB as natural-magnitude POSITIVE per account.
+        // Sum signed debit-net per account, then sign each by its normal side
+        // so revenue/expense are positive magnitudes (what the close expects).
+        let mut net: HashMap<String, Decimal> = HashMap::new();
+        for je in &result.journal_entries {
+            for line in &je.lines {
+                *net.entry(line.gl_account.clone()).or_insert(Decimal::ZERO) +=
+                    line.debit_amount - line.credit_amount;
+            }
+        }
+        let mut close_tb: HashMap<String, Decimal> = HashMap::with_capacity(net.len());
+        for (code, debit_net) in &net {
+            // natural magnitude = debit-net for debit-normal, credit-net for
+            // credit-normal. net_balance() already encodes the side per type.
+            let acct_type = self.balance_account_type(result, code);
+            let magnitude = if Self::is_debit_normal(acct_type) {
+                *debit_net
+            } else {
+                -*debit_net
+            };
+            close_tb.insert(code.clone(), magnitude);
+        }
+
+        let spec = YearEndClosingSpec {
+            company_code: company_code.clone(),
+            fiscal_year,
+            revenue_accounts,
+            expense_accounts,
+            income_summary_account: fa.income_summary.clone(),
+            retained_earnings_account: fa.retained_earnings.clone(),
+            dividend_account: Some(fa.dividends_paid.clone()),
+        };
+
+        // --- (2) Run the close, namespace, and append. ----------------------
+        let mut close_gen = YearEndCloseGenerator::new(YearEndCloseConfig::from(&fa));
+        let mut close = close_gen.generate_year_end_close(&company_code, fiscal_year, &close_tb, &spec);
+        debug_assert!(
+            close.all_entries_balanced(),
+            "year-end closing entries must balance"
+        );
+
+        // NAMESPACE the closing-entry references per FY: the generator's
+        // `entry_counter` resets to 0 each `new`, so `YECL-REV-00000001`
+        // collides across years. Prefix the header.reference + each line's
+        // reference with the FY label (a pure function of period.index, so it
+        // reproduces). The header.document_id (UUID) is already unique.
+        for je in &mut close.closing_entries {
+            if let Some(r) = je.header.reference.take() {
+                je.header.reference = Some(format!("{}-{r}", period.label));
+            }
+            for line in &mut je.lines {
+                if let Some(r) = line.reference.take() {
+                    line.reference = Some(format!("{}-{r}", period.label));
+                }
+            }
+        }
+
+        result
+            .journal_entries
+            .extend(close.closing_entries.iter().cloned());
+
+        // --- (3) Build the next-FY carry-forward from the POST-close GL net.
+        // Re-net the now-extended JE set so the closing entries are included
+        // (revenue/expense net to ~0 post-close; net income has rolled into
+        // retained earnings / equity, so the BS-only set satisfies A=L+E).
+        let mut post: HashMap<String, Decimal> = HashMap::new();
+        for je in &result.journal_entries {
+            for line in &je.lines {
+                *post.entry(line.gl_account.clone()).or_insert(Decimal::ZERO) +=
+                    line.debit_amount - line.credit_amount;
+            }
+        }
+
+        let mut carry: Vec<EntityOpeningBalance> = Vec::new();
+        for (code, debit_net) in &post {
+            if *debit_net == Decimal::ZERO {
+                continue;
+            }
+            let account_type = self.balance_account_type(result, code);
+            // Keep ONLY balance-sheet accounts; drop Revenue/Expense (they
+            // reset to zero next FY — net income is already in retained
+            // earnings via the close).
+            if matches!(account_type, BalAccountType::Revenue | BalAccountType::Expense) {
+                continue;
+            }
+            // Decompose the signed debit-net into a single side. For a
+            // debit-normal type a positive debit-net is a debit balance; for a
+            // credit-normal type a positive debit-net (i.e. a negative
+            // credit-balance) is a debit too. At most one side is non-zero.
+            let (debit, credit) = if *debit_net >= Decimal::ZERO {
+                (*debit_net, Decimal::ZERO)
+            } else {
+                (Decimal::ZERO, -*debit_net)
+            };
+            carry.push(EntityOpeningBalance {
+                account_code: code.clone(),
+                account_type,
+                debit,
+                credit,
+            });
+        }
+        // Deterministic order (HashMap iteration is otherwise non-deterministic).
+        carry.sort_by(|a, b| a.account_code.cmp(&b.account_code));
+        self.state.carry_forward = carry;
+    }
+
+    /// Map a GL account code to the 8-variant balance [`AccountType`], preferring
+    /// the emitted CoA (contra-aware via `sub_type`) and falling back to the
+    /// leading-digit heuristic when the account is absent from the chart.
+    fn balance_account_type(
+        &self,
+        result: &crate::enhanced_orchestrator::EnhancedGenerationResult,
+        code: &str,
+    ) -> datasynth_core::models::balance::AccountType {
+        use datasynth_core::models::balance::AccountType as BalAccountType;
+        use datasynth_core::models::{AccountSubType, AccountType as CoaAccountType};
+
+        if let Some(acct) = result.chart_of_accounts.get_account(code) {
+            // Contra accounts can't be recovered from the 6-variant type alone
+            // (the engine folds accumulated depreciation into Asset and
+            // treasury stock into Equity); override off the sub_type so
+            // net_balance() signs them correctly.
+            return match acct.sub_type {
+                AccountSubType::AccumulatedDepreciation => BalAccountType::ContraAsset,
+                AccountSubType::TreasuryStock => BalAccountType::ContraEquity,
+                _ => match acct.account_type {
+                    CoaAccountType::Asset => BalAccountType::Asset,
+                    CoaAccountType::Liability => BalAccountType::Liability,
+                    CoaAccountType::Equity => BalAccountType::Equity,
+                    CoaAccountType::Revenue => BalAccountType::Revenue,
+                    CoaAccountType::Expense => BalAccountType::Expense,
+                    // Statistical accounts carry no real balance; treat as Asset
+                    // (debit-normal) — they net to zero and are dropped from the
+                    // BS-only carry-forward anyway.
+                    CoaAccountType::Statistical => BalAccountType::Asset,
+                },
+            };
+        }
+        BalAccountType::from_account_code(code)
+    }
+
+    /// True if a balance [`AccountType`] is debit-normal (its natural-side
+    /// magnitude equals its debit-net), mirroring `EntityOpeningBalance::net_balance`.
+    fn is_debit_normal(account_type: datasynth_core::models::balance::AccountType) -> bool {
+        use datasynth_core::models::balance::AccountType;
+        matches!(
+            account_type,
+            AccountType::Asset
+                | AccountType::ContraLiability
+                | AccountType::ContraEquity
+                | AccountType::Expense
+        )
+    }
+
+    /// Resolve the framework string the same way the orchestrator does
+    /// (country first, then the accounting-standards label), so the
+    /// `FrameworkAccounts` codes used by the close match the emitted chart.
+    /// Replicated here because the orchestrator's `resolve_framework_str` is
+    /// private.
+    fn resolve_framework_str(&self) -> &'static str {
+        let country = self
+            .config
+            .companies
+            .first()
+            .map(|c| c.country.as_str())
+            .unwrap_or("US")
+            .to_ascii_uppercase();
+        match country.as_str() {
+            "DE" | "AT" => "german_gaap",
+            "FR" | "BE" | "LU" => "french_gaap",
+            _ => {
+                if self.config.accounting_standards.enabled {
+                    use datasynth_config::schema::AccountingFrameworkConfig as Fw;
+                    match self.config.accounting_standards.framework {
+                        Some(Fw::FrenchGaap) => return "french_gaap",
+                        Some(Fw::GermanGaap) => return "german_gaap",
+                        Some(Fw::Ifrs) => return "ifrs",
+                        Some(Fw::DualReporting) => return "dual_reporting",
+                        Some(Fw::UsGaap) | None => {}
+                    }
+                }
+                "us_gaap"
+            }
+        }
     }
 
     /// Generate all remaining periods in the sequence.

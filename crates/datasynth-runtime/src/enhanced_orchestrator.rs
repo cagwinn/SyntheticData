@@ -351,6 +351,14 @@ pub struct PhaseConfig {
     pub generate_compliance_regulations: bool,
     /// Generate period-close journal entries (tax provision, income statement close).
     pub generate_period_close: bool,
+    /// Suppress ONLY the income-statement / net-income→retained-earnings close
+    /// (and the dividend-declaration postings) within `phase_period_close`.
+    /// Accruals, depreciation, and the tax provision still run. Off by default;
+    /// the multi-year [`GenerationSession`] sets it true because its own
+    /// complete `year_end.rs` close is the SOLE owner of the income-summary
+    /// (3600) → retained-earnings (3200) transfer. Without this gate, both
+    /// closes post net income to RE → it is double-counted.
+    pub skip_income_statement_close: bool,
     /// Generate HR data (payroll, time entries, expenses, pensions, stock comp).
     pub generate_hr: bool,
     /// Generate treasury data (cash management, hedging, debt, pooling).
@@ -413,6 +421,7 @@ impl Default for PhaseConfig {
             generate_counterfactuals: false,        // Off by default (opt-in for ML workloads)
             generate_compliance_regulations: false, // Off by default
             generate_period_close: true,            // On by default
+            skip_income_statement_close: false,     // Off by default (only the session sets it true)
             generate_hr: false,                     // Off by default
             generate_treasury: false,               // Off by default
             generate_project_accounting: false,     // Off by default
@@ -437,6 +446,9 @@ impl PhaseConfig {
             validate_balances: true,
             validate_coa_coverage_strict: false,
             generate_period_close: true,
+            // The single-period CLI path (from_config) keeps the orchestrator's
+            // income-statement close. Only the multi-year session overrides this.
+            skip_income_statement_close: false,
             generate_evolution_events: true,
             show_progress: true,
 
@@ -5029,7 +5041,12 @@ impl EnhancedOrchestrator {
             // Net income after tax (profit years) or net loss before DTA benefit (loss years).
             // For a loss year the DTA JE above already recognises the deferred benefit; here we
             // close the pre-tax loss into Retained Earnings as-is.
-            if net_income != Decimal::ZERO {
+            // `skip_income_statement_close` is set ONLY by the multi-fiscal-year GenerationSession,
+            // which runs its OWN complete year-end close (rev/exp → income summary → retained
+            // earnings) per fiscal year. Running this one-sided net-income→RE close as well would
+            // post net income to RE TWICE. Single-FY builds never set the flag (they take the
+            // single-generate path), so their close is unchanged / byte-identical.
+            if net_income != Decimal::ZERO && !self.phase_config.skip_income_statement_close {
                 let mut close_header = JournalEntryHeader::new(company_code.clone(), close_date);
                 close_header.document_type = "CL".to_string();
                 close_header.header_text =
