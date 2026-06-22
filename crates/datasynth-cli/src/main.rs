@@ -5788,6 +5788,7 @@ fn create_safe_demo_preset() -> GeneratorConfig {
         compliance_regulations: Default::default(),
         analytics_metadata: Default::default(),
         concentration: Default::default(),
+        period_close: Default::default(),
     }
 }
 

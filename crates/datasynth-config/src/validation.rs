@@ -2659,6 +2659,7 @@ mod tests {
             compliance_regulations: ComplianceRegulationsConfig::default(),
             analytics_metadata: AnalyticsMetadataConfig::default(),
             concentration: ConcentrationConfig::default(),
+            period_close: PeriodCloseConfig::default(),
         }
     }
 

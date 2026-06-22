@@ -922,6 +922,7 @@ pub fn default_generator_config() -> GeneratorConfig {
         compliance_regulations: Default::default(),
         analytics_metadata: Default::default(),
         concentration: Default::default(),
+        period_close: Default::default(),
     }
 }
 

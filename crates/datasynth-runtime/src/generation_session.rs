@@ -93,12 +93,22 @@ impl GenerationSession {
             carry_forward: Vec::new(),
         };
 
+        // W1-3 Stage 1: propagate ONLY the monthly-recurring flag into the
+        // session's phase config. The session otherwise keeps PhaseConfig's
+        // defaults (changing that is a separate concern and would alter B1's
+        // shipped multi-FY output); flipping this single flag is byte-identical
+        // when off, so every existing multi-FY build is unaffected.
+        let phase_config = PhaseConfig {
+            monthly_recurring: config.period_close.monthly_recurring,
+            ..PhaseConfig::default()
+        };
+
         Ok(Self {
             config,
             state,
             periods,
             output_mode,
-            phase_config: PhaseConfig::default(),
+            phase_config,
         })
     }
 
@@ -134,12 +144,18 @@ impl GenerationSession {
             OutputMode::Batch(output_dir)
         };
 
+        // W1-3 Stage 1: see `new` — propagate only the monthly-recurring flag.
+        let phase_config = PhaseConfig {
+            monthly_recurring: config.period_close.monthly_recurring,
+            ..PhaseConfig::default()
+        };
+
         Ok(Self {
             config,
             state,
             periods,
             output_mode,
-            phase_config: PhaseConfig::default(),
+            phase_config,
         })
     }
 
@@ -807,5 +823,30 @@ output:
         let session =
             GenerationSession::new(config, PathBuf::from("/tmp/test_multi_mode")).unwrap();
         assert!(matches!(session.output_mode, OutputMode::MultiPeriod(_)));
+    }
+
+    #[test]
+    fn test_monthly_recurring_does_not_split_fiscal_years() {
+        // SEAM GUARD (W1-3 Stage 1): monthly_recurring must NEVER change the
+        // fiscal-year slicing. A 12-month single-FY config stays ONE period even
+        // with the flag on — the monthly decomposition happens INSIDE
+        // phase_period_close, not by minting extra fiscal years (which would run
+        // the year-end income-statement close 12× → the 3200 double-post that
+        // `skip_income_statement_close` exists to prevent). The flag must still
+        // propagate to the session's phase config so a multi-FY build also posts
+        // monthly within each year.
+        let mut config = minimal_config(); // 12 months, no fiscal_year_months
+        config.period_close.monthly_recurring = true;
+        let session =
+            GenerationSession::new(config, PathBuf::from("/tmp/test_session_recur")).unwrap();
+        assert_eq!(
+            session.periods().len(),
+            1,
+            "monthly_recurring must not create extra fiscal-year periods"
+        );
+        assert!(
+            session.phase_config.monthly_recurring,
+            "monthly_recurring must propagate into the session phase config"
+        );
     }
 }

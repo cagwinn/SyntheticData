@@ -359,6 +359,15 @@ pub struct PhaseConfig {
     /// (3600) → retained-earnings (3200) transfer. Without this gate, both
     /// closes post net income to RE → it is double-counted.
     pub skip_income_statement_close: bool,
+    /// W1-3 Stage 1: post the recurring period-close entries (depreciation,
+    /// accruals, prepaid amortization, and any config-supplied straight-line
+    /// items) PER MONTH across the generation slice instead of lumping them at
+    /// the slice's last day. Off by default → byte-identical lumped output.
+    /// Derived from `period_close.monthly_recurring`. This is ORTHOGONAL to
+    /// `skip_income_statement_close`: the monthly loop lives inside
+    /// `phase_period_close` and never touches `GenerationSession` / fiscal-year
+    /// slicing, so the multi-FY close gate is unaffected.
+    pub monthly_recurring: bool,
     /// Generate HR data (payroll, time entries, expenses, pensions, stock comp).
     pub generate_hr: bool,
     /// Generate treasury data (cash management, hedging, debt, pooling).
@@ -422,6 +431,7 @@ impl Default for PhaseConfig {
             generate_compliance_regulations: false, // Off by default
             generate_period_close: true,            // On by default
             skip_income_statement_close: false,     // Off by default (only the session sets it true)
+            monthly_recurring: false,               // Off by default → byte-identical lumped output
             generate_hr: false,                     // Off by default
             generate_treasury: false,               // Off by default
             generate_project_accounting: false,     // Off by default
@@ -449,6 +459,9 @@ impl PhaseConfig {
             // The single-period CLI path (from_config) keeps the orchestrator's
             // income-statement close. Only the multi-year session overrides this.
             skip_income_statement_close: false,
+            // W1-3 Stage 1: monthly recurring postings, derived from config.
+            // Off unless the YAML opts in (the product overlay sets it true).
+            monthly_recurring: cfg.period_close.monthly_recurring,
             generate_evolution_events: true,
             show_progress: true,
 
@@ -507,6 +520,110 @@ impl PhaseConfig {
             findings_per_engagement: 8,
             judgments_per_engagement: 10,
         }
+    }
+}
+
+/// W1-3 Stage 1: allocate `total` across `n` periods as a cent-exact straight
+/// line. Period `m` (1-based) receives `round(total*m/n) - round(total*(m-1)/n)`.
+///
+/// Two properties this guarantees:
+///   * The per-period amounts sum to EXACTLY `total` (the cumulative target at
+///     `m == n` is `total`, by construction — no drift, no residual leak).
+///   * Each amount is non-negative for a non-negative `total` (the cumulative
+///     target `round(total*m/n)` is monotonic non-decreasing in `m`), so a
+///     period can be zero (when rounding leaves no incremental cent) but never
+///     negative — avoiding a spurious contra posting.
+///
+/// With `n == 1` the result is `[total]` — the lumped pre-Stage-1 behavior — so
+/// a caller that decomposes into a single period is byte-identical.
+pub(crate) fn monthly_straight_line_allocation(
+    total: rust_decimal::Decimal,
+    n: u32,
+) -> Vec<rust_decimal::Decimal> {
+    use rust_decimal::Decimal;
+    if n == 0 {
+        return Vec::new();
+    }
+    let n_dec = Decimal::from(n);
+    let mut out = Vec::with_capacity(n as usize);
+    let mut prev = Decimal::ZERO;
+    for m in 1..=n {
+        let cum = (total * Decimal::from(m) / n_dec).round_dp(2);
+        out.push(cum - prev);
+        prev = cum;
+    }
+    out
+}
+
+#[cfg(test)]
+mod recurring_posting_tests {
+    use super::monthly_straight_line_allocation;
+    use rust_decimal::Decimal;
+    use std::str::FromStr;
+
+    // `rust_decimal_macros::dec!` is not a dependency of this crate; parse from
+    // a string literal instead (just as exact, no extra dep).
+    fn d(s: &str) -> Decimal {
+        Decimal::from_str(s).expect("valid decimal literal")
+    }
+
+    #[test]
+    fn alloc_single_period_is_lump() {
+        // n == 1 → [total] exactly. This is the byte-identical-lump invariant:
+        // with monthly_recurring OFF the caller passes a single month-end, so the
+        // recurring postings reduce to the pre-Stage-1 single JE.
+        assert_eq!(monthly_straight_line_allocation(d("1234.56"), 1), vec![d("1234.56")]);
+    }
+
+    #[test]
+    fn alloc_sums_to_total_cent_exact() {
+        // The per-period amounts ALWAYS sum to exactly `total` (the cumulative
+        // target at m == n is round(total) == total since total is already 2dp).
+        // This is the property the FA subledger tie + answer key depend on.
+        for (total, n) in [
+            (d("1200.00"), 12u32),
+            (d("100.00"), 3),
+            (d("1000.01"), 12),
+            (d("0.05"), 12),
+            (d("99999.99"), 7),
+            (d("50.00"), 1),
+        ] {
+            let alloc = monthly_straight_line_allocation(total, n);
+            assert_eq!(alloc.len(), n as usize);
+            let sum: Decimal = alloc.iter().copied().sum();
+            assert_eq!(sum, total, "alloc {alloc:?} (total={total}, n={n}) must sum to total");
+            // Non-negative — never a spurious contra posting.
+            assert!(alloc.iter().all(|a| *a >= Decimal::ZERO), "alloc {alloc:?} has a negative");
+        }
+    }
+
+    #[test]
+    fn alloc_even_split_distributes_remainder() {
+        // 100.00 / 3 → the odd cent lands where cumulative rounding rounds up
+        // (month 2 here); still sums to 100.00 to the cent.
+        let alloc = monthly_straight_line_allocation(d("100.00"), 3);
+        assert_eq!(alloc, vec![d("33.33"), d("33.34"), d("33.33")]);
+        assert_eq!(alloc.iter().copied().sum::<Decimal>(), d("100.00"));
+    }
+
+    #[test]
+    fn alloc_zero_total_is_all_zero() {
+        let alloc = monthly_straight_line_allocation(Decimal::ZERO, 12);
+        assert_eq!(alloc.len(), 12);
+        assert!(alloc.iter().all(Decimal::is_zero));
+    }
+
+    #[test]
+    fn alloc_n_zero_is_empty() {
+        assert!(monthly_straight_line_allocation(d("100"), 0).is_empty());
+    }
+
+    #[test]
+    fn alloc_is_deterministic() {
+        assert_eq!(
+            monthly_straight_line_allocation(d("777.77"), 12),
+            monthly_straight_line_allocation(d("777.77"), 12)
+        );
     }
 }
 
@@ -4740,6 +4857,33 @@ impl EnhancedOrchestrator {
         // Posting date for close entries is the last day of the period
         let close_date = end_date - chrono::Days::new(1);
 
+        // W1-3 Stage 1: month-end posting dates for the RECURRING period-close
+        // entries (depreciation, accruals, amortization). When monthly_recurring
+        // is OFF this is a single element — `close_date`, the slice's last day —
+        // so the recurring postings lump exactly as before (byte-identical).
+        // When ON it is one date per month of the slice, so those entries post
+        // monthly and an interim (e.g. quarterly) income statement reflects the
+        // right per-month expense instead of a year's worth dumped in period 12.
+        //
+        // This loop is INSIDE phase_period_close and never touches
+        // `global.fiscal_year_months` / the GenerationSession slicing — so it is
+        // orthogonal to `skip_income_statement_close` and cannot trigger the
+        // multi-FY double-post (see PeriodCloseConfig's SEAM NOTE). The
+        // period-level close below (tax / dividends / income-statement close)
+        // stays at `close_date` regardless.
+        let recurring_periods: u32 = if self.phase_config.monthly_recurring {
+            self.config.global.period_months.max(1)
+        } else {
+            1
+        };
+        let month_ends: Vec<NaiveDate> = if recurring_periods == 1 {
+            vec![close_date]
+        } else {
+            (1..=recurring_periods)
+                .map(|m| start_date + chrono::Months::new(m) - chrono::Days::new(1))
+                .collect()
+        };
+
         // Statutory tax rate (21% — configurable rates come in later tiers)
         let tax_rate = Decimal::new(21, 2); // 0.21
 
@@ -4751,8 +4895,12 @@ impl EnhancedOrchestrator {
             .map(|c| c.code.clone())
             .collect();
 
-        // Estimate capacity: one JE per active FA + 2 JEs per company (tax + close)
-        let estimated_close_jes = subledger.fa_records.len() + company_codes.len() * 2;
+        // Estimate capacity: one depreciation + accrual posting per FA / accrual
+        // item PER recurring period (1 when lumped, N months when monthly) + ~2
+        // period-level JEs per company (tax + close).
+        let estimated_close_jes =
+            (subledger.fa_records.len() + company_codes.len() * 3) * month_ends.len()
+                + company_codes.len() * 2;
         let mut close_jes: Vec<JournalEntry> = Vec::with_capacity(estimated_close_jes);
 
         // --- Depreciation JEs (per asset) ---
@@ -4775,43 +4923,59 @@ impl EnhancedOrchestrator {
             if depreciable_base == Decimal::ZERO {
                 continue;
             }
-            let period_depr = (depreciable_base / Decimal::from(useful_life_months)
+            // Total straight-line depreciation for the whole slice. This is the
+            // exact amount the lumped path posted; spreading it monthly with the
+            // cent-exact allocation below keeps the slice total (and therefore
+            // the FA subledger tie + answer key) identical to the cent.
+            let total_depr = (depreciable_base / Decimal::from(useful_life_months)
                 * Decimal::from(period_months))
             .round_dp(2);
-            if period_depr <= Decimal::ZERO {
+            if total_depr <= Decimal::ZERO {
                 continue;
             }
 
-            let mut depr_header = JournalEntryHeader::new(asset.company_code.clone(), close_date);
-            depr_header.document_type = "CL".to_string();
-            depr_header.header_text = Some(format!(
-                "Depreciation - {} {}",
-                asset.asset_number, asset.description
-            ));
-            depr_header.created_by = "CLOSE_ENGINE".to_string();
-            depr_header.source = TransactionSource::Automated;
-            depr_header.business_process = Some(BusinessProcess::R2R);
+            // Allocate across the month-ends. With monthly_recurring OFF this is
+            // one posting of `total_depr` at `close_date` — byte-identical to the
+            // pre-Stage-1 single JE.
+            let alloc = monthly_straight_line_allocation(total_depr, month_ends.len() as u32);
+            for (idx, period_depr) in alloc.iter().enumerate() {
+                if *period_depr <= Decimal::ZERO {
+                    continue;
+                }
+                let posting_date = month_ends[idx];
 
-            let doc_id = depr_header.document_id;
-            let mut depr_je = JournalEntry::new(depr_header);
+                let mut depr_header =
+                    JournalEntryHeader::new(asset.company_code.clone(), posting_date);
+                depr_header.document_type = "CL".to_string();
+                depr_header.header_text = Some(format!(
+                    "Depreciation - {} {}",
+                    asset.asset_number, asset.description
+                ));
+                depr_header.created_by = "CLOSE_ENGINE".to_string();
+                depr_header.source = TransactionSource::Automated;
+                depr_header.business_process = Some(BusinessProcess::R2R);
 
-            // DR Depreciation Expense (6000)
-            depr_je.add_line(JournalEntryLine::debit(
-                doc_id,
-                1,
-                expense_accounts::DEPRECIATION.to_string(),
-                period_depr,
-            ));
-            // CR Accumulated Depreciation (1510)
-            depr_je.add_line(JournalEntryLine::credit(
-                doc_id,
-                2,
-                control_accounts::ACCUMULATED_DEPRECIATION.to_string(),
-                period_depr,
-            ));
+                let doc_id = depr_header.document_id;
+                let mut depr_je = JournalEntry::new(depr_header);
 
-            debug_assert!(depr_je.is_balanced(), "Depreciation JE must be balanced");
-            close_jes.push(depr_je);
+                // DR Depreciation Expense (6000)
+                depr_je.add_line(JournalEntryLine::debit(
+                    doc_id,
+                    1,
+                    expense_accounts::DEPRECIATION.to_string(),
+                    *period_depr,
+                ));
+                // CR Accumulated Depreciation (1510)
+                depr_je.add_line(JournalEntryLine::credit(
+                    doc_id,
+                    2,
+                    control_accounts::ACCUMULATED_DEPRECIATION.to_string(),
+                    *period_depr,
+                ));
+
+                debug_assert!(depr_je.is_balanced(), "Depreciation JE must be balanced");
+                close_jes.push(depr_je);
+            }
         }
 
         if !subledger.fa_records.is_empty() {
@@ -4861,19 +5025,30 @@ impl EnhancedOrchestrator {
                     continue;
                 }
 
-                for (description, expense_acct, liability_acct) in accrual_items {
-                    let (accrual_je, reversal_je) = accrual_gen.generate_accrued_expense(
-                        company_code,
-                        description,
-                        accrual_base,
-                        expense_acct,
-                        liability_acct,
-                        close_date,
-                        None,
-                    );
-                    close_jes.push(accrual_je);
-                    if let Some(rev_je) = reversal_je {
-                        close_jes.push(rev_je);
+                // Post each accrual item at EVERY recurring month-end. With
+                // monthly_recurring OFF, `month_ends` is [close_date] → one
+                // posting per item (byte-identical to the pre-Stage-1 path).
+                // With it ON, the same standing accrual recurs each month and
+                // auto-reverses at the start of the next month, so a month-end
+                // balance sheet always carries ~one month of accrued expense.
+                // The annual P&L impact is unchanged: only the final month's
+                // accrual stands at slice end (its reversal falls in the next
+                // slice); every earlier month accrues-then-reverses to zero.
+                for &posting_date in &month_ends {
+                    for (description, expense_acct, liability_acct) in accrual_items {
+                        let (accrual_je, reversal_je) = accrual_gen.generate_accrued_expense(
+                            company_code,
+                            description,
+                            accrual_base,
+                            expense_acct,
+                            liability_acct,
+                            posting_date,
+                            None,
+                        );
+                        close_jes.push(accrual_je);
+                        if let Some(rev_je) = reversal_je {
+                            close_jes.push(rev_je);
+                        }
                     }
                 }
             }
@@ -4882,6 +5057,78 @@ impl EnhancedOrchestrator {
                 "Generated accrual entries for {} companies",
                 company_codes.len()
             );
+        }
+
+        // --- Config-supplied recurring entries (W1-3 Stage 1 generalization) ---
+        // The recurring mechanism is NOT hard-wired to depreciation/accruals: a
+        // config author (or the product overlay) can declare arbitrary
+        // straight-line monthly postings — prepaid amortization, software/SaaS
+        // amortization, straight-line rent — as DATA via
+        // `period_close.recurring_entries`. Each entry's total is split across
+        // the month-ends with the same cent-exact allocation. Consulted only
+        // when monthly_recurring is on (so the OFF path stays byte-identical),
+        // and this also exercises the previously-dormant prepaid-amortization
+        // path. NOTE: an Amortization entry credits its balance account (a
+        // prepaid asset); the config author is responsible for a funded opening
+        // balance — the engine posts what is declared and does not synthesize a
+        // prepayment, so it never fabricates a negative asset on its own.
+        if self.phase_config.monthly_recurring
+            && !self.config.period_close.recurring_entries.is_empty()
+        {
+            use datasynth_config::schema::RecurringEntryKind;
+            use datasynth_generators::{AccrualGenerator, AccrualGeneratorConfig};
+            let mut rec_gen = AccrualGenerator::new(AccrualGeneratorConfig::default());
+            if let Some(ctx) = &self.temporal_context {
+                rec_gen.set_temporal_context(Arc::clone(ctx));
+            }
+            let default_company = company_codes.first().cloned().unwrap_or_default();
+            for rec in &self.config.period_close.recurring_entries {
+                let total = Decimal::from_f64_retain(rec.total_amount)
+                    .unwrap_or(Decimal::ZERO)
+                    .round_dp(2);
+                if total <= Decimal::ZERO {
+                    continue;
+                }
+                let alloc = monthly_straight_line_allocation(total, month_ends.len() as u32);
+                for (idx, amount) in alloc.iter().enumerate() {
+                    if *amount <= Decimal::ZERO {
+                        continue;
+                    }
+                    let posting_date = month_ends[idx];
+                    match rec.kind {
+                        RecurringEntryKind::Amortization => {
+                            // Dr expense / Cr balance (prepaid asset) — no reversal.
+                            let je = rec_gen.generate_prepaid_amortization(
+                                &default_company,
+                                &rec.description,
+                                *amount,
+                                &rec.expense_account,
+                                &rec.balance_account,
+                                posting_date,
+                                rec.cost_center.as_deref(),
+                            );
+                            debug_assert!(je.is_balanced(), "Recurring amortization JE must balance");
+                            close_jes.push(je);
+                        }
+                        RecurringEntryKind::AccruedExpense => {
+                            // Dr expense / Cr balance (liability) — auto-reversed.
+                            let (je, rev) = rec_gen.generate_accrued_expense(
+                                &default_company,
+                                &rec.description,
+                                *amount,
+                                &rec.expense_account,
+                                &rec.balance_account,
+                                posting_date,
+                                rec.cost_center.as_deref(),
+                            );
+                            close_jes.push(je);
+                            if let Some(rev_je) = rev {
+                                close_jes.push(rev_je);
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         for company_code in &company_codes {
@@ -16279,6 +16526,7 @@ mod tests {
             compliance_regulations: Default::default(),
             analytics_metadata: Default::default(),
             concentration: Default::default(),
+            period_close: Default::default(),
         }
     }
 

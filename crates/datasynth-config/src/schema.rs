@@ -219,6 +219,12 @@ pub struct GeneratorConfig {
     /// `docs/superpowers/specs/2026-05-23-concentration-pass-INDEX.md`.
     #[serde(default)]
     pub concentration: ConcentrationConfig,
+    /// W1-3 Stage 1: period-close recurring-entry configuration (monthly
+    /// decomposition of depreciation / accruals / prepaid amortization and any
+    /// config-supplied straight-line recurring items). Off by default so
+    /// existing archives are byte-identical — see [`PeriodCloseConfig`].
+    #[serde(default, alias = "periodClose")]
+    pub period_close: PeriodCloseConfig,
 }
 
 /// v3.3.0: analytics-metadata phase configuration.
@@ -260,6 +266,94 @@ impl Default for AnalyticsMetadataConfig {
             drift_events: true,
         }
     }
+}
+
+/// W1-3 Stage 1: period-close recurring-entry configuration.
+///
+/// Controls whether the recurring period-close entries — depreciation,
+/// accruals, prepaid amortization, and any config-supplied straight-line
+/// recurring items — post PER MONTH across the generation slice instead of
+/// being lumped into a single posting on the slice's last day. Posting monthly
+/// is what makes an *interim* (e.g. quarterly) income statement correct: the
+/// lumped path dumps a whole year of depreciation/accrual expense into the
+/// final period.
+///
+/// `monthly_recurring` defaults to **false** so existing archives are
+/// byte-identical (the lumped path in `phase_period_close` is unchanged). The
+/// product layer flips it on for company / multi-month builds.
+///
+/// SEAM NOTE (multi-fiscal-year): monthly decomposition is implemented as a
+/// loop INSIDE `phase_period_close` over the months of the current generation
+/// slice. It deliberately does NOT touch `global.fiscal_year_months`. Lowering
+/// `fiscal_year_months` to 1 would make [`GenerationSession`] treat every month
+/// as its own fiscal year and run a full year-end income-statement close 12× —
+/// the `skip_income_statement_close` double-post hazard. The two mechanisms are
+/// orthogonal; keep them so.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PeriodCloseConfig {
+    /// Master switch: post recurring period-close entries monthly (true) vs.
+    /// lumped at the slice's last day (false, default → byte-identical).
+    #[serde(default, alias = "monthlyRecurring")]
+    pub monthly_recurring: bool,
+    /// Optional config-supplied straight-line recurring entries. Each posts a
+    /// fixed amount every month it is effective, using the engine's existing
+    /// `AccrualGenerator`. Empty by default; the built-in depreciation + accrual
+    /// classes are always handled in-code. This is the generalization seam — a
+    /// new monthly-posting account pair is DATA here, not new generator code.
+    /// Only consulted when `monthly_recurring` is true.
+    #[serde(default, alias = "recurringEntries")]
+    pub recurring_entries: Vec<RecurringEntryConfig>,
+}
+
+impl Default for PeriodCloseConfig {
+    fn default() -> Self {
+        Self {
+            monthly_recurring: false,
+            recurring_entries: Vec::new(),
+        }
+    }
+}
+
+/// A single config-supplied straight-line recurring entry (W1-3 Stage 1).
+///
+/// The engine divides `total_amount` evenly across the months the entry is
+/// effective within the slice, with a final-month residual true-up so the
+/// recognized total is exact to the cent.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RecurringEntryConfig {
+    /// Human-readable description (e.g. "Prepaid Insurance Amortization").
+    pub description: String,
+    /// Account debited each month (the expense / revenue-reduction account).
+    #[serde(alias = "expenseAccount")]
+    pub expense_account: String,
+    /// Account credited each month (the prepaid asset / accrued liability).
+    #[serde(alias = "balanceAccount")]
+    pub balance_account: String,
+    /// Total amount to recognize across the whole slice (split evenly per
+    /// month). Stored as `f64` at the schema layer and converted to
+    /// `rust_decimal::Decimal` in `phase_period_close` (mirroring the other
+    /// schema-amount fields — keeps `rust_decimal` out of datasynth-config).
+    #[serde(alias = "totalAmount")]
+    pub total_amount: f64,
+    /// Recurring nature (defaults to amortization: Dr expense / Cr asset, no
+    /// reversal — the canonical monthly straight-line posting).
+    #[serde(default)]
+    pub kind: RecurringEntryKind,
+    /// Optional cost-center tag.
+    #[serde(default)]
+    pub cost_center: Option<String>,
+}
+
+/// Nature of a config-supplied recurring entry.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum RecurringEntryKind {
+    /// Dr expense / Cr asset, no reversal (prepaid amortization, SaaS, etc.).
+    #[default]
+    Amortization,
+    /// Dr expense / Cr liability, auto-reversed at the start of next month
+    /// (accrued expense).
+    AccruedExpense,
 }
 
 /// LLM enrichment configuration.
