@@ -796,6 +796,58 @@ mod stage2_recurring_tests {
         let total_credit = monthly_dep;
         assert_eq!(total_debit, total_credit);
     }
+
+    /// An OPERATING lease is funded at inception (ASC 842 keeps it on the balance
+    /// sheet) and its ROU asset + lease liability must UNWIND to ~zero over the full
+    /// term via the per-period `DR liability / CR ROU` (principal) leg — otherwise the
+    /// funded position strands forever (the major defect the v5.36.0 review caught).
+    /// Mirrors the orchestrator's operating branch: cumulative principal never
+    /// over-draws the funded PV, and the residual at term end is ~zero.
+    #[test]
+    fn lease842_operating_rou_and_liability_unwind_to_zero_over_term() {
+        let lease = Lease::new(
+            "1000",
+            "XYZ Realty",
+            "Short Office Lease",
+            LeaseAssetClass::RealEstate,
+            NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
+            24,   // 24/120 = 20% of useful life (< 75%)
+            d("2000"),
+            PaymentFrequency::Monthly,
+            d("0.05"),
+            d("500000"), // PV (~$45.6k) << 90% of FV → Operating
+            120,
+            AccountingFramework::UsGaap,
+        );
+        assert_eq!(
+            lease.classification,
+            LeaseClassification::Operating,
+            "test fixture must be an operating lease"
+        );
+
+        let pv = lease.lease_liability.initial_measurement.round_dp(2);
+        assert!(pv > Decimal::ZERO, "ASC 842 funds the operating ROU + liability at inception");
+
+        // Apply the orchestrator's operating unwind rule across the WHOLE term:
+        // each period DR lease liability(principal) / CR ROU(principal).
+        let mut cumulative_principal = Decimal::ZERO;
+        for row in &lease.lease_liability.amortization_schedule {
+            let principal = row.principal_payment.round_dp(2).max(Decimal::ZERO);
+            cumulative_principal += principal;
+            // Never over-draw the funded liability (no negative liability mid-term).
+            assert!(
+                cumulative_principal <= pv + d("1.00"),
+                "cumulative principal {cumulative_principal} must not exceed funded PV {pv}"
+            );
+        }
+        // Over the full term the funded ROU + liability roll back to ~zero (within a
+        // cent or two of per-period rounding) — no stranded balance sheet position.
+        let residual = pv - cumulative_principal;
+        assert!(
+            residual.abs() <= d("1.00"),
+            "operating lease ROU + liability must unwind to ~zero over the term (residual = {residual})"
+        );
+    }
 }
 
 /// Master data snapshot containing all generated entities.
@@ -8565,12 +8617,16 @@ impl EnhancedOrchestrator {
         // recognition through the GL so a monthly build shows deferred revenue being
         // drawn down and revenue recognized:
         //
-        //   * INCEPTION (slice start): DR contract asset (AR control 1100) /
+        //   * INCEPTION (slice start): DR contract asset (other current asset 1590) /
         //     CR deferred revenue (unearned revenue 2300) for the obligation's
         //     allocated price. This FUNDS the opening deferred-revenue liability so
         //     the recognition leg below never creates a negative liability (the #1
         //     A=L+E risk — mirrors the prepaid-amortization honesty note in
-        //     phase_period_close).
+        //     phase_period_close). NB: a 606 contract asset is UNBILLED and must NOT
+        //     ride the trade-AR control (1100) — that account is reconciled to the AR
+        //     subledger by the XR-DB-002 control tie, and an un-subledgered debit
+        //     there would break it. We use the generic other-asset account (still
+        //     classifies as Asset → A=L+E holds), as the lease ROU does.
         //   * RECOGNITION: DR deferred revenue (2300) / CR revenue (service
         //     revenue 4100). Over-time obligations spread the allocated price evenly
         //     across the month-ends; point-in-time obligations recognize in full on
@@ -8584,7 +8640,9 @@ impl EnhancedOrchestrator {
             && self.config.accounting_standards.revenue_recognition.enabled
             && !snapshot.contracts.is_empty()
         {
-            use datasynth_core::accounts::{control_accounts, liability_accounts, revenue_accounts};
+            use datasynth_core::accounts::{
+                asset_class_accounts, liability_accounts, revenue_accounts,
+            };
             use datasynth_standards::accounting::revenue::SatisfactionPattern;
             let month_ends = self.recurring_month_ends()?;
             let mut rev_jes: Vec<JournalEntry> = Vec::new();
@@ -8613,11 +8671,12 @@ impl EnhancedOrchestrator {
                     inc_je.header.business_process = Some(BusinessProcess::O2C);
                     inc_je.header.source = TransactionSource::Automated;
                     let inc_doc = inc_je.header.document_id;
-                    // DR contract asset (unbilled receivable) 1100
+                    // DR contract asset (unbilled — other current asset 1590, NOT the
+                    // trade-AR control 1100, which is reconciled to the AR subledger).
                     inc_je.add_line(JournalEntryLine::debit(
                         inc_doc,
                         1,
-                        control_accounts::AR_CONTROL.to_string(),
+                        asset_class_accounts::OTHER_ASSETS.to_string(),
                         allocated,
                     ));
                     // CR deferred revenue (contract liability) 2300
@@ -8997,8 +9056,19 @@ impl EnhancedOrchestrator {
         //       (b) ROU amortization: DR depreciation/amortization expense (6000) /
         //           CR ROU asset (1590, contra — no separate accumulated-ROU account
         //           exists in the CoA, so we reduce the asset directly).
-        //   * OPERATING lease, per schedule row in the slice:
-        //       single straight-line lease expense DR rent (6300) / CR cash (1000).
+        //   * OPERATING lease, per schedule row in the slice — two balanced JEs:
+        //       (a) single straight-line lease expense DR rent (6300) / CR cash
+        //           (1000) for the period payment (the income-statement leg).
+        //       (b) balance-sheet unwind: DR lease liability (principal) / CR ROU
+        //           asset (principal). ASC 842 keeps an operating lease ON the
+        //           balance sheet (unlike legacy ASC 840), so the inception-funded
+        //           ROU + liability MUST be drawn down each period or they strand
+        //           forever. For level payments the ROU amortization plug
+        //           (lease cost - interest accretion) equals the liability paydown
+        //           (payment - interest) = the schedule `principal`, so one JE
+        //           unwinds both in lockstep → both roll to zero at term end (sum
+        //           of principals == funded PV). Without (b) A=L+E still ties but
+        //           the balance sheet is materially wrong.
         //
         // Multi-FY safety: only schedule rows whose `period_date` falls within
         // [slice_start, slice_end] are posted, and inception is only emitted when the
@@ -9204,6 +9274,50 @@ impl EnhancedOrchestrator {
                                 "ASC 842 operating lease JE must balance"
                             );
                             lease_jes.push(op_je);
+                        }
+
+                        // (b) Balance-sheet unwind — draw the inception-funded ROU
+                        //     asset + lease liability down by the schedule principal
+                        //     so BOTH roll to zero over the term (ASC 842 keeps an
+                        //     operating lease on the balance sheet). DR liability /
+                        //     CR ROU, equal legs → balanced by construction; sum of
+                        //     principals == funded PV → no stranded balance, no
+                        //     negative liability (cumulative principal <= PV).
+                        if principal > Decimal::ZERO {
+                            let mut unwind_je = JournalEntry::new_simple(
+                                format!(
+                                    "JE-LEASE842-OPUNWIND-{}-{}",
+                                    lease.lease_id, row.period_number
+                                ),
+                                lease.company_code.clone(),
+                                row.period_date,
+                                format!(
+                                    "ASC 842 operating lease ROU/liability unwind — {} period {}",
+                                    lease.description, row.period_number
+                                ),
+                            );
+                            unwind_je.header.business_process = Some(BusinessProcess::R2R);
+                            unwind_je.header.source = TransactionSource::Automated;
+                            let unwind_doc = unwind_je.header.document_id;
+                            // DR lease liability (paydown)
+                            unwind_je.add_line(JournalEntryLine::debit(
+                                unwind_doc,
+                                1,
+                                lease_liab_acct.to_string(),
+                                principal,
+                            ));
+                            // CR ROU asset (amortization plug)
+                            unwind_je.add_line(JournalEntryLine::credit(
+                                unwind_doc,
+                                2,
+                                ROU_ASSET_ACCT.to_string(),
+                                principal,
+                            ));
+                            debug_assert!(
+                                unwind_je.is_balanced(),
+                                "ASC 842 operating lease unwind JE must balance"
+                            );
+                            lease_jes.push(unwind_je);
                         }
                     }
                 }
