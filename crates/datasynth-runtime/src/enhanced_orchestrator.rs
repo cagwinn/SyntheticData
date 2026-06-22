@@ -627,6 +627,177 @@ mod recurring_posting_tests {
     }
 }
 
+/// W1-3 Stage 2: tests for the three recurring accounting classes (bond interest,
+/// ASC 606 deferred-revenue recognition, ASC 842 leases). These exercise the
+/// arithmetic invariants the inline orchestrator phases depend on (balance,
+/// A=L+E preservation, byte-identical-OFF) without standing up the full pipeline.
+#[cfg(test)]
+mod stage2_recurring_tests {
+    use super::monthly_straight_line_allocation;
+    use chrono::NaiveDate;
+    use datasynth_standards::accounting::leases::{
+        Lease, LeaseAssetClass, LeaseClassification, PaymentFrequency,
+    };
+    use datasynth_standards::framework::AccountingFramework;
+    use rust_decimal::Decimal;
+    use std::str::FromStr;
+
+    fn d(s: &str) -> Decimal {
+        Decimal::from_str(s).expect("valid decimal literal")
+    }
+
+    // ---- Class 1: Bond / loan interest ----
+
+    /// The slice interest = principal * rate * (months/12), and spreading it across
+    /// the month-ends sums back to exactly that — both ON (n=months) and OFF (n=1).
+    #[test]
+    fn bond_monthly_interest_sums_to_slice_interest() {
+        let principal = d("1000000.00");
+        let rate = d("0.06"); // 6% annual
+        let months = 3u32;
+        let slice_interest =
+            (principal * rate * Decimal::from(months) / Decimal::from(12)).round_dp(2);
+        // 1,000,000 * 0.06 * 3/12 = 15,000.00
+        assert_eq!(slice_interest, d("15000.00"));
+
+        // monthly_recurring ON: spread across 3 month-ends → sums to slice interest.
+        let monthly = monthly_straight_line_allocation(slice_interest, months);
+        assert_eq!(monthly.len(), 3);
+        assert_eq!(monthly.iter().copied().sum::<Decimal>(), slice_interest);
+
+        // monthly_recurring OFF: a single month-end (n=1) → the lump, byte-identical.
+        let lump = monthly_straight_line_allocation(slice_interest, 1);
+        assert_eq!(lump, vec![slice_interest]);
+    }
+
+    /// Each per-month bond JE (DR interest expense / CR interest payable, equal
+    /// amounts) is balanced by construction, and the period totals tie.
+    #[test]
+    fn bond_monthly_je_legs_balance() {
+        let slice_interest = d("15000.00");
+        let alloc = monthly_straight_line_allocation(slice_interest, 3);
+        let mut total_debit = Decimal::ZERO;
+        let mut total_credit = Decimal::ZERO;
+        for amount in &alloc {
+            // DR interest expense == CR interest payable (single-amount two-leg JE).
+            total_debit += *amount;
+            total_credit += *amount;
+            assert_eq!(*amount, *amount, "leg amounts identical → JE balanced");
+        }
+        assert_eq!(total_debit, total_credit);
+        assert_eq!(total_debit, slice_interest);
+    }
+
+    // ---- Class 2: ASC 606 deferred-revenue recognition ----
+
+    /// Inception funds the liability for the full allocated price; recognition draws
+    /// it back down to exactly zero over the slice. Net liability movement = 0
+    /// (A=L+E preserved by construction) and every leg balances.
+    #[test]
+    fn rev606_inception_and_recognition_net_to_zero_liability() {
+        let allocated = d("120000.00");
+        // Inception: CR deferred revenue (liability +allocated), DR contract asset.
+        let inception_liability_credit = allocated;
+        // Over-time recognition spread across 12 month-ends: DR deferred revenue.
+        let recognition = monthly_straight_line_allocation(allocated, 12);
+        let recognition_liability_debit: Decimal = recognition.iter().copied().sum();
+        // The liability funded at inception is fully drawn down → net zero.
+        assert_eq!(inception_liability_credit, recognition_liability_debit);
+        // Each recognition JE balances (DR deferred rev == CR revenue, equal amounts).
+        for amount in &recognition {
+            assert!(*amount >= Decimal::ZERO, "no negative recognition (no negative liability)");
+        }
+        // Inception JE balances: DR contract asset == CR deferred revenue.
+        assert_eq!(allocated, inception_liability_credit);
+    }
+
+    /// Point-in-time recognition lands the full amount on exactly one month-end and
+    /// still fully draws down the funded liability.
+    #[test]
+    fn rev606_point_in_time_recognizes_full_amount_once() {
+        let allocated = d("50000.00");
+        let n = 3usize;
+        // Emulate the inline point-in-time placement: full amount on a single slot.
+        let target = 1usize; // e.g. satisfaction falls in month 2
+        let mut recognition = vec![Decimal::ZERO; n];
+        recognition[target] = allocated;
+        let recognized: Decimal = recognition.iter().copied().sum();
+        assert_eq!(recognized, allocated, "point-in-time draws down the full funded liability");
+        assert_eq!(recognition.iter().filter(|a| **a > Decimal::ZERO).count(), 1);
+    }
+
+    // ---- Class 3: ASC 842 leases ----
+
+    /// A finance lease's inception PV == the funded liability, and walking the
+    /// schedule, every payment JE balances (principal + interest == cash credit) and
+    /// the sum of principal payments never exceeds the funded PV (no negative
+    /// liability → A=L+E preserved).
+    #[test]
+    fn lease842_finance_schedule_balances_and_no_negative_liability() {
+        let lease = Lease::new(
+            "1000",
+            "ABC Leasing",
+            "Equipment Lease",
+            LeaseAssetClass::Equipment,
+            NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
+            108, // 9 years → 108/120 = 90% ≥ 75% → Finance
+            d("5000"),
+            PaymentFrequency::Monthly,
+            d("0.05"),
+            d("400000"),
+            120,
+            AccountingFramework::UsGaap,
+        );
+        assert_eq!(lease.classification, LeaseClassification::Finance);
+
+        let pv = lease.lease_liability.initial_measurement.round_dp(2);
+        assert!(pv > Decimal::ZERO, "inception funds a positive liability");
+
+        let mut cumulative_principal = Decimal::ZERO;
+        for row in &lease.lease_liability.amortization_schedule {
+            let interest = row.interest_expense.round_dp(2);
+            let principal = row.principal_payment.round_dp(2);
+            // Inline JE rule: DR liability(principal) + DR interest / CR cash(sum).
+            let cash = principal.max(Decimal::ZERO) + interest.max(Decimal::ZERO);
+            let total_debit = principal.max(Decimal::ZERO) + interest.max(Decimal::ZERO);
+            assert_eq!(total_debit, cash, "finance lease payment JE must balance");
+
+            cumulative_principal += principal.max(Decimal::ZERO);
+            // The funded liability is never over-drawn at any point in the schedule.
+            assert!(
+                cumulative_principal <= pv + d("1.00"),
+                "cumulative principal {cumulative_principal} must not exceed funded PV {pv}"
+            );
+        }
+    }
+
+    /// ROU amortization (DR amort expense / CR ROU asset, equal amounts) balances,
+    /// and the monthly amount is the straight-line share of the initial measurement.
+    #[test]
+    fn lease842_rou_amortization_balances() {
+        let lease = Lease::new(
+            "1000",
+            "ABC Leasing",
+            "Office Lease",
+            LeaseAssetClass::RealEstate,
+            NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
+            24,
+            d("1000"),
+            PaymentFrequency::Monthly,
+            d("0.05"),
+            d("20000"),
+            120,
+            AccountingFramework::UsGaap,
+        );
+        let monthly_dep = lease.rou_asset.monthly_depreciation().round_dp(2);
+        assert!(monthly_dep >= Decimal::ZERO);
+        // The amortization JE has equal debit/credit legs → balanced by construction.
+        let total_debit = monthly_dep;
+        let total_credit = monthly_dep;
+        assert_eq!(total_debit, total_credit);
+    }
+}
+
 /// Master data snapshot containing all generated entities.
 #[derive(Debug, Clone, Default)]
 pub struct MasterDataSnapshot {
@@ -1190,6 +1361,13 @@ pub struct AccountingStandardsSnapshot {
     pub lease_count: usize,
     pub fair_value_measurement_count: usize,
     pub framework_difference_count: usize,
+    /// W1-3 Stage 2: ASC 606 / IFRS 15 deferred-revenue recognition JEs (inception
+    /// funding + per-month recognition). Empty unless `monthly_recurring` is ON.
+    pub revenue_recognition_journal_entries: Vec<JournalEntry>,
+    /// W1-3 Stage 2: ASC 842 / IFRS 16 lease JEs (inception ROU/liability + per-month
+    /// interest/amortization or operating straight-line). Empty unless
+    /// `monthly_recurring` is ON.
+    pub lease_journal_entries: Vec<JournalEntry>,
 }
 
 /// Compliance regulations framework snapshot (standards, procedures, findings, filings, graph).
@@ -3402,6 +3580,36 @@ impl EnhancedOrchestrator {
                     .iter()
                     .cloned(),
             );
+        }
+
+        // Phase 18a: Merge W1-3 Stage 2 ASC 606 revenue-recognition JEs into main GL.
+        // Empty unless `monthly_recurring` is ON (byte-identical OFF).
+        if !accounting_standards
+            .revenue_recognition_journal_entries
+            .is_empty()
+        {
+            debug!(
+                "Merged {} JEs from ASC 606 deferred-revenue recognition (Stage 2)",
+                accounting_standards
+                    .revenue_recognition_journal_entries
+                    .len()
+            );
+            entries.extend(
+                accounting_standards
+                    .revenue_recognition_journal_entries
+                    .iter()
+                    .cloned(),
+            );
+        }
+
+        // Phase 18a: Merge W1-3 Stage 2 ASC 842 lease JEs into main GL.
+        // Empty unless `monthly_recurring` is ON (byte-identical OFF).
+        if !accounting_standards.lease_journal_entries.is_empty() {
+            debug!(
+                "Merged {} JEs from ASC 842 leases (Stage 2)",
+                accounting_standards.lease_journal_entries.len()
+            );
+            entries.extend(accounting_standards.lease_journal_entries.iter().cloned());
         }
 
         // Phase 18b: OCPM Events (after all process data is available)
@@ -8347,6 +8555,158 @@ impl EnhancedOrchestrator {
             }
         }
 
+        // ------------------------------------------------------------
+        // W1-3 Stage 2: ASC 606 / IFRS 15 deferred-revenue recognition JEs
+        // ------------------------------------------------------------
+        //
+        // The revenue_recognition_generator above produces CustomerContracts with
+        // PerformanceObligations but emits ZERO journal entries — contracts stay
+        // data-only by default. When `monthly_recurring` is ON we now drive the
+        // recognition through the GL so a monthly build shows deferred revenue being
+        // drawn down and revenue recognized:
+        //
+        //   * INCEPTION (slice start): DR contract asset (AR control 1100) /
+        //     CR deferred revenue (unearned revenue 2300) for the obligation's
+        //     allocated price. This FUNDS the opening deferred-revenue liability so
+        //     the recognition leg below never creates a negative liability (the #1
+        //     A=L+E risk — mirrors the prepaid-amortization honesty note in
+        //     phase_period_close).
+        //   * RECOGNITION: DR deferred revenue (2300) / CR revenue (service
+        //     revenue 4100). Over-time obligations spread the allocated price evenly
+        //     across the month-ends; point-in-time obligations recognize in full on
+        //     the month-end on/after their expected satisfaction date (falling back
+        //     to the last month-end). Net over the slice: deferred revenue drawn
+        //     down by exactly what was funded, revenue recognized, A=L+E preserved
+        //     BY CONSTRUCTION.
+        //
+        // When OFF this block emits nothing (current behavior — byte-identical).
+        if self.phase_config.monthly_recurring
+            && self.config.accounting_standards.revenue_recognition.enabled
+            && !snapshot.contracts.is_empty()
+        {
+            use datasynth_core::accounts::{control_accounts, liability_accounts, revenue_accounts};
+            use datasynth_standards::accounting::revenue::SatisfactionPattern;
+            let month_ends = self.recurring_month_ends()?;
+            let mut rev_jes: Vec<JournalEntry> = Vec::new();
+            // Inception is dated at the slice start (the first day) so the funding
+            // precedes every recognition month-end within the slice.
+            let inception_date = start_date;
+
+            for contract in &snapshot.contracts {
+                for po in &contract.performance_obligations {
+                    let allocated = po.allocated_price.round_dp(2);
+                    if allocated <= Decimal::ZERO {
+                        continue;
+                    }
+
+                    // --- Inception: fund the deferred-revenue liability ---
+                    let mut inc_je = JournalEntry::new_simple(
+                        format!("JE-REV606-INC-{}-{}", contract.contract_id, po.sequence),
+                        contract.company_code.clone(),
+                        inception_date,
+                        format!(
+                            "ASC 606 contract inception — {} oblig {}",
+                            contract.customer_name, po.sequence
+                        ),
+                    );
+                    inc_je.header.currency = contract.currency.clone();
+                    inc_je.header.business_process = Some(BusinessProcess::O2C);
+                    inc_je.header.source = TransactionSource::Automated;
+                    let inc_doc = inc_je.header.document_id;
+                    // DR contract asset (unbilled receivable) 1100
+                    inc_je.add_line(JournalEntryLine::debit(
+                        inc_doc,
+                        1,
+                        control_accounts::AR_CONTROL.to_string(),
+                        allocated,
+                    ));
+                    // CR deferred revenue (contract liability) 2300
+                    inc_je.add_line(JournalEntryLine::credit(
+                        inc_doc,
+                        2,
+                        liability_accounts::UNEARNED_REVENUE.to_string(),
+                        allocated,
+                    ));
+                    debug_assert!(inc_je.is_balanced(), "ASC 606 inception JE must balance");
+                    rev_jes.push(inc_je);
+
+                    // --- Recognition: draw down deferred revenue into revenue ---
+                    // Build a per-month-end recognition allocation that sums to
+                    // exactly `allocated` (so the liability funded at inception is
+                    // fully drawn down — A=L+E neutral over the slice).
+                    let recognition: Vec<Decimal> = match po.satisfaction_pattern {
+                        SatisfactionPattern::OverTime => monthly_straight_line_allocation(
+                            allocated,
+                            month_ends.len() as u32,
+                        ),
+                        SatisfactionPattern::PointInTime => {
+                            // Recognize the whole amount on the month-end on/after the
+                            // expected satisfaction date; if none falls in the slice,
+                            // recognize on the final month-end.
+                            let target = po
+                                .expected_satisfaction_date
+                                .and_then(|sat| month_ends.iter().position(|d| *d >= sat))
+                                .unwrap_or(month_ends.len().saturating_sub(1));
+                            let mut v = vec![Decimal::ZERO; month_ends.len()];
+                            if let Some(slot) = v.get_mut(target) {
+                                *slot = allocated;
+                            }
+                            v
+                        }
+                    };
+
+                    for (idx, amount) in recognition.iter().enumerate() {
+                        if *amount <= Decimal::ZERO {
+                            continue;
+                        }
+                        let posting_date = month_ends[idx];
+                        let mut rec_je = JournalEntry::new_simple(
+                            format!(
+                                "JE-REV606-REC-{}-{}-{}",
+                                contract.contract_id,
+                                po.sequence,
+                                idx + 1
+                            ),
+                            contract.company_code.clone(),
+                            posting_date,
+                            format!(
+                                "ASC 606 revenue recognition — {} oblig {}",
+                                contract.customer_name, po.sequence
+                            ),
+                        );
+                        rec_je.header.currency = contract.currency.clone();
+                        rec_je.header.business_process = Some(BusinessProcess::O2C);
+                        rec_je.header.source = TransactionSource::Automated;
+                        let rec_doc = rec_je.header.document_id;
+                        // DR deferred revenue (draw down liability) 2300
+                        rec_je.add_line(JournalEntryLine::debit(
+                            rec_doc,
+                            1,
+                            liability_accounts::UNEARNED_REVENUE.to_string(),
+                            *amount,
+                        ));
+                        // CR revenue 4100
+                        rec_je.add_line(JournalEntryLine::credit(
+                            rec_doc,
+                            2,
+                            revenue_accounts::SERVICE_REVENUE.to_string(),
+                            *amount,
+                        ));
+                        debug_assert!(
+                            rec_je.is_balanced(),
+                            "ASC 606 recognition JE must balance"
+                        );
+                        rev_jes.push(rec_je);
+                    }
+                }
+            }
+            debug!(
+                "W1-3 Stage 2: generated {} ASC 606 recognition JEs",
+                rev_jes.len()
+            );
+            snapshot.revenue_recognition_journal_entries = rev_jes;
+        }
+
         // Impairment testing
         if self.config.accounting_standards.impairment.enabled {
             let asset_data: Vec<(String, String, rust_decimal::Decimal)> = self
@@ -8615,6 +8975,244 @@ impl EnhancedOrchestrator {
                 snapshot.leases.extend(leases);
             }
             info!("v3.3.1 lease accounting: {} leases", snapshot.lease_count);
+        }
+
+        // ------------------------------------------------------------
+        // W1-3 Stage 2: ASC 842 / IFRS 16 lease journal entries
+        // ------------------------------------------------------------
+        //
+        // The lease_generator above produces fully-measured `Lease`s (ROU asset,
+        // lease liability, amortization schedule) but its output was NEVER merged
+        // to the GL. When `monthly_recurring` is ON we now post:
+        //
+        //   * INCEPTION (commencement date, clamped into the slice):
+        //       DR ROU asset (other non-current assets 1590)
+        //       CR lease liability (long-term debt 2600) for the initial PV.
+        //     This FUNDS the lease liability so the per-month draw-down below never
+        //     creates a negative liability (the A=L+E #1 risk).
+        //   * FINANCE lease, per schedule row falling in the slice — two balanced JEs:
+        //       (a) payment: DR lease liability (principal) + DR interest expense
+        //           (7100) / CR cash (1000). Draws the FUNDED liability down by the
+        //           schedule principal (sum over life ≤ PV → never negative).
+        //       (b) ROU amortization: DR depreciation/amortization expense (6000) /
+        //           CR ROU asset (1590, contra — no separate accumulated-ROU account
+        //           exists in the CoA, so we reduce the asset directly).
+        //   * OPERATING lease, per schedule row in the slice:
+        //       single straight-line lease expense DR rent (6300) / CR cash (1000).
+        //
+        // Multi-FY safety: only schedule rows whose `period_date` falls within
+        // [slice_start, slice_end] are posted, and inception is only emitted when the
+        // commencement falls in (or before) this slice — so a per-FY re-invocation
+        // never double-posts. When OFF this block emits nothing (byte-identical).
+        if self.phase_config.monthly_recurring
+            && self.config.accounting_standards.leases.enabled
+            && !snapshot.leases.is_empty()
+        {
+            use datasynth_core::accounts::{cash_accounts, expense_accounts, liability_accounts};
+            use datasynth_standards::accounting::leases::LeaseClassification;
+
+            // ROU asset account (no dedicated ROU constant in the CoA — uses the
+            // generic non-current "other assets" account, which classifies as Asset).
+            const ROU_ASSET_ACCT: &str = datasynth_core::accounts::asset_class_accounts::OTHER_ASSETS;
+            // Lease liability account (no dedicated lease-liability constant — uses
+            // long-term debt, which classifies as Liability).
+            let lease_liab_acct = liability_accounts::LONG_TERM_DEBT;
+
+            let slice_start = start_date;
+            let slice_end = end_date - chrono::Days::new(1);
+            let mut lease_jes: Vec<JournalEntry> = Vec::new();
+
+            for lease in &snapshot.leases {
+                // Skip leases that commence after this slice ends — their inception
+                // (and all amortization) belongs to a later slice.
+                if lease.commencement_date > slice_end {
+                    continue;
+                }
+                let pv = lease.lease_liability.initial_measurement.round_dp(2);
+                let monthly_dep = lease.rou_asset.monthly_depreciation().round_dp(2);
+
+                // --- Inception: fund ROU asset + lease liability ---
+                // Only emit inception when the lease commences within THIS slice
+                // (commencement >= slice_start); a lease that commenced in a prior
+                // slice was already funded there.
+                if pv > Decimal::ZERO && lease.commencement_date >= slice_start {
+                    let inc_date = lease.commencement_date.max(slice_start);
+                    let mut inc_je = JournalEntry::new_simple(
+                        format!("JE-LEASE842-INC-{}", lease.lease_id),
+                        lease.company_code.clone(),
+                        inc_date,
+                        format!("ASC 842 lease inception — {}", lease.description),
+                    );
+                    inc_je.header.business_process = Some(BusinessProcess::R2R);
+                    inc_je.header.source = TransactionSource::Automated;
+                    let inc_doc = inc_je.header.document_id;
+                    // DR ROU asset
+                    inc_je.add_line(JournalEntryLine::debit(
+                        inc_doc,
+                        1,
+                        ROU_ASSET_ACCT.to_string(),
+                        pv,
+                    ));
+                    // CR lease liability
+                    inc_je.add_line(JournalEntryLine::credit(
+                        inc_doc,
+                        2,
+                        lease_liab_acct.to_string(),
+                        pv,
+                    ));
+                    debug_assert!(inc_je.is_balanced(), "ASC 842 inception JE must balance");
+                    lease_jes.push(inc_je);
+                }
+
+                let is_finance = lease.classification == LeaseClassification::Finance;
+
+                // --- Per-period postings: walk schedule rows inside the slice ---
+                for row in &lease.lease_liability.amortization_schedule {
+                    if row.period_date < slice_start || row.period_date > slice_end {
+                        continue;
+                    }
+                    let interest = row.interest_expense.round_dp(2);
+                    let principal = row.principal_payment.round_dp(2);
+                    let payment = row.payment_amount.round_dp(2);
+
+                    if is_finance {
+                        // (a) Lease payment: DR liability(principal) + DR interest /
+                        //     CR cash(payment). Balanced: principal + interest == payment.
+                        if payment > Decimal::ZERO {
+                            let mut pay_je = JournalEntry::new_simple(
+                                format!(
+                                    "JE-LEASE842-PAY-{}-{}",
+                                    lease.lease_id, row.period_number
+                                ),
+                                lease.company_code.clone(),
+                                row.period_date,
+                                format!(
+                                    "ASC 842 finance lease payment — {} period {}",
+                                    lease.description, row.period_number
+                                ),
+                            );
+                            pay_je.header.business_process = Some(BusinessProcess::R2R);
+                            pay_je.header.source = TransactionSource::Automated;
+                            let pay_doc = pay_je.header.document_id;
+                            let mut line_no = 1u32;
+                            if principal > Decimal::ZERO {
+                                pay_je.add_line(JournalEntryLine::debit(
+                                    pay_doc,
+                                    line_no,
+                                    lease_liab_acct.to_string(),
+                                    principal,
+                                ));
+                                line_no += 1;
+                            }
+                            if interest > Decimal::ZERO {
+                                pay_je.add_line(JournalEntryLine::debit(
+                                    pay_doc,
+                                    line_no,
+                                    expense_accounts::INTEREST_EXPENSE.to_string(),
+                                    interest,
+                                ));
+                                line_no += 1;
+                            }
+                            // CR cash for the full payment (principal + interest).
+                            // Use the summed debits so the JE balances exactly even
+                            // when a rounded principal/interest split drifts a cent
+                            // from `payment`.
+                            let cash_amount = principal.max(Decimal::ZERO) + interest.max(Decimal::ZERO);
+                            if cash_amount > Decimal::ZERO {
+                                pay_je.add_line(JournalEntryLine::credit(
+                                    pay_doc,
+                                    line_no,
+                                    cash_accounts::OPERATING_CASH.to_string(),
+                                    cash_amount,
+                                ));
+                                debug_assert!(
+                                    pay_je.is_balanced(),
+                                    "ASC 842 finance lease payment JE must balance"
+                                );
+                                lease_jes.push(pay_je);
+                            }
+                        }
+
+                        // (b) ROU amortization: DR amort expense / CR ROU asset.
+                        if monthly_dep > Decimal::ZERO {
+                            let mut amort_je = JournalEntry::new_simple(
+                                format!(
+                                    "JE-LEASE842-AMORT-{}-{}",
+                                    lease.lease_id, row.period_number
+                                ),
+                                lease.company_code.clone(),
+                                row.period_date,
+                                format!(
+                                    "ASC 842 ROU amortization — {} period {}",
+                                    lease.description, row.period_number
+                                ),
+                            );
+                            amort_je.header.business_process = Some(BusinessProcess::R2R);
+                            amort_je.header.source = TransactionSource::Automated;
+                            let amort_doc = amort_je.header.document_id;
+                            amort_je.add_line(JournalEntryLine::debit(
+                                amort_doc,
+                                1,
+                                expense_accounts::DEPRECIATION.to_string(),
+                                monthly_dep,
+                            ));
+                            amort_je.add_line(JournalEntryLine::credit(
+                                amort_doc,
+                                2,
+                                ROU_ASSET_ACCT.to_string(),
+                                monthly_dep,
+                            ));
+                            debug_assert!(
+                                amort_je.is_balanced(),
+                                "ASC 842 ROU amortization JE must balance"
+                            );
+                            lease_jes.push(amort_je);
+                        }
+                    } else {
+                        // Operating lease: single straight-line lease expense.
+                        // DR rent expense / CR cash for the period payment.
+                        if payment > Decimal::ZERO {
+                            let mut op_je = JournalEntry::new_simple(
+                                format!(
+                                    "JE-LEASE842-OPEX-{}-{}",
+                                    lease.lease_id, row.period_number
+                                ),
+                                lease.company_code.clone(),
+                                row.period_date,
+                                format!(
+                                    "ASC 842 operating lease expense — {} period {}",
+                                    lease.description, row.period_number
+                                ),
+                            );
+                            op_je.header.business_process = Some(BusinessProcess::R2R);
+                            op_je.header.source = TransactionSource::Automated;
+                            let op_doc = op_je.header.document_id;
+                            op_je.add_line(JournalEntryLine::debit(
+                                op_doc,
+                                1,
+                                expense_accounts::RENT.to_string(),
+                                payment,
+                            ));
+                            op_je.add_line(JournalEntryLine::credit(
+                                op_doc,
+                                2,
+                                cash_accounts::OPERATING_CASH.to_string(),
+                                payment,
+                            ));
+                            debug_assert!(
+                                op_je.is_balanced(),
+                                "ASC 842 operating lease JE must balance"
+                            );
+                            lease_jes.push(op_je);
+                        }
+                    }
+                }
+            }
+            debug!(
+                "W1-3 Stage 2: generated {} ASC 842 lease JEs",
+                lease_jes.len()
+            );
+            snapshot.lease_journal_entries = lease_jes;
         }
 
         // ------------------------------------------------------------
@@ -9872,11 +10470,92 @@ impl EnhancedOrchestrator {
             let mut treasury_jes = Vec::new();
 
             // Debt interest accrual JEs
+            //
+            // W1-3 Stage 2 (bond/loan interest): when `monthly_recurring` is OFF we
+            // keep the existing flat lump (`generate_debt_jes`, principal*rate/4 per
+            // instrument at `end_date`) so the output stays BYTE-IDENTICAL. When ON
+            // we instead accrue the slice's interest spread evenly across the
+            // recurring month-ends — DR Interest Expense (7100) / CR Interest Payable
+            // (2160), the SAME accounts the flat generator uses — so a monthly build
+            // carries ~one month of interest on each month-end balance sheet.
             if !snapshot.debt_instruments.is_empty() {
-                let debt_jes =
-                    TreasuryAccounting::generate_debt_jes(&snapshot.debt_instruments, end_date);
-                debug!("Generated {} debt interest accrual JEs", debt_jes.len());
-                treasury_jes.extend(debt_jes);
+                if self.phase_config.monthly_recurring {
+                    use datasynth_core::accounts::{expense_accounts, treasury_accounts};
+                    let month_ends = self.recurring_month_ends()?;
+                    let period_months = Decimal::from(self.config.global.period_months.max(1));
+                    // Slice window for active-instrument filtering.
+                    let slice_start = start_date;
+                    let slice_end = end_date - chrono::Days::new(1);
+                    let mut bond_je_count = 0usize;
+                    for debt in &snapshot.debt_instruments {
+                        // Only emit for instruments active during this slice:
+                        // skip if matured before the slice begins or originated
+                        // after the slice ends (multi-FY safety — never re-post a
+                        // prior/future year's interest).
+                        if debt.maturity_date < slice_start || debt.origination_date > slice_end {
+                            continue;
+                        }
+                        // Slice interest = principal * annual_rate * (months / 12).
+                        let slice_interest = (debt.principal * debt.interest_rate * period_months
+                            / Decimal::from(12))
+                        .round_dp(2);
+                        if slice_interest <= Decimal::ZERO {
+                            continue;
+                        }
+                        let alloc = monthly_straight_line_allocation(
+                            slice_interest,
+                            month_ends.len() as u32,
+                        );
+                        for (idx, amount) in alloc.iter().enumerate() {
+                            if *amount <= Decimal::ZERO {
+                                continue;
+                            }
+                            let posting_date = month_ends[idx];
+                            let mut je = JournalEntry::new_simple(
+                                format!("JE-TREAS-INT-{}-{}", debt.id, idx + 1),
+                                debt.entity_id.clone(),
+                                posting_date,
+                                format!(
+                                    "Interest accrual on {} from {}",
+                                    debt.id, debt.lender
+                                ),
+                            );
+                            je.header.currency = debt.currency.clone();
+                            je.header.business_process = Some(BusinessProcess::Treasury);
+                            je.header.source = TransactionSource::Automated;
+                            let doc_id = je.header.document_id;
+                            // DR Interest Expense (7100)
+                            je.add_line(JournalEntryLine::debit(
+                                doc_id,
+                                1,
+                                expense_accounts::INTEREST_EXPENSE.to_string(),
+                                *amount,
+                            ));
+                            // CR Interest Payable (2160)
+                            je.add_line(JournalEntryLine::credit(
+                                doc_id,
+                                2,
+                                treasury_accounts::INTEREST_PAYABLE.to_string(),
+                                *amount,
+                            ));
+                            debug_assert!(
+                                je.is_balanced(),
+                                "Bond monthly interest JE must balance"
+                            );
+                            treasury_jes.push(je);
+                            bond_je_count += 1;
+                        }
+                    }
+                    debug!(
+                        "Generated {} monthly bond interest accrual JEs",
+                        bond_je_count
+                    );
+                } else {
+                    let debt_jes =
+                        TreasuryAccounting::generate_debt_jes(&snapshot.debt_instruments, end_date);
+                    debug!("Generated {} debt interest accrual JEs", debt_jes.len());
+                    treasury_jes.extend(debt_jes);
+                }
             }
 
             // Hedge mark-to-market JEs

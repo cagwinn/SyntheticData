@@ -19,6 +19,31 @@ use uuid::Uuid;
 
 use crate::framework::AccountingFramework;
 
+/// Stable namespace for deterministic lease UUIDs (random constant, fixed once).
+/// Used as the UUID-v5 namespace so lease ids are reproducible across runs.
+const LEASE_ID_NAMESPACE: Uuid = Uuid::from_bytes([
+    0x6c, 0x65, 0x61, 0x73, 0x65, 0x2d, 0x69, 0x64, 0x2d, 0x6e, 0x73, 0x2d, 0x76, 0x35, 0x31, 0x36,
+]);
+
+/// Derive a deterministic lease id (UUID v5) from the lease's stable identifying
+/// inputs. Pure function of its arguments — no RNG, no wall-clock — so the same
+/// lease always gets the same id (W1-3 Stage 2 determinism fix; replaces the old
+/// `Uuid::now_v7()`).
+fn deterministic_lease_id(
+    company_code: &str,
+    lessor_name: &str,
+    description: &str,
+    commencement_date: NaiveDate,
+    lease_term_months: u32,
+    fixed_payment: Decimal,
+    framework: AccountingFramework,
+) -> Uuid {
+    let key = format!(
+        "{company_code}|{lessor_name}|{description}|{commencement_date}|{lease_term_months}|{fixed_payment}|{framework:?}"
+    );
+    Uuid::new_v5(&LEASE_ID_NAMESPACE, key.as_bytes())
+}
+
 /// Lease contract model.
 ///
 /// Represents a lease arrangement with all data needed for proper
@@ -153,7 +178,25 @@ impl Lease {
         economic_life_months: u32,
         framework: AccountingFramework,
     ) -> Self {
-        let lease_id = Uuid::now_v7();
+        let company_code = company_code.into();
+        let lessor_name = lessor_name.into();
+        let description = description.into();
+        // W1-3 Stage 2 determinism fix: `Uuid::now_v7()` is wall-clock based and
+        // therefore non-deterministic across runs — a build with the same seed
+        // would emit different `lease_id`s each time, which breaks reproducibility
+        // and (once Stage-2 lease JEs key on `lease_id`) the answer-key tie. Derive
+        // the id deterministically (UUID v5, SHA-1 over a stable namespace + the
+        // lease's identifying inputs) so the same lease inputs always produce the
+        // same id with no RNG and no wall-clock.
+        let lease_id = deterministic_lease_id(
+            &company_code,
+            &lessor_name,
+            &description,
+            commencement_date,
+            lease_term_months,
+            fixed_payment,
+            framework,
+        );
 
         // Create initial ROUAsset and LeaseLiability (will be calculated properly)
         let rou_asset = ROUAsset {
@@ -177,9 +220,9 @@ impl Lease {
 
         let mut lease = Self {
             lease_id,
-            company_code: company_code.into(),
-            lessor_name: lessor_name.into(),
-            description: description.into(),
+            company_code,
+            lessor_name,
+            description,
             asset_class,
             classification: LeaseClassification::Operating, // Will be updated
             commencement_date,
@@ -757,6 +800,54 @@ pub struct LeaseAmortizationEntry {
 mod tests {
     use super::*;
     use rust_decimal_macros::dec;
+
+    #[test]
+    fn test_lease_id_is_deterministic() {
+        // W1-3 Stage 2 determinism fix: two leases built from identical inputs must
+        // get the SAME lease_id (no wall-clock / RNG drift). This is the property
+        // Stage-2 lease JEs key on for the answer-key tie.
+        let make = || {
+            Lease::new(
+                "1000",
+                "ABC Leasing",
+                "Office Space Lease",
+                LeaseAssetClass::RealEstate,
+                NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
+                60,
+                dec!(10000),
+                PaymentFrequency::Monthly,
+                dec!(0.05),
+                dec!(500000),
+                120,
+                AccountingFramework::UsGaap,
+            )
+        };
+        let a = make();
+        let b = make();
+        assert_eq!(a.lease_id, b.lease_id, "same inputs must yield same lease_id");
+        // ROU asset and lease liability carry the same id.
+        assert_eq!(a.lease_id, a.rou_asset.lease_id);
+        assert_eq!(a.lease_id, a.lease_liability.lease_id);
+        // It must be a valid v5 UUID (not nil, not v7).
+        assert_eq!(a.lease_id.get_version_num(), 5);
+
+        // A materially different lease gets a different id.
+        let c = Lease::new(
+            "1000",
+            "ABC Leasing",
+            "Warehouse Lease", // different description
+            LeaseAssetClass::RealEstate,
+            NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
+            60,
+            dec!(10000),
+            PaymentFrequency::Monthly,
+            dec!(0.05),
+            dec!(500000),
+            120,
+            AccountingFramework::UsGaap,
+        );
+        assert_ne!(a.lease_id, c.lease_id);
+    }
 
     #[test]
     fn test_lease_creation() {
