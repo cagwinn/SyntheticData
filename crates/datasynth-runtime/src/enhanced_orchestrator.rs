@@ -4824,6 +4824,36 @@ impl EnhancedOrchestrator {
         }
     }
 
+    /// W1-3: month-end posting dates for the RECURRING classes — depreciation / accruals (Stage 1,
+    /// in `phase_period_close`) and bond interest / ASC 606 recognition / ASC 842 lease amortization
+    /// (Stage 2, in `phase_treasury_data` / `phase_accounting_standards`). One element (`close_date`,
+    /// the slice's last day) when `monthly_recurring` is OFF → byte-identical lump; one date per
+    /// month of the slice when ON, so every recurring class spreads on the SAME calendar.
+    ///
+    /// Lives outside `GenerationSession` fiscal-year slicing (orthogonal to
+    /// `skip_income_statement_close` — see `PeriodCloseConfig`'s SEAM NOTE): the session re-invokes
+    /// the orchestrator per FY-slice with its own `start_date`/`period_months`, so these month-ends
+    /// always cover exactly the current slice and a Stage-2 class that walks them cannot re-post a
+    /// prior fiscal year.
+    fn recurring_month_ends(&self) -> SynthResult<Vec<NaiveDate>> {
+        let start_date = NaiveDate::parse_from_str(&self.config.global.start_date, "%Y-%m-%d")
+            .map_err(|e| SynthError::config(format!("Invalid start_date: {e}")))?;
+        let close_date =
+            start_date + chrono::Months::new(self.config.global.period_months) - chrono::Days::new(1);
+        let n: u32 = if self.phase_config.monthly_recurring {
+            self.config.global.period_months.max(1)
+        } else {
+            1
+        };
+        Ok(if n == 1 {
+            vec![close_date]
+        } else {
+            (1..=n)
+                .map(|m| start_date + chrono::Months::new(m) - chrono::Days::new(1))
+                .collect()
+        })
+    }
+
     /// Phase 10b: Generate period-close journal entries.
     ///
     /// Generates:
@@ -4857,32 +4887,12 @@ impl EnhancedOrchestrator {
         // Posting date for close entries is the last day of the period
         let close_date = end_date - chrono::Days::new(1);
 
-        // W1-3 Stage 1: month-end posting dates for the RECURRING period-close
-        // entries (depreciation, accruals, amortization). When monthly_recurring
-        // is OFF this is a single element — `close_date`, the slice's last day —
-        // so the recurring postings lump exactly as before (byte-identical).
-        // When ON it is one date per month of the slice, so those entries post
-        // monthly and an interim (e.g. quarterly) income statement reflects the
-        // right per-month expense instead of a year's worth dumped in period 12.
-        //
-        // This loop is INSIDE phase_period_close and never touches
-        // `global.fiscal_year_months` / the GenerationSession slicing — so it is
-        // orthogonal to `skip_income_statement_close` and cannot trigger the
-        // multi-FY double-post (see PeriodCloseConfig's SEAM NOTE). The
-        // period-level close below (tax / dividends / income-statement close)
-        // stays at `close_date` regardless.
-        let recurring_periods: u32 = if self.phase_config.monthly_recurring {
-            self.config.global.period_months.max(1)
-        } else {
-            1
-        };
-        let month_ends: Vec<NaiveDate> = if recurring_periods == 1 {
-            vec![close_date]
-        } else {
-            (1..=recurring_periods)
-                .map(|m| start_date + chrono::Months::new(m) - chrono::Days::new(1))
-                .collect()
-        };
+        // W1-3 Stage 1: month-end posting dates for the RECURRING period-close entries
+        // (depreciation, accruals, amortization) — one element (`close_date`) when monthly_recurring
+        // is OFF → byte-identical lump; one per month of the slice when ON. Shared with the Stage-2
+        // recurring classes via `recurring_month_ends`. The period-level close below (tax /
+        // dividends / income-statement close) stays at `close_date` regardless.
+        let month_ends = self.recurring_month_ends()?;
 
         // Statutory tax rate (21% — configurable rates come in later tiers)
         let tax_rate = Decimal::new(21, 2); // 0.21
