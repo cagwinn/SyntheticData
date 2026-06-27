@@ -637,9 +637,57 @@ pub(crate) fn specialized_opening_seed_jes(
     jes
 }
 
+/// Spec 16 step 2 — build the Pension opening-stock inception JE from the signed opening net pension
+/// liability. Unlike the ECL/Provisions seed (offset to Retained Earnings 3200), the pension offset is
+/// Accumulated OCI (3800) — the IAS-19 / ASC 715 exception. SIGN CONVENTION: positive = net pension
+/// LIABILITY / under-funded (DR Accumulated OCI 3800 / CR Net Pension Liability 2800 — establishes the
+/// opening actuarial loss in OCI offsetting the opening liability); negative = net pension ASSET /
+/// over-funded (DR 2800 / CR 3800 — drives 2800 to a DEBIT balance, exactly how the engine already
+/// represents an over-funded plan at closing; there is NO separate prepaid-pension GL). None / 0 /
+/// non-finite => no JE. Carries document_type=OPENING_BALANCE + FY1-only gating like step 1; zero RNG.
+/// Free function (testable); `build_pension_opening_seed_je` reads the config and delegates here.
+pub(crate) fn pension_opening_seed_je(
+    company_code: &str,
+    currency: &str,
+    as_of_date: NaiveDate,
+    opening_net_liability: Option<f64>,
+) -> Option<JournalEntry> {
+    use datasynth_core::accounts::{equity_accounts, liability_accounts};
+    let net = Decimal::try_from(opening_net_liability?).ok()?.round_dp(2);
+    if net == Decimal::ZERO {
+        return None;
+    }
+    let amount = net.abs();
+    let mut je = JournalEntry::new_simple(
+        format!("JE-PENSION-OPEN-{company_code}"),
+        company_code.to_string(),
+        as_of_date,
+        "Pension funded-status opening stock".to_string(),
+    );
+    je.header.document_type = "OPENING_BALANCE".to_string();
+    je.header.created_by = "SYSTEM".to_string();
+    je.header.currency = currency.to_string();
+    je.header.source = TransactionSource::Automated;
+    je.header.business_process = Some(BusinessProcess::R2R);
+    let doc = je.header.document_id;
+    let oci = equity_accounts::OCI_REMEASUREMENTS.to_string();
+    let net_liab = liability_accounts::NET_PENSION_LIABILITY.to_string();
+    if net > Decimal::ZERO {
+        // under-funded: DR Accumulated OCI 3800 / CR Net Pension Liability 2800
+        je.add_line(JournalEntryLine::debit(doc, 1, oci, amount));
+        je.add_line(JournalEntryLine::credit(doc, 2, net_liab, amount));
+    } else {
+        // over-funded: DR Net Pension Liability 2800 (-> net asset) / CR Accumulated OCI 3800
+        je.add_line(JournalEntryLine::debit(doc, 1, net_liab, amount));
+        je.add_line(JournalEntryLine::credit(doc, 2, oci, amount));
+    }
+    debug_assert!(je.is_balanced(), "pension opening seed JE must balance");
+    Some(je)
+}
+
 #[cfg(test)]
 mod opening_seed_tests {
-    use super::specialized_opening_seed_jes;
+    use super::{pension_opening_seed_je, specialized_opening_seed_jes};
     use chrono::NaiveDate;
     use rust_decimal::Decimal;
     use std::str::FromStr;
@@ -696,6 +744,41 @@ mod opening_seed_tests {
             specialized_opening_seed_jes("1000", "USD", date(), Some(50_000.0), Some(30_000.0));
         assert_eq!(jes.len(), 2);
         assert!(jes.iter().all(|je| je.is_balanced()));
+    }
+
+    #[test]
+    fn pension_seed_off_emits_nothing() {
+        // None and an exactly-zero net position both yield no JE → inert when off.
+        assert!(pension_opening_seed_je("1000", "USD", date(), None).is_none());
+        assert!(pension_opening_seed_je("1000", "USD", date(), Some(0.0)).is_none());
+    }
+
+    #[test]
+    fn pension_underfunded_credits_2800_offsets_oci_3800() {
+        // positive net = under-funded liability: DR Accumulated OCI 3800 / CR Net Pension Liability
+        // 2800 — the offset is OCI, NEVER Retained Earnings 3200.
+        let je = pension_opening_seed_je("1000", "USD", date(), Some(80_000.0)).expect("a JE");
+        assert!(je.is_balanced());
+        assert_eq!(je.header.document_type, "OPENING_BALANCE");
+        assert_eq!(je.lines.len(), 2);
+        let liab = je.lines.iter().find(|l| l.gl_account == "2800").expect("2800 line");
+        let oci = je.lines.iter().find(|l| l.gl_account == "3800").expect("3800 line");
+        assert!(!liab.is_debit(), "net pension liability 2800 is a CREDIT when under-funded");
+        assert!(oci.is_debit(), "Accumulated OCI 3800 is the debit offset");
+        assert_eq!(liab.credit_amount, d("80000.00"));
+        assert!(je.lines.iter().all(|l| l.gl_account != "3200"), "pension never touches RE 3200");
+    }
+
+    #[test]
+    fn pension_overfunded_debits_2800_offsets_oci_3800() {
+        // negative net = over-funded asset: DR Net Pension Liability 2800 (driven to a net asset) /
+        // CR Accumulated OCI 3800. No prepaid-pension account — 2800 carries the over-funded asset.
+        let je = pension_opening_seed_je("1000", "USD", date(), Some(-40_000.0)).expect("a JE");
+        assert!(je.is_balanced());
+        let liab = je.lines.iter().find(|l| l.gl_account == "2800").expect("2800 line");
+        assert!(liab.is_debit(), "net pension 2800 is a DEBIT when over-funded (a net asset)");
+        assert_eq!(liab.debit_amount, d("40000.00"));
+        assert!(je.lines.iter().all(|l| l.gl_account != "1520"), "never posts to Buildings 1520");
     }
 }
 
@@ -11938,6 +12021,12 @@ impl EnhancedOrchestrator {
                 &company.currency,
                 start_date,
             ));
+            // spec 16 step 2: the pension funded-status opening seed (offset to OCI 3800, sign-driven).
+            specialized_jes.extend(self.build_pension_opening_seed_je(
+                &company.code,
+                &company.currency,
+                start_date,
+            ));
         }
 
         stats.opening_balance_count = results.len();
@@ -11975,6 +12064,23 @@ impl EnhancedOrchestrator {
             as_of_date,
             std.expected_credit_loss.opening_balance,
             std.provisions.opening_balance,
+        )
+    }
+
+    /// Spec 16 step 2 — build the pension funded-status opening seed for one company from
+    /// `accounting_standards.pension.opening_net_liability` (signed; offset to OCI 3800). Returns
+    /// `None` when unconfigured (so a default build is byte-identical). Delegates to the free fn.
+    fn build_pension_opening_seed_je(
+        &self,
+        company_code: &str,
+        currency: &str,
+        as_of_date: NaiveDate,
+    ) -> Option<JournalEntry> {
+        pension_opening_seed_je(
+            company_code,
+            currency,
+            as_of_date,
+            self.config.accounting_standards.pension.opening_net_liability,
         )
     }
 

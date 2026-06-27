@@ -5873,6 +5873,10 @@ pub struct AccountingStandardsConfig {
     #[serde(default)]
     pub provisions: ProvisionsConfig,
 
+    /// Pension opening-stock seed configuration (IAS 19 / ASC 715), spec 16 step 2
+    #[serde(default)]
+    pub pension: PensionConfig,
+
     /// Generate framework differences for dual reporting
     #[serde(default)]
     pub generate_differences: bool,
@@ -6232,6 +6236,22 @@ pub struct ProvisionsConfig {
     /// the historical behavior).
     #[serde(default)]
     pub opening_balance: Option<f64>,
+}
+
+/// Configuration for the pension opening-stock seed (spec 16 step 2). Pension period flows post in the
+/// HR phase (pension expense + OCI remeasurement) but never seed the brought-forward funded status;
+/// this config governs ONLY the OPENING seed, so a default build is byte-identical.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct PensionConfig {
+    /// When `Some(x)` with `x != 0`, the opening-balance phase seeds the opening net pension position
+    /// at the company's opening date via a balanced inception JE whose offset is Accumulated OCI
+    /// (3800), NOT Retained Earnings (the IAS-19 / ASC 715 exception). SIGN CONVENTION: positive =
+    /// net pension LIABILITY / under-funded (`DR 3800 / CR Net Pension Liability 2800`); negative =
+    /// net pension ASSET / over-funded (`DR 2800 / CR 3800` — 2800 driven to a debit balance, matching
+    /// how the engine already represents an over-funded plan; there is no separate prepaid-pension GL).
+    /// `None` (the default) = no opening seed (the historical behavior).
+    #[serde(default)]
+    pub opening_net_liability: Option<f64>,
 }
 
 // =============================================================================
