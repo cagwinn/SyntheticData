@@ -368,6 +368,12 @@ pub struct PhaseConfig {
     /// `phase_period_close` and never touches `GenerationSession` / fiscal-year
     /// slicing, so the multi-FY close gate is unaffected.
     pub monthly_recurring: bool,
+    /// Emit the one-time debt-inception JE (DR cash / CR long-term debt) for each configured
+    /// debt instrument. True for a single-period / batch build; the multi-year
+    /// [`GenerationSession`] sets it true ONLY for the first fiscal year (`period_cursor == 0`),
+    /// because it regenerates the instruments each FY with that FY's origination date — without
+    /// this gate the principal issuance would re-fire every year and inflate cash + long-term debt.
+    pub emit_debt_inception: bool,
     /// Generate HR data (payroll, time entries, expenses, pensions, stock comp).
     pub generate_hr: bool,
     /// Generate treasury data (cash management, hedging, debt, pooling).
@@ -432,6 +438,7 @@ impl Default for PhaseConfig {
             generate_period_close: true,            // On by default
             skip_income_statement_close: false,     // Off by default (only the session sets it true)
             monthly_recurring: false,               // Off by default → byte-identical lumped output
+            emit_debt_inception: true,              // Single-period/batch issues debt principal once
             generate_hr: false,                     // Off by default
             generate_treasury: false,               // Off by default
             generate_project_accounting: false,     // Off by default
@@ -462,6 +469,9 @@ impl PhaseConfig {
             // W1-3 Stage 1: monthly recurring postings, derived from config.
             // Off unless the YAML opts in (the product overlay sets it true).
             monthly_recurring: cfg.period_close.monthly_recurring,
+            // The single-period CLI path issues debt principal once. The multi-year session
+            // overrides this to fire only in FY1 (period_cursor == 0) so it is not re-issued.
+            emit_debt_inception: true,
             generate_evolution_events: true,
             show_progress: true,
 
@@ -3892,11 +3902,12 @@ impl EnhancedOrchestrator {
                 .map(|l| l.debit_amount)
                 .fold(rust_decimal::Decimal::ZERO, |a, v| a + v);
 
-            // Sum interest expense debits (account 7100)
+            // Sum interest expense debits (account 7150 — the dedicated interest account; 7100 is
+            // now the FA depreciation account after the interest/depreciation split).
             let interest_paid: rust_decimal::Decimal = entries
                 .iter()
                 .flat_map(|je| je.lines.iter())
-                .filter(|l| l.gl_account.starts_with("7100"))
+                .filter(|l| l.gl_account.starts_with("7150"))
                 .map(|l| l.debit_amount)
                 .fold(rust_decimal::Decimal::ZERO, |a, v| a + v);
 
@@ -10593,6 +10604,49 @@ impl EnhancedOrchestrator {
             // (2160), the SAME accounts the flat generator uses — so a monthly build
             // carries ~one month of interest on each month-end balance sheet.
             if !snapshot.debt_instruments.is_empty() {
+                // Debt inception: one balanced issuance JE per instrument, posted in the slice
+                // where it originates — DR Operating Cash (1000) / CR Long-Term Debt (2600) —
+                // so the balance sheet carries the principal liability (previously bonds/loans
+                // accrued interest but never recorded principal, leaving BS long-term debt at 0).
+                // The origination-date window keeps it idempotent within a slice; in a multi-year
+                // session `emit_debt_inception` is set only for the first fiscal year so the
+                // principal is issued once. Inert without debt instruments.
+                if self.phase_config.emit_debt_inception {
+                    use datasynth_core::accounts::{cash_accounts, liability_accounts};
+                    let inc_slice_start = start_date;
+                    let inc_slice_end = end_date - chrono::Days::new(1);
+                    for debt in &snapshot.debt_instruments {
+                        if debt.origination_date < inc_slice_start
+                            || debt.origination_date > inc_slice_end
+                        {
+                            continue;
+                        }
+                        let mut je = JournalEntry::new_simple(
+                            format!("JE-TREAS-DEBT-INC-{}", debt.id),
+                            debt.entity_id.clone(),
+                            debt.origination_date,
+                            format!("Debt issuance — {} from {}", debt.id, debt.lender),
+                        );
+                        je.header.currency = debt.currency.clone();
+                        je.header.business_process = Some(BusinessProcess::Treasury);
+                        je.header.source = TransactionSource::Automated;
+                        let doc_id = je.header.document_id;
+                        je.add_line(JournalEntryLine::debit(
+                            doc_id,
+                            1,
+                            cash_accounts::OPERATING_CASH.to_string(),
+                            debt.principal,
+                        ));
+                        je.add_line(JournalEntryLine::credit(
+                            doc_id,
+                            2,
+                            liability_accounts::LONG_TERM_DEBT.to_string(),
+                            debt.principal,
+                        ));
+                        debug_assert!(je.is_balanced(), "Debt inception JE must balance");
+                        treasury_jes.push(je);
+                    }
+                }
                 if self.phase_config.monthly_recurring {
                     use datasynth_core::accounts::{expense_accounts, treasury_accounts};
                     let month_ends = self.recurring_month_ends()?;

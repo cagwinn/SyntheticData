@@ -106,8 +106,8 @@ pub fn buyer_accounts(t: IcTransactionType) -> (&'static str, &'static str) {
         | IcTransactionType::Royalty
         | IcTransactionType::CostSharing
         | IcTransactionType::ExpenseRecharge => ("6800", "2050"),
-        // DR INTEREST_EXPENSE (7100) / CR IC_AP_CLEARING.
-        IcTransactionType::LoanInterest => ("7100", "2050"),
+        // DR INTEREST_EXPENSE (7150) / CR IC_AP_CLEARING.
+        IcTransactionType::LoanInterest => ("7150", "2050"),
         // DR OPERATING_CASH (1000) / CR IC_AP_CLEARING.
         IcTransactionType::Dividend => ("1000", "2050"),
     }
@@ -223,7 +223,7 @@ mod tests {
         );
         assert_eq!(
             buyer_accounts(IcTransactionType::LoanInterest),
-            ("7100", "2050")
+            ("7150", "2050")
         );
         assert_eq!(
             buyer_accounts(IcTransactionType::Dividend),

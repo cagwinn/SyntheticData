@@ -208,7 +208,8 @@ fn builtin_canonical_map() -> BTreeMap<String, String> {
     m.insert("6850".to_string(), "Provision expense".to_string());
     m.insert("6900".to_string(), "Bad debt expense".to_string());
     // ── Below the line ────────────────────────────────────────────────
-    m.insert("7100".to_string(), "Interest expense".to_string());
+    m.insert("7100".to_string(), "Depreciation expense".to_string());
+    m.insert("7150".to_string(), "Interest expense".to_string());
     m.insert("7400".to_string(), "Purchase discounts".to_string());
     m.insert("7500".to_string(), "FX gain/loss".to_string());
     m.insert("7510".to_string(), "Hedge ineffectiveness".to_string());

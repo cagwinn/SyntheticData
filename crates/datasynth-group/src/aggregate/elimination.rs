@@ -669,8 +669,10 @@ const IC_EXPENSE_ACCOUNT: &str = "6800";
 /// `ic_je_injector::seller_accounts` for `LoanInterest`).
 const IC_INTEREST_INCOME: &str = "7000";
 /// Buyer-side IC interest expense slot (matches `INTEREST_EXPENSE` /
-/// `7100`).
-const INTEREST_EXPENSE: &str = "7100";
+/// `7150` — the dedicated interest account after the 7100 interest/
+/// depreciation split; `classify` keys off the core const so this must
+/// track it).
+const INTEREST_EXPENSE: &str = "7150";
 /// Seller-side dividend income slot (matches `OTHER_REVENUE` / `4900`
 /// in `ic_je_injector::seller_accounts` for `Dividend`).
 const DIVIDEND_INCOME: &str = "4900";

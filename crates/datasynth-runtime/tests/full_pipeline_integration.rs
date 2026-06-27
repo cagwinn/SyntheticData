@@ -76,6 +76,67 @@ fn test_full_pipeline_all_phases() {
     );
 }
 
+/// Track 2 (debt reality, B1 gate): the one-time debt INCEPTION JE
+/// (DR cash / CR long-term debt) is emitted exactly once when `emit_debt_inception`
+/// is set, and fully suppressed when it is not. The multi-fiscal-year `GenerationSession`
+/// sets the flag only for the first fiscal year (`period_cursor == 0`), so the principal
+/// is issued once instead of re-firing — and inflating cash + long-term debt — every year.
+#[test]
+fn test_debt_inception_je_gated_by_emit_flag() {
+    fn inception_count(emit: bool) -> usize {
+        let mut config = minimal_config();
+        config.global.seed = Some(7777);
+        config.global.period_months = 3;
+        config.treasury.enabled = true;
+        config.treasury.debt.enabled = true;
+        config.treasury.debt.instruments = vec![datasynth_config::schema::DebtInstrumentDef {
+            instrument_type: "bond".to_string(),
+            principal: Some(2_000_000.0),
+            rate: Some(0.06),
+            maturity_months: Some(60),
+            facility: None,
+        }];
+        let phase_config = PhaseConfig {
+            generate_journal_entries: true,
+            generate_treasury: true,
+            emit_debt_inception: emit,
+            show_progress: false,
+            ..Default::default()
+        };
+        let mut orchestrator =
+            EnhancedOrchestrator::new(config, phase_config).expect("orchestrator");
+        let result = orchestrator.generate().expect("generation");
+        let incs: Vec<_> = result
+            .journal_entries
+            .iter()
+            .filter(|je| {
+                je.header
+                    .reference
+                    .as_deref()
+                    .map(|r| r.starts_with("JE-TREAS-DEBT-INC-"))
+                    .unwrap_or(false)
+            })
+            .collect();
+        // Every inception JE must be balanced (DR cash == CR long-term debt).
+        for je in &incs {
+            let debits: Decimal = je.lines.iter().map(|l| l.debit_amount).sum();
+            let credits: Decimal = je.lines.iter().map(|l| l.credit_amount).sum();
+            assert_eq!(debits, credits, "inception JE must balance");
+        }
+        incs.len()
+    }
+    assert_eq!(
+        inception_count(true),
+        1,
+        "first fiscal year issues debt principal exactly once"
+    );
+    assert_eq!(
+        inception_count(false),
+        0,
+        "subsequent fiscal years must NOT re-issue principal"
+    );
+}
+
 /// Test that master data is consistent across the pipeline.
 #[test]
 fn test_master_data_consistency() {

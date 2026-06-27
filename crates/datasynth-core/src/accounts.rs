@@ -141,8 +141,12 @@ pub mod expense_accounts {
     /// Pension expense (service cost + interest cost + amortization, IAS 19 / ASC 715)
     pub const PENSION_EXPENSE: &str = "6205";
 
-    /// Interest expense account
-    pub const INTEREST_EXPENSE: &str = "7100";
+    /// Interest expense account. Dedicated 7150 slot (was "7100", which COLLIDED with the FA
+    /// subledger's depreciation account [`super::asset_class_accounts::DEPRECIATION_EXPENSE`] —
+    /// the "7100 overload" that named an interest-bearing account "FA Depreciation Expense" and
+    /// tripped the product's XR-DB-006 name↔category coherence check). Every interest poster
+    /// references this constant, so repointing it here reroutes all of them to 7150 at once.
+    pub const INTEREST_EXPENSE: &str = "7150";
 
     /// Stock-based compensation expense (ASC 718)
     pub const STOCK_COMP_EXPENSE: &str = "7200";

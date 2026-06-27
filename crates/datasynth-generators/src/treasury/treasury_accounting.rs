@@ -28,7 +28,7 @@ impl TreasuryAccounting {
     /// Generate interest accrual JEs for active debt instruments.
     ///
     /// For each instrument where `period_end <= maturity_date`, posts:
-    ///   DR Interest Expense ("7100")
+    ///   DR Interest Expense ("7150")
     ///   CR Interest Payable ("2160")
     ///
     /// Amount = principal * (annual_interest_rate / 4) — quarterly

@@ -201,6 +201,10 @@ impl GenerationSession {
         // runs NO session close, so it keeps the orchestrator's close — unchanged.
         let mut period_phase_config = self.phase_config.clone();
         period_phase_config.skip_income_statement_close = self.periods.len() > 1;
+        // Debt principal is issued ONCE: only the first fiscal year emits the inception JE.
+        // Each FY regenerates the instruments with that FY's origination date, so without this
+        // gate the issuance would re-fire annually and inflate cash + long-term debt.
+        period_phase_config.emit_debt_inception = self.state.period_cursor == 0;
         let orchestrator = EnhancedOrchestrator::new(period_config, period_phase_config)?;
         let mut orchestrator = orchestrator.with_output_path(&output_path);
 
