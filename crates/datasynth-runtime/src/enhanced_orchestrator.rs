@@ -565,6 +565,140 @@ pub(crate) fn monthly_straight_line_allocation(
     out
 }
 
+/// Spec 16 step 1 — build the specialized opening-stock inception JEs for one company from explicit
+/// per-instrument opening amounts. Each is a balanced 2-line JE: `DR Retained Earnings (3200) /
+/// CR <control>`. The posting SIDES ARE HARDCODED — the credit-normal ECL allowance (1105, a
+/// contra-asset NOT in the generated CoA) must never be routed through the opening-balance
+/// converter's first-digit heuristic, which would mis-side it as a debit and silently absorb the
+/// error in the 3100 plug. A non-positive / non-finite amount yields no JE. The JEs carry
+/// `document_type=OPENING_BALANCE` so they load as the FY1 opening and are roll-forward-suppressed
+/// in later fiscal years, exactly like the foundational opening. Free function (testable);
+/// `EnhancedOrchestrator::build_specialized_opening_seed_jes` reads the config and delegates here.
+pub(crate) fn specialized_opening_seed_jes(
+    company_code: &str,
+    currency: &str,
+    as_of_date: NaiveDate,
+    ecl_opening: Option<f64>,
+    provision_opening: Option<f64>,
+) -> Vec<JournalEntry> {
+    use datasynth_core::accounts::{equity_accounts, provision_accounts};
+    // The ECL allowance is a sub-account of AR control ("1105"); intentionally NOT a datasynth-core
+    // account constant (it lives as a private const in ecl_generator).
+    const ECL_ALLOWANCE: &str = "1105";
+    let seeds: [(&str, &str, &str, Option<f64>); 2] = [
+        (
+            "JE-ECL-OPEN",
+            "ECL allowance opening stock",
+            ECL_ALLOWANCE,
+            ecl_opening,
+        ),
+        (
+            "JE-PROV-OPEN",
+            "Provision liability opening stock",
+            provision_accounts::PROVISION_LIABILITY,
+            provision_opening,
+        ),
+    ];
+    let mut jes: Vec<JournalEntry> = Vec::new();
+    for (id_prefix, label, control, amount_opt) in seeds {
+        let Some(amount_f64) = amount_opt else {
+            continue;
+        };
+        let Some(amount) = Decimal::try_from(amount_f64).ok().map(|d| d.round_dp(2)) else {
+            continue;
+        };
+        if amount <= Decimal::ZERO {
+            continue;
+        }
+        let mut je = JournalEntry::new_simple(
+            format!("{id_prefix}-{company_code}"),
+            company_code.to_string(),
+            as_of_date,
+            label.to_string(),
+        );
+        je.header.document_type = "OPENING_BALANCE".to_string();
+        je.header.created_by = "SYSTEM".to_string();
+        je.header.currency = currency.to_string();
+        je.header.source = TransactionSource::Automated;
+        je.header.business_process = Some(BusinessProcess::R2R);
+        let doc = je.header.document_id;
+        // DR Retained Earnings (the canonical opening-equity clearing, 3200) ...
+        je.add_line(JournalEntryLine::debit(
+            doc,
+            1,
+            equity_accounts::RETAINED_EARNINGS.to_string(),
+            amount,
+        ));
+        // ... CR the credit-normal control account (allowance 1105 / provision liability 2450).
+        je.add_line(JournalEntryLine::credit(doc, 2, control.to_string(), amount));
+        debug_assert!(je.is_balanced(), "specialized opening seed JE must balance");
+        jes.push(je);
+    }
+    jes
+}
+
+#[cfg(test)]
+mod opening_seed_tests {
+    use super::specialized_opening_seed_jes;
+    use chrono::NaiveDate;
+    use rust_decimal::Decimal;
+    use std::str::FromStr;
+
+    fn d(s: &str) -> Decimal {
+        Decimal::from_str(s).expect("valid decimal literal")
+    }
+    fn date() -> NaiveDate {
+        NaiveDate::from_ymd_opt(2025, 1, 1).expect("valid date")
+    }
+
+    #[test]
+    fn seed_off_emits_nothing() {
+        // Both openings None → no JE → the seam is inert when off (byte-identity guard).
+        assert!(specialized_opening_seed_jes("1000", "USD", date(), None, None).is_empty());
+        // A zero / negative amount is ignored too (no spurious empty JE).
+        assert!(
+            specialized_opening_seed_jes("1000", "USD", date(), Some(0.0), Some(-5.0)).is_empty()
+        );
+    }
+
+    #[test]
+    fn ecl_seed_credits_the_allowance_1105() {
+        // R1 regression: the contra-asset allowance MUST be CREDITED (DR 3200 / CR 1105), never
+        // posted on the debit side a first-digit heuristic would pick for a "1xxx" account.
+        let jes = specialized_opening_seed_jes("1000", "USD", date(), Some(50_000.0), None);
+        assert_eq!(jes.len(), 1, "only ECL configured → exactly one seed JE");
+        let je = &jes[0];
+        assert!(je.is_balanced());
+        assert_eq!(je.header.document_type, "OPENING_BALANCE");
+        assert_eq!(je.lines.len(), 2);
+        let re = je.lines.iter().find(|l| l.gl_account == "3200").expect("RE line");
+        let allowance = je.lines.iter().find(|l| l.gl_account == "1105").expect("1105 line");
+        assert!(re.is_debit(), "retained earnings 3200 is the debit offset");
+        assert!(!allowance.is_debit(), "allowance 1105 must be a CREDIT (contra-asset)");
+        assert_eq!(allowance.credit_amount, d("50000.00"));
+        assert_eq!(re.debit_amount, d("50000.00"));
+    }
+
+    #[test]
+    fn provisions_seed_credits_the_liability_2450() {
+        let jes = specialized_opening_seed_jes("1000", "USD", date(), None, Some(30_000.0));
+        assert_eq!(jes.len(), 1);
+        let je = &jes[0];
+        assert!(je.is_balanced());
+        let liab = je.lines.iter().find(|l| l.gl_account == "2450").expect("2450 line");
+        assert!(!liab.is_debit(), "provision liability 2450 must be a CREDIT");
+        assert_eq!(liab.credit_amount, d("30000.00"));
+    }
+
+    #[test]
+    fn both_seeds_emit_two_balanced_jes() {
+        let jes =
+            specialized_opening_seed_jes("1000", "USD", date(), Some(50_000.0), Some(30_000.0));
+        assert_eq!(jes.len(), 2);
+        assert!(jes.iter().all(|je| je.is_balanced()));
+    }
+}
+
 #[cfg(test)]
 mod recurring_posting_tests {
     use super::monthly_straight_line_allocation;
@@ -2757,17 +2891,22 @@ impl EnhancedOrchestrator {
         self.emit_phase_items("document_flows", "SalesOrder", &document_flows.sales_orders);
         self.emit_phase_items("document_flows", "Delivery", &document_flows.deliveries);
 
-        // Phase 3b: Opening Balances (before JE generation)
-        let opening_balances = self.phase_opening_balances(&coa, &mut stats)?;
+        // Phase 3b: Opening Balances (before JE generation). The second tuple element is the
+        // spec-16 specialized opening-stock inception JEs (ECL/Provisions) — empty unless configured.
+        let (opening_balances, specialized_opening_jes) =
+            self.phase_opening_balances(&coa, &mut stats)?;
 
         // Phase 3c: Convert opening balances to journal entries and prepend them.
         // The CoA lookup resolves each account's normal_debit_balance flag, solving the
         // contra-asset problem (e.g., Accumulated Depreciation) without requiring a richer
         // balance map type.
-        let opening_balance_jes: Vec<JournalEntry> = opening_balances
+        let mut opening_balance_jes: Vec<JournalEntry> = opening_balances
             .iter()
             .flat_map(|ob| opening_balance_to_jes(ob, &coa))
             .collect();
+        // Merge the specialized seeds (explicit, correctly-sided JEs — NOT routed through the
+        // converter heuristic) into the opening TB so they prepend with the foundational opening.
+        opening_balance_jes.extend(specialized_opening_jes);
         if !opening_balance_jes.is_empty() {
             debug!(
                 "Prepending {} opening balance JEs to entries",
@@ -11668,11 +11807,15 @@ impl EnhancedOrchestrator {
     ///    return empty Vec.
     /// 3. **OpeningBalanceGenerator**: industry-mix sampler for the
     ///    period-0 engagement.
+    /// Returns `(opening balances, specialized opening-seed JEs)`. The second vec is non-empty only
+    /// on the FY1 generator path (branch 3) when a specialized instrument (ECL/Provisions, spec 16
+    /// step 1) configures an opening stock — branch 1 (FY2+ shard carry-forward) and branch 2
+    /// (disabled) return it empty, so the seed fires exactly once at inception.
     fn phase_opening_balances(
         &mut self,
         coa: &Arc<ChartOfAccounts>,
         stats: &mut EnhancedGenerationStatistics,
-    ) -> SynthResult<Vec<GeneratedOpeningBalance>> {
+    ) -> SynthResult<(Vec<GeneratedOpeningBalance>, Vec<JournalEntry>)> {
         let start_date = NaiveDate::parse_from_str(&self.config.global.start_date, "%Y-%m-%d")
             .map_err(|e| SynthError::config(format!("Invalid start_date: {e}")))?;
         let fiscal_year = start_date.year();
@@ -11745,14 +11888,16 @@ impl EnhancedOrchestrator {
                 }
                 stats.opening_balance_count = results.len();
                 self.check_resources_with_log("post-opening-balances")?;
-                return Ok(results);
+                // FY2+ carry-forward already carries any specialized opening (it closed non-zero in
+                // FY1) — do NOT re-seed here, or the inception would double-count every fiscal year.
+                return Ok((results, Vec::new()));
             }
         }
 
         // 2. Generator path is opt-in via the config flag.
         if !self.config.balance.generate_opening_balances {
             debug!("Phase 3b: Skipped (opening balance generation disabled)");
-            return Ok(Vec::new());
+            return Ok((Vec::new(), Vec::new()));
         }
         info!("Phase 3b: Generating Opening Balances");
 
@@ -11774,6 +11919,9 @@ impl EnhancedOrchestrator {
             datasynth_generators::OpeningBalanceGenerator::with_seed(config, self.seed + 200);
 
         let mut results = Vec::new();
+        // Spec 16 step 1: specialized opening-stock inception JEs (ECL/Provisions), built once on
+        // this FY1 generator path so the seed never re-fires (branch 1 carries it forward instead).
+        let mut specialized_jes: Vec<JournalEntry> = Vec::new();
         for company in &self.config.companies {
             let spec = OpeningBalanceSpec::new(
                 company.code.clone(),
@@ -11785,13 +11933,49 @@ impl EnhancedOrchestrator {
             );
             let ob = gen.generate(&spec, coa, start_date, &company.code);
             results.push(ob);
+            specialized_jes.extend(self.build_specialized_opening_seed_jes(
+                &company.code,
+                &company.currency,
+                start_date,
+            ));
         }
 
         stats.opening_balance_count = results.len();
         info!("Opening balances generated: {} companies", results.len());
+        if !specialized_jes.is_empty() {
+            info!(
+                "Specialized opening-stock seeds: {} inception JEs",
+                specialized_jes.len()
+            );
+        }
         self.check_resources_with_log("post-opening-balances")?;
 
-        Ok(results)
+        Ok((results, specialized_jes))
+    }
+
+    /// Spec 16 step 1 — build the specialized opening-stock inception JEs for one company, gated by
+    /// the per-instrument `opening_balance` config. Each is a balanced 2-line JE:
+    /// `DR Retained Earnings (3200) / CR <control>` for the configured opening amount. The posting
+    /// SIDES ARE HARDCODED — the credit-normal ECL allowance (1105, a contra-asset NOT in the
+    /// generated CoA) must never be routed through the opening-balance converter's first-digit
+    /// heuristic, which would mis-side it as a debit and silently land the error in the 3100 plug.
+    /// Returns empty when neither instrument configures an opening (so a default build is
+    /// byte-identical). The JEs carry `document_type=OPENING_BALANCE` so they load as the FY1 opening
+    /// and are roll-forward-suppressed in later fiscal years, exactly like the foundational opening.
+    fn build_specialized_opening_seed_jes(
+        &self,
+        company_code: &str,
+        currency: &str,
+        as_of_date: NaiveDate,
+    ) -> Vec<JournalEntry> {
+        let std = &self.config.accounting_standards;
+        specialized_opening_seed_jes(
+            company_code,
+            currency,
+            as_of_date,
+            std.expected_credit_loss.opening_balance,
+            std.provisions.opening_balance,
+        )
     }
 
     /// Phase 9b: Reconcile GL control accounts to subledger balances.

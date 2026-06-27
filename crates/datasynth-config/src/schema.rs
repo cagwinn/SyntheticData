@@ -5869,6 +5869,10 @@ pub struct AccountingStandardsConfig {
     #[serde(default)]
     pub expected_credit_loss: EclConfig,
 
+    /// Provisions opening-stock seed configuration (IAS 37 / ASC 450), spec 16 step 1
+    #[serde(default)]
+    pub provisions: ProvisionsConfig,
+
     /// Generate framework differences for dual reporting
     #[serde(default)]
     pub generate_differences: bool,
@@ -6169,6 +6173,14 @@ pub struct EclConfig {
     /// Multiplier for pessimistic scenario (> 1.0 means higher losses).
     #[serde(default = "default_ecl_pessimistic_multiplier")]
     pub pessimistic_scenario_multiplier: f64,
+
+    /// Spec 16 step 1 — opening-stock seed. When `Some(x)` with `x > 0`, the opening-balance phase
+    /// seeds an opening ECL allowance (contra-asset account 1105) of `x` at the company's opening
+    /// date via a balanced inception JE (DR Retained Earnings 3200 / CR 1105). `None` (the default)
+    /// leaves the historical behavior unchanged: the engine posts only the period-flow P/L charge and
+    /// the allowance opens at zero. Off-by-default → byte-identical when absent.
+    #[serde(default)]
+    pub opening_balance: Option<f64>,
 }
 
 fn default_ecl_base_weight() -> f64 {
@@ -6200,8 +6212,26 @@ impl Default for EclConfig {
             optimistic_scenario_multiplier: default_ecl_optimistic_multiplier(),
             pessimistic_scenario_weight: default_ecl_pessimistic_weight(),
             pessimistic_scenario_multiplier: default_ecl_pessimistic_multiplier(),
+            opening_balance: None,
         }
     }
+}
+
+// =============================================================================
+// Provisions Configuration (IAS 37 / ASC 450) — opening-stock seed
+// =============================================================================
+
+/// Configuration for the provisions opening-stock seed (spec 16 step 1). The provision period-flow
+/// (recognition) generator runs unconditionally inside the accounting-standards phase; this config
+/// governs ONLY the OPENING seed, so a default build is byte-identical.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ProvisionsConfig {
+    /// When `Some(x)` with `x > 0`, the opening-balance phase seeds an opening provision liability
+    /// (account 2450) of `x` at the company's opening date via a balanced inception JE (DR Retained
+    /// Earnings 3200 / CR 2450). `None` (the default) = no opening seed (the liability opens at zero,
+    /// the historical behavior).
+    #[serde(default)]
+    pub opening_balance: Option<f64>,
 }
 
 // =============================================================================
