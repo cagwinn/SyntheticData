@@ -5187,7 +5187,20 @@ impl EnhancedOrchestrator {
                     seed_offset: 800,
                 };
                 let depr_gen = FaDepreciationScheduleGenerator::new(depr_cfg, self.seed);
-                let runs = depr_gen.generate(company_code, &subledger.fa_records);
+                // PP-2 (FA tie): when enabled, capture the depreciation JEs and post them into the
+                // GL so the accumulated-depreciation control reflects the schedule (the FA register
+                // and the GL accum-dep otherwise diverge — the schedule generator emits these JEs
+                // but they are discarded). The returned runs are byte-identical to `generate`'s, so
+                // `subledger.depreciation_runs` is unchanged either way; OFF by default → the JEs
+                // stay discarded and the build is byte-identical.
+                let runs = if self.config.period_close.post_depreciation_jes {
+                    let (runs, depr_jes) =
+                        depr_gen.generate_with_jes(company_code, &subledger.fa_records);
+                    fa_journal_entries.extend(depr_jes);
+                    runs
+                } else {
+                    depr_gen.generate(company_code, &subledger.fa_records)
+                };
                 let run_count = runs.len();
                 subledger.depreciation_runs = runs;
                 debug!(
@@ -5669,8 +5682,18 @@ impl EnhancedOrchestrator {
         // --- Depreciation JEs (per asset) ---
         // Compute period depreciation for each active fixed asset using straight-line method.
         // period_depreciation = (acquisition_cost - salvage_value) / useful_life_months * period_months
+        // spec 27 R6d: when the WIP FA-depr-into-GL path (`post_depreciation_jes`) is active,
+        // `phase_document_flows` already posts the per-asset depreciation JEs (DR 680000-range expense
+        // / CR 165000-range accum-dep) into the GL, so this always-on block MUST NOT also post its
+        // 6000/1510 depreciation — that would double-count. Skip it by iterating an empty slice.
+        // Default off → the block runs unchanged (byte-identical).
         let period_months = self.config.global.period_months;
-        for asset in &subledger.fa_records {
+        let fa_records_for_depr: &[_] = if self.config.period_close.post_depreciation_jes {
+            &[]
+        } else {
+            subledger.fa_records.as_slice()
+        };
+        for asset in fa_records_for_depr {
             // Skip assets that are inactive / fully depreciated / non-depreciable
             use datasynth_core::models::subledger::fa::AssetStatus;
             if asset.status != AssetStatus::Active || asset.is_fully_depreciated() {

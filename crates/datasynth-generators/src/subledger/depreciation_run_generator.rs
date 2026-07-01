@@ -17,6 +17,7 @@ use chrono::{Datelike, NaiveDate};
 use rand::SeedableRng;
 
 use datasynth_core::models::subledger::fa::{DepreciationRun, FixedAssetRecord};
+use datasynth_core::models::JournalEntry;
 
 use crate::FAGenerator;
 use crate::FAGeneratorConfig;
@@ -109,6 +110,63 @@ impl FaDepreciationScheduleGenerator {
         }
 
         runs
+    }
+
+    /// PP-2 (FA tie): identical to [`Self::generate`] but ALSO returns the
+    /// per-period depreciation journal entries
+    /// (`DR depreciation-expense / CR accumulated-depreciation`), so the
+    /// orchestrator can post them into the GL — making the GL
+    /// accumulated-depreciation control reflect the schedule instead of staying
+    /// at its opening balance. The returned runs are byte-identical to
+    /// `generate`'s (same seed, same loop, same RNG draws); only the JEs are
+    /// additionally surfaced. The orchestrator calls this variant ONLY when
+    /// `period_close.post_depreciation_jes` is enabled, so the default build —
+    /// which keeps calling `generate` and discards the JEs — is byte-identical.
+    pub fn generate_with_jes(
+        &self,
+        company_code: &str,
+        fa_records: &[FixedAssetRecord],
+    ) -> (Vec<DepreciationRun>, Vec<JournalEntry>) {
+        if fa_records.is_empty() {
+            return (Vec::new(), Vec::new());
+        }
+
+        let mut fa_gen = FAGenerator::new(
+            FAGeneratorConfig::default(),
+            rand_chacha::ChaCha8Rng::seed_from_u64(self.seed + self.config.seed_offset),
+        );
+
+        let asset_refs: Vec<&FixedAssetRecord> = fa_records.iter().collect();
+
+        let mut runs = Vec::new();
+        let mut jes = Vec::new();
+
+        for period in self.config.start_period..=self.config.end_period {
+            let (year, month) = if period > 12 {
+                (self.config.fiscal_year, 12u32)
+            } else {
+                (self.config.fiscal_year, period)
+            };
+
+            let period_date = last_day_of_month(year, month);
+
+            let (run, period_jes) = fa_gen.run_depreciation(
+                company_code,
+                &asset_refs,
+                period_date,
+                self.config.fiscal_year,
+                period,
+            );
+
+            // Mirror `generate`'s gate exactly: a period with no active assets
+            // contributes neither a run nor its JEs.
+            if run.asset_count > 0 {
+                runs.push(run);
+                jes.extend(period_jes);
+            }
+        }
+
+        (runs, jes)
     }
 }
 
@@ -224,5 +282,52 @@ mod tests {
         let gen = FaDepreciationScheduleGenerator::new(cfg, 7);
         let runs = gen.generate("1000", &[asset]);
         assert_eq!(runs.len(), 12, "Should produce 12 monthly runs");
+    }
+
+    #[test]
+    fn test_generate_with_jes_matches_runs_and_balances() {
+        // PP-2 seam: generate_with_jes returns the SAME runs as generate (the flag only ADDS the
+        // GL JEs) plus one balanced DR depreciation-expense / CR accumulated-depreciation JE per
+        // active period.
+        let asset = make_asset("A100", "1000", dec!(60_000)); // 60_000 / 60 months = 1_000/period
+        let cfg = FaDepreciationScheduleConfig {
+            fiscal_year: 2024,
+            start_period: 1,
+            end_period: 3,
+            seed_offset: 5,
+        };
+        let gen = FaDepreciationScheduleGenerator::new(cfg, 42);
+        let runs_only = gen.generate("1000", std::slice::from_ref(&asset));
+        let (runs, jes) = gen.generate_with_jes("1000", std::slice::from_ref(&asset));
+
+        assert_eq!(
+            runs.len(),
+            runs_only.len(),
+            "runs must mirror the JE-discarding path"
+        );
+        for (a, b) in runs.iter().zip(runs_only.iter()) {
+            assert_eq!(a.fiscal_period, b.fiscal_period);
+            assert_eq!(a.total_depreciation, b.total_depreciation);
+        }
+
+        assert_eq!(
+            jes.len(),
+            3,
+            "one depreciation JE per period with active assets"
+        );
+        for je in &jes {
+            let debit: Decimal = je.lines.iter().map(|l| l.debit_amount).sum();
+            let credit: Decimal = je.lines.iter().map(|l| l.credit_amount).sum();
+            assert_eq!(debit, credit, "depreciation JE must balance");
+            assert_eq!(debit, dec!(1_000), "straight-line monthly depreciation");
+        }
+    }
+
+    #[test]
+    fn test_generate_with_jes_empty_is_empty() {
+        let cfg = FaDepreciationScheduleConfig::default();
+        let gen = FaDepreciationScheduleGenerator::new(cfg, 0);
+        let (runs, jes) = gen.generate_with_jes("1000", &[]);
+        assert!(runs.is_empty() && jes.is_empty());
     }
 }

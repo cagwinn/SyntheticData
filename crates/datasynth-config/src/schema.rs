@@ -309,6 +309,18 @@ pub struct PeriodCloseConfig {
     /// carries the real physical inventory so the product's INV-DB-001 subledger↔GL tie holds.
     #[serde(default, alias = "postInventoryClose")]
     pub post_inventory_close: bool,
+    /// spec 27 R6d (FA tie): post the FA subledger's depreciation journal entries
+    /// (`DR depreciation-expense / CR accumulated-depreciation`) into the GL so
+    /// the GL accumulated-depreciation control reflects the depreciation
+    /// schedule. The schedule generator emits these JEs today but the
+    /// orchestrator DISCARDS them (`_jes`), leaving the GL accum-dep control at
+    /// its opening balance only. OFF by default → the JEs stay discarded and the
+    /// build is byte-identical (the FA tie is a coordinated engine+product change
+    /// flipped on together with the product-side register/opening reconciliation).
+    /// NB: when ON, the always-on straight-line depreciation block in
+    /// `phase_period_close` (DR 6000 / CR 1510) is gated OFF to avoid a double-post.
+    #[serde(default, alias = "postDepreciationJes")]
+    pub post_depreciation_jes: bool,
 }
 
 impl Default for PeriodCloseConfig {
@@ -317,6 +329,7 @@ impl Default for PeriodCloseConfig {
             monthly_recurring: false,
             recurring_entries: Vec::new(),
             post_inventory_close: false,
+            post_depreciation_jes: false,
         }
     }
 }
