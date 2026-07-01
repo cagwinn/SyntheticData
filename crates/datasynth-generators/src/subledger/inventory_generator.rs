@@ -2,7 +2,7 @@
 
 use chrono::NaiveDate;
 use datasynth_core::accounts::{
-    control_accounts, expense_accounts, inventory_accounts, manufacturing_accounts, tax_accounts,
+    control_accounts, expense_accounts, inventory_accounts, manufacturing_accounts,
 };
 use datasynth_core::utils::seeded_rng;
 use rand::RngExt;
@@ -368,10 +368,12 @@ impl InventoryGenerator {
             ..Default::default()
         });
 
-        // Credit GR/IR Clearing
+        // Credit GR/IR Clearing (spec 27 R6c: was SALES_TAX_PAYABLE "2100" — a goods receipt
+        // received-not-invoiced is a GR/IR clearing liability accrual, not sales tax; the comment
+        // was always correct, the constant was wrong. Matches the GL-wired document-flow GR leg.)
         je.add_line(JournalEntryLine {
             line_number: 2,
-            gl_account: tax_accounts::SALES_TAX_PAYABLE.to_string(),
+            gl_account: control_accounts::GR_IR_CLEARING.to_string(),
             credit_amount: movement.value,
             reference: movement.reference_doc_number.clone(),
             ..Default::default()

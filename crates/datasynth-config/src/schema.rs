@@ -303,6 +303,12 @@ pub struct PeriodCloseConfig {
     /// Only consulted when `monthly_recurring` is true.
     #[serde(default, alias = "recurringEntries")]
     pub recurring_entries: Vec<RecurringEntryConfig>,
+    /// spec 27 R6c: post a period-close JE that trues GL Inventory (1200) up to the physical
+    /// end-of-period inventory (Σ position valuations), offsetting the delta to opening equity
+    /// (Retained Earnings). Defaults to **false** → byte-identical archives. When true, GL 1200
+    /// carries the real physical inventory so the product's INV-DB-001 subledger↔GL tie holds.
+    #[serde(default, alias = "postInventoryClose")]
+    pub post_inventory_close: bool,
 }
 
 impl Default for PeriodCloseConfig {
@@ -310,6 +316,7 @@ impl Default for PeriodCloseConfig {
         Self {
             monthly_recurring: false,
             recurring_entries: Vec::new(),
+            post_inventory_close: false,
         }
     }
 }

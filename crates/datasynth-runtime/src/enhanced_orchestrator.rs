@@ -374,6 +374,10 @@ pub struct PhaseConfig {
     /// because it regenerates the instruments each FY with that FY's origination date — without
     /// this gate the principal issuance would re-fire every year and inflate cash + long-term debt.
     pub emit_debt_inception: bool,
+    /// spec 27 R6c: post the inventory→GL true-up close JE (DR/CR Inventory 1200 vs opening equity
+    /// for the delta to the physical EOT inventory). Off by default → byte-identical; the product
+    /// close overlay sets it true so INV-DB-001 (inventory subledger ↔ GL) ties.
+    pub post_inventory_close: bool,
     /// Generate HR data (payroll, time entries, expenses, pensions, stock comp).
     pub generate_hr: bool,
     /// Generate treasury data (cash management, hedging, debt, pooling).
@@ -436,15 +440,16 @@ impl Default for PhaseConfig {
             generate_counterfactuals: false,        // Off by default (opt-in for ML workloads)
             generate_compliance_regulations: false, // Off by default
             generate_period_close: true,            // On by default
-            skip_income_statement_close: false,     // Off by default (only the session sets it true)
-            monthly_recurring: false,               // Off by default → byte-identical lumped output
-            emit_debt_inception: true,              // Single-period/batch issues debt principal once
-            generate_hr: false,                     // Off by default
-            generate_treasury: false,               // Off by default
-            generate_project_accounting: false,     // Off by default
-            generate_legal_documents: false,        // v3.3.0 — off by default
-            generate_it_controls: false,            // v3.3.0 — off by default
-            generate_analytics_metadata: false,     // v3.3.0 — off by default
+            skip_income_statement_close: false, // Off by default (only the session sets it true)
+            monthly_recurring: false,           // Off by default → byte-identical lumped output
+            emit_debt_inception: true,          // Single-period/batch issues debt principal once
+            post_inventory_close: false,        // R6c: off by default → byte-identical
+            generate_hr: false,                 // Off by default
+            generate_treasury: false,           // Off by default
+            generate_project_accounting: false, // Off by default
+            generate_legal_documents: false,    // v3.3.0 — off by default
+            generate_it_controls: false,        // v3.3.0 — off by default
+            generate_analytics_metadata: false, // v3.3.0 — off by default
         }
     }
 }
@@ -472,6 +477,8 @@ impl PhaseConfig {
             // The single-period CLI path issues debt principal once. The multi-year session
             // overrides this to fire only in FY1 (period_cursor == 0) so it is not re-issued.
             emit_debt_inception: true,
+            // R6c: inventory→GL close true-up, opt-in via the YAML (product close overlay).
+            post_inventory_close: cfg.period_close.post_inventory_close,
             generate_evolution_events: true,
             show_progress: true,
 
@@ -630,7 +637,12 @@ pub(crate) fn specialized_opening_seed_jes(
             amount,
         ));
         // ... CR the credit-normal control account (allowance 1105 / provision liability 2450).
-        je.add_line(JournalEntryLine::credit(doc, 2, control.to_string(), amount));
+        je.add_line(JournalEntryLine::credit(
+            doc,
+            2,
+            control.to_string(),
+            amount,
+        ));
         debug_assert!(je.is_balanced(), "specialized opening seed JE must balance");
         jes.push(je);
     }
@@ -685,6 +697,191 @@ pub(crate) fn pension_opening_seed_je(
     Some(je)
 }
 
+/// Spec 27 R6c — build the inventory→GL period-close true-up JEs. For every company that has EITHER
+/// physical inventory positions OR pre-close GL `1200` activity (the UNION of the two key sets), true
+/// GL Inventory (1200) to the physical target — `Σ position.valuation.total_value` for that company,
+/// or **0** when a company carries 1200 churn but holds no ending stock — offsetting the delta to
+/// Retained Earnings (3200). Balance-sheet only (asset ↔ equity) → net-income-neutral, so A=L+E and
+/// the IS-articulation gate stay green. Iterating the union (not just the position-companies) means a
+/// company with 1200 postings but no positions is relieved to zero rather than left holding churn
+/// residue — a no-op for the standard single-focal-company build (its keys coincide) but the honest
+/// behavior for any future multi-company inventory. Delta-based (`target − current`) → self-corrects
+/// and never double-counts prior closes or doc-flow churn. Deterministic: the union is collected into
+/// a `BTreeSet` so JE order is sorted by company_code, and every amount is `Decimal` (`round_dp(2)`).
+/// Free function (testable); the caller builds the two per-company maps from `subledger`/`entries`.
+pub(crate) fn build_inventory_close_jes(
+    target_by_company: &std::collections::BTreeMap<String, Decimal>,
+    gl_1200_by_company: &std::collections::BTreeMap<String, Decimal>,
+    close_date: NaiveDate,
+) -> Vec<JournalEntry> {
+    use datasynth_core::accounts::{control_accounts, equity_accounts};
+    use std::collections::BTreeSet;
+    // UNION of companies with physical inventory OR pre-close GL 1200 activity, sorted → deterministic.
+    let companies: BTreeSet<&String> = target_by_company
+        .keys()
+        .chain(gl_1200_by_company.keys())
+        .collect();
+    let mut jes: Vec<JournalEntry> = Vec::new();
+    for company_code in companies {
+        let target = target_by_company
+            .get(company_code)
+            .copied()
+            .unwrap_or(Decimal::ZERO);
+        let current = gl_1200_by_company
+            .get(company_code)
+            .copied()
+            .unwrap_or(Decimal::ZERO);
+        let delta = (target - current).round_dp(2);
+        if delta == Decimal::ZERO {
+            continue;
+        }
+        let mut inv_header = JournalEntryHeader::new(company_code.to_string(), close_date);
+        inv_header.document_type = "CL".to_string();
+        inv_header.header_text =
+            Some("Inventory revaluation to physical (period close)".to_string());
+        inv_header.created_by = "CLOSE_ENGINE".to_string();
+        inv_header.source = TransactionSource::Automated;
+        inv_header.business_process = Some(BusinessProcess::R2R);
+        let doc_id = inv_header.document_id;
+        let mut inv_je = JournalEntry::new(inv_header);
+        if delta > Decimal::ZERO {
+            // Book more inventory onto the GL: DR Inventory (1200) / CR Retained Earnings.
+            inv_je.add_line(JournalEntryLine::debit(
+                doc_id,
+                1,
+                control_accounts::INVENTORY.to_string(),
+                delta,
+            ));
+            inv_je.add_line(JournalEntryLine::credit(
+                doc_id,
+                2,
+                equity_accounts::RETAINED_EARNINGS.to_string(),
+                delta,
+            ));
+        } else {
+            // Reduce GL inventory to physical: DR Retained Earnings / CR Inventory (1200).
+            let amt = -delta;
+            inv_je.add_line(JournalEntryLine::debit(
+                doc_id,
+                1,
+                equity_accounts::RETAINED_EARNINGS.to_string(),
+                amt,
+            ));
+            inv_je.add_line(JournalEntryLine::credit(
+                doc_id,
+                2,
+                control_accounts::INVENTORY.to_string(),
+                amt,
+            ));
+        }
+        debug_assert!(inv_je.is_balanced(), "Inventory close JE must be balanced");
+        jes.push(inv_je);
+    }
+    jes
+}
+
+#[cfg(test)]
+mod inventory_close_tests {
+    use super::build_inventory_close_jes;
+    use chrono::NaiveDate;
+    use rust_decimal::Decimal;
+    use std::collections::BTreeMap;
+    use std::str::FromStr;
+
+    fn d(s: &str) -> Decimal {
+        Decimal::from_str(s).expect("valid decimal literal")
+    }
+    fn date() -> NaiveDate {
+        NaiveDate::from_ymd_opt(2024, 3, 31).expect("valid date")
+    }
+    fn m(pairs: &[(&str, &str)]) -> BTreeMap<String, Decimal> {
+        pairs.iter().map(|(k, v)| (k.to_string(), d(v))).collect()
+    }
+
+    #[test]
+    fn true_up_books_more_when_target_exceeds_gl() {
+        // physical 10,000 vs GL 6,000 → delta +4,000 → DR Inventory(1200) / CR Retained Earnings(3200).
+        let jes = build_inventory_close_jes(
+            &m(&[("1000", "10000.00")]),
+            &m(&[("1000", "6000.00")]),
+            date(),
+        );
+        assert_eq!(jes.len(), 1);
+        let je = &jes[0];
+        assert!(je.is_balanced());
+        assert_eq!(je.lines.len(), 2);
+        assert_eq!(je.lines[0].gl_account, "1200");
+        assert_eq!(je.lines[0].debit_amount, d("4000.00"));
+        assert_eq!(je.lines[1].gl_account, "3200");
+        assert_eq!(je.lines[1].credit_amount, d("4000.00"));
+        assert_eq!(je.header.document_type, "CL");
+        assert_eq!(je.header.created_by, "CLOSE_ENGINE");
+    }
+
+    #[test]
+    fn true_down_reduces_when_gl_exceeds_target() {
+        // the real manufacturing case (D-R6.5): GL 18,700 churn residue vs physical 10,800 →
+        // delta -7,900 → DR Retained Earnings(3200) / CR Inventory(1200).
+        let jes = build_inventory_close_jes(
+            &m(&[("1000", "10800.00")]),
+            &m(&[("1000", "18700.00")]),
+            date(),
+        );
+        assert_eq!(jes.len(), 1);
+        let je = &jes[0];
+        assert!(je.is_balanced());
+        assert_eq!(je.lines[0].gl_account, "3200");
+        assert_eq!(je.lines[0].debit_amount, d("7900.00"));
+        assert_eq!(je.lines[1].gl_account, "1200");
+        assert_eq!(je.lines[1].credit_amount, d("7900.00"));
+    }
+
+    #[test]
+    fn zero_delta_emits_no_je() {
+        // GL already at physical → no revaluation JE.
+        let jes = build_inventory_close_jes(
+            &m(&[("1000", "5000.00")]),
+            &m(&[("1000", "5000.00")]),
+            date(),
+        );
+        assert!(jes.is_empty());
+    }
+
+    #[test]
+    fn company_with_gl_activity_but_no_positions_is_relieved_to_zero() {
+        // UNION robustness: company "2000" has 1200 churn (3,000) but no positions → trued to 0
+        // (DR 3200 / CR 1200 by 3,000). Company "1000" has positions but no churn → booked up.
+        let target = m(&[("1000", "1000.00")]);
+        let gl = m(&[("2000", "3000.00")]);
+        let jes = build_inventory_close_jes(&target, &gl, date());
+        assert_eq!(jes.len(), 2);
+        // BTreeSet order → "1000" before "2000".
+        assert_eq!(jes[0].header.company_code, "1000");
+        assert_eq!(jes[0].lines[0].gl_account, "1200"); // book up 1000's physical inventory
+        assert_eq!(jes[0].lines[0].debit_amount, d("1000.00"));
+        assert_eq!(jes[1].header.company_code, "2000");
+        assert_eq!(jes[1].lines[0].gl_account, "3200"); // relieve 2000's churn to zero
+        assert_eq!(jes[1].lines[1].gl_account, "1200");
+        assert_eq!(jes[1].lines[1].credit_amount, d("3000.00"));
+        assert!(jes.iter().all(|je| je.is_balanced()));
+    }
+
+    #[test]
+    fn deterministic_company_order_regardless_of_map_insertion() {
+        // BTreeSet sorts keys → JE order is by company_code, independent of insertion order.
+        let jes = build_inventory_close_jes(
+            &m(&[("3000", "300.00"), ("1000", "100.00"), ("2000", "200.00")]),
+            &BTreeMap::new(),
+            date(),
+        );
+        let codes: Vec<&str> = jes
+            .iter()
+            .map(|je| je.header.company_code.as_str())
+            .collect();
+        assert_eq!(codes, vec!["1000", "2000", "3000"]);
+    }
+}
+
 #[cfg(test)]
 mod opening_seed_tests {
     use super::{pension_opening_seed_je, specialized_opening_seed_jes};
@@ -719,10 +916,21 @@ mod opening_seed_tests {
         assert!(je.is_balanced());
         assert_eq!(je.header.document_type, "OPENING_BALANCE");
         assert_eq!(je.lines.len(), 2);
-        let re = je.lines.iter().find(|l| l.gl_account == "3200").expect("RE line");
-        let allowance = je.lines.iter().find(|l| l.gl_account == "1105").expect("1105 line");
+        let re = je
+            .lines
+            .iter()
+            .find(|l| l.gl_account == "3200")
+            .expect("RE line");
+        let allowance = je
+            .lines
+            .iter()
+            .find(|l| l.gl_account == "1105")
+            .expect("1105 line");
         assert!(re.is_debit(), "retained earnings 3200 is the debit offset");
-        assert!(!allowance.is_debit(), "allowance 1105 must be a CREDIT (contra-asset)");
+        assert!(
+            !allowance.is_debit(),
+            "allowance 1105 must be a CREDIT (contra-asset)"
+        );
         assert_eq!(allowance.credit_amount, d("50000.00"));
         assert_eq!(re.debit_amount, d("50000.00"));
     }
@@ -733,8 +941,15 @@ mod opening_seed_tests {
         assert_eq!(jes.len(), 1);
         let je = &jes[0];
         assert!(je.is_balanced());
-        let liab = je.lines.iter().find(|l| l.gl_account == "2450").expect("2450 line");
-        assert!(!liab.is_debit(), "provision liability 2450 must be a CREDIT");
+        let liab = je
+            .lines
+            .iter()
+            .find(|l| l.gl_account == "2450")
+            .expect("2450 line");
+        assert!(
+            !liab.is_debit(),
+            "provision liability 2450 must be a CREDIT"
+        );
         assert_eq!(liab.credit_amount, d("30000.00"));
     }
 
@@ -761,12 +976,26 @@ mod opening_seed_tests {
         assert!(je.is_balanced());
         assert_eq!(je.header.document_type, "OPENING_BALANCE");
         assert_eq!(je.lines.len(), 2);
-        let liab = je.lines.iter().find(|l| l.gl_account == "2800").expect("2800 line");
-        let oci = je.lines.iter().find(|l| l.gl_account == "3800").expect("3800 line");
-        assert!(!liab.is_debit(), "net pension liability 2800 is a CREDIT when under-funded");
+        let liab = je
+            .lines
+            .iter()
+            .find(|l| l.gl_account == "2800")
+            .expect("2800 line");
+        let oci = je
+            .lines
+            .iter()
+            .find(|l| l.gl_account == "3800")
+            .expect("3800 line");
+        assert!(
+            !liab.is_debit(),
+            "net pension liability 2800 is a CREDIT when under-funded"
+        );
         assert!(oci.is_debit(), "Accumulated OCI 3800 is the debit offset");
         assert_eq!(liab.credit_amount, d("80000.00"));
-        assert!(je.lines.iter().all(|l| l.gl_account != "3200"), "pension never touches RE 3200");
+        assert!(
+            je.lines.iter().all(|l| l.gl_account != "3200"),
+            "pension never touches RE 3200"
+        );
     }
 
     #[test]
@@ -775,10 +1004,20 @@ mod opening_seed_tests {
         // CR Accumulated OCI 3800. No prepaid-pension account — 2800 carries the over-funded asset.
         let je = pension_opening_seed_je("1000", "USD", date(), Some(-40_000.0)).expect("a JE");
         assert!(je.is_balanced());
-        let liab = je.lines.iter().find(|l| l.gl_account == "2800").expect("2800 line");
-        assert!(liab.is_debit(), "net pension 2800 is a DEBIT when over-funded (a net asset)");
+        let liab = je
+            .lines
+            .iter()
+            .find(|l| l.gl_account == "2800")
+            .expect("2800 line");
+        assert!(
+            liab.is_debit(),
+            "net pension 2800 is a DEBIT when over-funded (a net asset)"
+        );
         assert_eq!(liab.debit_amount, d("40000.00"));
-        assert!(je.lines.iter().all(|l| l.gl_account != "1520"), "never posts to Buildings 1520");
+        assert!(
+            je.lines.iter().all(|l| l.gl_account != "1520"),
+            "never posts to Buildings 1520"
+        );
     }
 }
 
@@ -799,7 +1038,10 @@ mod recurring_posting_tests {
         // n == 1 → [total] exactly. This is the byte-identical-lump invariant:
         // with monthly_recurring OFF the caller passes a single month-end, so the
         // recurring postings reduce to the pre-Stage-1 single JE.
-        assert_eq!(monthly_straight_line_allocation(d("1234.56"), 1), vec![d("1234.56")]);
+        assert_eq!(
+            monthly_straight_line_allocation(d("1234.56"), 1),
+            vec![d("1234.56")]
+        );
     }
 
     #[test]
@@ -818,9 +1060,15 @@ mod recurring_posting_tests {
             let alloc = monthly_straight_line_allocation(total, n);
             assert_eq!(alloc.len(), n as usize);
             let sum: Decimal = alloc.iter().copied().sum();
-            assert_eq!(sum, total, "alloc {alloc:?} (total={total}, n={n}) must sum to total");
+            assert_eq!(
+                sum, total,
+                "alloc {alloc:?} (total={total}, n={n}) must sum to total"
+            );
             // Non-negative — never a spurious contra posting.
-            assert!(alloc.iter().all(|a| *a >= Decimal::ZERO), "alloc {alloc:?} has a negative");
+            assert!(
+                alloc.iter().all(|a| *a >= Decimal::ZERO),
+                "alloc {alloc:?} has a negative"
+            );
         }
     }
 
@@ -932,7 +1180,10 @@ mod stage2_recurring_tests {
         assert_eq!(inception_liability_credit, recognition_liability_debit);
         // Each recognition JE balances (DR deferred rev == CR revenue, equal amounts).
         for amount in &recognition {
-            assert!(*amount >= Decimal::ZERO, "no negative recognition (no negative liability)");
+            assert!(
+                *amount >= Decimal::ZERO,
+                "no negative recognition (no negative liability)"
+            );
         }
         // Inception JE balances: DR contract asset == CR deferred revenue.
         assert_eq!(allocated, inception_liability_credit);
@@ -949,8 +1200,14 @@ mod stage2_recurring_tests {
         let mut recognition = vec![Decimal::ZERO; n];
         recognition[target] = allocated;
         let recognized: Decimal = recognition.iter().copied().sum();
-        assert_eq!(recognized, allocated, "point-in-time draws down the full funded liability");
-        assert_eq!(recognition.iter().filter(|a| **a > Decimal::ZERO).count(), 1);
+        assert_eq!(
+            recognized, allocated,
+            "point-in-time draws down the full funded liability"
+        );
+        assert_eq!(
+            recognition.iter().filter(|a| **a > Decimal::ZERO).count(),
+            1
+        );
     }
 
     // ---- Class 3: ASC 842 leases ----
@@ -1038,7 +1295,7 @@ mod stage2_recurring_tests {
             "Short Office Lease",
             LeaseAssetClass::RealEstate,
             NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
-            24,   // 24/120 = 20% of useful life (< 75%)
+            24, // 24/120 = 20% of useful life (< 75%)
             d("2000"),
             PaymentFrequency::Monthly,
             d("0.05"),
@@ -1053,7 +1310,10 @@ mod stage2_recurring_tests {
         );
 
         let pv = lease.lease_liability.initial_measurement.round_dp(2);
-        assert!(pv > Decimal::ZERO, "ASC 842 funds the operating ROU + liability at inception");
+        assert!(
+            pv > Decimal::ZERO,
+            "ASC 842 funds the operating ROU + liability at inception"
+        );
 
         // Apply the orchestrator's operating unwind rule across the WHOLE term:
         // each period DR lease liability(principal) / CR ROU(principal).
@@ -5331,8 +5591,8 @@ impl EnhancedOrchestrator {
     fn recurring_month_ends(&self) -> SynthResult<Vec<NaiveDate>> {
         let start_date = NaiveDate::parse_from_str(&self.config.global.start_date, "%Y-%m-%d")
             .map_err(|e| SynthError::config(format!("Invalid start_date: {e}")))?;
-        let close_date =
-            start_date + chrono::Months::new(self.config.global.period_months) - chrono::Days::new(1);
+        let close_date = start_date + chrono::Months::new(self.config.global.period_months)
+            - chrono::Days::new(1);
         let n: u32 = if self.phase_config.monthly_recurring {
             self.config.global.period_months.max(1)
         } else {
@@ -5401,9 +5661,9 @@ impl EnhancedOrchestrator {
         // Estimate capacity: one depreciation + accrual posting per FA / accrual
         // item PER recurring period (1 when lumped, N months when monthly) + ~2
         // period-level JEs per company (tax + close).
-        let estimated_close_jes =
-            (subledger.fa_records.len() + company_codes.len() * 3) * month_ends.len()
-                + company_codes.len() * 2;
+        let estimated_close_jes = (subledger.fa_records.len() + company_codes.len() * 3)
+            * month_ends.len()
+            + company_codes.len() * 2;
         let mut close_jes: Vec<JournalEntry> = Vec::with_capacity(estimated_close_jes);
 
         // --- Depreciation JEs (per asset) ---
@@ -5487,6 +5747,46 @@ impl EnhancedOrchestrator {
                 close_jes.len(),
                 subledger.fa_records.len()
             );
+        }
+
+        // --- Inventory → GL close true-up (spec 27 R6c) ---
+        // The two inventory JE paths use different valuation bases: the document-flow path books GR
+        // at PO price / COGS at SALE net on GL 1200 — and because it UNDER-relieves COGS it leaves a
+        // large positive CHURN RESIDUE there (~18.7M on the R5 manufacturing build) vs the physical
+        // positions' Σ(on-hand × cost) (~10.8M). This close JE trues GL 1200 to the physical EOT
+        // inventory (here a true-DOWN), offsetting the DELTA to opening equity (Retained Earnings) —
+        // a balance-sheet-only revaluation that keeps net income unchanged (so A=L+E and the IS-
+        // articulation gate stay green) and makes 1200 physically meaningful, so the product's
+        // INV-DB-001 subledger↔GL tie holds. Delta-based (target − current) → self-correcting; never
+        // double-counts churn or prior closes. Posted at close_date. Gated (default off → byte-id).
+        // The per-company aggregation + JE construction (incl. the UNION-of-keys robustness for
+        // companies with 1200 activity but no positions) lives in `build_inventory_close_jes`.
+        if self.phase_config.post_inventory_close && !subledger.inventory_positions.is_empty() {
+            use std::collections::BTreeMap;
+            // Target physical inventory per company (Σ position valuations, cent-exact).
+            let mut target_by_company: BTreeMap<String, Decimal> = BTreeMap::new();
+            for pos in &subledger.inventory_positions {
+                *target_by_company
+                    .entry(pos.company_code.clone())
+                    .or_default() += pos.valuation.total_value;
+            }
+            // Current GL 1200 balance per company from the pre-close entries (DR − CR). The close
+            // JEs (depreciation/accruals) don't touch 1200, so their ordering is irrelevant here.
+            let mut gl_1200_by_company: BTreeMap<String, Decimal> = BTreeMap::new();
+            for je in entries.iter() {
+                for line in &je.lines {
+                    if line.gl_account == control_accounts::INVENTORY {
+                        *gl_1200_by_company
+                            .entry(je.header.company_code.clone())
+                            .or_default() += line.debit_amount - line.credit_amount;
+                    }
+                }
+            }
+            close_jes.extend(build_inventory_close_jes(
+                &target_by_company,
+                &gl_1200_by_company,
+                close_date,
+            ));
         }
 
         // --- Accrual entries (standard period-end accruals per company) ---
@@ -5610,7 +5910,10 @@ impl EnhancedOrchestrator {
                                 posting_date,
                                 rec.cost_center.as_deref(),
                             );
-                            debug_assert!(je.is_balanced(), "Recurring amortization JE must balance");
+                            debug_assert!(
+                                je.is_balanced(),
+                                "Recurring amortization JE must balance"
+                            );
                             close_jes.push(je);
                         }
                         RecurringEntryKind::AccruedExpense => {
@@ -8937,10 +9240,9 @@ impl EnhancedOrchestrator {
                     // exactly `allocated` (so the liability funded at inception is
                     // fully drawn down — A=L+E neutral over the slice).
                     let recognition: Vec<Decimal> = match po.satisfaction_pattern {
-                        SatisfactionPattern::OverTime => monthly_straight_line_allocation(
-                            allocated,
-                            month_ends.len() as u32,
-                        ),
+                        SatisfactionPattern::OverTime => {
+                            monthly_straight_line_allocation(allocated, month_ends.len() as u32)
+                        }
                         SatisfactionPattern::PointInTime => {
                             // Recognize the whole amount on the month-end on/after the
                             // expected satisfaction date; if none falls in the slice,
@@ -9002,10 +9304,7 @@ impl EnhancedOrchestrator {
                             revenue_accounts::SERVICE_REVENUE.to_string(),
                             *amount,
                         ));
-                        debug_assert!(
-                            rec_je.is_balanced(),
-                            "ASC 606 recognition JE must balance"
-                        );
+                        debug_assert!(rec_je.is_balanced(), "ASC 606 recognition JE must balance");
                         rev_jes.push(rec_je);
                     }
                 }
@@ -9334,7 +9633,8 @@ impl EnhancedOrchestrator {
 
             // ROU asset account (no dedicated ROU constant in the CoA — uses the
             // generic non-current "other assets" account, which classifies as Asset).
-            const ROU_ASSET_ACCT: &str = datasynth_core::accounts::asset_class_accounts::OTHER_ASSETS;
+            const ROU_ASSET_ACCT: &str =
+                datasynth_core::accounts::asset_class_accounts::OTHER_ASSETS;
             // Lease liability account (no dedicated lease-liability constant — uses
             // long-term debt, which classifies as Liability).
             let lease_liab_acct = liability_accounts::LONG_TERM_DEBT;
@@ -9405,10 +9705,7 @@ impl EnhancedOrchestrator {
                         //     CR cash(payment). Balanced: principal + interest == payment.
                         if payment > Decimal::ZERO {
                             let mut pay_je = JournalEntry::new_simple(
-                                format!(
-                                    "JE-LEASE842-PAY-{}-{}",
-                                    lease.lease_id, row.period_number
-                                ),
+                                format!("JE-LEASE842-PAY-{}-{}", lease.lease_id, row.period_number),
                                 lease.company_code.clone(),
                                 row.period_date,
                                 format!(
@@ -9429,11 +9726,13 @@ impl EnhancedOrchestrator {
                                         lease_liab_acct.to_string(),
                                         principal,
                                     )
-                                    .with_subledger_ref(SubledgerRef::new(
-                                        SubledgerType::Lease,
-                                        lease.lease_id.to_string(),
-                                        Some("payment".to_string()),
-                                    )),
+                                    .with_subledger_ref(
+                                        SubledgerRef::new(
+                                            SubledgerType::Lease,
+                                            lease.lease_id.to_string(),
+                                            Some("payment".to_string()),
+                                        ),
+                                    ),
                                 );
                                 line_no += 1;
                             }
@@ -9450,7 +9749,8 @@ impl EnhancedOrchestrator {
                             // Use the summed debits so the JE balances exactly even
                             // when a rounded principal/interest split drifts a cent
                             // from `payment`.
-                            let cash_amount = principal.max(Decimal::ZERO) + interest.max(Decimal::ZERO);
+                            let cash_amount =
+                                principal.max(Decimal::ZERO) + interest.max(Decimal::ZERO);
                             if cash_amount > Decimal::ZERO {
                                 pay_je.add_line(JournalEntryLine::credit(
                                     pay_doc,
@@ -9571,11 +9871,13 @@ impl EnhancedOrchestrator {
                                     lease_liab_acct.to_string(),
                                     principal,
                                 )
-                                .with_subledger_ref(SubledgerRef::new(
-                                    SubledgerType::Lease,
-                                    lease.lease_id.to_string(),
-                                    Some("paydown".to_string()),
-                                )),
+                                .with_subledger_ref(
+                                    SubledgerRef::new(
+                                        SubledgerType::Lease,
+                                        lease.lease_id.to_string(),
+                                        Some("paydown".to_string()),
+                                    ),
+                                ),
                             );
                             // CR ROU asset (amortization plug)
                             unwind_je.add_line(JournalEntryLine::credit(
@@ -10954,10 +11256,7 @@ impl EnhancedOrchestrator {
                                 format!("JE-TREAS-INT-{}-{}", debt.id, idx + 1),
                                 debt.entity_id.clone(),
                                 posting_date,
-                                format!(
-                                    "Interest accrual on {} from {}",
-                                    debt.id, debt.lender
-                                ),
+                                format!("Interest accrual on {} from {}", debt.id, debt.lender),
                             );
                             je.header.currency = debt.currency.clone();
                             je.header.business_process = Some(BusinessProcess::Treasury);
@@ -12129,7 +12428,10 @@ impl EnhancedOrchestrator {
             company_code,
             currency,
             as_of_date,
-            self.config.accounting_standards.pension.opening_net_liability,
+            self.config
+                .accounting_standards
+                .pension
+                .opening_net_liability,
         )
     }
 
