@@ -8913,12 +8913,22 @@ impl EnhancedOrchestrator {
                         allocated,
                     ));
                     // CR deferred revenue (contract liability) 2300
-                    inc_je.add_line(JournalEntryLine::credit(
-                        inc_doc,
-                        2,
-                        liability_accounts::UNEARNED_REVENUE.to_string(),
-                        allocated,
-                    ));
+                    // spec 27 R6a-2: stamp the 2300 control line with the structured subledger
+                    // dimension (DeferredRevenue, contract_id) — the product decomposes 2300 by
+                    // this instead of regex-parsing the JE-REV606-* reference.
+                    inc_je.add_line(
+                        JournalEntryLine::credit(
+                            inc_doc,
+                            2,
+                            liability_accounts::UNEARNED_REVENUE.to_string(),
+                            allocated,
+                        )
+                        .with_subledger_ref(SubledgerRef::new(
+                            SubledgerType::DeferredRevenue,
+                            contract.contract_id.to_string(),
+                            Some("inception".to_string()),
+                        )),
+                    );
                     debug_assert!(inc_je.is_balanced(), "ASC 606 inception JE must balance");
                     rev_jes.push(inc_je);
 
@@ -8971,12 +8981,20 @@ impl EnhancedOrchestrator {
                         rec_je.header.source = TransactionSource::Automated;
                         let rec_doc = rec_je.header.document_id;
                         // DR deferred revenue (draw down liability) 2300
-                        rec_je.add_line(JournalEntryLine::debit(
-                            rec_doc,
-                            1,
-                            liability_accounts::UNEARNED_REVENUE.to_string(),
-                            *amount,
-                        ));
+                        // spec 27 R6a-2: stamp the 2300 control line (DeferredRevenue, contract_id).
+                        rec_je.add_line(
+                            JournalEntryLine::debit(
+                                rec_doc,
+                                1,
+                                liability_accounts::UNEARNED_REVENUE.to_string(),
+                                *amount,
+                            )
+                            .with_subledger_ref(SubledgerRef::new(
+                                SubledgerType::DeferredRevenue,
+                                contract.contract_id.to_string(),
+                                Some("recognition".to_string()),
+                            )),
+                        );
                         // CR revenue 4100
                         rec_je.add_line(JournalEntryLine::credit(
                             rec_doc,
@@ -9357,12 +9375,16 @@ impl EnhancedOrchestrator {
                         pv,
                     ));
                     // CR lease liability
-                    inc_je.add_line(JournalEntryLine::credit(
-                        inc_doc,
-                        2,
-                        lease_liab_acct.to_string(),
-                        pv,
-                    ));
+                    // spec 27 R6a-2: stamp the 2600 lease-liability control line (Lease, lease_id) —
+                    // the product decomposes 2600 by this instead of regex-parsing JE-LEASE842-*.
+                    inc_je.add_line(
+                        JournalEntryLine::credit(inc_doc, 2, lease_liab_acct.to_string(), pv)
+                            .with_subledger_ref(SubledgerRef::new(
+                                SubledgerType::Lease,
+                                lease.lease_id.to_string(),
+                                Some("inception".to_string()),
+                            )),
+                    );
                     debug_assert!(inc_je.is_balanced(), "ASC 842 inception JE must balance");
                     lease_jes.push(inc_je);
                 }
@@ -9399,12 +9421,20 @@ impl EnhancedOrchestrator {
                             let pay_doc = pay_je.header.document_id;
                             let mut line_no = 1u32;
                             if principal > Decimal::ZERO {
-                                pay_je.add_line(JournalEntryLine::debit(
-                                    pay_doc,
-                                    line_no,
-                                    lease_liab_acct.to_string(),
-                                    principal,
-                                ));
+                                // spec 27 R6a-2: stamp the 2600 principal-paydown line (Lease).
+                                pay_je.add_line(
+                                    JournalEntryLine::debit(
+                                        pay_doc,
+                                        line_no,
+                                        lease_liab_acct.to_string(),
+                                        principal,
+                                    )
+                                    .with_subledger_ref(SubledgerRef::new(
+                                        SubledgerType::Lease,
+                                        lease.lease_id.to_string(),
+                                        Some("payment".to_string()),
+                                    )),
+                                );
                                 line_no += 1;
                             }
                             if interest > Decimal::ZERO {
@@ -9533,12 +9563,20 @@ impl EnhancedOrchestrator {
                             unwind_je.header.source = TransactionSource::Automated;
                             let unwind_doc = unwind_je.header.document_id;
                             // DR lease liability (paydown)
-                            unwind_je.add_line(JournalEntryLine::debit(
-                                unwind_doc,
-                                1,
-                                lease_liab_acct.to_string(),
-                                principal,
-                            ));
+                            // spec 27 R6a-2: stamp the 2600 operating-lease paydown line (Lease).
+                            unwind_je.add_line(
+                                JournalEntryLine::debit(
+                                    unwind_doc,
+                                    1,
+                                    lease_liab_acct.to_string(),
+                                    principal,
+                                )
+                                .with_subledger_ref(SubledgerRef::new(
+                                    SubledgerType::Lease,
+                                    lease.lease_id.to_string(),
+                                    Some("paydown".to_string()),
+                                )),
+                            );
                             // CR ROU asset (amortization plug)
                             unwind_je.add_line(JournalEntryLine::credit(
                                 unwind_doc,
@@ -10859,12 +10897,23 @@ impl EnhancedOrchestrator {
                             cash_accounts::OPERATING_CASH.to_string(),
                             debt.principal,
                         ));
-                        je.add_line(JournalEntryLine::credit(
-                            doc_id,
-                            2,
-                            liability_accounts::LONG_TERM_DEBT.to_string(),
-                            debt.principal,
-                        ));
+                        // spec 27 R6a-2: stamp the 2600 long-term-debt control line (Debt, debt.id).
+                        // debt.id is already a String ("DEBT-NNNNNN"), so clone (not to_string).
+                        // The JE-TREAS-INT interest accruals post to 2160, not 2600, and the debt
+                        // regex never matched them — so they stay unstamped (behavior-preserving).
+                        je.add_line(
+                            JournalEntryLine::credit(
+                                doc_id,
+                                2,
+                                liability_accounts::LONG_TERM_DEBT.to_string(),
+                                debt.principal,
+                            )
+                            .with_subledger_ref(SubledgerRef::new(
+                                SubledgerType::Debt,
+                                debt.id.clone(),
+                                Some("inception".to_string()),
+                            )),
+                        );
                         debug_assert!(je.is_balanced(), "Debt inception JE must balance");
                         treasury_jes.push(je);
                     }
