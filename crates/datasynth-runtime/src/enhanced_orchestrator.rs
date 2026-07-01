@@ -13119,6 +13119,15 @@ impl EnhancedOrchestrator {
                     "Payroll {} ({} employees)",
                     run.payroll_id, run.employee_count
                 )),
+                // spec 27 R6: structured subledger dimension — the whole payroll
+                // JE is attributable to this payroll run, so the generic
+                // reconciler decomposes the 9100 control by (Payroll, payroll_id)
+                // without regex-parsing the reference.
+                subledger_ref: Some(SubledgerRef::new(
+                    SubledgerType::Payroll,
+                    run.payroll_id.clone(),
+                    None,
+                )),
                 ..Default::default()
             });
 
@@ -13128,6 +13137,11 @@ impl EnhancedOrchestrator {
                 gl_account: suspense_accounts::PAYROLL_CLEARING.to_string(),
                 credit_amount: run.total_gross,
                 reference: Some(run.payroll_id.clone()),
+                subledger_ref: Some(SubledgerRef::new(
+                    SubledgerType::Payroll,
+                    run.payroll_id.clone(),
+                    None,
+                )),
                 ..Default::default()
             });
 

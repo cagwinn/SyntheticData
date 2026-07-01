@@ -598,6 +598,69 @@ impl JournalEntryHeader {
 
 use chrono::Datelike;
 
+/// The subledger a journal-entry line participates in, as a first-class
+/// dimension — so downstream reconcilers identify subledger membership
+/// structurally instead of parsing prefix strings from `reference`.
+///
+/// Mirrors the intent of [`DocumentRef`] for subledger identity. A control
+/// account decomposes by `(subledger_type, entity_id)`; `movement_type`
+/// names the roll-forward bucket (e.g. "inception", "payment", "amortization").
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum SubledgerType {
+    /// Accounts payable (vendor open items) — control 2000
+    AccountsPayable,
+    /// Accounts receivable (customer open items) — control 1100
+    AccountsReceivable,
+    /// Payroll clearing — control 9100
+    Payroll,
+    /// Debt / borrowings — long-term debt control
+    Debt,
+    /// Lease liabilities (ASC 842 / IFRS 16)
+    Lease,
+    /// Deferred (unearned) revenue (ASC 606 / IFRS 15)
+    DeferredRevenue,
+    /// Inventory stock valuation
+    Inventory,
+    /// Fixed-asset register
+    FixedAsset,
+}
+
+/// Structured subledger dimension on a [`JournalEntryLine`].
+///
+/// Emitted by the generators that already know the sub-entity id at posting
+/// time (payroll, debt, leases, deferred revenue, AP/AR). Additive and
+/// optional: `None` for pure-GL / period-close lines with no subledger, and
+/// serialised only when set, so existing output is byte-identical until a
+/// generator populates it.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct SubledgerRef {
+    /// Which subledger this line belongs to.
+    pub subledger_type: SubledgerType,
+    /// The sub-entity id within that subledger (payroll_id, debt_id,
+    /// lease_id, contract_id, vendor/customer id, …).
+    pub entity_id: String,
+    /// Optional roll-forward movement bucket (e.g. "inception", "payment",
+    /// "amortization", "accrual", "relief"). `None` when the subledger has a
+    /// single movement kind.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub movement_type: Option<String>,
+}
+
+impl SubledgerRef {
+    /// Convenience constructor.
+    pub fn new(
+        subledger_type: SubledgerType,
+        entity_id: impl Into<String>,
+        movement_type: Option<String>,
+    ) -> Self {
+        Self {
+            subledger_type,
+            entity_id: entity_id.into(),
+            movement_type,
+        }
+    }
+}
+
 /// Individual line item within a journal entry.
 ///
 /// Each line represents a debit or credit posting to a specific GL account.
@@ -757,9 +820,27 @@ pub struct JournalEntryLine {
     /// `document_references.json`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub predecessor_line_id: Option<String>,
+
+    /// **spec 27 R6** — structured subledger dimension.
+    ///
+    /// Identifies the subledger + sub-entity this line participates in, so
+    /// reconcilers decompose a control account by `(subledger_type,
+    /// entity_id)` structurally instead of regex-parsing `reference`. `None`
+    /// for pure-GL / period-close lines with no subledger. Additive:
+    /// `skip_serializing_if` keeps existing output byte-identical until a
+    /// generator populates it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub subledger_ref: Option<SubledgerRef>,
 }
 
 impl JournalEntryLine {
+    /// Attach a structured subledger dimension (spec 27 R6). Chainable.
+    #[inline]
+    pub fn with_subledger_ref(mut self, subledger_ref: SubledgerRef) -> Self {
+        self.subledger_ref = Some(subledger_ref);
+        self
+    }
+
     /// Create a new debit line item.
     #[inline]
     pub fn debit(document_id: Uuid, line_number: u32, gl_account: String, amount: Decimal) -> Self {
@@ -799,6 +880,7 @@ impl JournalEntryLine {
             lettrage_date: None,
             transaction_id: None,
             predecessor_line_id: None,
+            subledger_ref: None,
         }
     }
 
@@ -846,6 +928,7 @@ impl JournalEntryLine {
             lettrage_date: None,
             transaction_id: None,
             predecessor_line_id: None,
+            subledger_ref: None,
         }
     }
 
@@ -942,6 +1025,7 @@ impl Default for JournalEntryLine {
             lettrage_date: None,
             transaction_id: None,
             predecessor_line_id: None,
+            subledger_ref: None,
         }
     }
 }
@@ -1170,5 +1254,39 @@ mod tests {
 
         assert!(!entry.is_balanced());
         assert_eq!(entry.balance_difference(), Decimal::from(500));
+    }
+
+    #[test]
+    fn test_subledger_ref_omitted_when_none() {
+        // spec 27 R6: the new dimension is additive — a line with no subledger
+        // ref serialises WITHOUT the field, so existing output is byte-identical.
+        let line =
+            JournalEntryLine::debit(Uuid::nil(), 1, "100000".to_string(), Decimal::from(1000));
+        assert!(line.subledger_ref.is_none());
+        let json = serde_json::to_string(&line).unwrap();
+        assert!(
+            !json.contains("subledger_ref"),
+            "subledger_ref must be skipped when None (byte-identical): {json}"
+        );
+    }
+
+    #[test]
+    fn test_subledger_ref_round_trips_when_set() {
+        // spec 27 R6: when a generator populates the dimension it serialises and
+        // round-trips, carrying the structured (type, entity_id, movement).
+        let line =
+            JournalEntryLine::credit(Uuid::nil(), 2, "9100".to_string(), Decimal::from(1000))
+                .with_subledger_ref(SubledgerRef::new(
+                    SubledgerType::Payroll,
+                    "PR-000123",
+                    Some("accrual".to_string()),
+                ));
+        let json = serde_json::to_string(&line).unwrap();
+        assert!(json.contains("subledger_ref"));
+        let back: JournalEntryLine = serde_json::from_str(&json).unwrap();
+        let sref = back.subledger_ref.expect("subledger_ref should survive");
+        assert_eq!(sref.subledger_type, SubledgerType::Payroll);
+        assert_eq!(sref.entity_id, "PR-000123");
+        assert_eq!(sref.movement_type.as_deref(), Some("accrual"));
     }
 }
