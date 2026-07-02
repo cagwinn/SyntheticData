@@ -37,6 +37,7 @@ pub mod behavioral_priors;
 mod benford;
 mod beta;
 mod business_day;
+mod concentration;
 mod conditional;
 pub mod conditional_iet;
 mod copula;
@@ -76,6 +77,7 @@ pub use behavioral_priors::{
 pub use benford::*;
 pub use beta::*;
 pub use business_day::*;
+pub use concentration::{concentration_seed, ConcentrationSampler};
 pub use conditional::*;
 pub use conditional_iet::{ConditionalIETSampler, SourceIetState};
 pub use copula::*;

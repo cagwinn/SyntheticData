@@ -12947,8 +12947,27 @@ impl EnhancedOrchestrator {
             p2p_gen.set_temporal_context(Arc::clone(ctx));
         }
 
+        // Spec 19 §4-R1 (R1b): opt-in Pareto concentration for vendor selection. OFF (the default)
+        // → `None`, and the loop keeps the exact `i % len` round-robin, byte-for-byte identical to
+        // the pre-R1b engine. ON → a discrete power-law weighted-choice over an ISOLATED ChaCha8
+        // stream (derived seed, disjoint from `self.seed`), so it never perturbs the generation RNG.
+        let conc = &self.config.document_flows.concentration;
+        let mut vendor_concentration =
+            (conc.vendor_active() && !self.master_data.vendors.is_empty()).then(|| {
+                datasynth_core::distributions::ConcentrationSampler::new(
+                    datasynth_core::distributions::concentration_seed(self.seed, "p2p_vendor"),
+                    self.master_data.vendors.len(),
+                    conc.top_n,
+                    conc.vendor_top_n_share,
+                )
+            });
+
         for i in 0..p2p_count {
-            let vendor = &self.master_data.vendors[i % self.master_data.vendors.len()];
+            let vendor_idx = match &mut vendor_concentration {
+                Some(sampler) => sampler.sample(),
+                None => i % self.master_data.vendors.len(),
+            };
+            let vendor = &self.master_data.vendors[vendor_idx];
             let materials: Vec<&Material> = self
                 .master_data
                 .materials
@@ -13026,8 +13045,25 @@ impl EnhancedOrchestrator {
             o2c_gen.set_temporal_context(Arc::clone(ctx));
         }
 
+        // Spec 19 §4-R1 (R1b): opt-in Pareto concentration for customer selection — same isolated
+        // weighted-choice as the P2P vendor loop; OFF (default) keeps the exact `i % len`.
+        let conc = &self.config.document_flows.concentration;
+        let mut customer_concentration =
+            (conc.customer_active() && !self.master_data.customers.is_empty()).then(|| {
+                datasynth_core::distributions::ConcentrationSampler::new(
+                    datasynth_core::distributions::concentration_seed(self.seed, "o2c_customer"),
+                    self.master_data.customers.len(),
+                    conc.top_n,
+                    conc.customer_top_n_share,
+                )
+            });
+
         for i in 0..o2c_count {
-            let customer = &self.master_data.customers[i % self.master_data.customers.len()];
+            let customer_idx = match &mut customer_concentration {
+                Some(sampler) => sampler.sample(),
+                None => i % self.master_data.customers.len(),
+            };
+            let customer = &self.master_data.customers[customer_idx];
             let materials: Vec<&Material> = self
                 .master_data
                 .materials
@@ -17085,8 +17121,25 @@ impl EnhancedOrchestrator {
         let mut banking_customers = result.customers;
         let core_customers = &self.master_data.customers;
         if !core_customers.is_empty() {
+            // Spec 19 §4-R1 (R1b): the banking cross-reference overlays a core-customer name onto
+            // each banking customer. OFF (default) → the historical `i % len` round-robin, byte-for-
+            // byte. ON → the same isolated weighted-choice as the O2C loop (its OWN stream label),
+            // so the concentrated customers appear proportionally as banking counterparties too.
+            let conc = &self.config.document_flows.concentration;
+            let mut core_concentration = conc.customer_active().then(|| {
+                datasynth_core::distributions::ConcentrationSampler::new(
+                    datasynth_core::distributions::concentration_seed(self.seed, "banking_core"),
+                    core_customers.len(),
+                    conc.top_n,
+                    conc.customer_top_n_share,
+                )
+            });
             for (i, bc) in banking_customers.iter_mut().enumerate() {
-                let core = &core_customers[i % core_customers.len()];
+                let core_idx = match &mut core_concentration {
+                    Some(sampler) => sampler.sample(),
+                    None => i % core_customers.len(),
+                };
+                let core = &core_customers[core_idx];
                 bc.name = CustomerName::business(&core.name);
                 bc.residence_country = core.country.clone();
                 bc.enterprise_customer_id = Some(core.customer_id.clone());

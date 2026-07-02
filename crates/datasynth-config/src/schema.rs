@@ -3652,6 +3652,14 @@ pub struct DocumentFlowConfig {
     /// Export document flow graph
     #[serde(default)]
     pub export_flow_graph: bool,
+    /// Spec 19 §4-R1 (R1b): counterparty-concentration targets for the P2P/O2C document-flow loops.
+    /// When absent (`#[serde(default)]` → disabled) the loops keep the historical uniform
+    /// round-robin counterparty selection, byte-for-byte. When enabled the loops draw counterparties
+    /// via a discrete power-law weighted-choice so a few big counterparties carry most volume.
+    /// (Distinct from the post-process `ConcentrationConfig` pipeline — this is the selection-time
+    /// counterparty draw.)
+    #[serde(default)]
+    pub concentration: CounterpartyConcentrationConfig,
 }
 
 impl Default for DocumentFlowConfig {
@@ -3661,7 +3669,69 @@ impl Default for DocumentFlowConfig {
             o2c: O2CFlowConfig::default(),
             generate_document_references: true,
             export_flow_graph: false,
+            concentration: CounterpartyConcentrationConfig::default(),
         }
+    }
+}
+
+/// Spec 19 §4-R1 (R1b) counterparty-concentration configuration.
+///
+/// Opt-in Pareto concentration for document-flow counterparty selection. **Absent / `enabled:
+/// false` is the default**, and in that state the engine keeps the exact `i % len` round-robin, so a
+/// build with no concentration block is byte-for-byte identical to the pre-R1b engine (the
+/// manufacturing-golden invariant). Only when `enabled` is true AND a per-cycle `top_n_share` names
+/// a real target above the uniform head share does the weighted draw replace round-robin for that
+/// cycle.
+///
+/// Named `Counterparty...` to disambiguate from the post-generation `ConcentrationConfig` pass
+/// pipeline (`schema.rs` ~9886) — a different, unrelated feature.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CounterpartyConcentrationConfig {
+    /// Master switch. Default `false` → uniform round-robin (byte-identical to pre-R1b).
+    #[serde(default)]
+    pub enabled: bool,
+    /// The `N` in "top-N counterparties carry `top_n_share` of the volume". Default 5 (matches
+    /// SHAPE-DB-001's default `top_n`).
+    #[serde(default = "default_concentration_top_n")]
+    pub top_n: usize,
+    /// Target fraction of P2P volume carried by the top-`top_n` **vendors**. `0.0` (default) → this
+    /// cycle stays round-robin even when `enabled`. A value at/below the uniform head share
+    /// (`top_n / vendor_count`) or `>= 1.0` is degenerate and also stays round-robin.
+    #[serde(default)]
+    pub vendor_top_n_share: f64,
+    /// Target fraction of O2C volume carried by the top-`top_n` **customers** (same semantics as
+    /// `vendor_top_n_share`).
+    #[serde(default)]
+    pub customer_top_n_share: f64,
+}
+
+fn default_concentration_top_n() -> usize {
+    5
+}
+
+impl Default for CounterpartyConcentrationConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            top_n: default_concentration_top_n(),
+            vendor_top_n_share: 0.0,
+            customer_top_n_share: 0.0,
+        }
+    }
+}
+
+impl CounterpartyConcentrationConfig {
+    /// Whether the P2P (vendor) loop should use a weighted draw: enabled AND a positive target.
+    /// The `ConcentrationSampler` itself falls back to uniform for a degenerate target, but gating
+    /// here keeps the OFF path on the exact `i % len` code (never a weighted draw that happens to be
+    /// uniform).
+    pub fn vendor_active(&self) -> bool {
+        self.enabled && self.vendor_top_n_share > 0.0
+    }
+
+    /// Whether the O2C (customer) loop should use a weighted draw. See [`Self::vendor_active`].
+    pub fn customer_active(&self) -> bool {
+        self.enabled && self.customer_top_n_share > 0.0
     }
 }
 
