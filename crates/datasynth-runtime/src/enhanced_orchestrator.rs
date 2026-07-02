@@ -5682,10 +5682,11 @@ impl EnhancedOrchestrator {
         // --- Depreciation JEs (per asset) ---
         // Compute period depreciation for each active fixed asset using straight-line method.
         // period_depreciation = (acquisition_cost - salvage_value) / useful_life_months * period_months
-        // spec 27 R6d: when the WIP FA-depr-into-GL path (`post_depreciation_jes`) is active,
-        // `phase_document_flows` already posts the per-asset depreciation JEs (DR 680000-range expense
-        // / CR 165000-range accum-dep) into the GL, so this always-on block MUST NOT also post its
-        // 6000/1510 depreciation — that would double-count. Skip it by iterating an empty slice.
+        // spec 27 R6d: when the FA-depr-into-GL path (`post_depreciation_jes`) is active,
+        // `phase_document_flows` already posts the per-asset depreciation JEs (DR 7100 depreciation
+        // expense / CR per-class 15x9 accum-dep, from `run_depreciation`'s account determination)
+        // into the GL, so this always-on block MUST NOT also post its 6000/1510 depreciation — that
+        // would double-count. Skip it by iterating an empty slice.
         // Default off → the block runs unchanged (byte-identical).
         let period_months = self.config.global.period_months;
         let fa_records_for_depr: &[_] = if self.config.period_close.post_depreciation_jes {
