@@ -136,6 +136,10 @@ impl BankReconciliationGenerator {
     /// * `period_end` - End of the reconciliation period (inclusive).
     /// * `currency` - ISO 4217 currency code.
     /// * `payments` - Internal payment/receipt records to match against.
+    /// * `gl_cash_ending` - When `Some`, RE-ANCHORS the reconciliation's book side to the actual
+    ///   general-ledger cash ending balance (F1 Cash_Treasury real tie) so `book_ending_balance`
+    ///   equals GL cash by construction. When `None`, the legacy random-opening back-solve runs
+    ///   byte-identically (the flag-gated, off-by-default path).
     pub fn generate(
         &mut self,
         company_code: &str,
@@ -144,11 +148,14 @@ impl BankReconciliationGenerator {
         period_end: NaiveDate,
         currency: &str,
         payments: &[PaymentReference],
+        gl_cash_ending: Option<Decimal>,
     ) -> BankReconciliation {
         let reconciliation_id = self.uuid_factory.next().to_string();
 
         // --- Opening balance ---
-        let opening_balance = self.random_opening_balance();
+        // Always drawn (preserves the seeded RNG draw order); overridden below only when a GL cash
+        // figure is supplied, so the off path stays byte-identical.
+        let mut opening_balance = self.random_opening_balance();
 
         // --- Build statement lines from payments ---
         let mut statement_lines: Vec<BankStatementLine> = Vec::new();
@@ -236,7 +243,7 @@ impl BankReconciliationGenerator {
                 Direction::Outflow => total_debits += line.amount,
             }
         }
-        let bank_ending_balance = opening_balance + total_credits - total_debits;
+        let mut bank_ending_balance = opening_balance + total_credits - total_debits;
 
         // Adjusted bank balance: bank_ending_balance
         //   - outstanding checks (subtract, because bank hasn't paid them yet)
@@ -269,7 +276,21 @@ impl BankReconciliationGenerator {
         }
         // book_ending_balance + book_adjustment = adjusted_bank_balance
         // so book_ending_balance = adjusted_bank_balance - book_adjustment
-        let book_ending_balance = adjusted_bank_balance - book_adjustment;
+        let mut book_ending_balance = adjusted_bank_balance - book_adjustment;
+
+        // --- F1 Cash_Treasury real tie: RE-ANCHOR the book side to the actual GL cash balance ---
+        // When gl_cash_ending is supplied the reconciliation's BOOK balance is set to the real GL
+        // cash ending balance (so CASH-DB-001 ties to the cent by construction), and the bank side +
+        // opening balance are solved so the rec still nets to zero and keeps its reconciling structure
+        // (statement lines + items are already fixed, seeded identically to the off path). When None,
+        // nothing changes here → the legacy random-opening path is byte-identical.
+        if let Some(gl_cash) = gl_cash_ending {
+            book_ending_balance = gl_cash;
+            // net_difference == 0 requires (bank_ending + bank_adjustment) == (book_ending + book_adjustment).
+            bank_ending_balance = book_ending_balance + book_adjustment - bank_adjustment;
+            // and bank_ending == opening + total_credits - total_debits.
+            opening_balance = bank_ending_balance - total_credits + total_debits;
+        }
 
         // --- Status ---
         let has_unmatched = statement_lines
@@ -284,8 +305,11 @@ impl BankReconciliationGenerator {
             ReconciliationStatus::InProgress
         };
 
-        // Net difference should be zero when fully reconciled.
-        let net_difference = adjusted_bank_balance - (book_ending_balance + book_adjustment);
+        // Net difference should be zero when fully reconciled. Recomputed from the (possibly
+        // re-anchored) bank side; on the off path bank_ending_balance is unchanged so this equals the
+        // original `adjusted_bank_balance - (book_ending_balance + book_adjustment)` byte-for-byte.
+        let net_difference =
+            (bank_ending_balance + bank_adjustment) - (book_ending_balance + book_adjustment);
 
         // Preparer / reviewer – use real employee IDs when available
         let preparer_id = if self.employee_ids_pool.is_empty() {
@@ -571,7 +595,7 @@ mod tests {
         let period_end = NaiveDate::from_ymd_opt(2024, 1, 31).unwrap();
         let payments = sample_payments(period_start);
 
-        let recon = gen.generate("C001", "BA-001", period_start, period_end, "USD", &payments);
+        let recon = gen.generate("C001", "BA-001", period_start, period_end, "USD", &payments, None);
 
         // Basic field checks
         assert!(!recon.reconciliation_id.is_empty());
@@ -608,7 +632,7 @@ mod tests {
         let period_end = NaiveDate::from_ymd_opt(2024, 3, 31).unwrap();
         let payments = sample_payments(period_start);
 
-        let recon = gen.generate("C001", "BA-002", period_start, period_end, "USD", &payments);
+        let recon = gen.generate("C001", "BA-002", period_start, period_end, "USD", &payments, None);
 
         // closing_balance = opening_balance + total_credits - total_debits
         let mut total_credits = Decimal::ZERO;
@@ -641,10 +665,12 @@ mod tests {
         let payments = sample_payments(period_start);
 
         let mut gen1 = BankReconciliationGenerator::new(12345);
-        let recon1 = gen1.generate("C001", "BA-003", period_start, period_end, "EUR", &payments);
+        let recon1 =
+            gen1.generate("C001", "BA-003", period_start, period_end, "EUR", &payments, None);
 
         let mut gen2 = BankReconciliationGenerator::new(12345);
-        let recon2 = gen2.generate("C001", "BA-003", period_start, period_end, "EUR", &payments);
+        let recon2 =
+            gen2.generate("C001", "BA-003", period_start, period_end, "EUR", &payments, None);
 
         assert_eq!(recon1.reconciliation_id, recon2.reconciliation_id);
         assert_eq!(recon1.opening_balance, recon2.opening_balance);
@@ -693,7 +719,7 @@ mod tests {
             });
         }
 
-        let recon = gen.generate("C002", "BA-010", period_start, period_end, "USD", &payments);
+        let recon = gen.generate("C002", "BA-010", period_start, period_end, "USD", &payments, None);
 
         let auto_count = recon
             .statement_lines
@@ -759,7 +785,7 @@ mod tests {
         let period_start = NaiveDate::from_ymd_opt(2024, 2, 1).unwrap();
         let period_end = NaiveDate::from_ymd_opt(2024, 2, 29).unwrap();
 
-        let recon = gen.generate("C001", "BA-005", period_start, period_end, "GBP", &[]);
+        let recon = gen.generate("C001", "BA-005", period_start, period_end, "GBP", &[], None);
 
         // Even with no payments, we should get bank-only lines.
         assert!(
@@ -776,7 +802,7 @@ mod tests {
         let period_end = NaiveDate::from_ymd_opt(2024, 4, 30).unwrap();
         let payments = sample_payments(period_start);
 
-        let recon = gen.generate("C001", "BA-006", period_start, period_end, "USD", &payments);
+        let recon = gen.generate("C001", "BA-006", period_start, period_end, "USD", &payments, None);
 
         for window in recon.statement_lines.windows(2) {
             assert!(
@@ -786,5 +812,58 @@ mod tests {
                 window[1].statement_date,
             );
         }
+    }
+
+    #[test]
+    fn test_gl_cash_reanchor_ties_book_to_supplied_balance() {
+        // F1 Cash_Treasury real tie. When a GL cash ending balance is supplied, the reconciliation's
+        // BOOK side must equal it exactly, the rec must still net to zero, and the whole thing must
+        // keep the SAME reconciling structure the off path produces (same seed → same statement
+        // lines + items): only the three balances re-anchor.
+        let period_start = NaiveDate::from_ymd_opt(2024, 7, 1).unwrap();
+        let period_end = NaiveDate::from_ymd_opt(2024, 7, 31).unwrap();
+        let payments = sample_payments(period_start);
+
+        let mut gen_off = BankReconciliationGenerator::new(4242);
+        let off =
+            gen_off.generate("C001", "BA-007", period_start, period_end, "USD", &payments, None);
+
+        let gl_cash = Decimal::new(500_000_00, 2); // $500,000.00, deliberately ≠ the random book
+        let mut gen_on = BankReconciliationGenerator::new(4242);
+        let on = gen_on.generate(
+            "C001",
+            "BA-007",
+            period_start,
+            period_end,
+            "USD",
+            &payments,
+            Some(gl_cash),
+        );
+
+        // 1) The book side ties to GL cash by construction.
+        assert_eq!(on.book_ending_balance, gl_cash);
+        // 2) The reconciliation still nets to zero.
+        assert_eq!(on.net_difference, Decimal::ZERO);
+        // 3) The reconciling STRUCTURE is untouched — same seed → identical lines and items.
+        assert_eq!(on.statement_lines.len(), off.statement_lines.len());
+        for (a, b) in on.statement_lines.iter().zip(off.statement_lines.iter()) {
+            assert_eq!(a.line_id, b.line_id);
+            assert_eq!(a.amount, b.amount);
+            assert_eq!(a.direction, b.direction);
+            assert_eq!(a.match_status, b.match_status);
+        }
+        assert_eq!(on.reconciling_items.len(), off.reconciling_items.len());
+        for (a, b) in on.reconciling_items.iter().zip(off.reconciling_items.iter()) {
+            assert_eq!(a.item_id, b.item_id);
+            assert_eq!(a.item_type, b.item_type);
+            assert_eq!(a.amount, b.amount);
+        }
+        // 4) The whole rec shifts rigidly by (gl_cash − off.book): the reconciling adjustments are
+        //    identical, so bank and opening move by exactly the same delta as the book side.
+        let delta = gl_cash - off.book_ending_balance;
+        assert_eq!(on.bank_ending_balance - off.bank_ending_balance, delta);
+        assert_eq!(on.opening_balance - off.opening_balance, delta);
+        // 5) Off path is unchanged (still nets to zero via the legacy back-solve).
+        assert_eq!(off.net_difference, Decimal::ZERO);
     }
 }

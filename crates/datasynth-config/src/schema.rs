@@ -12643,6 +12643,15 @@ pub struct FinancialReportingConfig {
     /// Budget configuration
     #[serde(default)]
     pub budgets: BudgetConfig,
+    /// F1 Cash_Treasury real tie. When `true`, each generated bank reconciliation's book (GL) ending
+    /// balance is re-anchored to the company's actual general-ledger cash ending balance as-at the
+    /// period end — the sum over cash accounts (`AccountSubType::Cash`) of debit − credit for JE
+    /// lines dated on/before the period end — so the delivered reconciliation ties to GL cash by
+    /// construction, and the bank side + opening balance are solved so the rec still nets to zero.
+    /// When `false` (default) the legacy random-opening back-solve runs and the output is
+    /// byte-identical to the pre-tie behaviour.
+    #[serde(default)]
+    pub bank_reconciliation_tie_to_gl: bool,
 }
 
 impl Default for FinancialReportingConfig {
@@ -12656,6 +12665,7 @@ impl Default for FinancialReportingConfig {
             comparative_periods: default_comparative_periods(),
             management_kpis: ManagementKpisConfig::default(),
             budgets: BudgetConfig::default(),
+            bank_reconciliation_tie_to_gl: false,
         }
     }
 }

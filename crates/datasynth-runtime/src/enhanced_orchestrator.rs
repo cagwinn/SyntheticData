@@ -7793,6 +7793,22 @@ impl EnhancedOrchestrator {
             let mut br_gen =
                 BankReconciliationGenerator::new(seed + 25).with_employee_pool(employee_ids);
 
+            // F1 Cash_Treasury real tie: the set of cash-account codes — accounts whose sub_type is
+            // `AccountSubType::Cash`. This is the SAME classification the product loader records as
+            // `account_category = 'cash'` (it stores the serialized sub_type) and the CASH-DB-001
+            // reconciler ties against, so the engine and the product agree on which accounts are
+            // "cash" by construction. Empty (and the whole tie is skipped) unless opted in.
+            let tie_book_to_gl = self.config.financial_reporting.bank_reconciliation_tie_to_gl;
+            let cash_account_codes: std::collections::HashSet<&str> = if tie_book_to_gl {
+                coa.accounts
+                    .iter()
+                    .filter(|a| a.sub_type == AccountSubType::Cash)
+                    .map(|a| a.account_number.as_str())
+                    .collect()
+            } else {
+                std::collections::HashSet::new()
+            };
+
             // Group payments by company code and period
             for company in &self.config.companies {
                 let company_payments: Vec<PaymentReference> = document_flows
@@ -7829,6 +7845,32 @@ impl EnhancedOrchestrator {
                         .cloned()
                         .collect();
 
+                    // GL cash ending balance as-at period_end for this company: Σ(debit − credit)
+                    // over the cash accounts for every JE line dated in [start_date, period_end].
+                    // This mirrors the product's cumulative debit-positive balance derivation over
+                    // the same JE lines and the same cash-account set, so the reconciliation's book
+                    // side ties to the delivered GL cash to the cent. `None` (the legacy random-
+                    // opening back-solve) when the tie is off → byte-identical output.
+                    let gl_cash_ending: Option<rust_decimal::Decimal> = if tie_book_to_gl {
+                        let mut bal = rust_decimal::Decimal::ZERO;
+                        for je in journal_entries {
+                            if je.header.company_code != company.code
+                                || je.header.document_date < start_date
+                                || je.header.document_date > period_end
+                            {
+                                continue;
+                            }
+                            for line in &je.lines {
+                                if cash_account_codes.contains(line.gl_account.as_str()) {
+                                    bal += line.debit_amount - line.credit_amount;
+                                }
+                            }
+                        }
+                        Some(bal)
+                    } else {
+                        None
+                    };
+
                     let recon = br_gen.generate(
                         &company.code,
                         &bank_account_id,
@@ -7836,6 +7878,7 @@ impl EnhancedOrchestrator {
                         period_end,
                         &company.currency,
                         &period_payments,
+                        gl_cash_ending,
                     );
                     bank_reconciliations.push(recon);
                 }
