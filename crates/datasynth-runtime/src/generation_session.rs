@@ -100,6 +100,11 @@ impl GenerationSession {
         // when off, so every existing multi-FY build is unaffected.
         let phase_config = PhaseConfig {
             monthly_recurring: config.period_close.monthly_recurring,
+            // Spec 28: debt principal repayment + payroll gross-to-net fire for EVERY fiscal year
+            // (unlike inception, which the per-period block below restricts to FY1) — opt-in via
+            // financial_reporting, byte-identical when off. The per-period clone preserves these.
+            emit_debt_repayment: config.financial_reporting.amortize_debt_principal,
+            emit_payroll_gross_to_net: config.financial_reporting.payroll_gross_to_net,
             ..PhaseConfig::default()
         };
 
@@ -147,6 +152,11 @@ impl GenerationSession {
         // W1-3 Stage 1: see `new` — propagate only the monthly-recurring flag.
         let phase_config = PhaseConfig {
             monthly_recurring: config.period_close.monthly_recurring,
+            // Spec 28: debt principal repayment + payroll gross-to-net fire for EVERY fiscal year
+            // (unlike inception, which the per-period block below restricts to FY1) — opt-in via
+            // financial_reporting, byte-identical when off. The per-period clone preserves these.
+            emit_debt_repayment: config.financial_reporting.amortize_debt_principal,
+            emit_payroll_gross_to_net: config.financial_reporting.payroll_gross_to_net,
             ..PhaseConfig::default()
         };
 
@@ -417,7 +427,9 @@ impl GenerationSession {
         period: &GenerationPeriod,
         result: &mut crate::enhanced_orchestrator::EnhancedGenerationResult,
     ) {
-        use datasynth_core::models::balance::{AccountType as BalAccountType, EntityOpeningBalance};
+        use datasynth_core::models::balance::{
+            AccountType as BalAccountType, EntityOpeningBalance,
+        };
         use datasynth_core::models::{AccountType as CoaAccountType, YearEndClosingSpec};
         use datasynth_core::FrameworkAccounts;
         use datasynth_generators::period_close::{YearEndCloseConfig, YearEndCloseGenerator};
@@ -488,7 +500,8 @@ impl GenerationSession {
 
         // --- (2) Run the close, namespace, and append. ----------------------
         let mut close_gen = YearEndCloseGenerator::new(YearEndCloseConfig::from(&fa));
-        let mut close = close_gen.generate_year_end_close(&company_code, fiscal_year, &close_tb, &spec);
+        let mut close =
+            close_gen.generate_year_end_close(&company_code, fiscal_year, &close_tb, &spec);
         debug_assert!(
             close.all_entries_balanced(),
             "year-end closing entries must balance"
@@ -535,7 +548,10 @@ impl GenerationSession {
             // Keep ONLY balance-sheet accounts; drop Revenue/Expense (they
             // reset to zero next FY — net income is already in retained
             // earnings via the close).
-            if matches!(account_type, BalAccountType::Revenue | BalAccountType::Expense) {
+            if matches!(
+                account_type,
+                BalAccountType::Revenue | BalAccountType::Expense
+            ) {
                 continue;
             }
             // Decompose the signed debit-net into a single side. For a

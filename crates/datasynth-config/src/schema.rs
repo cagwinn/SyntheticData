@@ -12652,6 +12652,22 @@ pub struct FinancialReportingConfig {
     /// byte-identical to the pre-tie behaviour.
     #[serde(default)]
     pub bank_reconciliation_tie_to_gl: bool,
+    /// Spec 28 debt slice-2 — the amortization cash arc. When `true`, the engine posts an in-horizon
+    /// principal-repayment JE (DR Long-Term Debt 2600 / CR Operating Cash 1000) for each scheduled
+    /// `AmortizationPayment` whose date falls in the period, walked off the instrument's already-
+    /// generated `amortization_schedule` (no new sampling), so the focal debt principal actually
+    /// amortizes instead of staying flat after inception. When `false` (default) no repayment JE is
+    /// emitted → byte-identical to the pre-slice-2 behaviour.
+    #[serde(default)]
+    pub amortize_debt_principal: bool,
+    /// Spec 28 payroll gross-to-net — the 9100 clearing relief (aggregate, no per-employee detail).
+    /// When `true`, each payroll run posts a second aggregate JE relieving the payroll-clearing
+    /// accrual (DR Payroll Clearing 9100 gross / CR Operating Cash 1000 net + CR Withholding Tax
+    /// Payable 2120 deductions), using the run's existing `total_net` / `total_deductions` (no new
+    /// sampling), so 9100 washes to ~0 each period instead of growing unboundedly. When `false`
+    /// (default) only the gross accrual posts → byte-identical to the pre-gross-to-net behaviour.
+    #[serde(default)]
+    pub payroll_gross_to_net: bool,
 }
 
 impl Default for FinancialReportingConfig {
@@ -12666,6 +12682,8 @@ impl Default for FinancialReportingConfig {
             management_kpis: ManagementKpisConfig::default(),
             budgets: BudgetConfig::default(),
             bank_reconciliation_tie_to_gl: false,
+            amortize_debt_principal: false,
+            payroll_gross_to_net: false,
         }
     }
 }

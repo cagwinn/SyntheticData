@@ -374,6 +374,17 @@ pub struct PhaseConfig {
     /// because it regenerates the instruments each FY with that FY's origination date — without
     /// this gate the principal issuance would re-fire every year and inflate cash + long-term debt.
     pub emit_debt_inception: bool,
+    /// Spec 28 debt slice-2: post the in-horizon principal-repayment JE (DR Long-Term Debt 2600 /
+    /// CR Operating Cash 1000) for each scheduled `AmortizationPayment` in the slice window. UNLIKE
+    /// `emit_debt_inception` (FY1-only), the session sets this true for EVERY period so later-year
+    /// principal repays; the schedule's per-period date filter keeps it idempotent across FY slices.
+    /// Off by default → byte-identical.
+    pub emit_debt_repayment: bool,
+    /// Spec 28 payroll gross-to-net: post the aggregate 9100-clearing relief JE (DR Payroll Clearing
+    /// 9100 gross / CR Operating Cash 1000 net + CR Withholding Tax Payable 2120 deductions) per
+    /// payroll run, off the run's existing `total_net` / `total_deductions`. Off by default →
+    /// byte-identical.
+    pub emit_payroll_gross_to_net: bool,
     /// spec 27 R6c: post the inventory→GL true-up close JE (DR/CR Inventory 1200 vs opening equity
     /// for the delta to the physical EOT inventory). Off by default → byte-identical; the product
     /// close overlay sets it true so INV-DB-001 (inventory subledger ↔ GL) ties.
@@ -443,6 +454,8 @@ impl Default for PhaseConfig {
             skip_income_statement_close: false, // Off by default (only the session sets it true)
             monthly_recurring: false,           // Off by default → byte-identical lumped output
             emit_debt_inception: true,          // Single-period/batch issues debt principal once
+            emit_debt_repayment: false,         // Spec 28 slice-2: off by default → byte-identical
+            emit_payroll_gross_to_net: false,   // Spec 28: off by default → byte-identical
             post_inventory_close: false,        // R6c: off by default → byte-identical
             generate_hr: false,                 // Off by default
             generate_treasury: false,           // Off by default
@@ -477,6 +490,12 @@ impl PhaseConfig {
             // The single-period CLI path issues debt principal once. The multi-year session
             // overrides this to fire only in FY1 (period_cursor == 0) so it is not re-issued.
             emit_debt_inception: true,
+            // Spec 28 debt slice-2 (principal repayment) + payroll gross-to-net: opt-in via YAML
+            // financial_reporting; the single-period CLI path honours them directly. The multi-year
+            // session sets repayment true for EVERY FY (see GenerationSession) so later-year
+            // principal repays.
+            emit_debt_repayment: cfg.financial_reporting.amortize_debt_principal,
+            emit_payroll_gross_to_net: cfg.financial_reporting.payroll_gross_to_net,
             // R6c: inventory→GL close true-up, opt-in via the YAML (product close overlay).
             post_inventory_close: cfg.period_close.post_inventory_close,
             generate_evolution_events: true,
@@ -3413,7 +3432,10 @@ impl EnhancedOrchestrator {
 
         // Phase 6b: Generate JEs from payroll runs
         if !hr.payroll_runs.is_empty() {
-            let payroll_jes = Self::generate_payroll_jes(&hr.payroll_runs);
+            let payroll_jes = Self::generate_payroll_jes(
+                &hr.payroll_runs,
+                self.phase_config.emit_payroll_gross_to_net,
+            );
             debug!("Generated {} JEs from payroll runs", payroll_jes.len());
             entries.extend(payroll_jes);
         }
@@ -7798,7 +7820,10 @@ impl EnhancedOrchestrator {
             // `account_category = 'cash'` (it stores the serialized sub_type) and the CASH-DB-001
             // reconciler ties against, so the engine and the product agree on which accounts are
             // "cash" by construction. Empty (and the whole tie is skipped) unless opted in.
-            let tie_book_to_gl = self.config.financial_reporting.bank_reconciliation_tie_to_gl;
+            let tie_book_to_gl = self
+                .config
+                .financial_reporting
+                .bank_reconciliation_tie_to_gl;
             let cash_account_codes: std::collections::HashSet<&str> = if tie_book_to_gl {
                 coa.accounts
                     .iter()
@@ -11287,6 +11312,72 @@ impl EnhancedOrchestrator {
                         treasury_jes.push(je);
                     }
                 }
+                // Spec 28 debt slice-2 — the amortization cash arc. Post an in-horizon principal-
+                // repayment JE (DR Long-Term Debt 2600 / CR Operating Cash 1000) for each scheduled
+                // AmortizationPayment whose date falls in this slice, walked off the instrument's
+                // already-generated `amortization_schedule` (no new sampling → determinism preserved).
+                // UNLIKE inception (FY1-only), this fires every slice so later-year principal repays;
+                // the per-row date filter is the idempotency guard against re-posting a prior/future
+                // year's principal. Principal-only — interest continues on the separate JE-TREAS-INT
+                // path, so the existing interest arc stays byte-identical. Inert without the flag.
+                if self.phase_config.emit_debt_repayment {
+                    use datasynth_core::accounts::{cash_accounts, liability_accounts};
+                    let pay_slice_start = start_date;
+                    let pay_slice_end = end_date - chrono::Days::new(1);
+                    for debt in &snapshot.debt_instruments {
+                        for (idx, row) in debt.amortization_schedule.iter().enumerate() {
+                            if row.date < pay_slice_start || row.date > pay_slice_end {
+                                continue;
+                            }
+                            if row.principal_payment <= Decimal::ZERO {
+                                continue;
+                            }
+                            let mut je = JournalEntry::new_simple(
+                                format!("JE-TREAS-DEBT-PAY-{}-{}", debt.id, idx + 1),
+                                debt.entity_id.clone(),
+                                row.date,
+                                format!(
+                                    "Debt principal repayment — {} to {}",
+                                    debt.id, debt.lender
+                                ),
+                            );
+                            je.header.currency = debt.currency.clone();
+                            je.header.business_process = Some(BusinessProcess::Treasury);
+                            je.header.source = TransactionSource::Automated;
+                            let doc_id = je.header.document_id;
+                            // DR Long-Term Debt (2600) — reduce the principal liability. Stamp the
+                            // same (Debt, debt.id) subledger dimension as inception ("payment") so
+                            // the drawdown attributes to the instrument bucket, not '(unattributed)'.
+                            je.add_line(
+                                JournalEntryLine::debit(
+                                    doc_id,
+                                    1,
+                                    liability_accounts::LONG_TERM_DEBT.to_string(),
+                                    row.principal_payment,
+                                )
+                                .with_subledger_ref(
+                                    SubledgerRef::new(
+                                        SubledgerType::Debt,
+                                        debt.id.clone(),
+                                        Some("payment".to_string()),
+                                    ),
+                                ),
+                            );
+                            // CR Operating Cash (1000)
+                            je.add_line(JournalEntryLine::credit(
+                                doc_id,
+                                2,
+                                cash_accounts::OPERATING_CASH.to_string(),
+                                row.principal_payment,
+                            ));
+                            debug_assert!(
+                                je.is_balanced(),
+                                "Debt principal repayment JE must balance"
+                            );
+                            treasury_jes.push(je);
+                        }
+                    }
+                }
                 if self.phase_config.monthly_recurring {
                     use datasynth_core::accounts::{expense_accounts, treasury_accounts};
                     let month_ends = self.recurring_month_ends()?;
@@ -13550,7 +13641,7 @@ impl EnhancedOrchestrator {
     /// Creates one JE per payroll run:
     /// - DR Salaries & Wages (6100) for gross pay
     /// - CR Payroll Clearing (9100) for gross pay
-    fn generate_payroll_jes(payroll_runs: &[PayrollRun]) -> Vec<JournalEntry> {
+    fn generate_payroll_jes(payroll_runs: &[PayrollRun], gross_to_net: bool) -> Vec<JournalEntry> {
         use datasynth_core::accounts::{expense_accounts, suspense_accounts};
 
         let mut jes = Vec::with_capacity(payroll_runs.len());
@@ -13600,6 +13691,56 @@ impl EnhancedOrchestrator {
             });
 
             jes.push(je);
+
+            // Spec 28 payroll gross-to-net — the aggregate 9100-clearing relief (no per-employee
+            // detail). Off ⇒ not emitted (byte-identical). DR Payroll Clearing 9100 (gross) /
+            // CR Operating Cash 1000 (net pay) + CR Withholding Tax Payable 2120 (gross − net). Using
+            // (gross − net) for the withholding leg guarantees the JE balances AND fully relieves the
+            // gross accrual by construction, so 9100 washes to ~0 each run.
+            if gross_to_net {
+                use datasynth_core::accounts::{cash_accounts, tax_accounts};
+                let withholding = run.total_gross - run.total_net;
+                let mut relief = JournalEntry::new_simple(
+                    format!("JE-PAYROLL-RELIEF-{}", run.payroll_id),
+                    run.company_code.clone(),
+                    run.run_date,
+                    format!(
+                        "Payroll settlement {} (net pay + withholdings)",
+                        run.payroll_id
+                    ),
+                );
+                // DR Payroll Clearing 9100 — relieve the gross accrual.
+                relief.add_line(JournalEntryLine {
+                    line_number: 1,
+                    gl_account: suspense_accounts::PAYROLL_CLEARING.to_string(),
+                    debit_amount: run.total_gross,
+                    reference: Some(run.payroll_id.clone()),
+                    subledger_ref: Some(SubledgerRef::new(
+                        SubledgerType::Payroll,
+                        run.payroll_id.clone(),
+                        None,
+                    )),
+                    ..Default::default()
+                });
+                // CR Operating Cash 1000 — net-pay disbursement.
+                relief.add_line(JournalEntryLine {
+                    line_number: 2,
+                    gl_account: cash_accounts::OPERATING_CASH.to_string(),
+                    credit_amount: run.total_net,
+                    reference: Some(run.payroll_id.clone()),
+                    ..Default::default()
+                });
+                // CR Withholding Tax Payable 2120 — the withholding liability (gross − net).
+                relief.add_line(JournalEntryLine {
+                    line_number: 3,
+                    gl_account: tax_accounts::WITHHOLDING_TAX_PAYABLE.to_string(),
+                    credit_amount: withholding,
+                    reference: Some(run.payroll_id.clone()),
+                    ..Default::default()
+                });
+                debug_assert!(relief.is_balanced(), "Payroll settlement JE must balance");
+                jes.push(relief);
+            }
         }
 
         jes
@@ -18162,6 +18303,89 @@ mod tests {
         }
     }
 
+    fn mk_payroll_run(id: &str, gross: &str, net: &str) -> PayrollRun {
+        use rust_decimal::Decimal;
+        use std::str::FromStr;
+        let d = chrono::NaiveDate::from_ymd_opt(2024, 1, 31).unwrap();
+        PayrollRun {
+            company_code: "1000".to_string(),
+            payroll_id: id.to_string(),
+            pay_period_start: d,
+            pay_period_end: d,
+            run_date: d,
+            status: PayrollRunStatus::Posted,
+            total_gross: Decimal::from_str(gross).unwrap(),
+            total_deductions: Decimal::from_str(gross).unwrap() - Decimal::from_str(net).unwrap(),
+            total_net: Decimal::from_str(net).unwrap(),
+            total_employer_cost: Decimal::from_str(gross).unwrap(),
+            employee_count: 10,
+            currency: "USD".to_string(),
+            posted_by: None,
+            approved_by: None,
+        }
+    }
+
+    // Spec 28 payroll gross-to-net: OFF is byte-identical (one accrual JE per run); ON adds a
+    // balanced aggregate relief JE per run that clears 9100 by construction (DR 9100 gross /
+    // CR 1000 net + CR 2120 withholding), so the two JEs' net effect on 9100 is exactly zero.
+    #[test]
+    fn test_payroll_gross_to_net_off_is_unchanged() {
+        let runs = vec![mk_payroll_run("PR-1", "100000", "72000")];
+        let jes = EnhancedOrchestrator::generate_payroll_jes(&runs, false);
+        assert_eq!(jes.len(), 1, "off: exactly the accrual JE, no relief JE");
+        assert!(jes.iter().all(|je| je.is_balanced()));
+        assert!(
+            !jes.iter()
+                .any(|je| je.header.reference.as_deref() == Some("JE-PAYROLL-RELIEF-PR-1")),
+            "off: no relief JE is emitted"
+        );
+    }
+
+    #[test]
+    fn test_payroll_gross_to_net_relief_clears_9100() {
+        use rust_decimal::Decimal;
+        use std::str::FromStr;
+        let runs = vec![mk_payroll_run("PR-1", "100000", "72000")];
+        let jes = EnhancedOrchestrator::generate_payroll_jes(&runs, true);
+        assert_eq!(jes.len(), 2, "on: accrual JE + relief JE");
+        assert!(jes.iter().all(|je| je.is_balanced()), "both JEs balance");
+
+        let relief = jes
+            .iter()
+            .find(|je| je.header.reference.as_deref() == Some("JE-PAYROLL-RELIEF-PR-1"))
+            .expect("relief JE present");
+        // DR 9100 gross; CR 1000 net; CR 2120 withholding (gross - net).
+        let dr_9100: Decimal = relief
+            .lines
+            .iter()
+            .filter(|l| l.gl_account == "9100")
+            .map(|l| l.debit_amount)
+            .sum();
+        let cr_1000: Decimal = relief
+            .lines
+            .iter()
+            .filter(|l| l.gl_account == "1000")
+            .map(|l| l.credit_amount)
+            .sum();
+        let cr_2120: Decimal = relief
+            .lines
+            .iter()
+            .filter(|l| l.gl_account == "2120")
+            .map(|l| l.credit_amount)
+            .sum();
+        assert_eq!(dr_9100, Decimal::from_str("100000").unwrap());
+        assert_eq!(cr_1000, Decimal::from_str("72000").unwrap());
+        assert_eq!(cr_2120, Decimal::from_str("28000").unwrap()); // gross - net
+        // Net movement on 9100 across BOTH JEs is zero (accrual CR gross vs relief DR gross).
+        let net_9100: Decimal = jes
+            .iter()
+            .flat_map(|je| je.lines.iter())
+            .filter(|l| l.gl_account == "9100")
+            .map(|l| l.credit_amount - l.debit_amount)
+            .sum();
+        assert_eq!(net_9100, Decimal::ZERO, "9100 washes to zero when relief is on");
+    }
+
     #[test]
     fn test_enhanced_orchestrator_creation() {
         let config = create_test_config();
@@ -18453,6 +18677,10 @@ mod tests {
         assert!(config.show_progress);
         assert!(config.vendors_per_company > 0);
         assert!(config.customers_per_company > 0);
+        // Spec 28 slice-2: both new posting flags default OFF → a default build is byte-identical
+        // (no debt-repayment JEs, no payroll relief JEs) until the config opts in.
+        assert!(!config.emit_debt_repayment);
+        assert!(!config.emit_payroll_gross_to_net);
     }
 
     #[test]
